@@ -133,7 +133,7 @@ export function CustomerSelector() {
                       </div>
                       {customer.creditLimit && (
                         <div className="text-xs text-green-600 mt-1">
-                          Credit Limit: Rp. {customer.creditLimit.toLocaleString()}
+                          Credit Limit: KSH {customer.creditLimit.toLocaleString()}
                         </div>
                       )}
                     </div>

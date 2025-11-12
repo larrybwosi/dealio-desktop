@@ -185,7 +185,7 @@ export function OrderDetails() {
                       </div>
 
                       <div className="flex items-center justify-between mt-2">
-                        <span className="font-semibold text-sm">Rp. {price.toLocaleString()}</span>
+                        <span className="font-semibold text-sm">KSH. {price.toLocaleString()}</span>
                         <span className="text-sm text-muted-foreground">x{item.quantity}</span>
                       </div>
                     </div>
@@ -204,7 +204,7 @@ export function OrderDetails() {
           <div className="pt-3 border-t border-border">
             <div className="flex justify-between items-center mb-4">
               <span className="font-semibold">Total</span>
-              <span className="text-xl font-bold">Rp. {total.toLocaleString()}</span>
+              <span className="text-xl font-bold">KSH. {total.toLocaleString()}</span>
             </div>
 
             <div className="space-y-2">

@@ -146,11 +146,11 @@ export function PaymentDialog({ open, onOpenChange, orderDetails, orderId }: Pay
             </div>
             <div className="flex justify-between text-sm">
               <span>Sub Total (excl. tax):</span>
-              <span>Rp. {orderDetails.subTotal.toLocaleString()}</span>
+              <span>KSH. {orderDetails.subTotal.toLocaleString()}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>Tax (included in prices):</span>
-              <span>Rp. {orderDetails.taxes.toLocaleString()}</span>
+              <span>KSH. {orderDetails.taxes.toLocaleString()}</span>
             </div>
 
             <div className="flex justify-between text-sm items-center">
@@ -167,7 +167,7 @@ export function PaymentDialog({ open, onOpenChange, orderDetails, orderId }: Pay
                   />
                 ) : (
                   <>
-                    <span className="text-green-600">-Rp. {finalDiscount.toLocaleString()}</span>
+                    <span className="text-green-600">-KSH. {finalDiscount.toLocaleString()}</span>
                     <button
                       onClick={() => setIsEditingDiscount(true)}
                       className="text-muted-foreground hover:text-foreground"
@@ -181,12 +181,12 @@ export function PaymentDialog({ open, onOpenChange, orderDetails, orderId }: Pay
 
             <div className="flex justify-between pt-3 border-t border-border">
               <span className="font-semibold">Total:</span>
-              <span className="text-lg font-bold">Rp. {finalTotal.toLocaleString()}</span>
+              <span className="text-lg font-bold">KSH. {finalTotal.toLocaleString()}</span>
             </div>
 
             {isB2BCustomer && selectedCustomer?.creditLimit && (
               <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-                Available Credit: Rp.{" "}
+                Available Credit: KSH.{" "}
                 {(selectedCustomer.creditLimit - (selectedCustomer.totalPurchases || 0)).toLocaleString()}
               </div>
             )}
@@ -210,7 +210,7 @@ export function PaymentDialog({ open, onOpenChange, orderDetails, orderId }: Pay
               {amountReceived && (
                 <div className="flex justify-between p-3 rounded-lg bg-primary/10">
                   <span className="font-medium">Change:</span>
-                  <span className="font-bold text-primary">Rp. {change.toLocaleString()}</span>
+                  <span className="font-bold text-primary">KSH. {change.toLocaleString()}</span>
                 </div>
               )}
             </div>

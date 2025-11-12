@@ -114,7 +114,7 @@ export function OrdersList() {
 
                   {order.paymentMethod === "pending" && ( // Added Pay Now button for unpaid orders
                     <Button size="sm" className="w-full mt-2" onClick={(e) => handlePayOrder(order, e)}>
-                      Pay Now - Rp. {order.total.toLocaleString()}
+                      Pay Now - KSH. {order.total.toLocaleString()}
                     </Button>
                   )}
                 </div>

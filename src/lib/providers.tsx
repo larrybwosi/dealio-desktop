@@ -6,10 +6,12 @@ import { useEffect } from "react"
 import { usePosStore } from "@/lib/store"
 import { NotificationToast } from "@/components/notification-toast"
 import { Toaster } from "sonner"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
   const checkLowStockAlerts = usePosStore((state) => state.checkLowStockAlerts)
+  const queryClient = new QueryClient();
 
   useEffect(() => {
     const root = document.documentElement
@@ -67,8 +69,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   return (
     <>
       <NotificationToast />
-      {children}
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
       <Toaster />
     </>
-  )
+  );
 }

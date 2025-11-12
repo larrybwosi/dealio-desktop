@@ -122,7 +122,7 @@ export function MenuList() {
                 <SelectContent>
                   {product.sellableUnits.map((unit) => (
                     <SelectItem key={unit.unitId} value={unit.unitId}>
-                      {unit.unitName} - Rp. {unit.price.toLocaleString()}
+                      {unit.unitName} - KSH. {unit.price.toLocaleString()}
                     </SelectItem>
                   ))}
                 </SelectContent>

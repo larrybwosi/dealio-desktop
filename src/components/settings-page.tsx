@@ -174,6 +174,7 @@ export function SettingsPage() {
                         <SelectItem value="GBP">GBP - British Pound</SelectItem>
                         <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
                         <SelectItem value="CNY">CNY - Chinese Yuan</SelectItem>
+                        <SelectItem value="KSH">KSH Kenyan Shilling</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
