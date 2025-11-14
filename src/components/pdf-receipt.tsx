@@ -1,7 +1,7 @@
 "use client"
 
 import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
-import type { Order } from "@/lib/store"
+import type { Order } from "@/store/store"
 import { format } from "date-fns"
 
 const styles = StyleSheet.create({

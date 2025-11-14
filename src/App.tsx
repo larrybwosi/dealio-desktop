@@ -10,7 +10,7 @@ import { ManageTablesPage } from "@/components/manage-tables-page";
 import { Input } from "@/components/ui/input";
 import { Calendar, Search, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { usePosStore } from "@/lib/store";
+import { usePosStore } from "@/store/store";
 import { AnalyticsPage } from "@/components/analytics-page";
 import { CustomersPage } from "@/components/customers-page";
 import { CashDrawerPage } from "@/components/cash-drawer-page";
@@ -19,7 +19,7 @@ import { NotificationCenter } from "@/components/notification-center";
 import { NotificationSettingsDialog } from "@/components/notification-settings-dialog";
 import { MemberCheckinPage } from "@/components/member-checkin-page";
 import { TillManagementPage } from "@/components/till-management-page";
-import { CheckinPage } from "@/components/checkin-page";
+import CheckinPage from "@/components/checkin-page";
 import {
   AlertDialog,
   AlertDialogAction,

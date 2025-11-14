@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { businessConfigs, type BusinessType } from "@/lib/business-configs"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"

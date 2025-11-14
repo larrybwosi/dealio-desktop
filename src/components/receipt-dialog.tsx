@@ -2,7 +2,7 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { Download, Printer, X, ChefHat } from "lucide-react"
 import { ReceiptPreview } from "./receipt-preview"
 import { useRef, useState, useEffect } from "react"

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

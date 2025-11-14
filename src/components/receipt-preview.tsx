@@ -1,6 +1,6 @@
 "use client"
 
-import { usePosStore, type Order } from "@/lib/store"
+import { usePosStore, type Order } from "@/store/store"
 import { format } from "date-fns"
 import { useEffect, useRef } from "react"
 import QRCode from "qrcode"

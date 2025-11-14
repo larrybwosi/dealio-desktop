@@ -1,7 +1,7 @@
 "use client"
 
 import { Settings } from "lucide-react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,

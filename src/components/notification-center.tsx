@@ -1,7 +1,7 @@
 "use client"
 
 import { Bell, CheckCheck, Trash2, X, AlertCircle, Package, ShoppingCart, Info } from "lucide-react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,

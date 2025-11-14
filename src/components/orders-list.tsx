@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,7 +11,7 @@ import { ShoppingBag, Truck, UtensilsCrossed, ChevronDown, ChevronUp } from "luc
 import { cn } from "@/lib/utils"
 import { OrderDetailsDialog } from "./order-details-dialog"
 import { PaymentDialog } from "./payment-dialog" // Import PaymentDialog component
-import type { Order } from "@/lib/store"
+import type { Order } from "@/store/store"
 
 export function OrdersList() {
   const [isExpanded, setIsExpanded] = useState(true)

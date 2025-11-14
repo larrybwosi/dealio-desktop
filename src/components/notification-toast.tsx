@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { ShoppingCart, Package, AlertCircle, CheckCircle, Info, XCircle } from "lucide-react"
 import { toast } from "sonner"
 

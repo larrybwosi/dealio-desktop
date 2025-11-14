@@ -17,7 +17,7 @@ import {
   Calculator,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 
 interface SidebarProps {
   activeTab: string

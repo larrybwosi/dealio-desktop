@@ -1,6 +1,6 @@
 import { createWithEqualityFn as create } from "zustand/traditional"
 import { persist, createJSONStorage } from "zustand/middleware"
-import { type BusinessType, getBusinessConfig } from "./business-configs"
+import { type BusinessType, getBusinessConfig } from "../lib/business-configs"
 
 export type OrderType = "takeaway" | "delivery" | "dine-in" | "pickup" | "online"
 export type OrderStatus = "waiting" | "ready" | "canceled" | "completed"

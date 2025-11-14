@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { usePosStore, type Table } from "@/lib/store"
+import { usePosStore, type Table } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

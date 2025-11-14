@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { CheckCircle2, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ReceiptDialog } from "./receipt-dialog"

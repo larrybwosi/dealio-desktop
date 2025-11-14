@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useEffect } from "react"
-import { usePosStore } from "@/lib/store"
+import { usePosStore } from "@/store/store"
 import { NotificationToast } from "@/components/notification-toast"
 import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
