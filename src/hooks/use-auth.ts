@@ -14,19 +14,15 @@ interface CheckInResponse {
 
 interface CheckInVariables {
   cardId: string;
-  locationId: string;
   password?: string; // Optional depending on your auth flow
 }
 
-interface CheckOutVariables {
-  locationId: string;
-}
 
 export function usePosAuth() {
   const queryClient = useQueryClient();
-
+  
   // Get state and actions directly from the Zustand store
-  const { currentMember, memberToken, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
+  const { currentMember,currentLocation, memberToken, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
     usePosAuthStore(state => ({
       currentMember: state.currentMember,
       memberToken: state.memberToken,
@@ -34,6 +30,7 @@ export function usePosAuth() {
       setDeviceKey: state.setDeviceKey,
       setMemberSession: state.setMemberSession,
       clearMemberSession: state.clearMemberSession,
+      currentLocation: state.currentLocation
     }));
 
   /**
@@ -50,7 +47,8 @@ export function usePosAuth() {
     isPending: isCheckingIn,
     error: checkInError,
   } = useMutation<CheckInResponse, Error, CheckInVariables>({
-    mutationFn: variables => apiClient.post('/api/v1/pos/check-in', variables).then(res => res.data),
+    mutationFn: variables =>
+      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation }).then(res => res.data),
 
     onSuccess: data => {
       // On success, update the global store with member, token, AND restoration status
@@ -88,8 +86,8 @@ export function usePosAuth() {
     mutate: checkOut,
     isPending: isCheckingOut,
     error: checkOutError,
-  } = useMutation<void, Error, CheckOutVariables>({
-    mutationFn: variables => apiClient.post('/api/v1/pos/check-out', variables).then(res => res.data),
+  } = useMutation<void, Error>({
+    mutationFn: () => apiClient.post('/api/v1/pos/check-out', { locationId: currentLocation }).then(res => res.data),
 
     onSuccess: () => {
       // On success, clear the global store

@@ -154,11 +154,10 @@ export function OrderDetails() {
               return (
                 <Card key={`${item.productId}-${unitId}-${index}`} className="p-3">
                   <div className="flex gap-3">
-                    <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
+                    <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0">
                       <img
                         src={item.imageUrl || "/placeholder.svg?height=64&width=64"}
                         alt={item.productName}
-                        fill
                         className="object-cover"
                       />
                     </div>

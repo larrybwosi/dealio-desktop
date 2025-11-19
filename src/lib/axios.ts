@@ -9,6 +9,11 @@ export const apiClient = axios.create({
   timeout: 10000, // Add a timeout
 });
 
+// export const API_ENDPOINT = import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioerp.vercel.app';
+export const API_ENDPOINT = 'http://localhost:3000'
+// export const API_ENDPOINT =  'https://dealioerp.vercel.app';
+
+
 // Add a request interceptor to inject auth headers
 apiClient.interceptors.request.use(
   (config) => {
@@ -19,8 +24,8 @@ apiClient.interceptors.request.use(
     config.headers = config.headers || {};
 
     // 1. Add the Device API Key to all requests
-    if (key) {
-      config.headers["X-Device-Api-Key"] = key;
+    if (deviceKey) {
+      config.headers['X-Device-Api-Key'] = deviceKey;
     }
 
     // 2. Add the Member JWT (if it exists)
