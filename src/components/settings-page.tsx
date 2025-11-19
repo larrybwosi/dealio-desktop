@@ -1,58 +1,60 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { usePosStore } from "@/store/store"
-import { businessConfigs, type BusinessType } from "@/lib/business-configs"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trash2, Plus, Check } from "lucide-react"
+import { useState } from 'react';
+import { usePosStore } from '@/store/store';
+import { businessConfigs, type BusinessType } from '@/lib/business-configs';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Trash2, Plus, Check } from 'lucide-react';
+import { usePosAuthStore } from '@/store/pos-auth-store';
 
 export function SettingsPage() {
-  const settings = usePosStore((state) => state.settings)
-  const updateBusinessSettings = usePosStore((state) => state.updateBusinessSettings)
-  const toggleSidebarItem = usePosStore((state) => state.toggleSidebarItem)
-  const changeBusinessType = usePosStore((state) => state.changeBusinessType)
-  const getBusinessConfig = usePosStore((state) => state.getBusinessConfig)
-  const updateThemeConfig = usePosStore((state) => state.updateThemeConfig)
-  const updateSecurityConfig = usePosStore((state) => state.updateSecurityConfig)
-  const updateApiSyncConfig = usePosStore((state) => state.updateApiSyncConfig)
-  const addPrinter = usePosStore((state) => state.addPrinter)
-  const updatePrinter = usePosStore((state) => state.updatePrinter)
-  const deletePrinter = usePosStore((state) => state.deletePrinter)
-  const setDefaultPrinter = usePosStore((state) => state.setDefaultPrinter)
-  const syncDataToApi = usePosStore((state) => state.syncDataToApi)
-  const updateNotificationSettings = usePosStore((state) => state.updateNotificationSettings)
+  const settings = usePosStore(state => state.settings);
+  const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
+  const toggleSidebarItem = usePosStore(state => state.toggleSidebarItem);
+  const changeBusinessType = usePosStore(state => state.changeBusinessType);
+  const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
+  const updateThemeConfig = usePosStore(state => state.updateThemeConfig);
+  const updateSecurityConfig = usePosStore(state => state.updateSecurityConfig);
+  const updateApiSyncConfig = usePosStore(state => state.updateApiSyncConfig);
+  const addPrinter = usePosStore(state => state.addPrinter);
+  const updatePrinter = usePosStore(state => state.updatePrinter);
+  const deletePrinter = usePosStore(state => state.deletePrinter);
+  const setDefaultPrinter = usePosStore(state => state.setDefaultPrinter);
+  const syncDataToApi = usePosStore(state => state.syncDataToApi);
+  const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
+  const { setDeviceKey } = usePosAuthStore(state => state);
 
-  const [businessName, setBusinessName] = useState(settings?.businessName || "")
-  const [businessType, setBusinessType] = useState<BusinessType>(settings?.businessType || "restaurant")
-  const [currency, setCurrency] = useState(settings?.currency || "USD")
-  const [taxRate, setTaxRate] = useState((settings?.taxRate ?? 0).toString())
-  const [allowSaveUnpaidOrders, setAllowSaveUnpaidOrders] = useState(settings?.allowSaveUnpaidOrders ?? false)
-  const [enableCustomerManagement, setEnableCustomerManagement] = useState(settings?.enableCustomerManagement ?? false)
-  const [enableEmployeeManagement, setEnableEmployeeManagement] = useState(settings?.enableEmployeeManagement ?? false)
-  const [enableLowStockAlerts, setEnableLowStockAlerts] = useState(settings?.enableLowStockAlerts ?? false)
-  const [lowStockThreshold, setLowStockThreshold] = useState((settings?.lowStockThreshold ?? 10).toString())
-  const [enableCashDrawer, setEnableCashDrawer] = useState(settings?.enableCashDrawer ?? false)
-  const [requireEmployeePin, setRequireEmployeePin] = useState(settings?.requireEmployeePin ?? false)
-  const [enableAutoPrint, setEnableAutoPrint] = useState(settings?.enableAutoPrint ?? false)
-  const [printerName, setPrinterName] = useState(settings?.printerName || "")
-  const [enableEmailReceipts, setEnableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false)
+  const [businessName, setBusinessName] = useState(settings?.businessName || '');
+  const [businessType, setBusinessType] = useState<BusinessType>(settings?.businessType || 'restaurant');
+  const [currency, setCurrency] = useState(settings?.currency || 'USD');
+  const [taxRate, setTaxRate] = useState((settings?.taxRate ?? 0).toString());
+  const [allowSaveUnpaidOrders, setAllowSaveUnpaidOrders] = useState(settings?.allowSaveUnpaidOrders ?? false);
+  const [enableCustomerManagement, setEnableCustomerManagement] = useState(settings?.enableCustomerManagement ?? false);
+  const [enableEmployeeManagement, setEnableEmployeeManagement] = useState(settings?.enableEmployeeManagement ?? false);
+  const [enableLowStockAlerts, setEnableLowStockAlerts] = useState(settings?.enableLowStockAlerts ?? false);
+  const [lowStockThreshold, setLowStockThreshold] = useState((settings?.lowStockThreshold ?? 10).toString());
+  const [enableCashDrawer, setEnableCashDrawer] = useState(settings?.enableCashDrawer ?? false);
+  const [requireEmployeePin, setRequireEmployeePin] = useState(settings?.requireEmployeePin ?? false);
+  const [enableAutoPrint, setEnableAutoPrint] = useState(settings?.enableAutoPrint ?? false);
+  const [printerName, setPrinterName] = useState(settings?.printerName || '');
+  const [enableEmailReceipts, setEnableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
 
-  const [newPrinterName, setNewPrinterName] = useState("")
-  const [syncing, setSyncing] = useState(false)
+  const [newPrinterName, setNewPrinterName] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
-  const currentConfig = getBusinessConfig()
+  const currentConfig = getBusinessConfig();
 
   const handleSaveSettings = () => {
-    const newTaxRate = Number.parseFloat(taxRate) || 0
-    const newLowStockThreshold = Number.parseInt(lowStockThreshold, 10) || 10
+    const newTaxRate = Number.parseFloat(taxRate) || 0;
+    const newLowStockThreshold = Number.parseInt(lowStockThreshold, 10) || 10;
 
     updateBusinessSettings({
       businessName,
@@ -68,42 +70,42 @@ export function SettingsPage() {
       enableAutoPrint,
       printerName,
       enableEmailReceipts,
-    })
-    alert("Settings saved successfully!")
-  }
+    });
+    alert('Settings saved successfully!');
+  };
 
   const handleBusinessTypeChange = (newType: BusinessType) => {
-    setBusinessType(newType)
-    changeBusinessType(newType)
-    const config = businessConfigs[newType]
-    setTaxRate(config.taxSettings.defaultRate.toString())
-  }
+    setBusinessType(newType);
+    changeBusinessType(newType);
+    const config = businessConfigs[newType];
+    setTaxRate(config.taxSettings.defaultRate.toString());
+  };
 
   const handleAddPrinter = () => {
-    if (!newPrinterName.trim()) return
+    if (!newPrinterName.trim()) return;
 
     addPrinter({
       name: newPrinterName,
-      type: "receipt",
-      connection: "usb",
+      type: 'receipt',
+      connection: 'usb',
       isDefault: settings.printers.length === 0,
-      paperSize: "80mm",
+      paperSize: '80mm',
       enabled: true,
-    })
-    setNewPrinterName("")
-  }
+    });
+    setNewPrinterName('');
+  };
 
   const handleSyncData = async () => {
-    setSyncing(true)
-    const result = await syncDataToApi()
-    setSyncing(false)
+    setSyncing(true);
+    const result = await syncDataToApi();
+    setSyncing(false);
 
     if (result.success) {
-      alert("Data synced successfully!")
+      alert('Data synced successfully!');
     } else {
-      alert(`Sync failed: ${result.error}`)
+      alert(`Sync failed: ${result.error}`);
     }
-  }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
@@ -117,7 +119,7 @@ export function SettingsPage() {
 
         <Tabs defaultValue="general" className="space-y-6">
           <TabsList className="grid w-full grid-cols-8">
-            {" "}
+            {' '}
             {/* Changed from 7 to 8 columns */}
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="theme">Theme</TabsTrigger>
@@ -138,7 +140,7 @@ export function SettingsPage() {
                   <Input
                     id="businessName"
                     value={businessName}
-                    onChange={(e) => setBusinessName(e.target.value)}
+                    onChange={e => setBusinessName(e.target.value)}
                     placeholder="Enter business name"
                   />
                 </div>
@@ -150,7 +152,7 @@ export function SettingsPage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {Object.values(businessConfigs).map((config) => (
+                      {Object.values(businessConfigs).map(config => (
                         <SelectItem key={config.type} value={config.type}>
                           {config.label}
                         </SelectItem>
@@ -188,7 +190,7 @@ export function SettingsPage() {
                       max="100"
                       step="0.1"
                       value={taxRate}
-                      onChange={(e) => setTaxRate(e.target.value)}
+                      onChange={e => setTaxRate(e.target.value)}
                       placeholder="0"
                     />
                     <p className="text-xs text-muted-foreground">All product prices are tax-inclusive</p>
@@ -220,12 +222,12 @@ export function SettingsPage() {
               <div className="grid grid-cols-2 gap-3">
                 {Object.entries(currentConfig.features).map(([key, enabled]) => (
                   <div key={key} className="flex items-center gap-2">
-                    <Badge variant={enabled ? "default" : "secondary"} className="w-full justify-center">
-                      {enabled ? "✓" : "✗"}{" "}
+                    <Badge variant={enabled ? 'default' : 'secondary'} className="w-full justify-center">
+                      {enabled ? '✓' : '✗'}{' '}
                       {key
-                        .replace(/([A-Z])/g, " $1")
+                        .replace(/([A-Z])/g, ' $1')
                         .trim()
-                        .replace(/^\w/, (c) => c.toUpperCase())}
+                        .replace(/^\w/, c => c.toUpperCase())}
                     </Badge>
                   </div>
                 ))}
@@ -235,7 +237,7 @@ export function SettingsPage() {
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Available Order Types</h2>
               <div className="flex flex-wrap gap-2">
-                {currentConfig.orderTypes.map((orderType) => (
+                {currentConfig.orderTypes.map(orderType => (
                   <Badge key={orderType} variant="outline" className="text-sm">
                     {orderType.charAt(0).toUpperCase() + orderType.slice(1)}
                   </Badge>
@@ -251,8 +253,8 @@ export function SettingsPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="themeMode">Theme Mode</Label>
                   <Select
-                    value={settings.themeConfig?.mode || "light"}
-                    onValueChange={(value) => updateThemeConfig({ mode: value as any })}
+                    value={settings.themeConfig?.mode || 'light'}
+                    onValueChange={value => updateThemeConfig({ mode: value as any })}
                   >
                     <SelectTrigger id="themeMode">
                       <SelectValue />
@@ -268,8 +270,8 @@ export function SettingsPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="fontSize">Font Size</Label>
                   <Select
-                    value={settings.themeConfig?.fontSize || "medium"}
-                    onValueChange={(value) => updateThemeConfig({ fontSize: value as any })}
+                    value={settings.themeConfig?.fontSize || 'medium'}
+                    onValueChange={value => updateThemeConfig({ fontSize: value as any })}
                   >
                     <SelectTrigger id="fontSize">
                       <SelectValue />
@@ -289,7 +291,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.themeConfig?.compactMode || false}
-                    onCheckedChange={(value) => updateThemeConfig({ compactMode: value })}
+                    onCheckedChange={value => updateThemeConfig({ compactMode: value })}
                   />
                 </div>
               </div>
@@ -312,7 +314,7 @@ export function SettingsPage() {
                       className="w-16 h-10 p-1 opacity-50"
                     />
                     <Input
-                      value={settings.themeConfig?.primaryColor || "oklch(0.42 0.145 265)"}
+                      value={settings.themeConfig?.primaryColor || 'oklch(0.42 0.145 265)'}
                       readOnly
                       className="flex-1"
                       placeholder="Defined in CSS theme"
@@ -331,7 +333,7 @@ export function SettingsPage() {
                       className="w-16 h-10 p-1 opacity-50"
                     />
                     <Input
-                      value={settings.themeConfig?.accentColor || "oklch(0.96 0.005 240)"}
+                      value={settings.themeConfig?.accentColor || 'oklch(0.96 0.005 240)'}
                       readOnly
                       className="flex-1"
                       placeholder="Defined in CSS theme"
@@ -407,7 +409,7 @@ export function SettingsPage() {
                       type="number"
                       min="0"
                       value={lowStockThreshold}
-                      onChange={(e) => setLowStockThreshold(e.target.value)}
+                      onChange={e => setLowStockThreshold(e.target.value)}
                       placeholder="10"
                     />
                     <p className="text-xs text-muted-foreground">Alert when stock falls below this number</p>
@@ -443,7 +445,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.notificationSettings?.enabled ?? true}
-                    onCheckedChange={(value) => updateNotificationSettings({ enabled: value })}
+                    onCheckedChange={value => updateNotificationSettings({ enabled: value })}
                   />
                 </div>
 
@@ -456,7 +458,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.notificationSettings?.soundEnabled ?? true}
-                    onCheckedChange={(value) => updateNotificationSettings({ soundEnabled: value })}
+                    onCheckedChange={value => updateNotificationSettings({ soundEnabled: value })}
                     disabled={!settings.notificationSettings?.enabled}
                   />
                 </div>
@@ -474,7 +476,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.notificationSettings?.showOnlineOrders ?? true}
-                    onCheckedChange={(value) => updateNotificationSettings({ showOnlineOrders: value })}
+                    onCheckedChange={value => updateNotificationSettings({ showOnlineOrders: value })}
                     disabled={!settings.notificationSettings?.enabled}
                   />
                 </div>
@@ -488,7 +490,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.notificationSettings?.showLowStock ?? true}
-                    onCheckedChange={(value) => updateNotificationSettings({ showLowStock: value })}
+                    onCheckedChange={value => updateNotificationSettings({ showLowStock: value })}
                     disabled={!settings.notificationSettings?.enabled}
                   />
                 </div>
@@ -502,7 +504,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.notificationSettings?.showSystemAlerts ?? true}
-                    onCheckedChange={(value) => updateNotificationSettings({ showSystemAlerts: value })}
+                    onCheckedChange={value => updateNotificationSettings({ showSystemAlerts: value })}
                     disabled={!settings.notificationSettings?.enabled}
                   />
                 </div>
@@ -515,7 +517,7 @@ export function SettingsPage() {
                 <div className="grid gap-2">
                   <Label htmlFor="notificationPosition">Notification Position</Label>
                   <Select
-                    value={settings.notificationSettings?.position || "top-right"}
+                    value={settings.notificationSettings?.position || 'top-right'}
                     onValueChange={(value: any) => updateNotificationSettings({ position: value })}
                     disabled={!settings.notificationSettings?.enabled}
                   >
@@ -539,7 +541,7 @@ export function SettingsPage() {
                     min="1000"
                     step="1000"
                     value={settings.notificationSettings?.autoCloseDelay || 5000}
-                    onChange={(e) => updateNotificationSettings({ autoCloseDelay: Number.parseInt(e.target.value) })}
+                    onChange={e => updateNotificationSettings({ autoCloseDelay: Number.parseInt(e.target.value) })}
                     disabled={!settings.notificationSettings?.enabled}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -587,7 +589,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.enableSessionTimeout || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ enableSessionTimeout: value })}
+                    onCheckedChange={value => updateSecurityConfig({ enableSessionTimeout: value })}
                   />
                 </div>
 
@@ -599,7 +601,7 @@ export function SettingsPage() {
                       type="number"
                       min="1"
                       value={settings.securityConfig?.sessionTimeoutMinutes || 30}
-                      onChange={(e) => updateSecurityConfig({ sessionTimeoutMinutes: Number.parseInt(e.target.value) })}
+                      onChange={e => updateSecurityConfig({ sessionTimeoutMinutes: Number.parseInt(e.target.value) })}
                     />
                   </div>
                 )}
@@ -616,7 +618,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.enableFailedLoginLock || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ enableFailedLoginLock: value })}
+                    onCheckedChange={value => updateSecurityConfig({ enableFailedLoginLock: value })}
                   />
                 </div>
 
@@ -629,7 +631,7 @@ export function SettingsPage() {
                         type="number"
                         min="1"
                         value={settings.securityConfig?.maxFailedAttempts || 5}
-                        onChange={(e) => updateSecurityConfig({ maxFailedAttempts: Number.parseInt(e.target.value) })}
+                        onChange={e => updateSecurityConfig({ maxFailedAttempts: Number.parseInt(e.target.value) })}
                       />
                     </div>
                     <div className="grid gap-2">
@@ -639,7 +641,7 @@ export function SettingsPage() {
                         type="number"
                         min="1"
                         value={settings.securityConfig?.lockoutDurationMinutes || 15}
-                        onChange={(e) =>
+                        onChange={e =>
                           updateSecurityConfig({ lockoutDurationMinutes: Number.parseInt(e.target.value) })
                         }
                       />
@@ -656,7 +658,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.requireStrongPasswords || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ requireStrongPasswords: value })}
+                    onCheckedChange={value => updateSecurityConfig({ requireStrongPasswords: value })}
                   />
                 </div>
 
@@ -667,7 +669,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.enableTwoFactorAuth || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ enableTwoFactorAuth: value })}
+                    onCheckedChange={value => updateSecurityConfig({ enableTwoFactorAuth: value })}
                   />
                 </div>
               </div>
@@ -683,7 +685,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.enableAuditLog || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ enableAuditLog: value })}
+                    onCheckedChange={value => updateSecurityConfig({ enableAuditLog: value })}
                   />
                 </div>
 
@@ -694,7 +696,7 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.securityConfig?.enableDataEncryption || false}
-                    onCheckedChange={(value) => updateSecurityConfig({ enableDataEncryption: value })}
+                    onCheckedChange={value => updateSecurityConfig({ enableDataEncryption: value })}
                   />
                 </div>
               </div>
@@ -707,7 +709,7 @@ export function SettingsPage() {
               <p className="text-sm text-muted-foreground mb-4">Configure receipt and label printers</p>
 
               <div className="space-y-3 mb-4">
-                {settings.printers?.map((printer) => (
+                {settings.printers?.map(printer => (
                   <div key={printer.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
@@ -738,7 +740,7 @@ export function SettingsPage() {
                         variant="ghost"
                         onClick={() => updatePrinter(printer.id, { enabled: !printer.enabled })}
                       >
-                        {printer.enabled ? "Disable" : "Enable"}
+                        {printer.enabled ? 'Disable' : 'Enable'}
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => deletePrinter(printer.id)}>
                         <Trash2 className="h-4 w-4 text-destructive" />
@@ -752,8 +754,8 @@ export function SettingsPage() {
                 <Input
                   placeholder="Enter printer name"
                   value={newPrinterName}
-                  onChange={(e) => setNewPrinterName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddPrinter()}
+                  onChange={e => setNewPrinterName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddPrinter()}
                 />
                 <Button onClick={handleAddPrinter}>
                   <Plus className="h-4 w-4 mr-2" />
@@ -808,13 +810,13 @@ export function SettingsPage() {
                   </div>
                   <Switch
                     checked={settings.apiSyncConfig?.enabled || false}
-                    onCheckedChange={(value) => updateApiSyncConfig({ enabled: value })}
+                    onCheckedChange={value => updateApiSyncConfig({ enabled: value })}
                   />
                 </div>
 
                 {settings.apiSyncConfig?.enabled && (
                   <>
-                    <div className="grid gap-2">
+                    {/* <div className="grid gap-2">
                       <Label htmlFor="apiEndpoint">API Endpoint</Label>
                       <Input
                         id="apiEndpoint"
@@ -822,7 +824,7 @@ export function SettingsPage() {
                         value={settings.apiSyncConfig?.apiEndpoint || ""}
                         onChange={(e) => updateApiSyncConfig({ apiEndpoint: e.target.value })}
                       />
-                    </div>
+                    </div> */}
 
                     <div className="grid gap-2">
                       <Label htmlFor="apiKey">API Key</Label>
@@ -830,8 +832,11 @@ export function SettingsPage() {
                         id="apiKey"
                         type="password"
                         placeholder="Enter your API key"
-                        value={settings.apiSyncConfig?.apiKey || ""}
-                        onChange={(e) => updateApiSyncConfig({ apiKey: e.target.value })}
+                        value={settings.apiSyncConfig?.apiKey || ''}
+                        onChange={e => {
+                          updateApiSyncConfig({ apiKey: e.target.value });
+                          setDeviceKey(e.target.value);
+                        }}
                       />
                     </div>
                   </>
@@ -851,7 +856,7 @@ export function SettingsPage() {
                       </div>
                       <Switch
                         checked={settings.apiSyncConfig?.autoSync || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ autoSync: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ autoSync: value })}
                       />
                     </div>
 
@@ -863,7 +868,7 @@ export function SettingsPage() {
                           type="number"
                           min="60"
                           value={settings.apiSyncConfig?.syncInterval || 300}
-                          onChange={(e) => updateApiSyncConfig({ syncInterval: Number.parseInt(e.target.value) })}
+                          onChange={e => updateApiSyncConfig({ syncInterval: Number.parseInt(e.target.value) })}
                         />
                       </div>
                     )}
@@ -877,7 +882,7 @@ export function SettingsPage() {
                       </div>
                       <Switch
                         checked={settings.apiSyncConfig?.syncOnOrderComplete || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ syncOnOrderComplete: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ syncOnOrderComplete: value })}
                       />
                     </div>
 
@@ -888,7 +893,7 @@ export function SettingsPage() {
                       </div>
                       <Switch
                         checked={settings.apiSyncConfig?.enableOfflineMode || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ enableOfflineMode: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ enableOfflineMode: value })}
                       />
                     </div>
                   </div>
@@ -902,28 +907,28 @@ export function SettingsPage() {
                       <span>Orders</span>
                       <Switch
                         checked={settings.apiSyncConfig?.syncOrders || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ syncOrders: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ syncOrders: value })}
                       />
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <span>Inventory</span>
                       <Switch
                         checked={settings.apiSyncConfig?.syncInventory || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ syncInventory: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ syncInventory: value })}
                       />
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <span>Customers</span>
                       <Switch
                         checked={settings.apiSyncConfig?.syncCustomers || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ syncCustomers: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ syncCustomers: value })}
                       />
                     </div>
                     <div className="flex items-center justify-between py-2">
                       <span>Employees</span>
                       <Switch
                         checked={settings.apiSyncConfig?.syncEmployees || false}
-                        onCheckedChange={(value) => updateApiSyncConfig({ syncEmployees: value })}
+                        onCheckedChange={value => updateApiSyncConfig({ syncEmployees: value })}
                       />
                     </div>
                   </div>
@@ -938,7 +943,7 @@ export function SettingsPage() {
                       </p>
                     )}
                     <Button onClick={handleSyncData} disabled={syncing} className="w-full">
-                      {syncing ? "Syncing..." : "Sync Now"}
+                      {syncing ? 'Syncing...' : 'Sync Now'}
                     </Button>
                   </div>
                 </Card>
@@ -954,7 +959,7 @@ export function SettingsPage() {
                 on your business type.
               </p>
               <div className="space-y-3">
-                {settings.sidebarItems.map((item) => (
+                {settings.sidebarItems.map(item => (
                   <div key={item.id} className="flex items-center justify-between py-2">
                     <div className="flex-1">
                       <div className="font-medium">{item.label}</div>
@@ -974,5 +979,5 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

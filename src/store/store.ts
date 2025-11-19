@@ -258,120 +258,134 @@ export interface Table {
 
 interface PosStore {
   currentOrder: {
-    customerName: string
-    orderType: OrderType
-    items: OrderItem[]
-    tableNumber?: string
-    instructions?: string
-    metadata?: Record<string, any>
-    customerId?: string
-  }
+    customerName: string;
+    orderType: OrderType;
+    items: OrderItem[];
+    tableNumber?: string;
+    instructions?: string;
+    metadata?: Record<string, any>;
+    customerId?: string;
+  };
 
-  orders: Order[]
-  products: Product[]
-  settings: BusinessSettings
-  lastCompletedOrder: Order | null
+  orders: Order[];
+  products: Product[];
+  settings: BusinessSettings;
+  lastCompletedOrder: Order | null;
 
-  customers: Customer[]
-  employees: Employee[]
-  cashDrawers: CashDrawer[]
-  currentEmployeeId: string | null
-  activeCashDrawerId: string | null
-  isCheckedIn: boolean
-  checkedInEmployee: Employee | null
+  customers: Customer[];
+  employees: Employee[];
+  cashDrawers: CashDrawer[];
+  currentEmployeeId: string | null;
+  activeCashDrawerId: string | null;
 
-  notifications: Notification[]
-  unreadNotificationCount: number
+  notifications: Notification[];
+  unreadNotificationCount: number;
 
   // Added tables and related methods
-  tables: Table[]
-  addTable: (table: Omit<Table, "id">) => void
-  updateTable: (id: string, table: Partial<Table>) => void
-  deleteTable: (id: string) => void
-  setTableStatus: (id: string, status: Table["status"]) => void
-  assignOrderToTable: (tableId: string, orderId: string) => void
-  clearTableOrder: (tableId: string) => void
+  tables: Table[];
+  addTable: (table: Omit<Table, "id">) => void;
+  updateTable: (id: string, table: Partial<Table>) => void;
+  deleteTable: (id: string) => void;
+  setTableStatus: (id: string, status: Table["status"]) => void;
+  assignOrderToTable: (tableId: string, orderId: string) => void;
+  clearTableOrder: (tableId: string) => void;
 
-  getBusinessConfig: () => ReturnType<typeof getBusinessConfig>
+  getBusinessConfig: () => ReturnType<typeof getBusinessConfig>;
 
-  setCustomerName: (name: string) => void
-  setOrderType: (type: OrderType) => void
-  addItemToOrder: (product: Product, unit: SellableUnit, quantity: number) => void
-  updateItemQuantity: (productId: string, unitId: string, quantity: number) => void
-  removeItemFromOrder: (productId: string, unitId: string) => void
-  resetOrder: () => void
-  completeOrder: (paymentMethod: string, discountAmount: number) => void
-  updateOrderStatus: (orderId: string, status: OrderStatus) => void
+  setCustomerName: (name: string) => void;
+  setOrderType: (type: OrderType) => void;
+  addItemToOrder: (
+    product: Product,
+    unit: SellableUnit,
+    quantity: number
+  ) => void;
+  updateItemQuantity: (
+    productId: string,
+    unitId: string,
+    quantity: number
+  ) => void;
+  removeItemFromOrder: (productId: string, unitId: string) => void;
+  resetOrder: () => void;
+  completeOrder: (paymentMethod: string, discountAmount: number) => void;
+  updateOrderStatus: (orderId: string, status: OrderStatus) => void;
 
-  updateBusinessSettings: (settings: Partial<BusinessSettings>) => void
-  toggleSidebarItem: (itemId: string) => void
-  changeBusinessType: (type: BusinessType) => void
-  updateReceiptConfig: (config: Partial<ReceiptConfig>) => void
-  saveUnpaidOrder: (discountAmount: number) => void
+  updateBusinessSettings: (settings: Partial<BusinessSettings>) => void;
+  toggleSidebarItem: (itemId: string) => void;
+  changeBusinessType: (type: BusinessType) => void;
+  updateReceiptConfig: (config: Partial<ReceiptConfig>) => void;
+  saveUnpaidOrder: (discountAmount: number) => void;
 
-  addCustomer: (customer: Omit<Customer, "id" | "totalPurchases" | "lastVisit" | "loyaltyPoints">) => void
-  updateCustomer: (id: string, customer: Partial<Customer>) => void
-  deleteCustomer: (id: string) => void
-  selectCustomer: (customerId: string) => void
+  addCustomer: (
+    customer: Omit<
+      Customer,
+      "id" | "totalPurchases" | "lastVisit" | "loyaltyPoints"
+    >
+  ) => void;
+  updateCustomer: (id: string, customer: Partial<Customer>) => void;
+  deleteCustomer: (id: string) => void;
+  selectCustomer: (customerId: string) => void;
 
-  addEmployee: (employee: Omit<Employee, "id">) => void
-  updateEmployee: (id: string, employee: Partial<Employee>) => void
-  deleteEmployee: (id: string) => void
-  loginEmployee: (pin: string) => boolean
-  logoutEmployee: () => void
-  checkInEmployee: (employeeId: string, pin: string) => boolean
-  checkOutEmployee: () => void
+  addEmployee: (employee: Omit<Employee, "id">) => void;
+  updateEmployee: (id: string, employee: Partial<Employee>) => void;
+  deleteEmployee: (id: string) => void;
+  loginEmployee: (pin: string) => boolean;
+  logoutEmployee: () => void;
 
-  openCashDrawer: (openingBalance: number) => void
-  closeCashDrawer: (closingBalance: number) => void
-  addCashTransaction: (type: "cash-in" | "cash-out", amount: number, notes?: string) => void
+  openCashDrawer: (openingBalance: number) => void;
+  closeCashDrawer: (closingBalance: number) => void;
+  addCashTransaction: (
+    type: "cash-in" | "cash-out",
+    amount: number,
+    notes?: string
+  ) => void;
 
-  updateProductStock: (productId: string, newStock: number) => void
-  getLowStockProducts: () => InventoryAlert[]
-  getDailySummary: (date: string) => DailySummary
-  getTopProducts: (limit: number) => { productId: string; productName: string; quantity: number; revenue: number }[]
+  updateProductStock: (productId: string, newStock: number) => void;
+  getLowStockProducts: () => InventoryAlert[];
+  getDailySummary: (date: string) => DailySummary;
+  getTopProducts: (
+    limit: number
+  ) => {
+    productId: string;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }[];
 
-  printReceipt: (orderId: string) => void
-  emailReceipt: (orderId: string, email: string) => void
+  printReceipt: (orderId: string) => void;
+  emailReceipt: (orderId: string, email: string) => void;
 
-  addPrinter: (printer: Omit<PrinterConfig, "id">) => void
-  updatePrinter: (id: string, printer: Partial<PrinterConfig>) => void
-  deletePrinter: (id: string) => void
-  setDefaultPrinter: (id: string) => void
+  addPrinter: (printer: Omit<PrinterConfig, "id">) => void;
+  updatePrinter: (id: string, printer: Partial<PrinterConfig>) => void;
+  deletePrinter: (id: string) => void;
+  setDefaultPrinter: (id: string) => void;
 
-  updateThemeConfig: (config: Partial<ThemeConfig>) => void
+  updateThemeConfig: (config: Partial<ThemeConfig>) => void;
 
-  updateSecurityConfig: (config: Partial<SecurityConfig>) => void
+  updateSecurityConfig: (config: Partial<SecurityConfig>) => void;
 
-  updateApiSyncConfig: (config: Partial<ApiSyncConfig>) => void
+  updateApiSyncConfig: (config: Partial<ApiSyncConfig>) => void;
 
-  addNotification: (notification: Omit<Notification, "id" | "timestamp" | "read">) => void
-  markNotificationAsRead: (id: string) => void
-  markAllNotificationsAsRead: () => void
-  deleteNotification: (id: string) => void
-  clearAllNotifications: () => void
-  updateNotificationSettings: (settings: Partial<NotificationSettings>) => void
-  simulateOnlineOrder: () => void
-  checkLowStockAlerts: () => void
+  addNotification: (
+    notification: Omit<Notification, "id" | "timestamp" | "read">
+  ) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  deleteNotification: (id: string) => void;
+  clearAllNotifications: () => void;
+  updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
+  simulateOnlineOrder: () => void;
+  checkLowStockAlerts: () => void;
 
-  syncDataToApi: () => Promise<{ success: boolean; error?: string }>
+  syncDataToApi: () => Promise<{ success: boolean; error?: string }>;
 
-  setTableNumber: (tableNumber: string) => void
-  setInstructions: (instructions: string) => void
-
-  // Implementations for table management
-  addTable: (table: Omit<Table, "id">) => void
-  updateTable: (id: string, table: Partial<Table>) => void
-  deleteTable: (id: string) => void
-  setTableStatus: (id: string, status: Table["status"]) => void
-  assignOrderToTable: (tableId: string, orderId: string) => void
-  clearTableOrder: (tableId: string) => void
+  setTableNumber: (tableNumber: string) => void;
+  setInstructions: (instructions: string) => void;
 }
 
 const mockProducts: Product[] = [
   {
     productId: "prod_001",
-    productName: "Es Cendol Ijo",
+    productName: "Green Grass Jelly Drink",
     variantId: "var_001",
     variantName: "Regular",
     category: "Beverage",
@@ -380,15 +394,39 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 50,
     sellableUnits: [
-      { unitId: "unit_glass", unitName: "Glass", price: 20000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large", unitName: "Large", price: 25000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 110000, conversion: 6.0, isBaseUnit: false },
-      { unitId: "unit_dozen", unitName: "Dozen (12)", price: 210000, conversion: 12.0, isBaseUnit: false },
+      {
+        unitId: "unit_glass",
+        unitName: "Glass",
+        price: 20000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large",
+        unitName: "Large",
+        price: 25000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 110000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_dozen",
+        unitName: "Dozen (12)",
+        price: 210000,
+        conversion: 12.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_002",
-    productName: "Es Kelapa Muda",
+    productName: "Young Coconut Ice",
     variantId: "var_002",
     variantName: "Regular",
     category: "Beverage",
@@ -397,15 +435,39 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 30,
     sellableUnits: [
-      { unitId: "unit_glass", unitName: "Glass", price: 22000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large", unitName: "Large", price: 28000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 125000, conversion: 6.0, isBaseUnit: false },
-      { unitId: "unit_dozen", unitName: "Dozen (12)", price: 240000, conversion: 12.0, isBaseUnit: false },
+      {
+        unitId: "unit_glass",
+        unitName: "Glass",
+        price: 22000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large",
+        unitName: "Large",
+        price: 28000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 125000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_dozen",
+        unitName: "Dozen (12)",
+        price: 240000,
+        conversion: 12.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_003",
-    productName: "Es Cincau",
+    productName: "Grass Jelly Drink",
     variantId: "var_003",
     variantName: "Regular",
     category: "Beverage",
@@ -414,14 +476,32 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 40,
     sellableUnits: [
-      { unitId: "unit_glass", unitName: "Glass", price: 20000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large", unitName: "Large", price: 26000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 110000, conversion: 6.0, isBaseUnit: false },
+      {
+        unitId: "unit_glass",
+        unitName: "Glass",
+        price: 20000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large",
+        unitName: "Large",
+        price: 26000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 110000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_004",
-    productName: "Es Buah",
+    productName: "Mixed Fruit Cocktail",
     variantId: "var_004",
     variantName: "Regular",
     category: "Beverage",
@@ -430,15 +510,39 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 25,
     sellableUnits: [
-      { unitId: "unit_bowl", unitName: "Bowl", price: 26000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large_bowl", unitName: "Large Bowl", price: 35000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 150000, conversion: 6.0, isBaseUnit: false },
-      { unitId: "unit_dozen", unitName: "Dozen (12)", price: 290000, conversion: 12.0, isBaseUnit: false },
+      {
+        unitId: "unit_bowl",
+        unitName: "Bowl",
+        price: 26000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large_bowl",
+        unitName: "Large Bowl",
+        price: 35000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 150000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_dozen",
+        unitName: "Dozen (12)",
+        price: 290000,
+        conversion: 12.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_005",
-    productName: "Es Teler",
+    productName: "Avocado & Coconut Mix",
     variantId: "var_005",
     variantName: "Regular",
     category: "Beverage",
@@ -447,14 +551,32 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 35,
     sellableUnits: [
-      { unitId: "unit_bowl", unitName: "Bowl", price: 28000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large_bowl", unitName: "Large Bowl", price: 38000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 160000, conversion: 6.0, isBaseUnit: false },
+      {
+        unitId: "unit_bowl",
+        unitName: "Bowl",
+        price: 28000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large_bowl",
+        unitName: "Large Bowl",
+        price: 38000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 160000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_006",
-    productName: "Es Pisang Ijo",
+    productName: "Green Banana Coconut",
     variantId: "var_006",
     variantName: "Regular",
     category: "Dessert",
@@ -463,14 +585,32 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 20,
     sellableUnits: [
-      { unitId: "unit_plate", unitName: "Plate", price: 25000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 140000, conversion: 6.0, isBaseUnit: false },
-      { unitId: "unit_dozen", unitName: "Dozen (12)", price: 270000, conversion: 12.0, isBaseUnit: false },
+      {
+        unitId: "unit_plate",
+        unitName: "Plate",
+        price: 25000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 140000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_dozen",
+        unitName: "Dozen (12)",
+        price: 270000,
+        conversion: 12.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_007",
-    productName: "Kopi Susu",
+    productName: "Milk Coffee",
     variantId: "var_007",
     variantName: "Regular",
     category: "Beverage",
@@ -479,15 +619,39 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 60,
     sellableUnits: [
-      { unitId: "unit_cup", unitName: "Cup", price: 18000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large_cup", unitName: "Large Cup", price: 24000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 100000, conversion: 6.0, isBaseUnit: false },
-      { unitId: "unit_dozen", unitName: "Dozen (12)", price: 190000, conversion: 12.0, isBaseUnit: false },
+      {
+        unitId: "unit_cup",
+        unitName: "Cup",
+        price: 18000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large_cup",
+        unitName: "Large Cup",
+        price: 24000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 100000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_dozen",
+        unitName: "Dozen (12)",
+        price: 190000,
+        conversion: 12.0,
+        isBaseUnit: false,
+      },
     ],
   },
   {
     productId: "prod_008",
-    productName: "Nasi Goreng",
+    productName: "Fried Rice",
     variantId: "var_008",
     variantName: "Regular",
     category: "Main Course",
@@ -496,12 +660,30 @@ const mockProducts: Product[] = [
     imageUrl: "/placeholder.svg?height=200&width=300",
     stock: 45,
     sellableUnits: [
-      { unitId: "unit_plate", unitName: "Plate", price: 35000, conversion: 1.0, isBaseUnit: true },
-      { unitId: "unit_large_plate", unitName: "Large Plate", price: 45000, conversion: 1.5, isBaseUnit: false },
-      { unitId: "unit_half_dozen", unitName: "Half Dozen (6)", price: 200000, conversion: 6.0, isBaseUnit: false },
+      {
+        unitId: "unit_plate",
+        unitName: "Plate",
+        price: 35000,
+        conversion: 1.0,
+        isBaseUnit: true,
+      },
+      {
+        unitId: "unit_large_plate",
+        unitName: "Large Plate",
+        price: 45000,
+        conversion: 1.5,
+        isBaseUnit: false,
+      },
+      {
+        unitId: "unit_half_dozen",
+        unitName: "Half Dozen (6)",
+        price: 200000,
+        conversion: 6.0,
+        isBaseUnit: false,
+      },
     ],
   },
-]
+];
 
 const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[] => {
   const config = getBusinessConfig(businessType)
@@ -679,9 +861,9 @@ export const usePosStore = create<PosStore>()(
       products: mockProducts,
       lastCompletedOrder: null,
       settings: {
-        businessName: "Rasa Nusa",
+        businessName: "Dealio",
         businessType: "restaurant",
-        currency: "IDR",
+        currency: "KSH",
         taxRate: 2,
         sidebarItems: getDefaultSidebarItems("restaurant"),
         receiptConfig: getDefaultReceiptConfig(),
@@ -815,7 +997,6 @@ export const usePosStore = create<PosStore>()(
       currentEmployeeId: null,
       activeCashDrawerId: null,
       isCheckedIn: false,
-      checkedInEmployee: null,
 
       notifications: [],
       unreadNotificationCount: 0,
@@ -1142,26 +1323,6 @@ export const usePosStore = create<PosStore>()(
 
       logoutEmployee: () => set({ currentEmployeeId: null }),
 
-      checkInEmployee: (employeeId, pin) => {
-        const state = get()
-        const employee = state.employees.find((e) => e.id === employeeId && e.pin === pin && e.active)
-        if (employee) {
-          set({
-            currentEmployeeId: employee.id,
-            isCheckedIn: true,
-            checkedInEmployee: employee,
-          })
-          return true
-        }
-        return false
-      },
-
-      checkOutEmployee: () =>
-        set({
-          currentEmployeeId: null,
-          isCheckedIn: false,
-          checkedInEmployee: null,
-        }),
 
       openCashDrawer: (openingBalance) =>
         set((state) => {
@@ -1357,7 +1518,7 @@ export const usePosStore = create<PosStore>()(
         const order = state.orders.find((o) => o.id === orderId)
         if (!order) return
 
-        console.log("[v0] Printing receipt for order:", orderId)
+        console.log(" Printing receipt for order:", orderId)
         if (window && "print" in window) {
           window.print()
         }
@@ -1368,7 +1529,7 @@ export const usePosStore = create<PosStore>()(
         const order = state.orders.find((o) => o.id === orderId)
         if (!order) return
 
-        console.log("[v0] Emailing receipt for order:", orderId, "to:", email)
+        console.log(" Emailing receipt for order:", orderId, "to:", email)
         // In a real implementation, this would call an API to send the email
       },
 
@@ -1570,7 +1731,7 @@ export const usePosStore = create<PosStore>()(
         const { apiSyncConfig } = state.settings
 
         if (!apiSyncConfig.enabled || !apiSyncConfig.apiEndpoint) {
-          console.warn("[v0] API sync is not configured")
+          console.warn(" API sync is not configured")
           return { success: false, error: "API sync not configured" }
         }
 
@@ -1617,10 +1778,10 @@ export const usePosStore = create<PosStore>()(
             },
           }))
 
-          console.log("[v0] Data synced successfully to API")
+          console.log(" Data synced successfully to API")
           return { success: true }
-        } catch (error) {
-          console.error("[v0] API sync error:", error)
+        } catch (error:any) {
+          console.error(" API sync error:", error)
           return { success: false, error: error.message }
         }
       },
@@ -1677,7 +1838,7 @@ export const usePosStore = create<PosStore>()(
         })),
     }),
     {
-      name: "pos-storage",
+      name: "dealio-pos-storage",
       storage: createJSONStorage(() => localStorage),
       skipHydration: false,
       partialize: (state) => ({
@@ -1691,8 +1852,6 @@ export const usePosStore = create<PosStore>()(
         cashDrawers: state.cashDrawers,
         currentEmployeeId: state.currentEmployeeId,
         activeCashDrawerId: state.activeCashDrawerId,
-        isCheckedIn: state.isCheckedIn,
-        checkedInEmployee: state.checkedInEmployee,
         notifications: state.notifications, // Added notifications to persistence
         unreadNotificationCount: state.unreadNotificationCount,
         // Add tables to persistence

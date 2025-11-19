@@ -2,8 +2,10 @@
 import axios from "axios";
 import { usePosAuthStore } from "@/store/pos-auth-store";
 
+const key =
+  "dealio_pk_live_d13f6d495c284664_eb873b9838ed358ff04f0994e5a0a4197b9a636e75af318b5169ebe4da776871";
 export const apiClient = axios.create({
-  baseURL: "http://localhost:3000/api/v1/pos",
+  baseURL: "http://localhost:3000/",
   timeout: 10000, // Add a timeout
 });
 
@@ -17,8 +19,8 @@ apiClient.interceptors.request.use(
     config.headers = config.headers || {};
 
     // 1. Add the Device API Key to all requests
-    if (deviceKey) {
-      config.headers["X-Device-Api-Key"] = deviceKey;
+    if (key) {
+      config.headers["X-Device-Api-Key"] = key;
     }
 
     // 2. Add the Member JWT (if it exists)

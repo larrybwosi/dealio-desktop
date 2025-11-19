@@ -29,10 +29,9 @@ export default function CheckinPage() {
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [scanSuccess, setScanSuccess] = useState<boolean>(false);
 
-  const { checkIn, isCheckingIn, checkInError } = usePosAuth();
+  const { checkIn, isCheckingIn, isAuthenticated } = usePosAuth();
 
   const cardInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -89,12 +88,14 @@ export default function CheckinPage() {
       return;
     }
 
-    setIsLoading(true);
+    // setIsLoading(true);
 
    const res = await checkIn({ cardId, locationId: "1", password });
    console.log(res)
 
-      setIsLoading(false);
+      // setIsLoading(false);
+
+
     // Simulate API call
     // setTimeout(() => {
     //   setIsLoading(false);
@@ -110,7 +111,7 @@ export default function CheckinPage() {
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>): void => {
-    if (e.key === "Enter" && !isLoading) {
+    if (e.key === "Enter" && !isCheckingIn) {
       handleSubmit();
     }
   };
@@ -160,7 +161,7 @@ export default function CheckinPage() {
             {/* Scan Button - Prominent */}
             <Button
               onClick={handleScan}
-              disabled={isLoading || isScanning}
+              disabled={isCheckingIn || isScanning}
               variant="outline"
               className={`w-full h-24 border-2 border-dashed transition-all duration-300 ${
                 isScanning
@@ -238,7 +239,7 @@ export default function CheckinPage() {
                   onKeyDown={handleKeyPress}
                   placeholder="Enter your card ID"
                   className="pl-11 h-12 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
-                  disabled={isLoading}
+                  disabled={isCheckingIn}
                 />
               </div>
             </div>
@@ -259,13 +260,13 @@ export default function CheckinPage() {
                   onKeyDown={handleKeyPress}
                   placeholder="Enter your password"
                   className="pl-11 pr-11 h-12 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-blue-500 focus:ring-blue-500/20"
-                  disabled={isLoading}
+                  disabled={isCheckingIn}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                  disabled={isLoading}
+                  disabled={isCheckingIn}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />
@@ -292,10 +293,10 @@ export default function CheckinPage() {
             {/* Submit Button */}
             <Button
               onClick={handleSubmit}
-              disabled={isLoading}
+              disabled={isCheckingIn}
               className="w-full h-12 bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold shadow-lg shadow-blue-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-blue-500/40 hover:scale-[1.02]"
             >
-              {isLoading ? (
+              {isCheckingIn ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                   Checking in...

@@ -12,9 +12,12 @@
   "app": {
     "windows": [
       {
-        "title": "dealio-desktop",
-        "width": 800,
-        "height": 600
+        "title": "Dealio ERP",
+        "width": 1200,
+        "height": 800,
+        "resizable": true,
+        "fullscreen": false,
+        "maximized": true
       }
     ],
     "security": {
