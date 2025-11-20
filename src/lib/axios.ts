@@ -1,6 +1,6 @@
 // lib/axios.ts
 import axios from "axios";
-import { usePosAuthStore } from "@/store/pos-auth-store";
+import { useAuthStore } from "@/store/pos-auth-store";
 
 const key =
   "dealio_pk_live_d13f6d495c284664_eb873b9838ed358ff04f0994e5a0a4197b9a636e75af318b5169ebe4da776871";
@@ -18,7 +18,7 @@ export const API_ENDPOINT = 'http://localhost:3000'
 apiClient.interceptors.request.use(
   (config) => {
     // Get the current state directly from the store
-    const { deviceKey, memberToken } = usePosAuthStore.getState();
+    const { deviceKey, memberToken } = useAuthStore.getState();
 
     // Ensure headers object exists
     config.headers = config.headers || {};
@@ -47,7 +47,7 @@ apiClient.interceptors.response.use(
     // Handle 401 errors globally if needed
     if (error.response?.status === 401) {
       // Could clear auth state here
-      // usePosAuthStore.getState().clearAuth();
+      // useAuthStore.getState().clearAuth();
     }
     return Promise.reject(error);
   }

@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Trash2, Plus, Check } from 'lucide-react';
-import { usePosAuthStore } from '@/store/pos-auth-store';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 export function SettingsPage() {
   const settings = usePosStore(state => state.settings);
@@ -30,7 +30,7 @@ export function SettingsPage() {
   const setDefaultPrinter = usePosStore(state => state.setDefaultPrinter);
   const syncDataToApi = usePosStore(state => state.syncDataToApi);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
-  const { setDeviceKey } = usePosAuthStore(state => state);
+  const { setDeviceKey } = useAuthStore(state => state);
 
   const [businessName, setBusinessName] = useState(settings?.businessName || '');
   const [businessType, setBusinessType] = useState<BusinessType>(settings?.businessType || 'restaurant');

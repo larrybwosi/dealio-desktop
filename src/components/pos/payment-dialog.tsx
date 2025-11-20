@@ -27,16 +27,16 @@ import { getCurrentPhoneConfig } from '@/lib/phone.config';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
 import { initiateMpesaPayment, subscribeToAbly } from '@/lib/mpesa-client';
-import type { CartItem, Customer, Order, OrderType, PaymentMethod } from '@/types';
-import { Badge } from '../ui/badge';
-import { Button } from '../ui/button';
-import { Label } from '../ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
-import { Alert, AlertDescription } from '../ui/alert';
-import { Input } from '../ui/input';
+import { CartItem, Customer, Order, OrderType } from '@/types';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
-import { useProcessSale } from '@/hooks/sales';
+import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 
 // Memoized customer badge component
 const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
@@ -86,7 +86,7 @@ interface PaymentModalProps {
   discount: number;
   customer: Customer | null;
   orderType: OrderType;
-  tableNumber: string;
+  tableNumber?: string;
   onOpenCustomer: () => void;
   onPaymentComplete: (order: Order) => void;
 }
@@ -104,7 +104,7 @@ const PaymentModal = ({
   onPaymentComplete,
 }: PaymentModalProps) => {
   // Payment method and general state
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('MOBILE_PAYMENT');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [cashReceived, setCashReceived] = useState<string>('');
   const [notes, setNotes] = useState('');
   const { mutate: createSale, isPending: isProcessing } = useProcessSale();
@@ -203,6 +203,7 @@ const PaymentModal = ({
         amount: totalPayable,
         orderId: saleNumber,
       });
+      if(!checkoutRequestId) return
       setMobilePayment(prev => ({ ...prev, status: 'sent', checkoutRequestId }));
     } catch (error) {
       console.error('STK push failed:', error);
@@ -235,7 +236,7 @@ const PaymentModal = ({
         variant: item.variant || undefined,
         addition: item.addition || undefined,
         variantId: item.variantId || undefined,
-        productId: item.productId || undefined,
+        productId: item.productId || '',
       })),
       customer,
       subtotal: priceBeforeTax,
@@ -283,14 +284,18 @@ const PaymentModal = ({
     createSale({
       ...newOrder,
       saleNumber,
-      paymentStatus: 'COMPLETED',
+      paymentStatus: PaymentStatus.COMPLETED,
       amountReceived: newOrder.amountPaid,
+      discountAmount: newOrder.discount,
+      enableStockTracking: false,
+      locationId:'',
       cartItems: cartItems.map(item => ({
         ...item,
         variant: item.variant || undefined,
         addition: item.addition || undefined,
-        variantId: item.variantId || undefined,
-        productId: item.productId || undefined,
+        variantId: item.variantId || '',
+        productId: item.productId || '',
+        sellingUnitId: item.selectedUnit?.unitId || '',
       })),
     });
 
@@ -319,7 +324,7 @@ const PaymentModal = ({
       total: totalPayable,
       orderType,
       status: 'pending-payment',
-      paymentMethod: 'CASH',
+      paymentMethod: PaymentMethod.CASH,
       tableNumber,
       datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
       notes,

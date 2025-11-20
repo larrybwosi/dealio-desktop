@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/axios';
-import { usePosAuthStore } from '@/store/pos-auth-store';
+import { useAuthStore } from '@/store/pos-auth-store';
 import { useQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 
@@ -19,9 +19,9 @@ export interface PosProduct {
   variantId: string;
   variantName: string; // e.g. "500ml"
   category: string;
-  sku: string | null;
-  barcode: string | null;
-  imageUrl: string | null;
+  sku: string;
+  barcode?: string;
+  imageUrl?: string;
   stock: number;
   sellableUnits: SellableUnit[];
 }
@@ -35,7 +35,7 @@ interface UsePosProductsParams {
 }
 
 export const usePosProducts = ({ enabled = true }: UsePosProductsParams = {}) => {
-  const { currentLocation } = usePosAuthStore();
+  const { currentLocation } = useAuthStore();
 
   // Ensure we have a location ID before fetching
   const isQueryEnabled = enabled && !!currentLocation?.id;

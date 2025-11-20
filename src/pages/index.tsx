@@ -1,24 +1,24 @@
-import { useState } from "react";
-import { Sidebar } from "@/components/sidebar";
-import { OrdersList } from "@/components/orders-list";
-import { MenuList } from "@/components/menu-list";
-import { OrderDetails } from "@/components/order-details";
-import { SettingsPage } from "@/components/settings-page";
-import { HistoryPage } from "@/components/history-page";
-import { ReceiptSettingsPage } from "@/components/receipt-settings-page";
-import { ManageTablesPage } from "@/components/manage-tables-page";
-import { Input } from "@/components/ui/input";
-import { Calendar, Search, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { usePosStore } from "@/store/store";
-import { AnalyticsPage } from "@/components/analytics-page";
-import { CustomersPage } from "@/components/customers-page";
-import { CashDrawerPage } from "@/components/cash-drawer-page";
-import { InventoryPage } from "@/components/inventory-page";
-import { NotificationCenter } from "@/components/notification-center";
-import { NotificationSettingsDialog } from "@/components/notification-settings-dialog";
-import { MemberCheckinPage } from "@/components/member-checkin-page";
-import { TillManagementPage } from "@/components/till-management-page";
+import { useState } from 'react';
+import { Sidebar } from '@/components/sidebar';
+import { OrdersList } from '@/components/orders-list';
+import { ProductList } from '@/components/product-list';
+import { OrderDetails } from '@/components/order-details';
+import { SettingsPage } from '@/components/settings-page';
+import { HistoryPage } from '@/components/history-page';
+import { ReceiptSettingsPage } from '@/components/receipt-settings-page';
+import { ManageTablesPage } from '@/components/manage-tables-page';
+import { Input } from '@/components/ui/input';
+import { Calendar, Search, LogOut } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { usePosStore } from '@/store/store';
+import { AnalyticsPage } from '@/components/analytics-page';
+import { CustomersPage } from '@/components/customers-page';
+import { CashDrawerPage } from '@/components/cash-drawer-page';
+import { InventoryPage } from '@/components/inventory-page';
+import { NotificationCenter } from '@/components/notification-center';
+import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
+import { MemberCheckinPage } from '@/components/member-checkin-page';
+import { TillManagementPage } from '@/components/till-management-page';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,17 +28,15 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { usePosAuth } from "@/hooks/use-auth";
+} from '@/components/ui/alert-dialog';
+import { useAuth } from '@/hooks/use-auth';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState("menu-order");
+  const [activeTab, setActiveTab] = useState('menu-order');
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
 
-  const businessConfig = usePosStore((state) => state.getBusinessConfig());
-  const simulateOnlineOrder = usePosStore((state) => state.simulateOnlineOrder);
-  const addNotification = usePosStore((state) => state.addNotification);
-    const { checkOut,currentMember } = usePosAuth();
+  const businessConfig = usePosStore(state => state.getBusinessConfig());
+  const { checkOut, currentMember } = useAuth();
 
   const handleCheckout = () => {
     checkOut();
@@ -46,7 +44,7 @@ export default function Home() {
   };
 
   const showSidebar = true;
-  const showOrderDetails = activeTab === "menu-order";
+  const showOrderDetails = activeTab === 'menu-order';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -69,27 +67,6 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <NotificationCenter />
             <NotificationSettingsDialog />
-
-            <Button variant="outline" size="sm" onClick={simulateOnlineOrder} className="hidden md:flex bg-transparent">
-              Test Order
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                addNotification({
-                  type: 'success',
-                  priority: 'medium',
-                  title: 'Test Notification',
-                  message: 'This is a test notification from the system',
-                  soundEnabled: true,
-                  autoClose: true,
-                })
-              }
-              className="hidden md:flex"
-            >
-              Test Alert
-            </Button>
 
             <Button
               variant="outline"
@@ -115,7 +92,7 @@ export default function Home() {
           {activeTab === 'menu-order' && (
             <>
               {businessConfig.features.showOrdersList && <OrdersList />}
-              <MenuList />
+              <ProductList />
             </>
           )}
           {activeTab === 'settings' && <SettingsPage />}

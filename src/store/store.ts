@@ -48,19 +48,20 @@ export interface Product {
   variantName: string
   category: string
   sku: string
-  barcode: string
-  imageUrl: string | null
+  barcode?: string
+  imageUrl?: string | null
   stock: number
   sellableUnits: SellableUnit[]
 }
 
 export interface OrderItem {
   productId: string
+  variantId: string
   productName: string
   variantName: string
   selectedUnit: SellableUnit
   quantity: number
-  imageUrl: string | null
+  imageUrl?: string | null
 }
 
 export interface Order {
@@ -1040,6 +1041,7 @@ export const usePosStore = create<PosStore>()(
 
           const newItem: OrderItem = {
             productId: product.productId,
+            variantId: product.variantId,
             productName: product.productName,
             variantName: product.variantName,
             selectedUnit: unit,

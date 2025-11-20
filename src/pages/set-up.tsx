@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { usePosLocations } from '@/hooks/locations';
-import { usePosAuthStore } from '@/store/pos-auth-store';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 // --- Types ---
 interface Location {
@@ -167,7 +167,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: ApiKeyStepProps) => {
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
-  const { setDeviceKey } = usePosAuthStore();
+  const { setDeviceKey } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -259,7 +259,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: ApiKeyStepProps) => {
 const LocationStep = ({ onBack, onComplete }: LocationStepProps) => {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const { locations, isLoading } = usePosLocations();
-  const { setCurrentLocation } = usePosAuthStore();
+  const { setCurrentLocation } = useAuthStore();
 
   const handleComplete = async () => {
     if (!selectedLocation) return;

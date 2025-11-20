@@ -1,14 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/axios';
-import { usePosAuthStore } from '@/store/pos-auth-store';
+import { useAuthStore } from '@/store/pos-auth-store';
 import { Member } from '@prisma/client';
 import { toast } from 'sonner';
+import { useCallback, useEffect } from 'react';
+import throttle from 'lodash/throttle';
 
 // Types for API mutations
 interface CheckInResponse {
   member: Member;
   token: string;
-  /** Boolean flag indicating if the member was already checked in */
   restoredSession: boolean;
 }
 
@@ -18,12 +19,12 @@ interface CheckInVariables {
 }
 
 
-export function usePosAuth() {
+export function useAuth() {
   const queryClient = useQueryClient();
   
   // Get state and actions directly from the Zustand store
   const { currentMember,currentLocation, memberToken, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
-    usePosAuthStore(state => ({
+    useAuthStore(state => ({
       currentMember: state.currentMember,
       memberToken: state.memberToken,
       isRestoredSession: state.isRestoredSession,
@@ -139,3 +140,35 @@ export function usePosAuth() {
     checkOutError,
   };
 }
+
+export const useSessionActivityListener = () => {
+  const refreshSession = useAuthStore(state => state.refreshSession);
+  const currentMember = useAuthStore(state => state.currentMember);
+
+  // Throttled function to prevent too many state updates.
+  // It will only fire once every 5 seconds max, even if the user is typing furiously.
+  const handleActivity = useCallback(
+    throttle(() => {
+      if (currentMember) {
+        refreshSession();
+      }
+    }, 5000),
+    [currentMember, refreshSession]
+  );
+
+  useEffect(() => {
+    if (!currentMember) return;
+
+    // Events that constitute "activity"
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+
+    // Add listeners
+    events.forEach(event => window.addEventListener(event, handleActivity));
+
+    // Cleanup
+    return () => {
+      events.forEach(event => window.removeEventListener(event, handleActivity));
+      handleActivity.cancel(); // If using lodash throttle
+    };
+  }, [currentMember, handleActivity]);
+};

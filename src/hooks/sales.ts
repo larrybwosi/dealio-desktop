@@ -4,10 +4,10 @@ import { AxiosError, isAxiosError } from 'axios';
 import { apiClient } from '@/lib/axios';
 import { useOfflineSaleStore } from '@/store/offline-sale';
 import z from 'zod/v3';
+import { useAuthStore } from '@/store/pos-auth-store';
 
-
-export const processSaleApi = async (data: ProcessSaleInput) => {
-  const response = await apiClient.post('/pos/sale/process', data);
+export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
+  const response = await apiClient.post(`/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, {...data, locationId});
   return response.data;
 };
 
@@ -22,7 +22,7 @@ export const isNetworkError = (error: unknown): boolean => {
 };
 
 
-enum PaymentMethod {
+export enum PaymentMethod {
   CASH = 'CASH',
   CREDIT = 'CREDIT',
   CARD = 'CARD',
@@ -36,7 +36,7 @@ enum PaymentMethod {
   OTHER = 'OTHER',
 }
 
-enum PaymentStatus {
+export enum PaymentStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
@@ -54,18 +54,19 @@ enum PaymentStatus {
  */
 export const useProcessSale = () => {
   const addToQueue = useOfflineSaleStore(state => state.addToQueue);
+  const locationId = useAuthStore(state => state.currentLocation?.id);
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: processSaleApi,
+    mutationFn: (data: ProcessSaleInput) => processSaleApi(data, locationId),
 
     // We use onMutate to allow for immediate UI feedback if needed
-    onMutate: async newData => {
+    onMutate: async () => {
       // Cancel outgoing refetches so they don't overwrite our optimistic update
       await queryClient.cancelQueries({ queryKey: ['sales'] });
     },
 
-    onSuccess: data => {
+    onSuccess: () => {
       toast.success('Sale processed successfully');
       // Invalidate relevant queries to refresh data
       queryClient.invalidateQueries({ queryKey: ['sales'] });

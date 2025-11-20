@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { usePosStore } from '@/store/store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from './barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
 
-export function MenuList() {
+export function ProductList() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -20,8 +20,42 @@ export function MenuList() {
 
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
 
+  // 1. Create a Ref for the search input
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
   const { data: products, isLoading, error } = usePosProducts({ enabled: true });
+
+  // 2. Add Global Key Listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // A. Safety Check: Don't trigger if user is already typing in an input or textarea
+      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      // B. Ignore Control/Alt/Meta keys (shortcuts)
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      // C. Handle "Escape" to clear search
+      if (e.key === 'Escape') {
+        setSearchQuery('');
+        searchInputRef.current?.blur();
+        return;
+      }
+
+      // D. Handle printable characters (length === 1)
+      // This allows typing to immediately start searching
+      if (e.key.length === 1) {
+        e.preventDefault(); // Prevent default browser behavior (like scrolling with space)
+        searchInputRef.current?.focus(); // Focus the box so they can keep typing
+        setSearchQuery(prev => prev + e.key); // Manually add the first character
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
 
   const categories = useMemo(() => {
     if (!products) return ['all'];
@@ -33,7 +67,6 @@ export function MenuList() {
     if (!products) return [];
     return products.filter(product => {
       const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
-      // Added search for variantName as well for better UX
       const matchesSearch =
         product.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         product.variantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -42,7 +75,6 @@ export function MenuList() {
     });
   }, [products, activeCategory, searchQuery]);
 
-  // Changed argument to variantId
   const handleQuantityChange = (variantId: string, delta: number) => {
     setQuantities(prev => ({
       ...prev,
@@ -50,14 +82,11 @@ export function MenuList() {
     }));
   };
 
-  // Changed argument to variantId and lookup logic
   const handleAddToCart = (variantId: string) => {
-    // Find specific variant, not just the parent product
     const product = products?.find(p => p.variantId === variantId);
     if (!product) return;
 
     const quantity = quantities[variantId] || 1;
-    // Lookup unit based on variantId
     const selectedUnitId = selectedUnits[variantId] || product.sellableUnits[0].unitId;
     const selectedUnit = product.sellableUnits.find(u => u.unitId === selectedUnitId);
 
@@ -65,7 +94,6 @@ export function MenuList() {
 
     if (quantity > 0) {
       addItemToOrder(product, selectedUnit, quantity);
-      // Reset quantity for this specific variant
       setQuantities(prev => ({ ...prev, [variantId]: 0 }));
     }
   };
@@ -85,7 +113,9 @@ export function MenuList() {
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search menu or barcode"
+              // 3. Attach the ref here
+              ref={searchInputRef}
+              placeholder="Type to search..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -128,7 +158,6 @@ export function MenuList() {
                 <p className="text-xs text-muted-foreground">{product.variantName}</p>
               </div>
 
-              {/* Select Logic tied to variantId */}
               <Select
                 value={selectedUnits[product.variantId] || product.sellableUnits[0].unitId}
                 onValueChange={value => setSelectedUnits(prev => ({ ...prev, [product.variantId]: value }))}
@@ -150,18 +179,15 @@ export function MenuList() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    // Pass variantId
                     onClick={() => handleQuantityChange(product.variantId, -1)}
                     className="h-8 w-8 p-0"
                   >
                     <Minus className="w-3 h-3" />
                   </Button>
-                  {/* Read quantity using variantId */}
                   <span className="w-8 text-center text-sm">{quantities[product.variantId] || 0}</span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    // Pass variantId
                     onClick={() => handleQuantityChange(product.variantId, 1)}
                     className="h-8 w-8 p-0"
                   >
@@ -172,7 +198,6 @@ export function MenuList() {
                 <Button
                   variant="outline"
                   className="flex-1 bg-transparent"
-                  // Pass variantId
                   onClick={() => handleAddToCart(product.variantId)}
                 >
                   + Add to cart
