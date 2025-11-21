@@ -149,8 +149,8 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
         {!isCollapsed && (
           <div className="flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent mt-4">
             <Avatar className="w-8 h-8 shrink-0">
-              <AvatarImage src="/placeholder.svg?height=32&width=32" />
-              <AvatarFallback>JD</AvatarFallback>
+              <AvatarImage src={currentMember?.image} />
+              <AvatarFallback>{currentMember?.name.substring(0, 2).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">{currentMember?.name}</div>

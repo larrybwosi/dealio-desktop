@@ -179,7 +179,7 @@ export function ReceiptPreview({ order, className = '' }: ReceiptPreviewProps) {
             </div>
           )}
 
-          <div className="text-[9px] mt-4 text-gray-400 uppercase tracking-wider">Powered by Enterprise POS</div>
+          <div className="text-[9px] mt-4 text-gray-400 uppercase tracking-wider">Powered by Dealio ERP</div>
         </div>
       </div>
     </div>

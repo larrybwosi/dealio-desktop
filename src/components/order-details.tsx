@@ -11,11 +11,14 @@ import PaymentModal from './pos/payment-dialog';
 import { CustomerSelector } from './customer-selector';
 import { AgeVerificationDialog } from './age-verification-dialog';
 import type { Order, CartItem, Customer, OrderType } from '@/types';
+import { ReceiptDialog } from './receipt-dialog';
 
 export function OrderDetails() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [ageVerificationOpen, setAgeVerificationOpen] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [lastCompletedOrder, setLastCompletedOrder] = useState<any>(null);
 
   // Store Hooks
   const currentOrder = usePosStore(state => state.currentOrder);
@@ -100,15 +103,33 @@ export function OrderDetails() {
     if (currentOrder.items.length === 0) return;
     saveUnpaidOrder(0);
   };
+const handlePaymentComplete = useCallback(
+  (completedOrder: Order) => {
+    console.log('Order Completed:', completedOrder);
 
-  const handlePaymentComplete = useCallback(
-    (completedOrder: Order) => {
-      console.log('Order Completed:', completedOrder);
-      resetOrder();
-      setAgeVerified(false);
-    },
-    [resetOrder]
-  );
+    // 1. Set the completed order data
+    setLastCompletedOrder(completedOrder);
+
+    // 2. Close payment modal
+    setPaymentDialogOpen(false);
+
+    // 3. Open Receipt Dialog
+    setReceiptDialogOpen(true);
+
+    // 4. Reset local logic
+    setAgeVerified(false);
+
+    // Note: We do NOT call resetOrder() here immediately anymore.
+    // We wait until the user closes the receipt dialog to clear the cart,
+    // or we clear it now but keep the data in 'lastCompletedOrder' for the receipt.
+    resetOrder();
+  },
+  [resetOrder]
+);
+const handleCloseReceipt = () => {
+  setReceiptDialogOpen(false);
+  setLastCompletedOrder(null);
+};
 
   const getNormalizedOrderType = (type: string): OrderType => {
     const map: Record<string, OrderType> = {
@@ -323,6 +344,12 @@ export function OrderDetails() {
         tableNumber={currentOrder.tableNumber}
         onOpenCustomer={() => console.log('Open Customer Selector')}
         onPaymentComplete={handlePaymentComplete}
+      />
+      <ReceiptDialog
+        open={receiptDialogOpen}
+        onOpenChange={setReceiptDialogOpen}
+        completedOrder={lastCompletedOrder}
+        onClose={handleCloseReceipt}
       />
     </>
   );

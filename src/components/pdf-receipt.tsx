@@ -245,7 +245,7 @@ export const PDFReceipt = ({
         {receiptConfig.showQrCode && qrCodeDataUrl && (
           <Image src={qrCodeDataUrl || "/placeholder.svg"} style={styles.qrCode} />
         )}
-        <Text style={{ marginTop: 15, fontSize: 8 }}>Powered by Enterprise POS System</Text>
+        <Text style={{ marginTop: 15, fontSize: 8 }}>Powered by Dealio POS System</Text>
       </View>
     </Page>
   </Document>

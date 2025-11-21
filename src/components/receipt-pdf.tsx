@@ -188,7 +188,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
           {/* QR Code - passed as image data url from parent */}
           {config.showQrCode && qrCodeUrl && <Image src={qrCodeUrl} style={{ width: 60, height: 60, marginTop: 5 }} />}
 
-          <Text style={{ fontSize: 8, marginTop: 5, color: '#888' }}>Powered by Enterprise POS</Text>
+          <Text style={{ fontSize: 8, marginTop: 5, color: '#888' }}>Powered by Dealio POS</Text>
         </View>
       </Page>
     </Document>

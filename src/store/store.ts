@@ -61,7 +61,7 @@ export interface OrderItem {
   variantName: string
   selectedUnit: SellableUnit
   quantity: number
-  imageUrl?: string | null
+  imageUrl?: string
 }
 
 export interface Order {

@@ -1,184 +1,223 @@
-"use client"
+'use client';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { usePosStore } from "@/store/store"
-import { Download, Printer, X, ChefHat } from "lucide-react"
-import { ReceiptPreview } from "./receipt-preview"
-import { useRef, useState, useEffect } from "react"
-import { pdf } from "@react-pdf/renderer"
-import { PDFReceipt } from "./pdf-receipt"
-import { PDFKitchenTicket } from "./pdf-kitchen-ticket"
-import QRCode from "qrcode"
-import { format } from "date-fns"
+import { JSX, useMemo } from 'react';
+import { PDFDownloadLink, usePDF, Document, Page } from '@react-pdf/renderer';
+import { Printer, Download, CheckCircle2, Loader2 } from 'lucide-react';
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { ReceiptPdfDocument } from './receipt-pdf';
+import { usePosStore } from '@/store/store';
+
+// Types
 interface ReceiptDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  completedOrder: any;
+  onClose: () => void;
 }
 
-export function ReceiptDialog({ open, onOpenChange }: ReceiptDialogProps) {
-  const lastCompletedOrder = usePosStore((state) => state.lastCompletedOrder)
-  const settings = usePosStore((state) => state.settings)
-  const receiptRef = useRef<HTMLDivElement>(null)
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
-  const [isGenerating, setIsGenerating] = useState(false)
+interface FormattedOrderItem {
+  productName: string;
+  variantName: string;
+  quantity: number;
+  selectedUnit: {
+    price: number;
+  };
+}
 
-  const businessConfig = usePosStore((state) => state.getBusinessConfig())
-  const showKitchenTicket = businessConfig.features.kitchenDisplay
+interface FormattedOrder {
+  orderNumber: string;
+  createdAt: string;
+  customerName: string;
+  orderType: string;
+  items: FormattedOrderItem[];
+  subTotal: number;
+  discount: number;
+  taxes: number;
+  total: number;
+}
 
-  useEffect(() => {
-    if (lastCompletedOrder && settings.receiptConfig?.showQrCode) {
-      const qrData = JSON.stringify({
-        orderNumber: lastCompletedOrder.orderNumber,
-        total: lastCompletedOrder.total,
-        date: format(new Date(lastCompletedOrder.createdAt), "yyyy-MM-dd HH:mm"),
-      })
+// Utility Functions
+const formatOrderForReceipt = (order: any): FormattedOrder | null => {
+  if (!order) return null;
 
-      QRCode.toDataURL(qrData, { width: 200, margin: 1 })
-        .then((url) => setQrCodeDataUrl(url))
-        .catch((err) => console.error("QR Code generation error:", err))
+  return {
+    orderNumber: order.orderNumber,
+    createdAt: order.datetime,
+    customerName: order.customer?.name || 'Guest',
+    orderType: order.orderType,
+    items: order.items.map((item: any) => ({
+      productName: item.productName,
+      variantName: item.variant || '',
+      quantity: item.quantity,
+      selectedUnit: {
+        price: parseFloat(item.price),
+      },
+    })),
+    subTotal: parseFloat(order.subtotal),
+    discount: parseFloat(order.discount),
+    taxes: parseFloat(order.tax),
+    total: parseFloat(order.total),
+  };
+};
+
+const generateQrCodeUrl = (orderNumber: string): string => {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${orderNumber}`;
+};
+
+// Sub-components
+const SuccessHeader = () => (
+  <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
+    <CheckCircle2 className="h-8 w-8 text-green-600" />
+  </div>
+);
+
+interface OrderSummaryProps {
+  order: FormattedOrder;
+  paymentMethod: string;
+  currency: string;
+}
+
+const OrderSummary = ({ order, paymentMethod, currency }: OrderSummaryProps) => (
+  <div className="bg-muted/50 p-4 rounded-lg text-sm space-y-2">
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">Order No:</span>
+      <span className="font-medium">{order.orderNumber}</span>
+    </div>
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">Total Paid:</span>
+      <span className="font-bold text-lg">
+        {currency} {order.total.toLocaleString()}
+      </span>
+    </div>
+    <div className="flex justify-between">
+      <span className="text-muted-foreground">Payment Method:</span>
+      <span>{paymentMethod}</span>
+    </div>
+  </div>
+);
+
+interface ActionButtonsProps {
+  pdfDocument: JSX.Element;
+  orderNumber: string;
+  onPrint: () => void;
+  onClose: () => void;
+  isLoading: boolean;
+}
+
+const ActionButtons = ({ pdfDocument, orderNumber, onPrint, onClose, isLoading }: ActionButtonsProps) => (
+  <>
+    <div className="grid grid-cols-2 gap-2 w-full">
+      <PDFDownloadLink document={pdfDocument} fileName={`receipt-${orderNumber}.pdf`} className="w-full">
+        {({ loading }) => (
+          <Button variant="outline" className="w-full" disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Download
+          </Button>
+        )}
+      </PDFDownloadLink>
+
+      <Button onClick={onPrint} disabled={isLoading} className="w-full">
+        {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+        Print Receipt
+      </Button>
+    </div>
+
+    <Button variant="ghost" onClick={onClose} className="w-full sm:mt-0 mt-2">
+      Start New Order
+    </Button>
+  </>
+);
+
+// Main Component
+export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: ReceiptDialogProps) {
+  const settings = usePosStore(state => state.settings);
+
+  // Format order data
+  const formattedOrder = useMemo(() => formatOrderForReceipt(completedOrder), [completedOrder]);
+
+  // Generate QR code URL
+  const qrCodeUrl = useMemo(
+    () => (completedOrder ? generateQrCodeUrl(completedOrder.orderNumber) : ''),
+    [completedOrder]
+  );
+
+  // Create PDF document
+  const pdfDocument = useMemo(() => {
+    if (!formattedOrder) {
+      return (
+        <Document>
+          <Page />
+        </Document>
+      );
     }
-  }, [lastCompletedOrder, settings.receiptConfig?.showQrCode])
+    return <ReceiptPdfDocument order={formattedOrder} settings={settings} qrCodeUrl={qrCodeUrl} />;
+  }, [formattedOrder, settings, qrCodeUrl]);
 
-  if (!lastCompletedOrder) return null
+  // Generate PDF instance
+  const [instance] = usePDF({ document: pdfDocument });
 
-  const handlePrintReceipt = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(
-        <PDFReceipt
-          order={lastCompletedOrder}
-          businessName={settings.businessName}
-          currency={settings.currency}
-          taxRate={settings.taxRate}
-          receiptConfig={settings.receiptConfig}
-          qrCodeDataUrl={qrCodeDataUrl}
-        />,
-      ).toBlob()
+  // Handlers
+  const handlePrint = () => {
+    if (!instance.url) return;
 
-      const url = URL.createObjectURL(blob)
-      const printWindow = window.open(url, "_blank")
-      if (printWindow) {
-        printWindow.onload = () => {
-          printWindow.print()
-        }
-      }
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    iframe.src = instance.url;
+    document.body.appendChild(iframe);
 
-  const handleDownloadReceipt = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(
-        <PDFReceipt
-          order={lastCompletedOrder}
-          businessName={settings.businessName}
-          currency={settings.currency}
-          taxRate={settings.taxRate}
-          receiptConfig={settings.receiptConfig}
-          qrCodeDataUrl={qrCodeDataUrl}
-        />,
-      ).toBlob()
+    iframe.contentWindow?.focus();
+    iframe.contentWindow?.print();
 
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `receipt-${lastCompletedOrder.orderNumber}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
+    setTimeout(() => {
+      document.body.removeChild(iframe);
+    }, 2000);
+  };
 
-  const handleDownloadKitchenTicket = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(
-        <PDFKitchenTicket order={lastCompletedOrder} businessName={settings.businessName} />,
-      ).toBlob()
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `ticket-${lastCompletedOrder.orderNumber}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error generating kitchen ticket:", error)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
+  if (!formattedOrder) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>Order Receipt - {lastCompletedOrder.orderNumber}</span>
-            <Button variant="ghost" size="icon" onClick={() => onOpenChange(false)}>
-              <X className="w-4 h-4" />
-            </Button>
-          </DialogTitle>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="items-center space-y-4 pb-4 border-b">
+          <SuccessHeader />
+          <div className="text-center">
+            <DialogTitle className="text-xl">Payment Successful!</DialogTitle>
+            <DialogDescription className="pt-2">
+              Change Due:{' '}
+              <span className="font-bold text-foreground">
+                {settings.currency} {completedOrder.change}
+              </span>
+            </DialogDescription>
+          </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto">
-          <div className="border rounded-lg p-6 bg-white" ref={receiptRef}>
-            <ReceiptPreview order={lastCompletedOrder} />
-          </div>
+        <div className="py-4 space-y-4">
+          <OrderSummary
+            order={formattedOrder}
+            paymentMethod={completedOrder.paymentMethod}
+            currency={settings.currency}
+          />
         </div>
 
-        <div className="flex flex-col gap-3 pt-4 border-t">
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              className="flex-1 bg-transparent"
-              onClick={handlePrintReceipt}
-              disabled={isGenerating}
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              {isGenerating ? "Generating..." : "Print Receipt"}
-            </Button>
-            <Button
-              variant="outline"
-              className="flex-1 bg-transparent"
-              onClick={handleDownloadReceipt}
-              disabled={isGenerating}
-            >
-              <Download className="w-4 h-4 mr-2" />
-              {isGenerating ? "Generating..." : "Download Receipt"}
-            </Button>
-          </div>
-
-          {showKitchenTicket && (
-            <Button
-              variant="outline"
-              className="w-full bg-transparent"
-              onClick={handleDownloadKitchenTicket}
-              disabled={isGenerating}
-            >
-              <ChefHat className="w-4 h-4 mr-2" />
-              {isGenerating ? "Generating..." : "Download Kitchen Ticket"}
-            </Button>
-          )}
-
-          <Button className="w-full" onClick={() => onOpenChange(false)}>
-            Done
-          </Button>
-        </div>
+        <DialogFooter className="flex-col sm:flex-row gap-2">
+          <ActionButtons
+            pdfDocument={pdfDocument}
+            orderNumber={formattedOrder.orderNumber}
+            onPrint={handlePrint}
+            onClose={onClose}
+            isLoading={instance.loading}
+          />
+        </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
