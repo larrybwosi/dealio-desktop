@@ -5,7 +5,7 @@ import { ProductList } from '@/components/product-list';
 import { OrderDetails } from '@/components/order-details';
 import { SettingsPage } from '@/components/settings-page';
 import { HistoryPage } from '@/components/history-page';
-import { ReceiptSettingsPage } from '@/components/receipt-settings-page';
+import { ReceiptSettingsPage } from '@/pages/receipt-settings-page';
 import { ManageTablesPage } from '@/components/manage-tables-page';
 import { Input } from '@/components/ui/input';
 import { Calendar, Search, LogOut } from 'lucide-react';

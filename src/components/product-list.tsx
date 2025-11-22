@@ -6,10 +6,11 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Minus, Plus, Search, Scan, Store, Truck } from 'lucide-react';
+import { Minus, Plus, Search, Scan, Store, Truck, AlertCircle, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from './barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
+import { Skeleton } from './ui/skeleton';
 
 export function ProductList() {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -27,7 +28,7 @@ export function ProductList() {
 
   // Store hook
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
-  const { data: products, isLoading, error } = usePosProducts({ enabled: true });
+  const { data: products, isLoading, error, refetch, isRefetching } = usePosProducts({ enabled: true });
 
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -133,7 +134,6 @@ export function ProductList() {
         product,
         unitWithCurrentPrice,
         quantity,
-        // Pass this options object to your store (ensure store accepts it)
         { isWholesale: pricingMode === 'wholesale' }
       );
 
@@ -141,15 +141,69 @@ export function ProductList() {
     }
   };
 
-  if (isLoading) return <div className="p-6">Loading menu...</div>;
-  if (error) return <div className="p-6 text-red-500">Error loading menu</div>;
+  // 1. Loading Skeleton
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-32" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-24" />
+            <Skeleton className="h-9 w-64" />
+          </div>
+        </div>
+        <div className="flex gap-3 overflow-hidden">
+          {[1, 2, 3, 4, 5].map(i => (
+            <Skeleton key={i} className="h-8 w-20 rounded-full" />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-32 w-full rounded-xl" />
+              <Skeleton className="h-4 w-3/4" />
+              <div className="flex gap-2 pt-1">
+                <Skeleton className="h-8 w-full" />
+                <Skeleton className="h-8 w-12" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Error State
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4 text-center p-6">
+        <div className="bg-destructive/10 p-4 rounded-full">
+          <AlertCircle className="w-10 h-10 text-destructive" />
+        </div>
+        <h3 className="text-lg font-semibold text-foreground">Unable to load menu</h3>
+        <Button onClick={() => refetch()} variant="outline" className="gap-2">
+          <RefreshCw className="w-4 h-4" />
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
       {/* Top Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
         <h2 className="text-xl font-semibold">Menu List</h2>
-
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => refetch()}
+          disabled={isRefetching}
+          title="Refresh Products"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+        >
+          <RefreshCw className={cn('w-4 h-4', isRefetching && 'animate-spin')} />
+        </Button>
         <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
           {/* Retail / Wholesale Switch */}
           <div className="bg-muted p-1 rounded-lg flex items-center border border-border">
@@ -158,7 +212,7 @@ export function ProductList() {
               className={cn(
                 'flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all',
                 pricingMode === 'retail'
-                  ? 'bg-white shadow-sm text-foreground'
+                  ? 'bg-background shadow-sm text-foreground'
                   : 'text-muted-foreground hover:text-foreground'
               )}
             >
@@ -200,7 +254,7 @@ export function ProductList() {
       </div>
 
       {/* Categories */}
-      <div className="flex items-center gap-2 mb-6 border-b border-border overflow-x-auto pb-2 md:pb-0">
+      <div className="flex items-center gap-2 mb-6 border-b border-border overflow-x-auto overflow-hidden pb-2 md:pb-0">
         {categories.map(category => (
           <button
             key={category}
