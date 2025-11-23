@@ -72,7 +72,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       },
     }),
     {
-      name: 'pos-auth-storage',
+      name: 'pos-auth-storage-v3',
       storage: createJSONStorage(() => localStorage),
 
       // 3. Allow member data to be saved to storage

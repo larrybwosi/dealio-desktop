@@ -7,10 +7,11 @@ import { useAuthStore } from './store/pos-auth-store';
 const DynamicRenderer = () => {
   const { deviceKey } = useAuthStore();
   const { isAuthenticated } = useAuth();
+    const { currentLocation } = useAuthStore();
   useSessionActivityListener();
 
   // Render logic based on states
-  if (!deviceKey) {
+  if (!deviceKey || !currentLocation?.id ) {
     return <SetupPage />;
   }
 

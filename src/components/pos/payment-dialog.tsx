@@ -107,6 +107,8 @@ const PaymentModal = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
   const [cashReceived, setCashReceived] = useState<string>('');
   const [notes, setNotes] = useState('');
+  const [editableDiscount, setEditableDiscount] = useState<number>(discount); // Local state for discount
+
   const { mutate: createSale, isPending: isProcessing } = useProcessSale();
   // const { addPendingOrder } = useOrderStore();
   const settings = usePosStore(state => state.settings);
@@ -130,14 +132,19 @@ const PaymentModal = ({
     [isOpen]
   );
 
+  // Update local discount if prop changes (optional, but good practice)
+  useEffect(() => {
+    setEditableDiscount(discount);
+  }, [discount]);
+
   // Tax-inclusive calculations
   const { totalPayable, priceBeforeTax, calculatedTax } = useMemo(() => {
-    const total = subtotal - discount;
+    const total = Math.max(0, subtotal - editableDiscount); // Ensure total is not negative
     const rate = Number(taxRate) || 0;
     const taxableAmount = total / (1 + rate);
     const taxAmount = total - taxableAmount;
     return { totalPayable: total, priceBeforeTax: taxableAmount, calculatedTax: taxAmount };
-  }, [subtotal, discount, taxRate]);
+  }, [subtotal, editableDiscount, taxRate]);
 
   const change = useMemo(() => {
     const received = parseFloat(cashReceived) || 0;
@@ -240,7 +247,7 @@ const PaymentModal = ({
       })),
       customer,
       subtotal: priceBeforeTax,
-      discount,
+      discount: editableDiscount,
       tax: calculatedTax,
       total: totalPayable,
       orderType,
@@ -261,7 +268,7 @@ const PaymentModal = ({
       cartItems,
       customer,
       priceBeforeTax,
-      discount,
+      editableDiscount,
       calculatedTax,
       totalPayable,
       orderType,
@@ -319,7 +326,7 @@ const PaymentModal = ({
       items: cartItems,
       customer,
       subtotal: priceBeforeTax,
-      discount,
+      discount: editableDiscount,
       tax: calculatedTax,
       total: totalPayable,
       orderType,
@@ -338,7 +345,7 @@ const PaymentModal = ({
     cartItems,
     customer,
     priceBeforeTax,
-    discount,
+    editableDiscount,
     calculatedTax,
     totalPayable,
     orderType,
@@ -365,7 +372,7 @@ const PaymentModal = ({
               <DialogHeader className="p-6 pb-4">
                 <DialogTitle className="flex items-center gap-2">
                   Payment Details
-                  {discount > 0 && (
+                  {editableDiscount > 0 && (
                     <Badge variant="secondary" className="bg-green-100 text-green-800">
                       Discount Applied
                     </Badge>
@@ -436,9 +443,23 @@ const PaymentModal = ({
                       <span className="text-muted-foreground">Subtotal</span>
                       <span>{formatCurrency(subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Discount</span>
-                      <span className="text-red-600">-{formatCurrency(discount)}</span>
+                      <div className="flex items-center gap-2 w-32">
+                         <span className="text-red-600">-</span>
+                         <Input
+                            type="number"
+                            min="0"
+                            max={subtotal}
+                            value={editableDiscount}
+                            onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                if (isNaN(val)) setEditableDiscount(0);
+                                else setEditableDiscount(Math.min(val, subtotal));
+                            }}
+                            className="h-8 text-right text-red-600"
+                         />
+                      </div>
                     </div>
                     <div className="flex justify-between font-bold text-xl pt-2 border-t">
                       <span>Total Payable</span>

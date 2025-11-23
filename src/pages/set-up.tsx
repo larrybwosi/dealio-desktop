@@ -163,6 +163,7 @@ const InstructionItem = ({ icon, title, description, action }: InstructionItemPr
   </Card>
 );
 
+
 const ApiKeyStep = ({ onNext, onShowInstructions }: ApiKeyStepProps) => {
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
@@ -300,13 +301,13 @@ const LocationStep = ({ onBack, onComplete }: LocationStepProps) => {
       </div>
 
       <div className="space-y-3 mb-8 max-h-[400px] overflow-y-auto pr-2">
-        {locations.map(loc => {
+        {locations?.map(loc => {
           const Icon = getLocationIcon(loc.locationType);
-          const isSelected = selectedLocation?.id === loc.id;
-          const displayAddress = loc.address || 'No address provided';
+          const isSelected = selectedLocation?.id === loc?.id;
+          const displayAddress = loc?.address || 'No address provided';
 
           return (
-            <motion.div key={loc.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+            <motion.div key={loc?.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Card
                 className={`cursor-pointer transition-all duration-200 ${
                   isSelected
@@ -325,7 +326,7 @@ const LocationStep = ({ onBack, onComplete }: LocationStepProps) => {
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className={`font-medium ${isSelected ? 'text-white' : 'text-zinc-200'}`}>{loc.name}</h3>
+                      <h3 className={`font-medium ${isSelected ? 'text-white' : 'text-zinc-200'}`}>{loc?.name}</h3>
                       {loc.isDefault && (
                         <Badge variant="secondary" className="text-xs bg-blue-500/20 text-blue-400">
                           Default
@@ -335,7 +336,7 @@ const LocationStep = ({ onBack, onComplete }: LocationStepProps) => {
                         {formatLocationType(loc.locationType)}
                       </Badge>
                     </div>
-                    <p className="text-xs text-zinc-500">{displayAddress}</p>
+                    {/* <p className="text-xs text-zinc-500">{displayAddress}</p> */}
                   </div>
                   {isSelected && (
                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-emerald-400">

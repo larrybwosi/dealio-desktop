@@ -7,6 +7,7 @@ import { usePosStore } from "@/store/store"
 import { NotificationToast } from "@/components/notification-toast"
 import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { AblyProvider } from "./AblyProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
@@ -68,9 +69,11 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-      <NotificationToast />
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      <Toaster />
+      <AblyProvider>
+        <NotificationToast />
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <Toaster />
+      </AblyProvider>
     </>
   );
 }

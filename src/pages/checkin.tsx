@@ -328,7 +328,7 @@ export default function CheckinPage() {
 
           <CardFooter className="justify-center pb-0">
             <p className="text-xs text-slate-600">
-              Terminal ID: <span className="text-slate-400 font-mono">{currentLocation.name}</span> • Status:{' '}
+              Terminal ID: <span className="text-slate-400 font-mono">{currentLocation?.name}</span> • Status:{' '}
               <span className="text-green-500">Online</span>
             </p>
           </CardFooter>
