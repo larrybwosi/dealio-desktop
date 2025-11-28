@@ -38,7 +38,7 @@ import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
 import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 
-// Memoized customer badge component
+// Memoized customer badge component change
 const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
   if (!customer) return null;
   const tierLevel = customer.loyaltyPoints || 0;
@@ -383,7 +383,7 @@ const PaymentModal = ({
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 pt-0">
                 {/* Left Column - QR Code and Payment Link */}
-                <div className="lg:col-span-1 flex flex-col items-center p-4 border rounded-lg bg-slate-50">
+                <div className="lg:col-span-1 flex flex-col items-center p-4 border rounded-lg bg-background">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 text-slate-600">
                     <QrCode className="w-4 h-4" /> Scan to Pay
                   </h3>
@@ -623,7 +623,7 @@ const PaymentModal = ({
                           </div>
                           <div className="space-y-1">
                             <Label>Change Due</Label>
-                            <div className="px-3 py-2 bg-gray-100 border rounded-md font-medium h-10 flex items-center">
+                            <div className="px-3 py-2 bg-background border rounded-md font-medium h-10 flex items-center">
                               {formatCurrency(change)}
                             </div>
                           </div>

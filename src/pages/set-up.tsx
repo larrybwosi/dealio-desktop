@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Key,
@@ -6,21 +6,24 @@ import {
   Check,
   Store,
   Loader2,
-  ArrowRight,
   ShieldCheck,
   Info,
   ExternalLink,
   Laptop,
   Settings,
   ClipboardCheck,
-  WarehouseIcon,
+  Warehouse,
+  ChevronLeft,
 } from 'lucide-react';
 
+// shadcn components
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Label } from '@/components/ui/label';
+
+// hooks
 import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
 
@@ -30,7 +33,7 @@ interface Location {
   name: string;
   address: string;
   type: string;
-  icon: React.ComponentType<any>;
+  isDefault?: boolean;
 }
 
 interface SetupData {
@@ -38,133 +41,53 @@ interface SetupData {
   location: Location | null;
 }
 
-interface StepIndicatorProps {
-  currentStep: number;
-  totalSteps: number;
-}
+// --- Sub-Components ---
 
-interface InstructionItemProps {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  action?: React.ReactNode;
-}
-
-interface ApiKeyStepProps {
-  onNext: (apiKey: string) => void;
-  onShowInstructions: () => void;
-}
-
-interface LocationStepProps {
-  onBack: () => void;
-  onComplete: (location: Location) => void;
-}
-
-interface SuccessStepProps {
-  location: Location | null;
-}
-
-interface ApiKeyInstructionsProps {
-  onBack: () => void;
-}
-
-// --- Components ---
-
-const StepIndicator = ({ currentStep, totalSteps }: StepIndicatorProps) => {
+const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
   return (
-    <div className="flex items-center justify-center space-x-2 mb-8">
-      {[...Array(totalSteps)].map((_, index) => (
-        <div key={index} className="flex items-center">
-          <motion.div
-            initial={false}
-            animate={{
-              backgroundColor: index + 1 <= currentStep ? '#3b82f6' : '#27272a',
-              borderColor: index + 1 <= currentStep ? '#3b82f6' : '#3f3f46',
-              scale: index + 1 === currentStep ? 1.1 : 1,
-            }}
-            className="w-3 h-3 rounded-full border-2 transition-colors duration-300"
-          />
-          {index < totalSteps - 1 && (
-            <div className={`w-8 h-0.5 mx-1 ${index + 1 < currentStep ? 'bg-blue-500' : 'bg-zinc-800'}`} />
-          )}
-        </div>
-      ))}
+    <div className="space-y-6 w-full max-w-md mx-auto">
+      <div className="space-y-2">
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          onClick={onBack} 
+          className="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 -ml-2 h-8 px-2"
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" /> Back
+        </Button>
+        <h3 className="text-2xl font-semibold tracking-tight">Locate your API Key</h3>
+        <p className="text-base text-zinc-500 dark:text-zinc-400">
+          Your security key connects this terminal to your merchant dashboard.
+        </p>
+      </div>
+
+      <div className="grid gap-4">
+        {[
+          { icon: Laptop, title: "1. Login to Dashboard", desc: "Sign in to your Merchant Portal." },
+          { icon: Settings, title: "2. Go to Settings", desc: "Navigate to Developer > API Keys." },
+          { icon: Key, title: "3. Generate Key", desc: "Create a new 'POS Terminal' key." },
+          { icon: ClipboardCheck, title: "4. Copy & Paste", desc: "Copy the secret starting with pk_live." }
+        ].map((item, i) => (
+          <div key={i} className="flex items-start gap-4 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/50">
+            <item.icon className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-sm text-zinc-900 dark:text-zinc-200">{item.title}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.desc}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Button variant="outline" className="w-full h-11" asChild>
+        <a href="https://dashboard.dealio.com" target="_blank" rel="noreferrer">
+          Open Dashboard <ExternalLink className="w-4 h-4 ml-2" />
+        </a>
+      </Button>
     </div>
   );
 };
 
-const ApiKeyInstructions = ({ onBack }: ApiKeyInstructionsProps) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="w-full max-w-md text-zinc-200"
-    >
-      <div className="text-center mb-8">
-        <div className="bg-blue-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-400 ring-1 ring-blue-500/20">
-          <Info size={32} />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">How to Find Your API Key</h2>
-        <p className="text-zinc-400">Follow these steps to generate and copy your API key.</p>
-      </div>
-
-      <div className="space-y-4 mb-8">
-        <InstructionItem
-          icon={<Laptop size={20} />}
-          title="1. Login to Your Dashboard"
-          description="Go to the Dealio Merchant Dashboard and sign in with your credentials."
-          action={
-            <Button variant="link" className="text-blue-400 hover:text-blue-300 p-0 h-auto">
-              Go to Dashboard <ExternalLink size={14} className="ml-1" />
-            </Button>
-          }
-        />
-        <InstructionItem
-          icon={<Settings size={20} />}
-          title="2. Navigate to API Keys"
-          description="In the dashboard, find 'Settings' or 'Developer' and select 'API Keys'."
-        />
-        <InstructionItem
-          icon={<Key size={20} />}
-          title="3. Generate & Copy Key"
-          description="Create a new key (e.g., 'POS Terminal Key') with necessary permissions and copy the generated secret key."
-        />
-        <InstructionItem
-          icon={<ClipboardCheck size={20} />}
-          title="4. Paste Here"
-          description="Return to this setup page and paste your API key into the field."
-        />
-      </div>
-
-      <Button
-        onClick={onBack}
-        variant="secondary"
-        className="w-full bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-3 rounded-xl font-medium transition-colors"
-      >
-        Go Back to API Key Entry
-      </Button>
-    </motion.div>
-  );
-};
-
-const InstructionItem = ({ icon, title, description, action }: InstructionItemProps) => (
-  <Card className="bg-zinc-900/50 border-zinc-800">
-    <CardContent className="p-4">
-      <div className="flex items-start space-x-4">
-        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400 shrink-0">{icon}</div>
-        <div className="flex-1">
-          <h3 className="font-medium text-white mb-1">{title}</h3>
-          <p className="text-sm text-zinc-400">{description}</p>
-          {action && <div className="mt-2 text-sm">{action}</div>}
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
-
-
-const ApiKeyStep = ({ onNext, onShowInstructions }: ApiKeyStepProps) => {
+const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => void, onShowInstructions: () => void }) => {
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
@@ -173,264 +96,182 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: ApiKeyStepProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (apiKey.length < 10) {
-      setError('API Key must be at least 10 characters');
+      setError('Invalid API key format');
       return;
     }
-
     setError('');
     setIsValidating(true);
-
-    setDeviceKey(apiKey);
-    setIsValidating(false);
-    onNext(apiKey);
+    
+    setTimeout(() => {
+        setDeviceKey(apiKey);
+        setIsValidating(false);
+        onNext(apiKey);
+    }, 800);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="w-full max-w-md"
-    >
-      <div className="text-center mb-8">
-        <div className="bg-blue-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-blue-400 ring-1 ring-blue-500/20">
-          <Key size={32} />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Connect Your Account</h2>
-        <p className="text-zinc-400">Enter your license key to initialize the POS terminal.</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-8 w-full max-w-md mx-auto">
+      <div className="space-y-4">
+        <Label htmlFor="apiKey" className="text-base font-medium text-zinc-900 dark:text-zinc-100">License Key</Label>
         <div className="relative group">
           <Input
-            type="text"
+            id="apiKey"
+            type="password"
             value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
-            className="w-full bg-zinc-900/50 border-zinc-700 text-white px-4 py-4 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all placeholder-zinc-600 font-mono tracking-wider"
+            onChange={(e) => setApiKey(e.target.value)}
+            className="pl-11 font-mono text-sm h-14 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 focus-visible:ring-blue-500 rounded-xl shadow-sm transition-all group-hover:border-blue-400/50"
             placeholder="pk_live_..."
             autoFocus
           />
-          <div className="absolute right-4 top-4 text-zinc-500 group-focus-within:text-blue-400 transition-colors">
-            <ShieldCheck size={20} />
-          </div>
+          <Key className="absolute left-4 top-4.5 h-5 w-5 text-zinc-400 group-focus-within:text-blue-500 transition-colors" />
         </div>
+        {error && <p className="text-sm text-red-500 font-medium flex items-center gap-2"><Info size={14}/> {error}</p>}
+      </div>
 
-        {error && (
-          <motion.p
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-red-400 text-sm flex items-center justify-center"
-          >
-            {error}
-          </motion.p>
-        )}
-
-        <Button
-          type="submit"
-          disabled={isValidating || !apiKey}
-          className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white py-4 rounded-xl font-semibold shadow-lg shadow-blue-900/20 flex items-center justify-center space-x-2 transition-all"
+      <div className="flex flex-col gap-4">
+        <Button 
+            type="submit" 
+            size="lg"
+            className="w-full h-12 rounded-xl text-base bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            disabled={isValidating || !apiKey}
         >
-          {isValidating ? (
-            <>
-              <Loader2 className="animate-spin" size={20} />
-              <span>Verifying...</span>
-            </>
-          ) : (
-            <>
-              <span>Continue Setup</span>
-              <ArrowRight size={20} />
-            </>
-          )}
+            {isValidating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Verify & Continue"}
         </Button>
-      </form>
-
-      <div className="mt-8 text-center">
-        <Button
-          variant="link"
-          onClick={onShowInstructions}
-          className="text-xs text-zinc-500 hover:text-zinc-400 p-0 h-auto"
+        
+        <Button 
+            type="button" 
+            variant="ghost" 
+            className="text-zinc-500 dark:text-zinc-400 text-sm hover:bg-transparent hover:text-blue-500"
+            onClick={onShowInstructions}
         >
-          Where do I find my API key?
+            Where do I find my API key?
         </Button>
       </div>
-    </motion.div>
+    </form>
   );
 };
 
-const LocationStep = ({ onBack, onComplete }: LocationStepProps) => {
-  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+const LocationStep = ({ onBack, onComplete }: { onBack: () => void, onComplete: (l: Location) => void }) => {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const { locations, isLoading } = usePosLocations();
   const { setCurrentLocation } = useAuthStore();
 
-  const handleComplete = async () => {
-    if (!selectedLocation) return;
-    setCurrentLocation(selectedLocation);
-    onComplete(selectedLocation);
-  };
-
-  // Get appropriate icon based on location type
-  const getLocationIcon = (locationType: string) => {
-    switch (locationType) {
-      case 'RETAIL_SHOP':
-        return Store; // Assuming you have a Store icon
-      case 'WAREHOUSE':
-        return WarehouseIcon; // Assuming you have a Warehouse icon
-      default:
-        return MapPin;
+  const handleComplete = () => {
+    const loc = locations?.find(l => l.id === selectedId);
+    if (loc) {
+      setCurrentLocation(loc);
+      onComplete(loc);
     }
   };
 
-  // Format location type for display
-  const formatLocationType = (locationType: string) => {
-    return locationType.toLowerCase().replace('_', ' ');
+  const getLocationIcon = (type: string) => {
+    switch (type) {
+      case 'RETAIL_SHOP': return Store;
+      case 'WAREHOUSE': return Warehouse;
+      default: return MapPin;
+    }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className="w-full max-w-md"
-    >
-      <div className="text-center mb-8">
-        <div className="bg-emerald-500/10 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 text-emerald-400 ring-1 ring-emerald-500/20">
-          <MapPin size={32} />
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-2">Select Location</h2>
-        <p className="text-zinc-400">Which store is this device located in?</p>
+    <div className="space-y-6 w-full max-w-md mx-auto flex flex-col h-[70vh] md:h-auto">
+      <div className="space-y-1">
+        <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Select Store</h3>
       </div>
-
-      <div className="space-y-3 mb-8 max-h-[400px] overflow-y-auto pr-2">
-        {locations?.map(loc => {
-          const Icon = getLocationIcon(loc.locationType);
-          const isSelected = selectedLocation?.id === loc?.id;
-          const displayAddress = loc?.address || 'No address provided';
-
-          return (
-            <motion.div key={loc?.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-              <Card
-                className={`cursor-pointer transition-all duration-200 ${
-                  isSelected
-                    ? 'bg-emerald-900/20 border-emerald-500/50 ring-1 ring-emerald-500/50'
-                    : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600 hover:bg-zinc-800/50'
-                }`}
-                onClick={() => setSelectedLocation(loc)}
-              >
-                <CardContent className="p-4 flex items-center space-x-4">
-                  <div
-                    className={`p-3 rounded-lg ${
-                      isSelected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-400'
-                    }`}
-                  >
-                    <Icon size={20} />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className={`font-medium ${isSelected ? 'text-white' : 'text-zinc-200'}`}>{loc?.name}</h3>
-                      {loc.isDefault && (
-                        <Badge variant="secondary" className="text-xs bg-blue-500/20 text-blue-400">
-                          Default
-                        </Badge>
-                      )}
-                      <Badge variant="secondary" className="text-xs">
-                        {formatLocationType(loc.locationType)}
-                      </Badge>
+      
+      {/* Scrollable Area */}
+      <div className="flex-1 overflow-y-auto -mr-3 pr-3 space-y-3 custom-scrollbar min-h-[200px]">
+        {locations?.map((loc) => {
+            const Icon = getLocationIcon(loc.locationType);
+            const isSelected = selectedId === loc.id;
+            
+            return (
+                <div
+                    key={loc.id}
+                    onClick={() => setSelectedId(loc.id)}
+                    className={`
+                        group relative flex items-center gap-4 p-4 rounded-xl border-2 cursor-pointer transition-all duration-200
+                        ${isSelected 
+                            ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20' 
+                            : 'border-transparent bg-zinc-100 dark:bg-zinc-900/50 hover:bg-zinc-200 dark:hover:bg-zinc-800'
+                        }
+                    `}
+                >
+                    <div className={`p-3 rounded-lg transition-colors ${isSelected ? 'bg-blue-500 text-white shadow-md' : 'bg-white dark:bg-zinc-800 text-zinc-500 group-hover:text-zinc-700'}`}>
+                        <Icon size={20} />
                     </div>
-                    {/* <p className="text-xs text-zinc-500">{displayAddress}</p> */}
-                  </div>
-                  {isSelected && (
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-emerald-400">
-                      <Check size={20} />
-                    </motion.div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
+                    
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{loc.name}</h4>
+                            {loc.isDefault && <Badge variant="secondary" className="text-[10px] h-5 px-1.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300">Default</Badge>}
+                        </div>
+                        <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate capitalize">{loc.locationType.toLowerCase().replace('_', ' ')}</p>
+                    </div>
+
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'border-blue-500 bg-blue-500 text-white scale-100' : 'border-zinc-300 dark:border-zinc-700 scale-90 opacity-50 group-hover:opacity-100'}`}>
+                        {isSelected && <Check size={14} strokeWidth={3} />}
+                    </div>
+                </div>
+            )
         })}
       </div>
 
-      <div className="flex space-x-3">
-        <Button onClick={onBack} variant="outline" className="flex-1 text-zinc-400 hover:bg-zinc-900">
-          Back
-        </Button>
-        <Button
-          onClick={handleComplete}
-          disabled={!selectedLocation || isLoading}
-          className="flex-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 flex items-center justify-center space-x-2"
+      <div className="flex gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
+        <Button variant="outline" onClick={onBack} size="lg" className="flex-1 rounded-xl h-12">Back</Button>
+        <Button 
+            size="lg"
+            className="flex-[2] rounded-xl h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-blue-500/20"
+            disabled={!selectedId || isLoading}
+            onClick={handleComplete}
         >
-          {isLoading ? (
-            <>
-              <Loader2 className="animate-spin" size={20} />
-              <span>Syncing Catalog...</span>
-            </>
-          ) : (
-            <>
-              <span>Finish Setup</span>
-              <Check size={20} />
-            </>
-          )}
+            {isLoading ? <Loader2 className="animate-spin mr-2" /> : "Confirm Location"}
         </Button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 
-const SuccessStep = ({ location }: SuccessStepProps) => {
-  const [progress, setProgress] = useState(0);
+const SuccessStep = ({ location }: { location: Location | null }) => {
+    const [progress, setProgress] = useState(10);
+    
+    useEffect(() => {
+        const timer = setTimeout(() => setProgress(100), 800);
+        return () => clearTimeout(timer);
+    }, []);
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setProgress(100), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    return (
+        <div className="text-center w-full max-w-sm mx-auto">
+            <motion.div 
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="w-24 h-24 bg-green-100 dark:bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-8 text-green-600 dark:text-green-400 ring-8 ring-green-50 dark:ring-green-500/5"
+            >
+                <Check className="w-12 h-12" strokeWidth={3} />
+            </motion.div>
+            
+            <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-3">All Systems Go!</h2>
+            <p className="text-zinc-500 dark:text-zinc-400 mb-10 text-lg">
+                Terminal registered to <br/>
+                <span className="font-semibold text-zinc-900 dark:text-zinc-200">{location?.name}</span>
+            </p>
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="text-center w-full max-w-md"
-    >
-      <div className="relative w-24 h-24 mx-auto mb-8">
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.2 }}
-          className="absolute inset-0 bg-linear-to-tr from-blue-500 to-emerald-500 rounded-full opacity-20 blur-xl"
-        />
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          transition={{ type: 'spring', stiffness: 200, damping: 15, delay: 0.1 }}
-          className="relative w-full h-full bg-zinc-900 rounded-full border border-zinc-800 flex items-center justify-center"
-        >
-          <motion.div
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.5 }}
-          >
-            <Check className="w-10 h-10 text-emerald-400" strokeWidth={3} />
-          </motion.div>
-        </motion.div>
-      </div>
+            <div className="space-y-3">
+                <div className="flex justify-between text-xs text-zinc-400 uppercase font-bold tracking-wider">
+                    <span>Booting Engine</span>
+                    <span>{progress}%</span>
+                </div>
+                <Progress value={progress} className="h-2.5 bg-zinc-100 dark:bg-zinc-800" indicatorClassName="bg-green-500" />
+            </div>
+        </div>
+    )
+}
 
-      <h2 className="text-3xl font-bold text-white mb-4">All Set!</h2>
-      <p className="text-zinc-400 mb-8">
-        Terminal successfully registered to <span className="text-white font-medium">{location?.name}</span>. Starting
-        POS engine...
-      </p>
-
-      <Progress value={progress} className="w-full bg-zinc-900" />
-    </motion.div>
-  );
-};
+// --- Main Page Component ---
 
 export default function SetupPage() {
   const [step, setStep] = useState(1);
-  const [setupData, setSetupData] = useState<SetupData>({
-    apiKey: '',
-    location: null,
-  });
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [setupData, setSetupData] = useState<SetupData>({ apiKey: '', location: null });
+  const [viewMode, setViewMode] = useState<'form' | 'instructions'>('form');
 
   const handleApiKeyNext = (key: string) => {
     setSetupData(prev => ({ ...prev, apiKey: key }));
@@ -442,125 +283,124 @@ export default function SetupPage() {
     setStep(3);
   };
 
-  const handleShowInstructions = () => {
-    setShowInstructions(true);
-  };
-
-  const handleBackToApiKey = () => {
-    setShowInstructions(false);
-  };
-
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col lg:flex-row items-center justify-center font-sans selection:bg-blue-500/30 text-zinc-100 relative overflow-hidden">
-      {/* Ambient Background Effects */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div
-          className="absolute -top-1/2 -left-1/2 w-full h-full bg-blue-500/5 blur-[120px] rounded-full mix-blend-screen animate-pulse"
-          style={{ animationDuration: '4s' }}
-        />
-        <div
-          className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-emerald-500/5 blur-[120px] rounded-full mix-blend-screen animate-pulse"
-          style={{ animationDuration: '7s' }}
-        />
+    // FULL WIDTH CONTAINER - No rounded corners, fills viewport
+    <div className="h-screen w-screen flex bg-white dark:bg-zinc-950 overflow-hidden font-sans select-none">
+      
+      {/* TAURI DRAG REGION 
+        This transparent div allows the user to drag the window 
+        without a native title bar.
+      */}
+      <div 
+        data-tauri-drag-region 
+        className="absolute top-0 left-0 w-full h-10 z-50 bg-transparent" 
+      />
+
+      {/* LEFT PANEL - Branding / Marketing */}
+      <div className="hidden lg:flex w-[45%] bg-zinc-900 text-white relative flex-col justify-between p-12 overflow-hidden border-r border-white/5">
+        
+        {/* Abstract Background Art */}
+        <div className="absolute inset-0 z-0">
+             <div className="absolute -top-[20%] -left-[20%] w-[80%] h-[80%] bg-blue-600/20 rounded-full blur-[120px]" />
+             <div className="absolute top-[40%] -right-[20%] w-[80%] h-[80%] bg-emerald-600/10 rounded-full blur-[120px]" />
+             <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+        </div>
+
+        {/* Content */}
+        <div className="relative z-10">
+            <div className="flex items-center gap-3 mb-10">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <Store className="w-6 h-6 text-white" />
+                </div>
+                <span className="font-bold text-xl tracking-tight">Dealio POS</span>
+            </div>
+            
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <h1 className="text-5xl font-extrabold leading-tight mb-6 text-transparent bg-clip-text bg-gradient-to-br from-white to-zinc-400">
+                  Ready for <br/> Business.
+              </h1>
+              <p className="text-zinc-400 text-lg leading-relaxed max-w-sm">
+                  Initialize your terminal to start processing sales, tracking inventory, and managing customers in real-time.
+              </p>
+            </motion.div>
+        </div>
+
+        {/* Footer info */}
+        <div className="relative z-10 flex items-center gap-4 text-sm text-zinc-500">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-sm">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Secure Connection</span>
+            </div>
+            <span>v2.4.0 (Tauri Stable)</span>
+        </div>
       </div>
 
-      {/* Image Section - Takes half screen on larger devices */}
-      <motion.div
-        initial={{ opacity: 0, x: -50 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, ease: 'easeOut' }}
-        className="hidden lg:flex flex-1 items-center justify-center p-8 relative min-h-screen bg-linear-to-br from-zinc-900/50 to-zinc-950/50 border-r border-zinc-800/50 overflow-hidden"
-      >
-        <div
-          className="absolute inset-0 bg-cover bg-center opacity-30 blur-sm"
-          style={{
-            backgroundImage:
-              "url('https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=2670&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')",
-          }}
-        />
-        <div className="absolute inset-0 bg-linear-to-t from-zinc-950/90 via-transparent to-zinc-950/90" />
+      {/* RIGHT PANEL - Interaction / Form */}
+      {/* Added overflow-y-auto so the form scrolls on small laptop screens if needed */}
+      <div className="flex-1 flex flex-col items-center justify-center relative bg-white dark:bg-zinc-950 overflow-y-auto">
+        <div className="w-full max-w-xl p-8 md:p-12 lg:p-16">
+            
+            <AnimatePresence mode="wait">
+                {viewMode === 'instructions' ? (
+                    <motion.div
+                        key="instructions"
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -20 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                        <ApiKeyInstructions onBack={() => setViewMode('form')} />
+                    </motion.div>
+                ) : (
+                    <motion.div
+                        key="form"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                    >
+                         {/* Form Header */}
+                        <div className="mb-10 text-center lg:text-left">
+                            {step < 3 && (
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 dark:bg-zinc-900 text-xs font-semibold text-zinc-600 dark:text-zinc-400 mb-6 uppercase tracking-wider">
+                                    <span>Step {step} of 2</span>
+                                </div>
+                            )}
+                            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50 mb-3">
+                                {step === 1 ? 'Connect Account' : step === 2 ? 'Select Location' : 'Setup Complete'}
+                            </h2>
+                            <p className="text-lg text-zinc-500 dark:text-zinc-400">
+                                {step === 1 && "Enter your license key to initialize device."}
+                                {step === 2 && "Which store is this device operating in?"}
+                            </p>
+                        </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.8 }}
-          className="relative z-10 text-center max-w-lg"
-        >
-          <h1 className="text-5xl font-extrabold text-white leading-tight mb-6 tracking-tight">
-            Seamlessly Power Your Business.
-          </h1>
-          <p className="text-zinc-300 text-lg mb-8">
-            Connect your store, manage inventory, and delight customers with Dealio's intuitive interface.
-          </p>
-          <div className="flex justify-center space-x-4">
-            <Button className="bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 px-6 rounded-xl shadow-lg shadow-blue-900/30">
-              Learn More
-            </Button>
-            <Button variant="outline" className="border-zinc-600 text-zinc-300 hover:border-zinc-500 hover:text-white">
-              Get Support
-            </Button>
-          </div>
-        </motion.div>
-      </motion.div>
-
-      {/* Form Section - Also takes half screen on larger devices */}
-      <div className="w-full lg:flex-1 flex flex-col items-center justify-center p-4 py-12 z-10">
-        <div className="w-full max-w-2xl">
-          {/* Header Logo Area */}
-          <motion.div
-            initial={{ y: -20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="flex flex-col items-center mb-12"
-          >
-            <div className="flex items-center space-x-2 mb-2">
-              <div className="w-8 h-8 bg-linear-to-br from-blue-600 to-emerald-600 rounded-lg flex items-center justify-center">
-                <Store className="text-white w-5 h-5" />
-              </div>
-              <span className="text-xl font-bold tracking-tight text-white">Dealio</span>
-            </div>
-            <div className="h-px w-full max-w-[200px] bg-linear-to-r from-transparent via-zinc-800 to-transparent mt-4" />
-          </motion.div>
-
-          {/* Main Card */}
-          <div className="relative">
-            {/* Card Glow */}
-            <div className="absolute -inset-0.5 bg-linear-to-r from-blue-500/30 to-emerald-500/30 rounded-2xl blur opacity-30" />
-
-            <Card className="relative bg-zinc-950 border-zinc-800/50 rounded-2xl p-8 md:p-12 shadow-2xl flex flex-col items-center min-h-[500px] justify-center backdrop-blur-xl">
-              <CardContent className="p-0 w-full">
-                {step < 3 && !showInstructions && <StepIndicator currentStep={step} totalSteps={2} />}
-
-                <AnimatePresence mode="wait">
-                  {showInstructions ? (
-                    <ApiKeyInstructions key="instructions" onBack={handleBackToApiKey} />
-                  ) : (
-                    <>
-                      {step === 1 && (
-                        <ApiKeyStep key="step1" onNext={handleApiKeyNext} onShowInstructions={handleShowInstructions} />
-                      )}
-                      {step === 2 && (
-                        <LocationStep key="step2" onBack={() => setStep(1)} onComplete={handleLocationComplete} />
-                      )}
-                      {step === 3 && <SuccessStep key="step3" location={setupData.location} />}
-                    </>
-                  )}
-                </AnimatePresence>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Footer Info */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-            className="text-center text-zinc-600 text-xs mt-8"
-          >
-            v2.4.0-stable • Secured by 256-bit encryption •{' '}
-            <Button variant="link" className="text-zinc-500 hover:text-zinc-400 p-0 h-auto text-xs">
-              Help Center
-            </Button>
-          </motion.p>
+                        {/* Steps */}
+                        <div className="min-h-[300px]">
+                          {step === 1 && (
+                              <ApiKeyStep 
+                                  onNext={handleApiKeyNext} 
+                                  onShowInstructions={() => setViewMode('instructions')} 
+                              />
+                          )}
+                          {step === 2 && (
+                              <LocationStep 
+                                  onBack={() => setStep(1)} 
+                                  onComplete={handleLocationComplete} 
+                              />
+                          )}
+                          {step === 3 && (
+                              <SuccessStep location={setupData.location} />
+                          )}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            
         </div>
       </div>
     </div>

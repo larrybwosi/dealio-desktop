@@ -1,10 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/axios';
-import { useAuthStore } from '@/store/pos-auth-store';
-import { Member } from '@prisma/client';
+import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
 import { useCallback, useEffect } from 'react';
 import throttle from 'lodash/throttle';
+
 
 // Types for API mutations
 interface CheckInResponse {
@@ -49,7 +49,7 @@ export function useAuth() {
     error: checkInError,
   } = useMutation<CheckInResponse, Error, CheckInVariables>({
     mutationFn: variables =>
-      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation }).then(res => res.data),
+      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation?.id }).then(res => res.data),
 
     onSuccess: data => {
       // On success, update the global store with member, token, AND restoration status
@@ -88,7 +88,7 @@ export function useAuth() {
     isPending: isCheckingOut,
     error: checkOutError,
   } = useMutation<void, Error>({
-    mutationFn: () => apiClient.post('/api/v1/pos/check-out', { locationId: currentLocation }).then(res => res.data),
+    mutationFn: () => apiClient.post('/api/v1/pos/check-out', { locationId: currentLocation?.id }).then(res => res.data),
 
     onSuccess: () => {
       // On success, clear the global store

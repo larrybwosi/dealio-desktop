@@ -11,6 +11,7 @@ import {
   Terminal,
   ShieldCheck,
   Zap,
+  Settings,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { useNavigate } from 'react-router';
 
 // --- Typewriter Effect Component ---
 const TypewriterText = ({ texts }: { texts: string[] }) => {
@@ -63,7 +65,8 @@ export default function CheckinPage() {
   const [scanSuccess, setScanSuccess] = useState<boolean>(false);
 
   const { checkIn, isCheckingIn } = useAuth();
-    const { currentLocation } = useAuthStore();
+  const { currentLocation, setDeviceKey, setCurrentLocation } = useAuthStore();
+  const navigate = useNavigate();
 
   const cardInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
@@ -129,13 +132,20 @@ export default function CheckinPage() {
     }
   };
 
+  // --- New Handler for Setup Navigation ---
+  const handleResetConfig = () => {
+    navigate('/setup');
+    setDeviceKey('');
+    // @ts-expect-error 
+    setCurrentLocation(undefined);
+  };
+
   return (
     <div className="min-h-screen w-full flex bg-slate-950 text-white overflow-hidden">
       {/* --- LEFT SIDE: Visuals & Typewriter --- */}
       <div className="hidden lg:flex w-1/2 relative flex-col justify-between p-12 bg-slate-900 border-r border-slate-800">
         {/* Background Image with Overlay */}
         <div className="absolute inset-0 z-0 opacity-40">
-          {/* Using a high quality abstract tech image */}
           <img
             src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop"
             alt="Tech Background"
@@ -186,6 +196,19 @@ export default function CheckinPage() {
         </div>
 
         <Card className="w-full max-w-md bg-transparent border-none shadow-none lg:bg-slate-900/50 lg:border lg:border-slate-800 lg:shadow-2xl relative z-20 backdrop-blur-sm">
+          
+          {/* --- NEW: Config/Reset Button --- */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleResetConfig}
+            className="absolute right-4 top-4 text-slate-600 hover:text-blue-400 hover:bg-slate-800 transition-colors rounded-full"
+            title="Reset API Configuration"
+          >
+            <Settings className="w-4 h-4" />
+            <span className="sr-only">Settings</span>
+          </Button>
+
           <CardHeader className="space-y-1 pb-8 text-center lg:text-left">
             <CardTitle className="text-3xl font-bold text-white">Check In</CardTitle>
             <CardDescription className="text-slate-400">

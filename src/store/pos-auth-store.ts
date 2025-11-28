@@ -1,6 +1,48 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { Member, InventoryLocation } from '@prisma/client';
+
+type LocationType = "RETAIL_SHOP" | "WAREHOUSE" | "DISTRIBUTION" | "PRODUCTION" | "SUPPLIER" | "CUSTOMER" | "TEMPORARY" | "OTHER"
+type InventoryLocation = {
+    name: string;
+    id: string;
+    code: string | null;
+    description: string | null;
+    isActive: boolean;
+    isDefault: boolean;
+    locationType: LocationType;
+    address: JSON | null;
+    contact: JSON | null;
+    capacity: JSON | null;
+    settings: JSON | null;
+    parentLocationId: string | null;
+    customFields: JSON | null;
+    createdAt: Date;
+    updatedAt: Date;
+    managerId: string | null;
+    organizationId: string;
+}
+
+export type Member = {
+    id: string;
+    organizationId: string;
+    userId: string;
+    isActive: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+    age: string | null;
+    gender: string | null;
+    tags: string | null;
+    cardId: string | null;
+    isCheckedIn: boolean;
+    lastCheckInTime: Date | null;
+    currentCheckInLocationId: string | null;
+    currentAttendanceLogId: string | null;
+    name: string;
+    imageUrl: string;
+}
 
 // 1. Add a timestamp field to the state interface
 interface PosAuthState {
