@@ -3,12 +3,13 @@ import axios from "axios";
 import { useAuthStore } from "@/store/pos-auth-store";
 
 export const apiClient = axios.create({
-  baseURL: "http://localhost:3000/",
+  baseURL: import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioprev.vercel.app',
   timeout: 10000, // Add a timeout
 });
 
-// export const API_ENDPOINT = import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioerp.vercel.app';
-export const API_ENDPOINT = 'http://localhost:3000'
+export const API_ENDPOINT = import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioprev.vercel.app';
+console.log(API_ENDPOINT);
+// export const API_ENDPOINT = 'http://localhost:3000'
 // export const API_ENDPOINT =  'https://dealioerp.vercel.app';
 
 

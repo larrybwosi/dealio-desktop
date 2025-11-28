@@ -1,6 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ProcessSaleInput } from '@/types/schema'; // Import your inferred Zod type
+import { ProcessSaleInput } from '@/hooks/sales';
 
 interface QueuedSale {
   id: string; // Unique ID for the queue item

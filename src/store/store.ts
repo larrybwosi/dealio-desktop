@@ -1,6 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { type BusinessType, getBusinessConfig } from '../lib/business-configs';
+import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 
 export type OrderType = 'takeaway' | 'delivery' | 'dine-in' | 'pickup' | 'online';
 export type OrderStatus = 'waiting' | 'ready' | 'canceled' | 'completed';
@@ -63,6 +63,8 @@ export interface OrderItem {
   quantity: number;
   isWholesale?: boolean;
   imageUrl?: string;
+  sku?: string;
+  note?: string;
 }
 
 export interface Order {
@@ -81,6 +83,7 @@ export interface Order {
   tableNumber?: string;
   instructions?: string;
   metadata?: Record<string, any>;
+  cashierName?: string;
 }
 
 export interface SidebarItem {
@@ -694,44 +697,6 @@ const mockProducts: Product[] = [
   },
 ];
 
-const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[] => {
-  const config = getBusinessConfig(businessType);
-
-  const items: SidebarItem[] = [
-    { id: 'order', label: 'Order', icon: 'ShoppingBag', enabled: true },
-    { id: 'inventory', label: 'Inventory', icon: 'Package', enabled: true },
-    { id: 'history', label: 'History', icon: 'History', enabled: true },
-    { id: 'analytic', label: 'Analytics', icon: 'BarChart3', enabled: true },
-    { id: 'pending-transactions', label: 'Pending Transactions', icon: 'BarChart3', enabled: true },
-  ];
-
-  if (config.features.tableManagement) {
-    items.push({ id: 'manage-table', label: 'Manage Tables', icon: 'Table', enabled: true });
-  }
-
-  if (config.features.kitchenDisplay) {
-    items.push({ id: 'kitchen-display', label: 'Kitchen Display', icon: 'ChefHat', enabled: true });
-  }
-
-  if (config.features.prescriptionManagement) {
-    items.push({ id: 'prescriptions', label: 'Prescriptions', icon: 'FileText', enabled: true });
-  }
-
-  if (config.features.warrantyTracking) {
-    items.push({ id: 'warranty', label: 'Warranty', icon: 'Shield', enabled: true });
-  }
-
-  if (config.features.loyaltyProgram) {
-    items.push({ id: 'loyalty', label: 'Loyalty Program', icon: 'Gift', enabled: true });
-  }
-
-  items.push(
-    { id: 'withdrawl', label: 'Withdrawl', icon: 'DollarSign', enabled: true },
-    { id: 'payment', label: 'Payment', icon: 'CreditCard', enabled: true }
-  );
-
-  return items;
-};
 export const getDefaultReceiptConfig = (): ReceiptConfig => ({
   // Branding
   showLogo: true,

@@ -173,7 +173,7 @@ export function ManageTablesPage() {
                     </SelectTrigger>
                     <SelectContent>
                       {uniqueSections.map((section) => (
-                        <SelectItem key={section} value={section}>
+                        <SelectItem key={section} value={section||''}>
                           {section}
                         </SelectItem>
                       ))}
@@ -280,7 +280,7 @@ export function ManageTablesPage() {
           <SelectContent>
             <SelectItem value="all">All Sections</SelectItem>
             {uniqueSections.map((section) => (
-              <SelectItem key={section} value={section}>
+              <SelectItem key={section} value={section || ''}>
                 {section}
               </SelectItem>
             ))}

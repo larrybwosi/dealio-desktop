@@ -44,8 +44,8 @@ export function SettingsPage() {
   const [enableCashDrawer, setEnableCashDrawer] = useState(settings?.enableCashDrawer ?? false);
   const [requireEmployeePin, setRequireEmployeePin] = useState(settings?.requireEmployeePin ?? false);
   const [enableAutoPrint, setEnableAutoPrint] = useState(settings?.enableAutoPrint ?? false);
-  const [printerName, setPrinterName] = useState(settings?.printerName || '');
-  const [enableEmailReceipts, setEnableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
+  const [printerName] = useState(settings?.printerName || '');
+  const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
 
   const [newPrinterName, setNewPrinterName] = useState('');
   const [syncing, setSyncing] = useState(false);

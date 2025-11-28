@@ -178,11 +178,11 @@ export function MemberCheckinPage() {
               </div>
             ) : (
               filteredCustomers.map((customer) => {
-                const isToday = () => {
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  return new Date(customer.lastVisit) >= today
-                }
+                // const isToday = () => {
+                //   const today = new Date()
+                //   today.setHours(0, 0, 0, 0)
+                //   return new Date(customer.lastVisit) >= today
+                // }
 
                 return (
                   <div

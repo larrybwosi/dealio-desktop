@@ -28,7 +28,7 @@ interface ReconcileForm {
 export function ReconciliationDialog({ 
   open, 
   onOpenChange, 
-  transactionId, 
+  // transactionId, 
   fulfillmentId 
 }: ReconciliationDialogProps) {
   const queryClient = useQueryClient();

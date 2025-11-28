@@ -2,8 +2,7 @@
 
 import { useEffect } from "react"
 import { usePosStore } from "@/store/store"
-import { ShoppingCart, Package, AlertCircle, CheckCircle, Info, XCircle } from "lucide-react"
-import { toast } from "sonner"
+// import { ShoppingCart, Package, AlertCircle, CheckCircle, Info, XCircle } from "lucide-react"
 
 export function NotificationToast() {
   const notifications = usePosStore((state) => state.notifications)
@@ -34,22 +33,22 @@ export function NotificationToast() {
     }
 
     // Get icon based on type
-    const getIcon = () => {
-      switch (latestNotification.type) {
-        case "order":
-          return <ShoppingCart className="h-5 w-5" />
-        case "stock":
-          return <Package className="h-5 w-5" />
-        case "warning":
-          return <AlertCircle className="h-5 w-5" />
-        case "error":
-          return <XCircle className="h-5 w-5" />
-        case "success":
-          return <CheckCircle className="h-5 w-5" />
-        default:
-          return <Info className="h-5 w-5" />
-      }
-    }
+    // const getIcon = () => {
+    //   switch (latestNotification.type) {
+    //     case "order":
+    //       return <ShoppingCart className="h-5 w-5" />
+    //     case "stock":
+    //       return <Package className="h-5 w-5" />
+    //     case "warning":
+    //       return <AlertCircle className="h-5 w-5" />
+    //     case "error":
+    //       return <XCircle className="h-5 w-5" />
+    //     case "success":
+    //       return <CheckCircle className="h-5 w-5" />
+    //     default:
+    //       return <Info className="h-5 w-5" />
+    //   }
+    // }
 
     // Show toast notification using the built-in toast system
     // toast({

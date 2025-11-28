@@ -30,7 +30,7 @@ export function subscribeToAbly(
   }
 ) {
   // Get the Ably channel for M-Pesa payments
-  const channel = ably.channels.get('mpesa-payments');
+  const channel = ably?.channels.get('mpesa-payments');
 
   // Define the subscription callback
   const subscriptionCallback = (message: Message) => {
@@ -48,11 +48,11 @@ export function subscribeToAbly(
   };
 
   // Subscribe to the 'payment-status' event
-  channel.subscribe('payment-status', subscriptionCallback);
+  channel?.subscribe('payment-status', subscriptionCallback);
 
   // Return a cleanup function to be called when the component unmounts
   return () => {
-    channel.unsubscribe('payment-status', subscriptionCallback);
+    channel?.unsubscribe('payment-status', subscriptionCallback);
   };
 }
 

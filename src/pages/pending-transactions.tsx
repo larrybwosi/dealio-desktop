@@ -51,7 +51,7 @@ export default function PendingTransactionsPage() {
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
 
   // --- Query: Get Transactions ---
-  const { data: transactions = [], isLoading, isError } = useQuery({
+  const { data: transactions = [], isLoading } = useQuery({
     queryKey: ['transactions'],
     queryFn: () => fetchTransactions(),
   });

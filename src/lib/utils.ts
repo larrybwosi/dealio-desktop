@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export const useFormattedCurrency = (): ((
-  amount: number | Decimal | string,
+  amount: number | string,
   options?: Intl.NumberFormatOptions
 ) => string) => {
   // Get the organization from the application store
@@ -21,14 +21,11 @@ export const useFormattedCurrency = (): ((
 
   // Return a memoized formatting function that depends on currency and locale
   return useMemo(() => {
-    return (amount: number | Decimal | string, options: Intl.NumberFormatOptions = {}): string => {
+    return (amount: number | string, options: Intl.NumberFormatOptions = {}): string => {
       // Parse the amount to a number, handling different input types
       let parsedAmount: number;
       if (typeof amount === 'string') {
         parsedAmount = parseFloat(amount);
-      } else if (typeof amount === 'object' && 'toNumber' in amount) {
-        // Handle Prisma.Decimal
-        parsedAmount = amount.toNumber();
       } else {
         parsedAmount = amount as number;
       }

@@ -28,7 +28,7 @@ export function InventoryPage() {
     (product) =>
       product.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       product.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.barcode.includes(searchQuery),
+      product?.barcode?.includes(searchQuery),
   )
 
   const handleUpdateStock = () => {

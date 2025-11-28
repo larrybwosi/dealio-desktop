@@ -44,7 +44,7 @@ export const UpdaterProvider = ({ children }: { children: ReactNode }) => {
       await update.downloadAndInstall(progress => {
         switch (progress.event) {
           case 'Started':
-            totalBytes = progress.data.contentLength;
+            totalBytes = progress.data.contentLength || 0;
             console.log(`Update download started. Total size: ${totalBytes} bytes`);
             break;
           case 'Progress': {

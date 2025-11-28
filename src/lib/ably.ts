@@ -19,7 +19,7 @@ export const getAblyRealtime = (): Realtime | null => {
             const tokenRequest = await apiClient.post(
               `/api/v1/pos/ably-auth`,
               {},
-              { withCredentials: true }
+              { withCredentials: true, params: tokenParams }
             );
             callback(null, tokenRequest.data);
           } catch (err: any) {

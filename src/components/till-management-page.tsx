@@ -18,8 +18,8 @@ export function TillManagementPage() {
   const openCashDrawer = usePosStore((state) => state.openCashDrawer)
   const closeCashDrawer = usePosStore((state) => state.closeCashDrawer)
   const addCashTransaction = usePosStore((state) => state.addCashTransaction)
-  const currentEmployeeId = usePosStore((state) => state.currentEmployeeId)
-  const employees = usePosStore((state) => state.employees)
+  // const currentEmployeeId = usePosStore((state) => state.currentEmployeeId)
+  // const employees = usePosStore((state) => state.employees)
 
   const [openingBalance, setOpeningBalance] = useState("")
   const [closingBalance, setClosingBalance] = useState("")
@@ -27,7 +27,7 @@ export function TillManagementPage() {
   const [transactionNotes, setTransactionNotes] = useState("")
 
   const activeDrawer = cashDrawers.find((d) => d.id === activeCashDrawerId)
-  const currentEmployee = employees.find((e) => e.id === currentEmployeeId)
+  // const currentEmployee = employees.find((e) => e.id === currentEmployeeId)
 
   // Calculate current balance
   const currentBalance = useMemo(() => {

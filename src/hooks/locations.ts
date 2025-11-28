@@ -1,7 +1,8 @@
 // hooks/use-pos-config.ts
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/axios';
-import { LocationType } from '@prisma/client'; // Ensure you have types generated
+
+type LocationType = 'warehouse' | 'store' | 'branch';
 
 export interface PosLocation {
   id: string;

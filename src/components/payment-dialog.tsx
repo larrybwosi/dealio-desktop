@@ -98,7 +98,7 @@ export function PaymentDialog({ open, onOpenChange, orderDetails, orderId }: Pay
             </div>
           </DialogContent>
         </Dialog>
-        <ReceiptDialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog} />
+        <ReceiptDialog open={showReceiptDialog} onOpenChange={setShowReceiptDialog}  completedOrder={()=>{}} onClose={()=>setShowReceiptDialog(false)}/>
       </>
     )
   }

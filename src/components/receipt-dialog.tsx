@@ -4,7 +4,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { Printer, Download, CheckCircle2, Loader2, Receipt, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
-import QRCode from 'qrcode'; // Requires: npm install qrcode @types/qrcode
+import QRCode from 'qrcode'; 
 
 // UI Components
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,14 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-// Receipt Components (From previous steps)
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
-import { ReceiptPreview } from '@/components/receipt-preview'; // Ensure this is imported
+import { ReceiptPreview } from '@/components/receipt-preview'; 
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 
 // Tauri / System Imports
 import { printPdf } from 'tauri-plugin-printer-v2';
-import { BaseDirectory, writeFile, mkdir, exists, remove } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { isTauri } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
 import { usePrinterStore } from '@/hooks/printer-store';
@@ -231,6 +230,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
         printer: defaultPrinter || printers[0]?.Name || '',
         id: `print_${safeOrderNum}`,
         remove_after_print: true,
+        print_settings: '',
       });
 
       toast.success('Sent to printer!');
