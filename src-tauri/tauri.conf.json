@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "dealio-desktop",
-  "version": "0.1.0",
+  "version": "1.0.4",
   "identifier": "com.dealio.desktop",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Dealio ERP",
+        "title": "Dealio",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -40,8 +40,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzOEJGRjBBRkYyQkY1NkMKUldSczlTdi9DditMczJ6L3NqZ3BZTGhiUS9yK2ZqUkNxZ2RrK2tlUkRPWHdhSWJJSXNSTTRLblUK",
       "endpoints": [
-        "https://releases.myapp.com/{{target}}/{{arch}}/{{current_version}}",
-        "https://github.com/user/repo/releases/latest/download/latest.json"
+        "https://dealioerp.vercel.app/{{target}}/{{arch}}/{{current_version}}"
       ],
       "windows": {
         "installMode": "passive"

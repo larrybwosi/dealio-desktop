@@ -1,269 +1,161 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { usePosStore } from '@/store/store';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Minus, Plus, Search, Scan, Store, Truck, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Scan, Store, Truck, AlertCircle, RefreshCw, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from './barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
 import { Skeleton } from './ui/skeleton';
+import { ProductCard } from '@/components/pos/product-card';
+import { useInView } from 'react-intersection-observer';
+import { useDebounce } from 'use-debounce';
 
 export function ProductList() {
   const [activeCategory, setActiveCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-
-  // State for Pricing Mode
+  const [inputValue, setInputValue] = useState('');
+  
+  // 1. Debounce Search
+  const [debouncedSearch] = useDebounce(inputValue, 500);
+  
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
-
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [selectedUnits, setSelectedUnits] = useState<Record<string, string>>({});
-
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
-
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Store hook
-  const addItemToOrder = usePosStore(state => state.addItemToOrder);
-  const { data: products, isLoading, error, refetch, isRefetching } = usePosProducts({ enabled: true });
+  // 2. Fetching Logic
+  const { 
+    data, 
+    fetchNextPage, 
+    hasNextPage, 
+    isFetchingNextPage, 
+    isLoading, 
+    isError, 
+    refetch 
+  } = usePosProducts({
+    search: debouncedSearch,
+    category: activeCategory
+  });
 
+  // 3. Store Actions
+  const addItemToOrder = usePosStore(state => state.addItemToOrder);
+
+  // 4. Infinite Scroll Observer
+  const { ref, inView } = useInView();
+  
+  useEffect(() => {
+    if (inView && hasNextPage) {
+      fetchNextPage();
+    }
+  }, [inView, hasNextPage, fetchNextPage]);
+
+  // 5. Global Keyboard Shortcuts (FIXED)
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
-      if (document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement) {
-        return;
-      }
+      // Ignore if user is already typing in an input
+      if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+      
       if (e.key === 'Escape') {
-        setSearchQuery('');
+        setInputValue('');
         searchInputRef.current?.blur();
-        return;
-      }
-      if (e.key.length === 1) {
-        e.preventDefault();
+      } else if (e.key.length === 1) {
+        // --- FIX STARTS HERE ---
+        e.preventDefault(); // Prevent native browser insertion to stop double characters
         searchInputRef.current?.focus();
-        setSearchQuery(prev => prev + e.key);
+        setInputValue(prev => prev + e.key);
+        // --- FIX ENDS HERE ---
       }
     };
-
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
 
-  const categories = useMemo(() => {
-    if (!products) return ['all'];
-    const cats = new Set(products.map(p => p.category));
-    return ['all', ...Array.from(cats)];
-  }, [products]);
+  // 6. Flatten Pages
+  const allProducts = useMemo(() => {
+    return data?.pages.flatMap(page => page.products) || [];
+  }, [data]);
 
-  const filteredProducts = useMemo(() => {
-    if (!products) return [];
-    return products.filter(product => {
-      const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
-      const matchesSearch =
-        product.productName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.variantName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.barcode?.includes(searchQuery);
-      return matchesCategory && matchesSearch;
-    });
-  }, [products, activeCategory, searchQuery]);
-
-  /**
-   * Helper to get current selected unit price based on mode.
-   * Logic: If Wholesale Mode -> Try Wholesale Price -> If 0/Null, Fallback to Retail.
-   */
-  const getPrice = (unit: any) => {
-    if (pricingMode === 'wholesale') {
-      const wp = Number(unit.wholesalePrice);
-      // If wholesale price exists and is greater than 0, use it. Otherwise fallback.
-      if (wp && wp > 0) return wp;
-    }
-    return Number(unit.price);
-  };
-
-  const handleQuantityChange = (variantId: string, delta: number, maxStock: number) => {
-    setQuantities(prev => {
-      const current = prev[variantId] || 0;
-      const next = Math.max(0, current + delta);
-      if (next > maxStock) return prev;
-      return { ...prev, [variantId]: next };
-    });
-  };
-
-  const handleManualQuantityChange = (variantId: string, value: string, maxStock: number) => {
-    if (value === '') {
-      setQuantities(prev => ({ ...prev, [variantId]: 0 }));
-      return;
-    }
-    const numValue = parseInt(value, 10);
-    if (isNaN(numValue)) return;
-    const finalValue = Math.min(Math.max(0, numValue), maxStock);
-    setQuantities(prev => ({ ...prev, [variantId]: finalValue }));
-  };
-
-  const handleAddToCart = (variantId: string) => {
-    const product = products?.find(p => p.variantId === variantId);
-    if (!product) return;
-
-    if (product.stock <= 0) return;
-
-    const quantity = quantities[variantId] || 1;
-    if (quantity > product.stock) return;
-
-    const selectedUnitId = selectedUnits[variantId] || product.sellableUnits[0].unitId;
-    const selectedUnit = product.sellableUnits.find(u => u.unitId === selectedUnitId);
-
-    if (!selectedUnit) return;
-
-    // Calculate the final price based on current mode
-    const finalPrice = getPrice(selectedUnit);
-
-    if (quantity > 0) {
-      // Create a temporary unit object with the resolved price
-      const unitWithCurrentPrice = {
-        ...selectedUnit,
-        price: finalPrice,
-        // Persist the original retail price in case we switch modes in the cart later (optional)
-        originalRetailPrice: selectedUnit.price,
-      };
-
-      // Pass isWholesale metadata to the store
-      addItemToOrder(
-        product,
-        unitWithCurrentPrice,
-        quantity,
+  const handleAddToCartWrapper = useCallback((item: any) => {
+    addItemToOrder(
+        item.product, 
+        { ...item.unit, originalRetailPrice: item.unit.price }, 
+        item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }
-      );
-
-      setQuantities(prev => ({ ...prev, [variantId]: 0 }));
-    }
-  };
-
-  // 1. Loading Skeleton
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-8 w-32" />
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-24" />
-            <Skeleton className="h-9 w-64" />
-          </div>
-        </div>
-        <div className="flex gap-3 overflow-hidden">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-8 w-20 rounded-full" />
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
-            <div key={i} className="space-y-2">
-              <Skeleton className="h-32 w-full rounded-xl" />
-              <Skeleton className="h-4 w-3/4" />
-              <div className="flex gap-2 pt-1">
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-8 w-12" />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     );
-  }
+  }, [addItemToOrder, pricingMode]);
 
-  // 2. Error State
-  if (error) {
+  if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4 text-center p-6">
-        <div className="bg-destructive/10 p-4 rounded-full">
-          <AlertCircle className="w-10 h-10 text-destructive" />
-        </div>
-        <h3 className="text-lg font-semibold text-foreground">Unable to load menu</h3>
+      <div className="flex flex-col items-center justify-center h-[50vh] space-y-4">
+        <AlertCircle className="w-10 h-10 text-destructive" />
+        <h3 className="font-semibold">Failed to load products</h3>
         <Button onClick={() => refetch()} variant="outline" className="gap-2">
-          <RefreshCw className="w-4 h-4" />
-          Try Again
+          <RefreshCw className="w-4 h-4" /> Retry
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      {/* Top Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4">
+    // FIX: Added overflow-hidden here so the outer window doesn't scroll, only the grid inside
+    <div className="p-6 h-full flex flex-col overflow-hidden">
+      
+      {/* --- Controls Section --- */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4 gap-4 shrink-0">
         <h2 className="text-xl font-semibold">Menu List</h2>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => refetch()}
-          disabled={isRefetching}
-          title="Refresh Products"
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className={cn('w-4 h-4', isRefetching && 'animate-spin')} />
-        </Button>
-        <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
-          {/* Retail / Wholesale Switch */}
+        
+        <div className="flex items-center gap-3 flex-wrap">
+           {/* Mode Switcher */}
           <div className="bg-muted p-1 rounded-lg flex items-center border border-border">
             <button
               onClick={() => setPricingMode('retail')}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all',
-                pricingMode === 'retail'
-                  ? 'bg-background shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
+              className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all', pricingMode === 'retail' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
             >
-              <Store className="w-4 h-4" />
-              Retail
+              <Store className="w-4 h-4" /> Retail
             </button>
             <button
               onClick={() => setPricingMode('wholesale')}
-              className={cn(
-                'flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all',
-                pricingMode === 'wholesale'
-                  ? 'bg-white shadow-sm text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
+              className={cn('flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-all', pricingMode === 'wholesale' ? 'bg-background shadow-sm' : 'text-muted-foreground')}
             >
-              <Truck className="w-4 h-4" />
-              Wholesale
+              <Truck className="w-4 h-4" /> Wholesale
             </button>
           </div>
 
           <div className="h-8 w-px bg-border hidden md:block" />
 
+          {/* Scanner & Search */}
           <Button variant="outline" size="sm" onClick={() => setShowBarcodeScanner(true)} className="gap-2">
-            <Scan className="w-4 h-4" />
-            Scan
+            <Scan className="w-4 h-4" /> Scan
           </Button>
 
           <div className="relative w-full md:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               ref={searchInputRef}
-              placeholder="Type to search..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search item, SKU, barcode..."
+              value={inputValue}
+              onChange={e => setInputValue(e.target.value)}
               className="pl-10"
             />
+            {isFetchingNextPage || (isLoading && inputValue) ? (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+            ) : null}
           </div>
         </div>
       </div>
 
-      {/* Categories */}
-      <div className="flex items-center gap-2 mb-6 border-b border-border overflow-x-auto overflow-hidden pb-2 md:pb-0">
-        {categories.map(category => (
+      {/* --- Categories --- */}
+      {/* FIX: Added [&::-webkit-scrollbar]:hidden to hide the scrollbar UI but keep functionality */}
+      <div className="flex items-center gap-2 mb-4 border-b border-border overflow-x-auto shrink-0 pb-1 [&::-webkit-scrollbar]:hidden">
+        {['all', 'Beverages', 'Bakery', 'Produce', 'Snacks'].map(category => (
           <button
             key={category}
             onClick={() => setActiveCategory(category)}
             className={cn(
               'px-4 py-2 text-sm font-medium capitalize transition-colors border-b-2 -mb-px whitespace-nowrap',
-              activeCategory === category
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
+              activeCategory === category ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             )}
           >
             {category}
@@ -271,121 +163,63 @@ export function ProductList() {
         ))}
       </div>
 
-      {/* Product Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-        {filteredProducts.map(product => {
-          const isOutOfStock = product.stock <= 0;
-          const currentQty = quantities[product.variantId] || 0;
-
-          return (
-            <Card key={product.variantId} className={cn('overflow-hidden flex flex-col', isOutOfStock && 'opacity-75')}>
-              <div className="relative h-40 bg-muted">
-                <img
-                  src={product.imageUrl || '/placeholder.svg?height=200&width=300'}
-                  alt={product.productName}
-                  className={cn('object-cover h-40 w-full', isOutOfStock && 'grayscale')}
-                />
-                {isOutOfStock && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                    <span className="bg-destructive text-destructive-foreground px-3 py-1 rounded text-sm font-bold">
-                      OUT OF STOCK
-                    </span>
-                  </div>
-                )}
+      {/* --- Product Grid --- */}
+      {/* This area will handle the vertical scroll exclusively */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-2"> 
+        {isLoading && !data ? (
+           <ProductGridSkeleton />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 pb-20">
+            {allProducts.map((product) => (
+              <ProductCard 
+                key={product.productId} 
+                product={product} 
+                onAddToCart={handleAddToCartWrapper}
+                pricingMode={pricingMode}
+              />
+            ))}
+            
+            {/* Infinite Scroll Trigger */}
+            {hasNextPage && (
+              <div ref={ref} className="col-span-full flex justify-center py-8">
+                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
-
-              <div className="p-4 space-y-3 flex-1 flex flex-col">
-                <div className="flex-1">
-                  <h3 className="font-semibold">{product.productName}</h3>
-                  <p className="text-xs text-muted-foreground">{product.variantName}</p>
+            )}
+            
+            {!hasNextPage && allProducts.length > 0 && (
+                <div className="col-span-full text-center text-muted-foreground py-8 text-sm">
+                    No more products to load
                 </div>
-
-                <Select
-                  value={selectedUnits[product.variantId] || product.sellableUnits[0].unitId}
-                  onValueChange={value => setSelectedUnits(prev => ({ ...prev, [product.variantId]: value }))}
-                  disabled={isOutOfStock}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {product.sellableUnits.map(unit => {
-                      const price = getPrice(unit);
-                      return (
-                        <SelectItem key={unit.unitId} value={unit.unitId}>
-                          <span className="flex items-center justify-between w-full gap-2">
-                            <span>{unit.unitName}</span>
-                            <span className="font-mono">KSH. {price.toLocaleString()}</span>
-                          </span>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center border border-border rounded-md">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isOutOfStock || currentQty <= 0}
-                      onClick={() => handleQuantityChange(product.variantId, -1, product.stock)}
-                      className="h-8 w-8 p-0 rounded-r-none"
-                    >
-                      <Minus className="w-3 h-3" />
-                    </Button>
-
-                    <Input
-                      type="number"
-                      disabled={isOutOfStock}
-                      value={currentQty === 0 && !quantities[product.variantId] ? '' : currentQty}
-                      onChange={e => handleManualQuantityChange(product.variantId, e.target.value, product.stock)}
-                      className="h-8 w-12 rounded-none border-0 p-0 text-center focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      placeholder="0"
-                    />
-
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isOutOfStock || currentQty >= product.stock}
-                      onClick={() => handleQuantityChange(product.variantId, 1, product.stock)}
-                      className="h-8 w-8 p-0 rounded-l-none"
-                    >
-                      <Plus className="w-3 h-3" />
-                    </Button>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    disabled={isOutOfStock || currentQty <= 0}
-                    className={cn(
-                      'flex-1',
-                      !isOutOfStock && currentQty > 0
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'bg-transparent'
-                    )}
-                    onClick={() => handleAddToCart(product.variantId)}
-                  >
-                    {isOutOfStock ? 'No Stock' : 'Add'}
-                  </Button>
+            )}
+            
+            {!isLoading && allProducts.length === 0 && (
+                <div className="col-span-full flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <Search className="w-12 h-12 mb-2 opacity-20" />
+                    <p>No products found matching "{inputValue}"</p>
                 </div>
-
-                <div
-                  className={cn(
-                    'text-xs flex justify-between',
-                    isOutOfStock ? 'text-destructive' : 'text-muted-foreground'
-                  )}
-                >
-                  <span>SKU: {product.sku}</span>
-                  <span className="font-medium">Stock: {product.stock}</span>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
+            )}
+          </div>
+        )}
       </div>
 
       <BarcodeScannerDialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner} />
+    </div>
+  );
+}
+
+function ProductGridSkeleton() {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {[...Array(10)].map((_, i) => (
+        <div key={i} className="space-y-3">
+          <Skeleton className="h-40 w-full rounded-lg" />
+          <Skeleton className="h-4 w-3/4" />
+          <div className="flex gap-2">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-9 w-12" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

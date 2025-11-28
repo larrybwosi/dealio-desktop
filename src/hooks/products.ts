@@ -1,6 +1,6 @@
 import { apiClient } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
 
 // --- 1. Define Types Matching Your Backend Return Structure ---
@@ -26,40 +26,70 @@ export interface PosProduct {
   sellableUnits: SellableUnit[];
 }
 
+// Add pagination metadata interface
+interface PaginationInfo {
+  page: number;
+  pages: number;
+  total: number;
+}
+
+// Add API response interface
+interface ProductsResponse {
+  products: PosProduct[];
+  pagination: PaginationInfo;
+}
+
 interface ApiError {
   error: string;
 }
 
 interface UsePosProductsParams {
+  search: string;
+  category: string;
   enabled?: boolean;
 }
 
-export const usePosProducts = ({ enabled = true }: UsePosProductsParams = {}) => {
+export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
   const { currentLocation } = useAuthStore();
+  
+  if (!currentLocation?.id) {
+    throw new Error('No location selected');
+  }
 
-  // Ensure we have a location ID before fetching
-  const isQueryEnabled = enabled && !!currentLocation?.id;
+  const locationId = currentLocation.id;
 
-  return useQuery<PosProduct[], AxiosError<ApiError>>({
-    queryKey: ['pos-products'],
-    queryFn: async (): Promise<PosProduct[]> => {
-      if (!currentLocation?.id) throw new Error('No location selected');
+  return useInfiniteQuery({
+    queryKey: ['pos-products', category, search],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({
+        locationId: locationId,
+        page: pageParam.toString(),
+        limit: '20', // Fetch 20 at a time for speed
+        search,
+        categoryId: category,
+      });
 
-      const { data } = await apiClient.get<PosProduct[]>('/api/v1/pos/products', {
-        params: {
-          locationId: currentLocation.id,
-        },
+      const { data } = await apiClient.get<ProductsResponse>('/api/v1/pos/products', {
+        params: params,
       });
       return data;
     },
-    enabled: isQueryEnabled,
-    retry: (failureCount, error) => {
+    initialPageParam: 1,
+    getNextPageParam: (lastPage: ProductsResponse) => {
+      // Check if there are more pages based on the pagination metadata
+      if (lastPage.pagination.page < lastPage.pagination.pages) {
+        return lastPage.pagination.page + 1;
+      }
+      return undefined;
+    },
+    retry: (failureCount: number, error: AxiosError<ApiError>) => {
       // Don't retry on 4xx errors (client errors)
       if (error.response?.status && error.response.status >= 400 && error.response.status < 500) {
         return false;
       }
       return failureCount < 2;
     },
-    staleTime: 5 * 60 * 1000,
+    enabled: !!locationId && enabled,
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
-};
+}
