@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
+import { getVersion } from '@tauri-apps/api/app';
 
 // --- Typewriter Effect Component ---
 const TypewriterText = ({ texts }: { texts: string[] }) => {
@@ -63,6 +64,9 @@ export default function CheckinPage() {
   const [isScanning, setIsScanning] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [scanSuccess, setScanSuccess] = useState<boolean>(false);
+  
+  // --- Version State ---
+  const [appVersion, setAppVersion] = useState<string>('');
 
   const { checkIn, isCheckingIn } = useAuth();
   const { currentLocation, setDeviceKey, setCurrentLocation } = useAuthStore();
@@ -71,8 +75,22 @@ export default function CheckinPage() {
   const cardInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Initial Setup & Version Fetch ---
   useEffect(() => {
     cardInputRef.current?.focus();
+
+    // Async function to fetch version
+    const fetchAppVersion = async () => {
+      try {
+        const v = await getVersion();
+        setAppVersion(v);
+      } catch (err) {
+        console.error('Failed to get app version:', err);
+        setAppVersion('Unknown');
+      }
+    };
+
+    fetchAppVersion();
   }, []);
 
   const handleScan = (): void => {
@@ -350,9 +368,13 @@ export default function CheckinPage() {
           </CardContent>
 
           <CardFooter className="justify-center pb-0">
-            <p className="text-xs text-slate-600">
-              Terminal ID: <span className="text-slate-400 font-mono">{currentLocation?.name}</span> • Status:{' '}
-              <span className="text-green-500">Online</span>
+            <p className="text-xs text-slate-600 text-center">
+              Terminal ID: <span className="text-slate-400 font-mono">{currentLocation?.name || 'Unknown'}</span>
+              {/* Displaying App Version Here */}
+              <span className="mx-2">•</span>
+              <span className="text-slate-500">v{appVersion}</span>
+              <span className="mx-2">•</span>
+              Status: <span className="text-green-500">Online</span>
             </p>
           </CardFooter>
         </Card>

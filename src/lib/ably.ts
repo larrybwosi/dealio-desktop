@@ -1,4 +1,4 @@
-import Ably, { Realtime } from 'ably';
+import { Realtime } from 'ably';
 import { apiClient } from './axios';
 
 // Alternative: Direct instance with client-side check
@@ -26,9 +26,6 @@ export const getAblyRealtime = (): Realtime | null => {
             console.error('Error fetching Ably token:', err);
             callback(err, null);
           }
-        },
-        recover: (_, cb) => {
-          cb(true);
         },
         logLevel: 1,
       });
