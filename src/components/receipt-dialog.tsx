@@ -21,7 +21,8 @@ import { printPdf } from 'tauri-plugin-printer-v2';
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { isTauri } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
-import { usePrinterStore } from '@/hooks/printer-store';
+import { usePrinterStore } from '@/store/printer-store';
+import { usePrinter } from '@/hooks/use-printer';
 
 // --- Types ---
 interface ReceiptDialogProps {
@@ -153,8 +154,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const settings = usePosStore(state => state.settings);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
 
-  // Hook safeguards
-  const { printers, defaultPrinter } = usePrinterStore ? usePrinterStore() : { printers: [], defaultPrinter: null };
+  const { printDocument } = usePrinter();
 
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -225,13 +225,15 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
       filePath = `${dealioFolderPath}/${fileName}`;
       await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Document });
 
-      await printPdf({
-        path: filePath,
-        printer: defaultPrinter || printers[0]?.Name || '',
-        id: `print_${safeOrderNum}`,
-        remove_after_print: true,
-        print_settings: '',
-      });
+      // await printPdf({
+      //   path: filePath,
+      //   printer: defaultPrinter || printers[0]?.Name || '',
+      //   id: `print_${safeOrderNum}`,
+      //   remove_after_print: true,
+      //   print_settings: '',
+      // });
+
+      printDocument('receipt', filePath, true);
 
       toast.success('Sent to printer!');
     } catch (error) {

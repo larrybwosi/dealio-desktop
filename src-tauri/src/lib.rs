@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Emitter};
 use hidapi::HidApi;
+use tauri_plugin_printer_v2::init;
 
 // Define the payload structure for the event
 #[derive(Clone, serde::Serialize)]
@@ -103,6 +104,7 @@ fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<String
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_upload::init())
@@ -110,9 +112,6 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
-        // Note: You have tauri_plugin_hid enabled. If you use custom logic 
-        // via `hidapi` crate directly (as above), you technically don't need 
-        // the plugin, but keeping it won't hurt.
         .plugin(tauri_plugin_hid::init()) 
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_http::init())

@@ -12,9 +12,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trash2, Plus, Check } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { invoke } from '@tauri-apps/api/core';
+import { useScanner } from '@/hooks/use-scanner';
+import PrinterSettings from './printer-conf';
 
+interface HidDevice {
+  vid: number;
+  pid: number;
+  name: string;
+}
 export function SettingsPage() {
   const settings = usePosStore(state => state.settings);
   const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
@@ -24,13 +32,56 @@ export function SettingsPage() {
   const updateThemeConfig = usePosStore(state => state.updateThemeConfig);
   const updateSecurityConfig = usePosStore(state => state.updateSecurityConfig);
   const updateApiSyncConfig = usePosStore(state => state.updateApiSyncConfig);
-  const addPrinter = usePosStore(state => state.addPrinter);
-  const updatePrinter = usePosStore(state => state.updatePrinter);
-  const deletePrinter = usePosStore(state => state.deletePrinter);
-  const setDefaultPrinter = usePosStore(state => state.setDefaultPrinter);
   const syncDataToApi = usePosStore(state => state.syncDataToApi);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
   const { setDeviceKey } = useAuthStore(state => state);
+
+  const {
+    vid,
+    pid,
+    setVid,
+    setPid,
+    startScanner,
+    stopScanner,
+    isScanning,
+    isConnected,
+    scanHistory,
+    error: scannerError,
+    clearHistory
+  } = useScanner();
+
+
+  // 2. Local state for device discovery
+  const [detectedDevices, setDetectedDevices] = useState<HidDevice[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // 3. Helper to find devices via Rust
+  const handleDetectDevices = async () => {
+    setIsSearching(true);
+    try {
+      // Calls the Rust command: fn list_hid_devices
+      const devices = await invoke<[number, number, string][]>('list_hid_devices');
+      
+      // Transform tuple to object for easier handling
+      const mapped = devices.map(([vid, pid, name]) => ({ vid, pid, name }));
+      setDetectedDevices(mapped);
+    } catch (err) {
+      console.error("Failed to list devices", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // 4. Helper to auto-fill inputs when a device is clicked
+  const selectDevice = (device: HidDevice) => {
+    // Convert decimal to Hex string (e.g. 59473 -> 0xE851)
+    const vidHex = '0x' + device.vid.toString(16).toUpperCase();
+    const pidHex = '0x' + device.pid.toString(16).toUpperCase();
+    
+    setVid(vidHex);
+    setPid(pidHex);
+    setDetectedDevices([]); // Clear list after selection
+  };
 
   const [businessName, setBusinessName] = useState(settings?.businessName || '');
   const [businessType, setBusinessType] = useState<BusinessType>(settings?.businessType || 'restaurant');
@@ -47,7 +98,6 @@ export function SettingsPage() {
   const [printerName] = useState(settings?.printerName || '');
   const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
 
-  const [newPrinterName, setNewPrinterName] = useState('');
   const [syncing, setSyncing] = useState(false);
 
   const currentConfig = getBusinessConfig();
@@ -79,20 +129,6 @@ export function SettingsPage() {
     changeBusinessType(newType);
     const config = businessConfigs[newType];
     setTaxRate(config.taxSettings.defaultRate.toString());
-  };
-
-  const handleAddPrinter = () => {
-    if (!newPrinterName.trim()) return;
-
-    addPrinter({
-      name: newPrinterName,
-      type: 'receipt',
-      connection: 'usb',
-      isDefault: settings.printers.length === 0,
-      paperSize: '80mm',
-      enabled: true,
-    });
-    setNewPrinterName('');
   };
 
   const handleSyncData = async () => {
@@ -704,97 +740,162 @@ export function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="hardware" className="space-y-6">
+            <PrinterSettings/>
+            {/* --- BARCODE SCANNER SECTION (Completely Revamped) --- */}
             <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Printer Management</h2>
-              <p className="text-sm text-muted-foreground mb-4">Configure receipt and label printers</p>
-
-              <div className="space-y-3 mb-4">
-                {settings.printers?.map(printer => (
-                  <div key={printer.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">{printer.name}</span>
-                        {printer.isDefault && (
-                          <Badge variant="default" className="text-xs">
-                            Default
-                          </Badge>
-                        )}
-                        {!printer.enabled && (
-                          <Badge variant="secondary" className="text-xs">
-                            Disabled
-                          </Badge>
-                        )}
-                      </div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg transition-colors ${
+                    isConnected 
+                      ? 'bg-green-100 dark:bg-green-900/20' 
+                      : 'bg-orange-100 dark:bg-orange-900/20'
+                  }`}>
+                    <ScanBarcode className={`h-5 w-5 ${
+                      isConnected 
+                        ? 'text-green-700 dark:text-green-400' 
+                        : 'text-orange-700 dark:text-orange-400'
+                    }`} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Barcode Scanner</h2>
+                    <div className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${
+                        isConnected 
+                          ? 'bg-green-500' 
+                          : 'bg-gray-300 dark:bg-gray-600'
+                      }`} />
                       <p className="text-sm text-muted-foreground">
-                        {printer.type} • {printer.connection} • {printer.paperSize}
+                        {isConnected ? 'Device Active & Ready' : 'Not Connected'}
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!printer.isDefault && (
-                        <Button size="sm" variant="outline" onClick={() => setDefaultPrinter(printer.id)}>
-                          <Check className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => updatePrinter(printer.id, { enabled: !printer.enabled })}
-                      >
-                        {printer.enabled ? 'Disable' : 'Enable'}
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => deletePrinter(printer.id)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                  </div>
+                </div>
+                
+                {/* Start/Stop Controls */}
+                <div className="flex gap-2">
+                  {!isScanning ? (
+                    <Button onClick={startScanner} disabled={!vid || !pid} className="bg-green-600 hover:bg-green-700">
+                      <Play className="h-4 w-4 mr-2" /> Start Listener
+                    </Button>
+                  ) : (
+                    <Button onClick={stopScanner} variant="destructive">
+                      <Square className="h-4 w-4 mr-2" /> Stop Listener
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Scanner Error Alert */}
+              {scannerError && (
+                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-md text-sm">
+                  ⚠️ {scannerError}
+                </div>
+              )}
+
+              {/* Configuration Inputs */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {/* Left Column: Settings */}
+                <div className="space-y-4">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1 space-y-2">
+                      <label className="text-sm font-medium">Vendor ID (Hex)</label>
+                      <Input 
+                        value={vid} 
+                        onChange={(e) => setVid(e.target.value)} 
+                        placeholder="0xE851" 
+                        disabled={isScanning}
+                        className="font-mono"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <label className="text-sm font-medium">Product ID (Hex)</label>
+                      <Input 
+                        value={pid} 
+                        onChange={(e) => setPid(e.target.value)} 
+                        placeholder="0x2100" 
+                        disabled={isScanning}
+                        className="font-mono"
+                      />
                     </div>
                   </div>
-                ))}
-              </div>
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter printer name"
-                  value={newPrinterName}
-                  onChange={e => setNewPrinterName(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleAddPrinter()}
-                />
-                <Button onClick={handleAddPrinter}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Printer
-                </Button>
+                  {/* Auto-detect Helper */}
+                  <div className="pt-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full border-dashed"
+                      onClick={handleDetectDevices}
+                      disabled={isScanning || isSearching}
+                    >
+                      {isSearching ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                      {isSearching ? 'Scanning USB Ports...' : 'Detect Connected Devices'}
+                    </Button>
+
+                    {/* Detected Devices List */}
+                    {detectedDevices.length > 0 && (
+                      <div className="mt-2 border rounded-md divide-y max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+                        {detectedDevices.map((device, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => selectDevice(device)}
+                            className="w-full text-left p-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 flex justify-between items-center group"
+                          >
+                            <span className="truncate max-w-[200px]">{device.name || "Unknown Device"}</span>
+                            <span className="text-muted-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 font-mono">
+                              0x{device.vid.toString(16).toUpperCase()}:0x{device.pid.toString(16).toUpperCase()}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Column: Live Test */}
+                <div className="bg-muted/50 rounded-lg p-4 flex flex-col h-full min-h-[160px]">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium">Live Feed</span>
+                    {scanHistory.length > 0 && (
+                      <button onClick={clearHistory} className="text-xs text-muted-foreground hover:text-destructive">
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex-1 bg-background rounded-md border p-2 overflow-y-auto h-[120px] shadow-inner">
+                    {scanHistory.length === 0 ? (
+                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs text-center">
+                        <ScanBarcode className="h-8 w-8 mb-2 opacity-20" />
+                        Scan a barcode to test
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {scanHistory.map((scan, i) => (
+                          <div key={i} className="flex justify-between text-sm py-1 border-b dark:border-gray-700 last:border-0 animate-in fade-in slide-in-from-top-1">
+                            <span className="font-mono font-medium">{scan.code}</span>
+                            <span className="text-xs text-muted-foreground">{scan.timestamp}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             </Card>
 
+            {/* --- AUTO PRINT SETTINGS (Kept the same) --- */}
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Auto-Print Settings</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Auto-Print Receipts</div>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically print receipt after completing payment
-                    </p>
-                  </div>
-                  <Switch checked={enableAutoPrint} onCheckedChange={setEnableAutoPrint} />
+              <div className="flex items-center justify-between py-2">
+                <div className="flex-1">
+                  <div className="font-medium">Auto-Print Receipts</div>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically print receipt after completing payment
+                  </p>
                 </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Barcode Scanner</h2>
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Barcode scanning is automatically enabled. Use any USB or Bluetooth barcode scanner to quickly add
-                  products to orders.
-                </p>
-                <div className="bg-muted p-4 rounded-lg">
-                  <p className="text-sm font-medium mb-2">Supported Formats:</p>
-                  <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-                    <li>EAN-13 / UPC-A</li>
-                    <li>Code 128</li>
-                    <li>QR Code</li>
-                    <li>ISBN (for bookshops)</li>
-                  </ul>
-                </div>
+                <Switch checked={enableAutoPrint} onCheckedChange={setEnableAutoPrint} />
               </div>
             </Card>
           </TabsContent>
