@@ -698,10 +698,11 @@ const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[] => {
   const config = getBusinessConfig(businessType);
 
   const items: SidebarItem[] = [
-    { id: 'menu-order', label: 'Menu Order', icon: 'ShoppingBag', enabled: true },
+    { id: 'order', label: 'Order', icon: 'ShoppingBag', enabled: true },
     { id: 'inventory', label: 'Inventory', icon: 'Package', enabled: true },
     { id: 'history', label: 'History', icon: 'History', enabled: true },
     { id: 'analytic', label: 'Analytics', icon: 'BarChart3', enabled: true },
+    { id: 'pending-transactions', label: 'Pending Transactions', icon: 'BarChart3', enabled: true },
   ];
 
   if (config.features.tableManagement) {

@@ -13,7 +13,7 @@ import { AgeVerificationDialog } from './age-verification-dialog';
 import type { Order, CartItem, Customer, OrderType } from '@/types';
 import { ReceiptDialog } from './receipt-dialog';
 
-export function OrderDetails() {
+export function Cart() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [ageVerificationOpen, setAgeVerificationOpen] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);

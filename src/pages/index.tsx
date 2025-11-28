@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { OrdersList } from '@/components/orders-list';
 import { ProductList } from '@/components/product-list';
-import { OrderDetails } from '@/components/order-details';
+import { Cart } from '@/components/cart';
 import { SettingsPage } from '@/components/settings-page';
 import { HistoryPage } from '@/components/history-page';
 import { ReceiptSettingsPage } from '@/pages/receipt-settings-page';
@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import PendingTransactionsPage from './pending-transactions';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('menu-order');
@@ -44,7 +45,7 @@ export default function Home() {
   };
 
   const showSidebar = true;
-  const showOrderDetails = activeTab === 'menu-order';
+  const showCart = activeTab === 'menu-order';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -105,6 +106,7 @@ export default function Home() {
           {activeTab === 'manage-table' && <ManageTablesPage />}
           {activeTab === 'member-checkin' && <MemberCheckinPage />}
           {activeTab === 'till-management' && <TillManagementPage />}
+          {activeTab === 'pending-transactions' && <PendingTransactionsPage />}
           {activeTab !== 'menu-order' &&
             activeTab !== 'settings' &&
             activeTab !== 'history' &&
@@ -124,7 +126,7 @@ export default function Home() {
         </div>
       </div>
 
-      {showOrderDetails && <OrderDetails />}
+      {showCart && <Cart />}
 
       <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
         <AlertDialogContent>

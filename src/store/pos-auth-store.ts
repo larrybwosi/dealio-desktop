@@ -41,7 +41,7 @@ export type Member = {
     currentCheckInLocationId: string | null;
     currentAttendanceLogId: string | null;
     name: string;
-    imageUrl: string;
+    image: string;
 }
 
 // 1. Add a timestamp field to the state interface
