@@ -2,13 +2,13 @@
 import axios from "axios";
 import { useAuthStore } from "@/store/pos-auth-store";
 
+export const API_ENDPOINT = import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioerp.vercel.app';
 export const apiClient = axios.create({
-  baseURL: import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioerp.vercel.app',
+  baseURL: API_ENDPOINT,
   timeout: 10000, // Add a timeout
 });
 
-export const API_ENDPOINT = import.meta.env.DEV ? 'http://localhost:3000' : 'https://dealioerp.vercel.app';
-
+//dealio_pk_live_6a2c2394e958b429_64b5900be9f1b4c996b2a975cc3a45ee974ffd5f3fdc30f0e6de232fe83e9960
 
 // Add a request interceptor to inject auth headers
 apiClient.interceptors.request.use(

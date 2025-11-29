@@ -69,7 +69,7 @@ export default function CheckinPage() {
   const [appVersion, setAppVersion] = useState<string>('');
 
   const { checkIn, isCheckingIn } = useAuth();
-  const { currentLocation, setDeviceKey, setCurrentLocation } = useAuthStore();
+  const { currentLocation, resetAll } = useAuthStore();
   const navigate = useNavigate();
 
   const cardInputRef = useRef<HTMLInputElement>(null);
@@ -153,9 +153,7 @@ export default function CheckinPage() {
   // --- New Handler for Setup Navigation ---
   const handleResetConfig = () => {
     navigate('/setup');
-    setDeviceKey('');
-    // @ts-expect-error 
-    setCurrentLocation(undefined);
+    resetAll();
   };
 
   return (

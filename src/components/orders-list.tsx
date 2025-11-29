@@ -1,7 +1,4 @@
 "use client"
-
-import type React from "react"
-
 import { useState } from "react"
 import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
@@ -10,14 +7,14 @@ import { Button } from "@/components/ui/button"
 import { ShoppingBag, Truck, UtensilsCrossed, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { OrderDetailsDialog } from "./order-details-dialog"
-import { PaymentDialog } from "./payment-dialog" // Import PaymentDialog component
+import { PaymentDialog } from "./payment-dialog"
 import type { Order } from "@/store/store"
 
 export function OrdersList() {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false) // Added payment dialog state for unpaid orders
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false)
   const [orderToPay, setOrderToPay] = useState<Order | null>(null)
 
   const orders = usePosStore((state) => state.orders.slice(0, 3))

@@ -33,7 +33,7 @@ import { useAuth } from '@/hooks/use-auth';
 import PendingTransactionsPage from './pending-transactions';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('menu-order');
+  const [activeTab, setActiveTab] = useState('order');
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
 
   const businessConfig = usePosStore(state => state.getBusinessConfig());
@@ -45,7 +45,7 @@ export default function Home() {
   };
 
   const showSidebar = true;
-  const showCart = activeTab === 'menu-order';
+  const showCart = activeTab === 'order';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -90,7 +90,7 @@ export default function Home() {
         </header>
 
         <div className="flex-1 overflow-auto">
-          {activeTab === 'menu-order' && (
+          {activeTab === 'order' && (
             <>
               {businessConfig.features.showOrdersList && <OrdersList />}
               <ProductList />
@@ -107,7 +107,7 @@ export default function Home() {
           {activeTab === 'member-checkin' && <MemberCheckinPage />}
           {activeTab === 'till-management' && <TillManagementPage />}
           {activeTab === 'pending-transactions' && <PendingTransactionsPage />}
-          {activeTab !== 'menu-order' &&
+          {activeTab !== 'order' &&
             activeTab !== 'settings' &&
             activeTab !== 'history' &&
             activeTab !== 'receipt-settings' &&

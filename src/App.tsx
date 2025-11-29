@@ -1,14 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
-import SetupPage from './pages/set-up';
-import CheckinPage from './pages/checkin';
-import { useAuth, useSessionActivityListener } from './hooks/use-auth';
-import Home from './pages';
-import { useAuthStore } from './store/pos-auth-store';
+import SetupPage from '@/pages/set-up';
+import CheckinPage from '@/pages/checkin';
+import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
+import Home from '@/pages';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 const AppRoutes = () => {
-  const { deviceKey } = useAuthStore();
+  const { deviceKey, currentLocation } = useAuthStore();
   const { isAuthenticated } = useAuth();
-  const { currentLocation } = useAuthStore();
 
   if (!deviceKey || !currentLocation?.id) {
     return <SetupPage />;

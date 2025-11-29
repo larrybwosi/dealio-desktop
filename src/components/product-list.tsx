@@ -61,11 +61,9 @@ export function ProductList() {
         setInputValue('');
         searchInputRef.current?.blur();
       } else if (e.key.length === 1) {
-        // --- FIX STARTS HERE ---
-        e.preventDefault(); // Prevent native browser insertion to stop double characters
+        e.preventDefault();
         searchInputRef.current?.focus();
         setInputValue(prev => prev + e.key);
-        // --- FIX ENDS HERE ---
       }
     };
     window.addEventListener('keydown', handleGlobalKeyDown);
@@ -79,7 +77,7 @@ export function ProductList() {
 
   const handleAddToCartWrapper = useCallback((item: any) => {
     addItemToOrder(
-        item.product, 
+        {...item.product, variantId: item.variant.id}, 
         { ...item.unit, originalRetailPrice: item.unit.price }, 
         item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }
@@ -99,7 +97,6 @@ export function ProductList() {
   }
 
   return (
-    // FIX: Added overflow-hidden here so the outer window doesn't scroll, only the grid inside
     <div className="p-6 h-full flex flex-col overflow-hidden">
       
       {/* --- Controls Section --- */}
@@ -147,7 +144,6 @@ export function ProductList() {
       </div>
 
       {/* --- Categories --- */}
-      {/* FIX: Added [&::-webkit-scrollbar]:hidden to hide the scrollbar UI but keep functionality */}
       <div className="flex items-center gap-2 mb-4 border-b border-border overflow-x-auto shrink-0 pb-1 [&::-webkit-scrollbar]:hidden">
         {['all', 'Beverages', 'Bakery', 'Produce', 'Snacks'].map(category => (
           <button
@@ -164,7 +160,6 @@ export function ProductList() {
       </div>
 
       {/* --- Product Grid --- */}
-      {/* This area will handle the vertical scroll exclusively */}
       <div className="flex-1 overflow-y-auto min-h-0 pr-2"> 
         {isLoading && !data ? (
            <ProductGridSkeleton />

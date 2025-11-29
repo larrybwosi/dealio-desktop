@@ -40,6 +40,7 @@ export function Cart() {
   const requiresAgeVerification = businessConfig.features.ageVerification;
   const availableTables = tables.filter(t => t.status === 'available');
 
+  // console.log(currentOrder);
   // Calculations: Break down Total into Subtotal and Tax
   const { subTotal, taxAmount, total } = useMemo(() => {
     const totalWithTax = currentOrder.items.reduce((sum, item) => {
@@ -68,7 +69,7 @@ export function Cart() {
       price: item.selectedUnit?.price || 0,
       imageUrl: item.imageUrl,
       variant: item.variantName,
-      variantId: item.variantId || 'default',
+      variantId: item.variantId || undefined,
       unitId: item.selectedUnit?.unitId,
       unitName: item.selectedUnit?.unitName,
       selectedUnit: item.selectedUnit,

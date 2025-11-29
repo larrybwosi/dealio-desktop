@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 // hooks
 import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { useNavigate } from 'react-router'; // Add this import
 
 // --- Types ---
 interface Location {
@@ -235,11 +236,19 @@ const LocationStep = ({ onBack, onComplete }: { onBack: () => void, onComplete: 
 
 const SuccessStep = ({ location }: { location: Location | null }) => {
     const [progress, setProgress] = useState(10);
+    const navigate = useNavigate(); // Add navigation hook
     
     useEffect(() => {
         const timer = setTimeout(() => setProgress(100), 800);
-        return () => clearTimeout(timer);
-    }, []);
+        const redirectTimer = setTimeout(() => {
+            navigate('/'); // Navigate to home page after success
+        }, 2000); // Wait 2 seconds to show success message
+        
+        return () => {
+            clearTimeout(timer);
+            clearTimeout(redirectTimer);
+        };
+    }, [navigate]);
 
     return (
         <div className="text-center w-full max-w-sm mx-auto">
