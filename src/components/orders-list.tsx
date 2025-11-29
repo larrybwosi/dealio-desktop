@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button"
 import { ShoppingBag, Truck, UtensilsCrossed, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { OrderDetailsDialog } from "./order-details-dialog"
-import { PaymentDialog } from "./payment-dialog"
 import type { Order } from "@/store/store"
+import PaymentDialog from "./pos/payment-dialog"
 
 export function OrdersList() {
   const [isExpanded, setIsExpanded] = useState(true)
@@ -53,6 +53,17 @@ export function OrdersList() {
     e.stopPropagation() // Prevent opening the details dialog
     setOrderToPay(order)
     setPaymentDialogOpen(true)
+  }
+
+  const mapOrderType = (type: string): any => {
+    switch (type) {
+      case "dine-in": return "Dine in"
+      case "takeaway": return "Takeaway"
+      case "delivery": return "Delivery"
+      case "pickup": return "Pickup"
+      case "online": return "Online"
+      default: return "Takeaway"
+    }
   }
 
   return (
@@ -109,7 +120,7 @@ export function OrdersList() {
                     {order.tableNumber && <span className="text-sm">Table {order.tableNumber}</span>}
                   </div>
 
-                  {order.paymentMethod === "pending" && ( // Added Pay Now button for unpaid orders
+                  {order.paymentMethod === "pending" && (
                     <Button size="sm" className="w-full mt-2" onClick={(e) => handlePayOrder(order, e)}>
                       Pay Now - KSH. {order.total.toLocaleString()}
                     </Button>
@@ -123,18 +134,36 @@ export function OrdersList() {
 
       <OrderDetailsDialog order={selectedOrder} open={dialogOpen} onOpenChange={setDialogOpen} />
 
-      {orderToPay && ( // Added payment dialog for unpaid orders
+      {orderToPay && (
         <PaymentDialog
-          open={paymentDialogOpen}
-          onOpenChange={setPaymentDialogOpen}
-          orderId={orderToPay.id}
-          orderDetails={{
-            customerName: orderToPay.customerName,
-            items: orderToPay.items,
-            subTotal: orderToPay.subTotal,
-            discount: orderToPay.discount,
-            taxes: orderToPay.taxes,
-            total: orderToPay.total,
+          isOpen={paymentDialogOpen}
+          onClose={() => setPaymentDialogOpen(false)}
+          cartItems={orderToPay.items.map(item => ({
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            price: item.selectedUnit.price,
+            imageUrl: item.imageUrl,
+            variantId: item.variantId,
+            variantName: item.variantName,
+            unitId: item.selectedUnit.unitId,
+            unitName: item.selectedUnit.unitName,
+            selectedUnit: item.selectedUnit
+          }))}
+          subtotal={orderToPay.subTotal}
+          discount={orderToPay.discount}
+          customer={orderToPay.customerName ? {
+            id: 'temp-id',
+            name: orderToPay.customerName,
+            phone: '',
+            email: ''
+          } : null}
+          orderType={mapOrderType(orderToPay.orderType)}
+          tableNumber={orderToPay.tableNumber}
+          onOpenCustomer={() => {}}
+          onPaymentComplete={(order) => {
+            usePosStore.getState().updateOrderStatus(orderToPay.id, 'completed')
+            setPaymentDialogOpen(false)
           }}
         />
       )}

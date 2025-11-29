@@ -17,11 +17,9 @@ import { ReceiptPreview } from '@/components/receipt-preview';
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 
 // Tauri / System Imports
-import { printPdf } from 'tauri-plugin-printer-v2';
-import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
+import { BaseDirectory, writeFile, mkdir, exists, remove } from '@tauri-apps/plugin-fs';
 import { isTauri } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
-import { usePrinterStore } from '@/store/printer-store';
 import { usePrinter } from '@/hooks/use-printer';
 
 // --- Types ---
@@ -225,14 +223,6 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
       filePath = `${dealioFolderPath}/${fileName}`;
       await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Document });
 
-      // await printPdf({
-      //   path: filePath,
-      //   printer: defaultPrinter || printers[0]?.Name || '',
-      //   id: `print_${safeOrderNum}`,
-      //   remove_after_print: true,
-      //   print_settings: '',
-      // });
-
       printDocument('receipt', filePath, true);
 
       toast.success('Sent to printer!');
@@ -243,10 +233,10 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
       // Cleanup
       try {
         if (filePath && (await exists(filePath, { baseDir: BaseDirectory.Document }))) {
-          // Note: Plugin removes file if remove_after_print is true, but good to be safe
-          // await remove(filePath, { baseDir: BaseDirectory.Document });
+          await remove(filePath, { baseDir: BaseDirectory.Document });
         }
       } catch (e) {
+        console.error('Failed to remove file:', e);
         /* ignore cleanup errors */
       }
       setIsPrinting(false);

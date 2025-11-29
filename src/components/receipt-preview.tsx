@@ -1,10 +1,9 @@
-'use client';
-
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 import { format } from 'date-fns';
 import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 import { cn } from '@/lib/utils';
+import { Separator } from '@/components/ui/separator';
 
 interface ReceiptPreviewProps {
   order: Order;
@@ -26,24 +25,12 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
     }
   };
 
-  // Generate QR Code with Enterprise Context
   useEffect(() => {
     if (config?.showQrCode && qrCodeRef.current) {
-      let qrPayload = '';
-
-      // Decide QR payload based on enterprise setting
-      if (config.qrCodeTarget === 'website' && config.qrCodeCustomUrl) {
-        qrPayload = config.qrCodeCustomUrl;
-      } else if (config.qrCodeTarget === 'review-link' && config.qrCodeCustomUrl) {
-        qrPayload = config.qrCodeCustomUrl;
-      } else {
-        // Default: Order tracking
-        qrPayload = JSON.stringify({
-          id: order.orderNumber,
-          t: order.total,
-          d: getFormattedDate(order.createdAt),
-        });
-      }
+      const qrPayload =
+        config.qrCodeTarget === 'website' && config.qrCodeCustomUrl
+          ? config.qrCodeCustomUrl
+          : JSON.stringify({ id: order.orderNumber, t: order.total });
 
       QRCode.toCanvas(qrCodeRef.current, qrPayload, {
         width: 100,
@@ -51,7 +38,7 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
         color: { dark: '#000000', light: '#FFFFFF' },
       }).catch(err => console.error('QR error:', err));
     }
-  }, [config?.showQrCode, config?.qrCodeTarget, config?.qrCodeCustomUrl, order]);
+  }, [config, order]);
 
   if (!config) return <div>Initializing...</div>;
 
@@ -70,7 +57,6 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
       serif: 'font-serif',
     }[config.fontFamily] || 'font-mono';
 
-  // Dynamic Alignment Logic
   const alignClass = config.textAlignment === 'center' ? 'text-center' : 'text-left';
   const logoJustify =
     config.logoPosition === 'center'
@@ -79,193 +65,192 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
       ? 'justify-end'
       : 'justify-start';
 
+  const isModern = config.template === 'modern';
+  const isMinimal = config.template === 'minimal';
+
   return (
-    <div
-      className={cn(
-        'bg-white text-black select-none overflow-hidden h-full',
-        fontFamilyClass,
-        fontSizeClass,
-        className
-      )}
-    >
-      <div className="p-4 flex flex-col h-full">
-        {/* --- HEADER --- */}
-        <div className={cn('border-b-2 border-dashed border-gray-300 pb-4 mb-3', alignClass)}>
-          {config.showLogo && config.logoUrl && (
-            <div className={cn('mb-3 flex', logoJustify)}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={config.logoUrl}
-                alt="Logo"
-                style={{ width: `${config.logoWidth}%` }}
-                className="object-contain grayscale"
-              />
+    <div className={cn('relative group', className)}>
+      {/* Thermal Paper Container */}
+      <div
+        className={cn(
+          'bg-white text-black select-none overflow-hidden relative shadow-sm transition-all duration-300',
+          fontFamilyClass,
+          fontSizeClass,
+          config.showBorder && 'border border-gray-800'
+        )}
+        style={{
+          minHeight: '400px',
+          // Add a subtle paper texture feel
+          backgroundColor: '#fffdfa',
+        }}
+      >
+        <div className={cn('p-5 pb-8 flex flex-col h-full', isModern && 'bg-slate-50/50')}>
+          {/* --- HEADER --- */}
+          <div className={cn('mb-4 space-y-2', alignClass)}>
+            {config.showLogo && config.logoUrl && (
+              <div className={cn('mb-3 flex', logoJustify)}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={config.logoUrl}
+                  alt="Logo"
+                  style={{ width: `${config.logoWidth}%` }}
+                  className="object-contain mix-blend-multiply"
+                />
+              </div>
+            )}
+
+            <div className={cn('font-bold uppercase tracking-wider', isModern ? 'text-lg' : 'text-base')}>
+              {activeSettings.businessName}
             </div>
-          )}
 
-          <div className="font-bold text-base uppercase mb-1">{activeSettings.businessName}</div>
-          {config.headerText && <div className="whitespace-pre-wrap mb-3 opacity-80">{config.headerText}</div>}
+            {config.headerText && (
+              <div className="whitespace-pre-wrap text-gray-600 font-medium opacity-90">{config.headerText}</div>
+            )}
 
-          <div className="text-gray-600 space-y-0.5 text-[0.9em]">
-            {config.showAddress && <div>{config.address}</div>}
-            {config.showPhone && <div>Tel: {config.phone}</div>}
-            {config.showEmail && <div>{config.email}</div>}
-            {config.showWebsite && <div>{config.website}</div>}
-            {config.showTaxNumber && <div>Tax ID: {config.taxNumber}</div>}
-          </div>
-        </div>
-
-        {/* --- ENTERPRISE METADATA --- */}
-        <div className="mb-4 space-y-1 text-[0.95em]">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Order #</span>
-            <span className="font-bold">{order.orderNumber}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Date</span>
-            <span>{getFormattedDate(order.createdAt)}</span>
+            <div className="text-gray-500 text-[0.9em] space-y-0.5 mt-2">
+              {config.showAddress && <div>{config.address}</div>}
+              {config.showPhone && <div>{config.phone}</div>}
+              {config.showEmail && <div>{config.email}</div>}
+              {config.showWebsite && <div>{config.website}</div>}
+              {config.showTaxNumber && <div>Tax ID: {config.taxNumber}</div>}
+            </div>
           </div>
 
-          {config.showCustomerName && order.customerName && (
+          {!isMinimal && <Separator className="my-2 bg-black/10 dashed" />}
+
+          {/* --- METADATA --- */}
+          <div className="mb-4 space-y-1 text-[0.9em]">
             <div className="flex justify-between">
-              <span className="text-gray-500">Customer</span>
-              <span className="font-medium truncate max-w-[150px] text-right">{order.customerName}</span>
+              <span className="text-gray-500">Order</span>
+              <span className="font-bold">{order.orderNumber}</span>
             </div>
-          )}
-          {config.showOrderType && order.orderType && (
             <div className="flex justify-between">
-              <span className="text-gray-500">Type</span>
-              <span className="uppercase font-medium">{order.orderType}</span>
+              <span className="text-gray-500">Date</span>
+              <span>{getFormattedDate(order.createdAt)}</span>
             </div>
-          )}
-          {config.showCashier && order.cashierName && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">Server</span>
-              <span>{order.cashierName}</span>
-            </div>
-          )}
-          {config.showPaymentMethod && order.paymentMethod && (
-            <div className="flex justify-between">
-              <span className="text-gray-500">Payment</span>
-              <span>{order.paymentMethod}</span>
-            </div>
-          )}
-        </div>
-
-        {/* --- ITEMS --- */}
-        <div className="border-t-2 border-dashed border-gray-300 pt-3 mb-4 flex-1">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left border-b border-gray-200">
-                <th className="pb-2 font-bold w-[45%]">Item</th>
-                <th className="pb-2 font-bold text-center w-[15%]">Qty</th>
-                <th className="pb-2 font-bold text-right w-[40%]">Total</th>
-              </tr>
-            </thead>
-            <tbody className="text-gray-800">
-              {order.items.map((item, index) => {
-                const itemTotal = (item.selectedUnit?.price || 0) * item.quantity;
-                return (
-                  <tr key={index} className="align-top border-b border-gray-50 last:border-0">
-                    <td className="py-2 pr-1">
-                      <div className="font-semibold">{item.productName}</div>
-                      <div className="text-[0.85em] text-gray-500">{item.variantName}</div>
-                      {config.showItemSku && item.sku && (
-                        <div className="text-[0.75em] text-gray-400 font-mono mt-0.5">SKU: {item.sku}</div>
-                      )}
-                      {config.showItemNotes && item.note && (
-                        <div className="text-[0.8em] italic text-gray-500 mt-0.5">Note: {item.note}</div>
-                      )}
-                    </td>
-                    <td className="py-2 text-center font-medium">{item.quantity}</td>
-                    <td className="py-2 text-right font-medium">{itemTotal.toLocaleString()}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* --- TOTALS --- */}
-        <div className="border-t-2 border-dashed border-gray-300 pt-3 space-y-1">
-          <div className="flex justify-between">
-            <span>Subtotal</span>
-            <span>
-              {activeSettings.currency} {order.subTotal.toLocaleString()}
-            </span>
-          </div>
-          {order.discount > 0 && (
-            <div className="flex justify-between text-gray-600">
-              <span>Discount</span>
-              <span>
-                -{activeSettings.currency} {order.discount.toLocaleString()}
-              </span>
-            </div>
-          )}
-          <div className="flex justify-between text-gray-600">
-            <span>Tax ({activeSettings.taxRate}%)</span>
-            <span>
-              {activeSettings.currency} {order.taxes.toLocaleString()}
-            </span>
-          </div>
-          <div className="flex justify-between font-bold text-lg border-t-2 border-gray-800 pt-3 mt-2">
-            <span>TOTAL</span>
-            <span>
-              {activeSettings.currency} {order.total.toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        {/* --- FOOTER --- */}
-        <div className={cn('border-t-2 border-dashed border-gray-300 mt-4 pt-4 space-y-4', alignClass)}>
-          {/* Main Footer Message */}
-          {config.footerText && <div className="whitespace-pre-wrap font-medium">{config.footerText}</div>}
-
-          {/* Return Policy (Enterprise) */}
-          {config.showReturnPolicy && config.returnPolicyText && (
-            <div className="text-[0.9em] text-gray-500 p-2 border rounded border-gray-100 bg-gray-50/50">
-              <span className="font-bold block text-xs mb-1 uppercase">Return Policy</span>
-              {config.returnPolicyText}
-            </div>
-          )}
-
-          {/* Barcode */}
-          {config.showBarcode && (
-            <div className={cn('flex flex-col', alignClass === 'text-center' ? 'items-center' : 'items-start')}>
-              <svg viewBox="0 0 100 30" className="w-48 h-12 mb-1 opacity-80">
-                <g fill="#000">
-                  {[...Array(40)].map((_, i) => (
-                    <rect key={i} x={i * 2.5} y="0" width={Math.random() > 0.5 ? 1.5 : 0.8} height="30" />
-                  ))}
-                </g>
-              </svg>
-              <div className="text-[10px] tracking-widest font-mono">{order.orderNumber}</div>
-            </div>
-          )}
-
-          {/* QR Code & Socials */}
-          <div
-            className={cn('flex items-end gap-4', alignClass === 'text-center' ? 'justify-center' : 'justify-start')}
-          >
-            {config.showQrCode && (
-              <div className="flex flex-col items-center">
-                <canvas ref={qrCodeRef} className="border border-gray-100" />
-                <span className="text-[9px] mt-1 text-gray-400 font-medium uppercase">
-                  {config.qrCodeTarget === 'review-link' ? 'Scan to Review' : 'Scan for Receipt'}
-                </span>
+            {config.showCustomerName && order.customerName && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Client</span>
+                <span className="font-medium">{order.customerName}</span>
+              </div>
+            )}
+            {config.showCashier && order.cashierName && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Served by</span>
+                <span>{order.cashierName}</span>
               </div>
             )}
           </div>
 
-          {/* Social Media */}
-          {config.showSocialMedia && config.socialMediaHandle && (
-            <div className="font-bold text-sm">Follow us: {config.socialMediaHandle}</div>
-          )}
+          {/* --- ITEMS --- */}
+          <div className="flex-1 mb-4">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-black text-left">
+                  <th className="pb-1 font-bold w-[50%]">Item</th>
+                  <th className="pb-1 font-bold text-center w-[15%]">Qty</th>
+                  <th className="pb-1 font-bold text-right w-[35%]">Amt</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-800">
+                {order.items.map((item, index) => (
+                  <tr key={index} className="align-top">
+                    <td className="py-1 pr-1">
+                      <div className="font-medium">{item.productName}</div>
+                      {item.variantName && <div className="text-[0.85em] text-gray-500">{item.variantName}</div>}
+                      {config.showItemSku && item.sku && (
+                        <div className="text-[0.7em] text-gray-400 font-mono">{item.sku}</div>
+                      )}
+                    </td>
+                    <td className="py-1 text-center">{item.quantity}</td>
+                    <td className="py-1 text-right">{(item.selectedUnit?.price || 0 * item.quantity).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-          <div className="text-[9px] text-gray-400 uppercase tracking-wider text-center pt-2">
-            Powered by Dealio ERP
+          {/* --- TOTALS --- */}
+          <div className={cn('space-y-1 pt-2', !isModern && 'border-t border-dashed border-gray-400')}>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Subtotal</span>
+              <span>
+                {activeSettings.currency} {order.subTotal.toLocaleString()}
+              </span>
+            </div>
+            {order.discount > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Discount</span>
+                <span>
+                  -{activeSettings.currency} {order.discount.toLocaleString()}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between text-gray-600">
+              <span>Tax</span>
+              <span>
+                {activeSettings.currency} {order.taxes.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex justify-between font-bold text-lg pt-2 mt-1 border-t border-black">
+              <span>TOTAL</span>
+              <span>
+                {activeSettings.currency} {order.total.toLocaleString()}
+              </span>
+            </div>
+            {config.showPaymentMethod && (
+               <div className="flex justify-between text-[0.85em] text-gray-500 mt-1 uppercase">
+                 <span>{order.paymentMethod}</span>
+                 <span>PAID</span>
+               </div>
+            )}
+          </div>
+
+          {/* --- FOOTER --- */}
+          <div className={cn('mt-6 space-y-4', alignClass)}>
+            {config.footerText && <div className="font-medium opacity-80">{config.footerText}</div>}
+
+            {config.showReturnPolicy && config.returnPolicyText && (
+              <div className="text-[0.85em] text-gray-500 border p-2 rounded bg-gray-50">
+                <span className="font-bold block text-[0.8em] uppercase mb-0.5">Policy</span>
+                {config.returnPolicyText}
+              </div>
+            )}
+
+            {config.showQrCode && (
+              <div className={cn('flex flex-col', alignClass === 'center' ? 'items-center' : 'items-start')}>
+                <canvas ref={qrCodeRef} />
+                <span className="text-[9px] mt-1 text-gray-400 uppercase tracking-widest">Scan Me</span>
+              </div>
+            )}
+
+             {config.showSocialMedia && config.socialMediaHandle && (
+              <div className="flex items-center gap-1 justify-center text-sm font-bold">
+                 <span>Connect:</span>
+                 <span>{config.socialMediaHandle}</span>
+              </div>
+            )}
+            
+            <div className="text-[9px] text-gray-300 text-center pt-2">Powered by Dealio</div>
           </div>
         </div>
+
+        {/* --- THERMAL PAPER JAGGED EDGE EFFECT (CSS) --- */}
+        <div
+          className="absolute bottom-0 left-0 w-full h-2"
+          style={{
+            background: 'linear-gradient(-45deg, transparent 8px, transparent 0), linear-gradient(45deg, transparent 8px, transparent 0)',
+            backgroundSize: '16px 16px',
+            backgroundPosition: '0 100%',
+            backgroundRepeat: 'repeat-x',
+            filter: 'drop-shadow(0px 2px 0px rgba(0,0,0,0.1))',
+            // This SVG data URI creates a cleaner saw-tooth pattern than pure gradients
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10' width='12' height='10'%3E%3Cpath d='M0,0 L6,8 L12,0' fill='%23fff' stroke='none' /%3E%3C/svg%3E")`,
+            height: '10px',
+            bottom: '-9px',
+            zIndex: 10
+          }}
+        />
       </div>
     </div>
   );

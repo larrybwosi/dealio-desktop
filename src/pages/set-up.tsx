@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Key,
@@ -26,7 +26,7 @@ import { Label } from '@/components/ui/label';
 // hooks
 import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { useNavigate } from 'react-router'; // Add this import
+import { useNavigate } from 'react-router';
 
 // --- Types ---
 interface Location {

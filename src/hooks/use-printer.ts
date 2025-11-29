@@ -15,7 +15,7 @@ export const usePrinter = () => {
     // 1. Get the list (returns a JSON string)
     const list = await getPrinters();
     const printers = JSON.parse(JSON.parse(JSON.stringify(list)));
-    console.log(printers);
+    // console.log(printers);
 
     // 2. Format specifically for this plugin's structure
     const formatted: PrinterDevice[] = printers.map((p: any) => ({

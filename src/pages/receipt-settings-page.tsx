@@ -2,15 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { usePosStore, type ReceiptConfig } from '@/store/store';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { ReceiptPreview } from '@/components/receipt-preview';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
@@ -18,15 +19,26 @@ import {
   Download,
   Printer,
   RotateCcw,
-  AlignLeft,
-  AlignCenter,
-  LayoutTemplate,
+  Layout,
+  Type,
+  FileText,
+  QrCode,
   ZoomIn,
   ZoomOut,
-  Building2,
-  QrCode,
+  Palette,
+  Check,
+  Smartphone,
+  Store
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import { cn } from '@/lib/utils';
+
+// --- Types & Presets ---
+const PRESETS = {
+  standard: { template: 'standard', fontFamily: 'monospace', textAlignment: 'center', fontSize: 'medium' },
+  minimal: { template: 'minimal', fontFamily: 'sans', textAlignment: 'left', fontSize: 'small', showBorder: false },
+  modern: { template: 'modern', fontFamily: 'sans', textAlignment: 'center', fontSize: 'medium', showBorder: false },
+};
 
 export function ReceiptSettingsPage() {
   const settings = usePosStore(state => state.settings);
@@ -35,30 +47,31 @@ export function ReceiptSettingsPage() {
   const orders = usePosStore(state => state.orders);
 
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
-  const [previewScale, setPreviewScale] = useState([100]);
+  const [previewScale, setPreviewScale] = useState([90]);
+  const [previewBg, setPreviewBg] = useState<'light' | 'dark'>('dark');
 
-  // Default Fallback Config
+  // Default Fallback
   const defaultConfig: ReceiptConfig = {
     showLogo: true,
     logoUrl: '',
     logoWidth: 50,
     logoPosition: 'center',
-    headerText: 'Thank you for your purchase!',
-    footerText: 'Please come again',
+    headerText: 'Thank you for your business!',
+    footerText: 'Please retain this receipt for your records.',
     showAddress: true,
-    address: '123 Enterprise Blvd, Tech City',
+    address: '123 Main St, City, Country',
     showPhone: true,
-    phone: '+1 234 567 8900',
-    showEmail: true,
-    email: 'support@enterprise.com',
+    phone: '(555) 123-4567',
+    showEmail: false,
+    email: '',
     showTaxNumber: true,
-    taxNumber: 'VAT-999888777',
+    taxNumber: 'TAX-123456',
     showWebsite: true,
-    website: 'www.enterprise.com',
+    website: 'www.example.com',
     showSocialMedia: false,
-    socialMediaHandle: '@dealio_erp',
+    socialMediaHandle: '',
     showReturnPolicy: false,
-    returnPolicyText: 'Returns accepted within 7 days with original receipt.',
+    returnPolicyText: 'Returns within 30 days.',
     paperSize: '80mm',
     fontFamily: 'monospace',
     fontSize: 'medium',
@@ -71,14 +84,16 @@ export function ReceiptSettingsPage() {
     showPaymentMethod: true,
     showItemSku: false,
     showItemNotes: true,
-    showBarcode: true,
+    showBarcode: false,
     showQrCode: true,
     qrCodeTarget: 'order-link',
+    template: 'standard',
+    showBorder: false,
+    borderColor: '#000000',
   };
 
   const [config, setConfig] = useState<ReceiptConfig>({ ...defaultConfig, ...receiptConfig });
 
-  // Sync with store
   useEffect(() => {
     if (receiptConfig) setConfig(prev => ({ ...prev, ...receiptConfig }));
   }, [receiptConfig]);
@@ -89,377 +104,355 @@ export function ReceiptSettingsPage() {
     updateReceiptConfig(newConfig);
   };
 
-  // Mock Order
-  const sampleOrder = orders[0] || {
-    id: 'sample',
-    orderNumber: '#ORD-99281',
-    customerName: 'Acme Corp Ltd.',
-    orderType: 'Delivery',
-    status: 'completed',
-    items: [
-      {
-        productId: '1',
-        productName: 'Enterprise Server Rack',
-        variantName: '42U Standard',
-        sku: 'SRK-42U',
-        selectedUnit: { unitName: 'Unit', price: 1200 },
-        quantity: 1,
-        note: 'Handle with care',
-      },
-      {
-        productId: '2',
-        productName: 'Cooling Unit',
-        variantName: 'Liquid Cooled',
-        sku: 'CL-001',
-        selectedUnit: { unitName: 'Pc', price: 450 },
-        quantity: 2,
-      },
-    ],
-    createdAt: new Date(),
-    subTotal: 2100,
-    discount: 100,
-    taxes: 210,
-    total: 2210,
-    paymentMethod: 'Credit Card (**** 4242)',
-    cashierName: 'Sarah J.',
+  const applyPreset = (presetName: keyof typeof PRESETS) => {
+    const preset = PRESETS[presetName];
+    const newConfig = { ...config, ...preset };
+    setConfig(newConfig);
+    updateReceiptConfig(newConfig);
   };
 
-  // Generate PDF QR
+  // Mock Data for Preview
+  const sampleOrder = orders[0] || {
+    id: 'sample',
+    orderNumber: 'ORD-001',
+    customerName: 'Guest Customer',
+    items: [
+      { productName: 'Espresso', variantName: 'Double', quantity: 1, selectedUnit: { price: 3.5 } },
+      { productName: 'Croissant', quantity: 2, selectedUnit: { price: 4.0 } },
+    ],
+    subTotal: 11.5,
+    discount: 0,
+    taxes: 1.15,
+    total: 12.65,
+    createdAt: new Date(),
+    paymentMethod: 'Credit Card',
+    cashierName: 'John Doe',
+  };
+
+  // Generate QR for PDF download link
   useEffect(() => {
     if (config.showQrCode) {
-      const qrData =
-        config.qrCodeTarget === 'website' && config.qrCodeCustomUrl
-          ? config.qrCodeCustomUrl
-          : JSON.stringify({ id: sampleOrder.orderNumber, tot: sampleOrder.total });
-
-      QRCode.toDataURL(qrData, { width: 100, margin: 1 }).then(url => setQrCodeDataUrl(url));
-    } else {
-      setQrCodeDataUrl('');
+      QRCode.toDataURL('https://example.com', { width: 100, margin: 1 }).then(setQrCodeDataUrl);
     }
-  }, [config.showQrCode, config.qrCodeTarget, config.qrCodeCustomUrl, sampleOrder]);
+  }, [config.showQrCode]);
 
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-background/50">
-      <div className="px-6 py-4 bg-background border-b flex justify-between items-center shrink-0">
-        <div>
-          <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
-            <Printer className="w-5 h-5" /> Receipt Designer
-          </h1>
-          <p className="text-muted-foreground text-xs">Configure template for thermal & PDF output</p>
+    <div className="flex h-full w-full bg-background overflow-hidden">
+      {/* --- Left Panel: Settings --- */}
+      <div className="w-full lg:w-[450px] xl:w-[500px] flex flex-col border-r bg-card h-full">
+        {/* Header */}
+        <div className="p-4 border-b flex items-center justify-between bg-background z-10">
+          <div>
+            <h2 className="font-bold text-lg flex items-center gap-2">
+              <Printer className="w-5 h-5 text-primary" /> Receipt Studio
+            </h2>
+            <p className="text-xs text-muted-foreground">Customize your thermal output</p>
+          </div>
+          <Button variant="ghost" size="icon" onClick={() => setConfig(defaultConfig)} title="Reset">
+            <RotateCcw className="w-4 h-4" />
+          </Button>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setConfig(defaultConfig)}>
-          <RotateCcw className="w-3.5 h-3.5 mr-2" /> Reset
-        </Button>
-      </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full grid grid-cols-1 lg:grid-cols-12 gap-0">
-          {/* Settings Sidebar */}
-          <div className="lg:col-span-7 h-full overflow-y-auto p-6 lg:border-r bg-background scrollbar-thin">
-            <Tabs defaultValue="branding" className="w-full space-y-6">
-              <TabsList className="grid w-full grid-cols-4 p-1 bg-muted/50">
-                <TabsTrigger value="branding">Branding</TabsTrigger>
-                <TabsTrigger value="layout">Layout</TabsTrigger>
-                <TabsTrigger value="content">Content</TabsTrigger>
-                <TabsTrigger value="enterprise">Enterprise</TabsTrigger>
+        {/* Scrollable Settings */}
+        <div className="flex-1 overflow-y-auto scrollbar-thin">
+          <Tabs defaultValue="appearance" className="w-full">
+            <div className="sticky top-0 z-10 bg-card border-b px-4 pt-2">
+              <TabsList className="w-full grid grid-cols-4 mb-2">
+                <TabsTrigger value="appearance">Style</TabsTrigger>
+                <TabsTrigger value="info">Info</TabsTrigger>
+                <TabsTrigger value="items">Items</TabsTrigger>
+                <TabsTrigger value="extra">Extra</TabsTrigger>
               </TabsList>
+            </div>
 
-              {/* Branding */}
-              <TabsContent value="branding" className="space-y-5">
-                <Card className="border-none shadow-none p-0">
-                  <CardContent className="px-0 space-y-6">
-                    <div className="flex items-center justify-between p-4 border rounded-lg bg-card">
-                      <div>
-                        <Label>Show Logo</Label>
-                      </div>
-                      <Switch checked={config.showLogo} onCheckedChange={c => updateConfig('showLogo', c)} />
-                    </div>
-                    {config.showLogo && (
-                      <div className="grid gap-4 p-4 border rounded-lg">
-                        <div className="grid gap-2">
-                          <Label>Logo URL</Label>
-                          <Input
-                            value={config.logoUrl}
-                            onChange={e => updateConfig('logoUrl', e.target.value)}
-                            className="font-mono text-xs"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>Size & Position</Label>
-                          <Slider
-                            value={[config.logoWidth]}
-                            max={100}
-                            min={20}
-                            step={5}
-                            onValueChange={v => updateConfig('logoWidth', v[0])}
-                          />
-                          <div className="flex gap-2 mt-2">
-                            {['left', 'center', 'right'].map(pos => (
-                              <Button
-                                key={pos}
-                                size="sm"
-                                variant={config.logoPosition === pos ? 'default' : 'outline'}
-                                onClick={() => updateConfig('logoPosition', pos)}
-                                className="capitalize flex-1"
-                              >
-                                {pos}
-                              </Button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div className="grid gap-4">
-                      <div className="grid gap-2">
-                        <Label>Header Message</Label>
-                        <Textarea
-                          value={config.headerText}
-                          onChange={e => updateConfig('headerText', e.target.value)}
-                          rows={2}
-                        />
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Footer Message</Label>
-                        <Textarea
-                          value={config.footerText}
-                          onChange={e => updateConfig('footerText', e.target.value)}
-                          rows={2}
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </TabsContent>
+            <div className="p-4 space-y-6">
+              {/* --- APPEARANCE --- */}
+              <TabsContent value="appearance" className="space-y-6 mt-0">
+                {/* Presets */}
+                <div className="grid grid-cols-3 gap-2">
+                   {Object.keys(PRESETS).map((p) => (
+                     <Button 
+                       key={p} 
+                       variant="outline" 
+                       size="sm" 
+                       onClick={() => applyPreset(p as any)}
+                       className={cn("capitalize text-xs", config.template === p && "border-primary bg-primary/5 ring-1 ring-primary")}
+                     >
+                       {p}
+                     </Button>
+                   ))}
+                </div>
 
-              {/* Layout */}
-              <TabsContent value="layout" className="space-y-6">
-                <Card className="border-none shadow-none p-0">
-                  <CardContent className="px-0 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Layout className="w-4 h-4" /> Layout & Typography
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="grid gap-2">
-                        <Label>Font Family</Label>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Font Family</Label>
                         <Select value={config.fontFamily} onValueChange={v => updateConfig('fontFamily', v)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="monospace">Monospace</SelectItem>
-                            <SelectItem value="sans">Sans Serif</SelectItem>
-                            <SelectItem value="serif">Serif</SelectItem>
+                            <SelectItem value="monospace">Monospace (Code)</SelectItem>
+                            <SelectItem value="sans">Sans Serif (Clean)</SelectItem>
+                            <SelectItem value="serif">Serif (Classic)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid gap-2">
-                        <Label>Font Size</Label>
+                      <div className="space-y-2">
+                        <Label className="text-xs">Font Size</Label>
                         <Select value={config.fontSize} onValueChange={v => updateConfig('fontSize', v)}>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="small">Small</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="large">Large</SelectItem>
+                            <SelectItem value="small">Small (Eco)</SelectItem>
+                            <SelectItem value="medium">Medium (Standard)</SelectItem>
+                            <SelectItem value="large">Large (Accessible)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Text Alignment</Label>
-                      <div className="flex gap-2">
-                        <Button
-                          variant={config.textAlignment === 'left' ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => updateConfig('textAlignment', 'left')}
-                        >
-                          <AlignLeft className="w-4 h-4 mr-2" /> Left
-                        </Button>
-                        <Button
-                          variant={config.textAlignment === 'center' ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => updateConfig('textAlignment', 'center')}
-                        >
-                          <AlignCenter className="w-4 h-4 mr-2" /> Center
-                        </Button>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                         <Label className="text-xs">Alignment</Label>
+                         <div className="flex rounded-md border p-1 bg-muted/20">
+                           <Button 
+                             variant={config.textAlignment === 'left' ? 'secondary' : 'ghost'} 
+                             size="sm" className="h-6 flex-1 text-xs"
+                             onClick={() => updateConfig('textAlignment', 'left')}>Left</Button>
+                           <Button 
+                             variant={config.textAlignment === 'center' ? 'secondary' : 'ghost'} 
+                             size="sm" className="h-6 flex-1 text-xs"
+                             onClick={() => updateConfig('textAlignment', 'center')}>Center</Button>
+                         </div>
                       </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Paper Size</Label>
-                      <Select value={config.paperSize} onValueChange={v => updateConfig('paperSize', v)}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="80mm">80mm (Standard)</SelectItem>
-                          <SelectItem value="58mm">58mm (Mobile)</SelectItem>
-                          <SelectItem value="Letter">A4 / Letter</SelectItem>
-                        </SelectContent>
-                      </Select>
+                       <div className="space-y-2">
+                        <Label className="text-xs">Paper Width</Label>
+                        <Select value={config.paperSize} onValueChange={v => updateConfig('paperSize', v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="80mm">80mm (Standard)</SelectItem>
+                            <SelectItem value="58mm">58mm (Narrow)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                     <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <Palette className="w-4 h-4" /> Branding
+                      </CardTitle>
+                      <Switch checked={config.showLogo} onCheckedChange={c => updateConfig('showLogo', c)} />
+                     </div>
+                  </CardHeader>
+                  {config.showLogo && (
+                    <CardContent className="grid gap-4 animate-in slide-in-from-top-2">
+                      <div className="space-y-2">
+                        <Label className="text-xs">Logo URL</Label>
+                        <Input 
+                           value={config.logoUrl} 
+                           onChange={e => updateConfig('logoUrl', e.target.value)} 
+                           className="h-8 text-xs font-mono"
+                           placeholder="https://..."
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                           <Label className="text-xs">Logo Size ({config.logoWidth}%)</Label>
+                        </div>
+                        <Slider 
+                           value={[config.logoWidth]} 
+                           min={20} max={100} step={5}
+                           onValueChange={v => updateConfig('logoWidth', v[0])} 
+                        />
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
               </TabsContent>
 
-              {/* Content */}
-              <TabsContent value="content" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-medium text-sm flex items-center gap-2">
-                      <LayoutTemplate className="w-4 h-4" /> Item Details
-                    </h3>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show SKU</Label>
-                      <Switch checked={config.showItemSku} onCheckedChange={c => updateConfig('showItemSku', c)} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Notes</Label>
-                      <Switch checked={config.showItemNotes} onCheckedChange={c => updateConfig('showItemNotes', c)} />
-                    </div>
-                  </div>
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-medium text-sm flex items-center gap-2">
-                      <Building2 className="w-4 h-4" /> Contact Info
-                    </h3>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Address</Label>
-                      <Switch checked={config.showAddress} onCheckedChange={c => updateConfig('showAddress', c)} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Phone</Label>
-                      <Switch checked={config.showPhone} onCheckedChange={c => updateConfig('showPhone', c)} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Tax ID</Label>
-                      <Switch checked={config.showTaxNumber} onCheckedChange={c => updateConfig('showTaxNumber', c)} />
-                    </div>
-                  </div>
+              {/* --- INFO --- */}
+              <TabsContent value="info" className="space-y-6 mt-0">
+                 <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Store className="w-4 h-4" /> Business Details
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {[
+                      { key: 'showAddress', label: 'Show Address' },
+                      { key: 'showPhone', label: 'Show Phone' },
+                      { key: 'showEmail', label: 'Show Email' },
+                      { key: 'showWebsite', label: 'Show Website' },
+                      { key: 'showTaxNumber', label: 'Show Tax ID' },
+                    ].map((item) => (
+                      <div key={item.key} className="flex items-center justify-between">
+                        <Label className="text-xs font-normal text-muted-foreground">{item.label}</Label>
+                        <Switch 
+                          checked={(config as any)[item.key]} 
+                          onCheckedChange={c => updateConfig(item.key as any, c)} 
+                        />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-2">
+                   <Label className="text-xs font-medium">Header Message</Label>
+                   <Textarea 
+                      value={config.headerText} 
+                      onChange={e => updateConfig('headerText', e.target.value)}
+                      className="text-xs resize-none" rows={3}
+                   />
+                </div>
+                 <div className="space-y-2">
+                   <Label className="text-xs font-medium">Footer Message</Label>
+                   <Textarea 
+                      value={config.footerText} 
+                      onChange={e => updateConfig('footerText', e.target.value)}
+                      className="text-xs resize-none" rows={3}
+                   />
                 </div>
               </TabsContent>
 
-              {/* Enterprise */}
-              <TabsContent value="enterprise" className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Metadata */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-medium text-sm">Transaction Metadata</h3>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Cashier</Label>
-                      <Switch checked={config.showCashier} onCheckedChange={c => updateConfig('showCashier', c)} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Customer</Label>
-                      <Switch
-                        checked={config.showCustomerName}
-                        onCheckedChange={c => updateConfig('showCustomerName', c)}
-                      />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Order Type</Label>
-                      <Switch checked={config.showOrderType} onCheckedChange={c => updateConfig('showOrderType', c)} />
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Show Payment Method</Label>
-                      <Switch
-                        checked={config.showPaymentMethod}
-                        onCheckedChange={c => updateConfig('showPaymentMethod', c)}
-                      />
-                    </div>
-                  </div>
+              {/* --- ITEMS & METADATA --- */}
+              <TabsContent value="items" className="space-y-6 mt-0">
+                 <Card>
+                   <CardHeader className="pb-3">
+                     <CardTitle className="text-sm font-medium flex items-center gap-2">
+                       <FileText className="w-4 h-4" /> Transaction Data
+                     </CardTitle>
+                   </CardHeader>
+                   <CardContent className="space-y-3">
+                     {[
+                       { key: 'showCustomerName', label: 'Customer Name' },
+                       { key: 'showCashier', label: 'Cashier / Server Name' },
+                       { key: 'showOrderType', label: 'Order Type (Dine-in/To-Go)' },
+                       { key: 'showPaymentMethod', label: 'Payment Method' },
+                       { key: 'showItemSku', label: 'Product SKU' },
+                       { key: 'showItemNotes', label: 'Item Notes / Modifiers' },
+                     ].map((item) => (
+                       <div key={item.key} className="flex items-center justify-between">
+                         <Label className="text-xs font-normal text-muted-foreground">{item.label}</Label>
+                         <Switch 
+                           checked={(config as any)[item.key]} 
+                           onCheckedChange={c => updateConfig(item.key as any, c)} 
+                         />
+                       </div>
+                     ))}
+                   </CardContent>
+                 </Card>
+              </TabsContent>
 
-                  {/* QR Code */}
-                  <div className="border rounded-lg p-4 space-y-4">
-                    <h3 className="font-medium text-sm flex gap-2 items-center">
-                      <QrCode className="w-4 h-4" /> QR Functionality
-                    </h3>
-                    <div className="flex justify-between items-center">
-                      <Label className="font-normal">Enable QR</Label>
+              {/* --- EXTRA --- */}
+              <TabsContent value="extra" className="space-y-6 mt-0">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <QrCode className="w-4 h-4" /> QR Code
+                      </CardTitle>
                       <Switch checked={config.showQrCode} onCheckedChange={c => updateConfig('showQrCode', c)} />
                     </div>
-                    {config.showQrCode && (
+                  </CardHeader>
+                  {config.showQrCode && (
+                    <CardContent className="space-y-4">
                       <div className="space-y-2">
-                        <Label className="text-xs">QR Target</Label>
-                        <Select value={config.qrCodeTarget} onValueChange={v => updateConfig('qrCodeTarget', v)}>
-                          <SelectTrigger className="h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="order-link">Track Order Status</SelectItem>
-                            <SelectItem value="review-link">Leave a Review</SelectItem>
-                            <SelectItem value="website">Custom Website</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        {(config.qrCodeTarget === 'website' || config.qrCodeTarget === 'review-link') && (
-                          <Input
-                            placeholder="https://..."
-                            value={config.qrCodeCustomUrl}
-                            onChange={e => updateConfig('qrCodeCustomUrl', e.target.value)}
-                            className="h-8 text-xs"
-                          />
-                        )}
+                         <Label className="text-xs">Link Destination</Label>
+                         <Select value={config.qrCodeTarget} onValueChange={v => updateConfig('qrCodeTarget', v)}>
+                           <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                           <SelectContent>
+                             <SelectItem value="order-link">Order Tracking</SelectItem>
+                             <SelectItem value="website">Website URL</SelectItem>
+                             <SelectItem value="review-link">Review Page</SelectItem>
+                           </SelectContent>
+                         </Select>
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Policies & Socials */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-between border-b pb-4">
-                    <div className="space-y-0.5">
-                      <Label>Return Policy</Label>
-                      <p className="text-xs text-muted-foreground">Print specific return instructions</p>
-                    </div>
-                    <Switch
-                      checked={config.showReturnPolicy}
-                      onCheckedChange={c => updateConfig('showReturnPolicy', c)}
-                    />
-                  </div>
-                  {config.showReturnPolicy && (
-                    <Textarea
-                      value={config.returnPolicyText}
-                      onChange={e => updateConfig('returnPolicyText', e.target.value)}
-                    />
+                      {config.qrCodeTarget !== 'order-link' && (
+                        <div className="space-y-2">
+                          <Label className="text-xs">Custom URL</Label>
+                          <Input 
+                            value={config.qrCodeCustomUrl} 
+                            onChange={e => updateConfig('qrCodeCustomUrl', e.target.value)}
+                            placeholder="https://..." 
+                            className="h-8 text-xs font-mono"
+                          />
+                        </div>
+                      )}
+                    </CardContent>
                   )}
-
-                  <div className="flex items-center justify-between pt-2">
-                    <div className="space-y-0.5">
-                      <Label>Social Media</Label>
-                      <p className="text-xs text-muted-foreground">Show handle at bottom</p>
+                </Card>
+                
+                <Card>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-medium">Social Media</CardTitle>
+                      <Switch checked={config.showSocialMedia} onCheckedChange={c => updateConfig('showSocialMedia', c)} />
                     </div>
-                    <Switch
-                      checked={config.showSocialMedia}
-                      onCheckedChange={c => updateConfig('showSocialMedia', c)}
-                    />
-                  </div>
+                  </CardHeader>
                   {config.showSocialMedia && (
-                    <Input
-                      value={config.socialMediaHandle}
-                      onChange={e => updateConfig('socialMediaHandle', e.target.value)}
-                      placeholder="@your_handle"
-                    />
+                     <CardContent>
+                       <Input 
+                         value={config.socialMediaHandle} 
+                         onChange={e => updateConfig('socialMediaHandle', e.target.value)}
+                         placeholder="@yourhandle"
+                         className="h-8 text-xs"
+                       />
+                     </CardContent>
                   )}
-                </div>
+                </Card>
               </TabsContent>
-            </Tabs>
-          </div>
+            </div>
+          </Tabs>
+        </div>
+      </div>
 
-          {/* Live Preview Panel */}
-          <div className="lg:col-span-5 bg-neutral-100 h-full border-l relative flex flex-col overflow-hidden">
-            <div className="p-3 border-b bg-white flex items-center justify-between z-10 shadow-sm">
-              <div className="flex items-center gap-4">
-                <span className="text-xs font-bold text-muted-foreground">PREVIEW</span>
-                <div className="flex items-center gap-2 w-32">
-                  <ZoomOut className="w-3 h-3 text-muted-foreground" />
-                  <Slider
-                    value={previewScale}
-                    min={50}
-                    max={150}
-                    step={10}
-                    onValueChange={setPreviewScale}
-                    className="w-full"
-                  />
-                  <ZoomIn className="w-3 h-3 text-muted-foreground" />
-                </div>
-              </div>
-              <PDFDownloadLink
+      {/* --- Right Panel: Interactive Preview --- */}
+      <div className={cn(
+        "flex-1 relative flex flex-col transition-colors duration-300",
+        previewBg === 'dark' ? "bg-neutral-900" : "bg-neutral-100"
+      )}>
+        {/* Floating Toolbar */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-background/90 backdrop-blur border shadow-lg rounded-full p-1.5 px-4">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="w-6 h-6 rounded-full"
+            onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}
+          >
+            <ZoomOut className="w-3 h-3" />
+          </Button>
+          <span className="text-[10px] font-mono w-8 text-center">{previewScale}%</span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="w-6 h-6 rounded-full"
+            onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}
+          >
+            <ZoomIn className="w-3 h-3" />
+          </Button>
+          <div className="w-px h-3 bg-border mx-1" />
+          <Button 
+             variant="ghost" 
+             size="icon" 
+             className={cn("w-6 h-6 rounded-full", previewBg === 'dark' && "bg-neutral-200 text-black hover:bg-white")}
+             onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
+          >
+            {previewBg === 'dark' ? <Layout className="w-3 h-3" /> : <Layout className="w-3 h-3" />}
+          </Button>
+        </div>
+
+        {/* Action Button */}
+        <div className="absolute top-4 right-4 z-20">
+             <PDFDownloadLink
                 document={
                   <ReceiptPdfDocument
                     order={sampleOrder}
@@ -467,33 +460,27 @@ export function ReceiptSettingsPage() {
                     qrCodeUrl={qrCodeDataUrl}
                   />
                 }
-                fileName={`receipt-${sampleOrder.orderNumber}.pdf`}
+                fileName={`receipt-template.pdf`}
               >
                 {({ loading }) => (
-                  <Button size="sm" disabled={loading} className="h-8 text-xs">
-                    {loading ? (
-                      'Generating...'
-                    ) : (
-                      <>
-                        <Download className="w-3 h-3 mr-2" /> PDF
-                      </>
-                    )}
+                  <Button size="sm" disabled={loading} className="shadow-lg">
+                    {loading ? 'Processing...' : <><Download className="w-4 h-4 mr-2" /> Download Test PDF</>}
                   </Button>
                 )}
               </PDFDownloadLink>
-            </div>
+        </div>
 
-            <div className="flex-1 overflow-auto p-8 flex items-start justify-center">
-              <div
-                className="origin-top shadow-2xl transition-all duration-300 ease-out bg-white"
-                style={{
-                  transform: `scale(${previewScale[0] / 100})`,
-                  width: config.paperSize === '80mm' ? '370px' : config.paperSize === '58mm' ? '280px' : '500px',
-                }}
-              >
-                <ReceiptPreview order={sampleOrder} settings={{ ...settings, receiptConfig: config }} />
-              </div>
-            </div>
+        {/* Canvas Area */}
+        <div className="flex-1 overflow-auto flex items-start justify-center p-10 pt-20">
+          <div 
+            className="transition-all duration-200 ease-out origin-top shadow-2xl"
+            style={{
+               transform: `scale(${previewScale[0] / 100})`,
+               width: config.paperSize === '80mm' ? '370px' : '280px',
+               marginBottom: '100px'
+            }}
+          >
+            <ReceiptPreview order={sampleOrder} settings={{ ...settings, receiptConfig: config }} />
           </div>
         </div>
       </div>

@@ -31,7 +31,7 @@ const createStyles = (settings: any) => {
 
     header: {
       marginBottom: 10,
-      borderBottomWidth: 1,
+      borderBottomWidth: config.template === 'minimal' ? 0 : 1,
       borderBottomStyle: 'dashed',
       borderBottomColor: '#999',
       paddingBottom: 5,
@@ -67,7 +67,15 @@ const createStyles = (settings: any) => {
     colPrice: { width: '20%', textAlign: 'right' },
     colTotal: { width: '20%', textAlign: 'right' },
 
-    totals: { marginTop: 5, borderTopWidth: 1, borderTopStyle: 'dashed', borderTopColor: '#999', paddingTop: 5 },
+    totals: {
+      marginTop: 5,
+      borderTopWidth: config.template === 'modern' ? 0 : 1,
+      borderTopStyle: 'dashed',
+      borderTopColor: '#999',
+      paddingTop: 5,
+      backgroundColor: config.template === 'modern' ? '#f0f0f0' : '#ffffff',
+      padding: config.template === 'modern' ? 5 : 0,
+    },
     totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 },
     grandTotal: {
       flexDirection: 'row',
@@ -82,7 +90,7 @@ const createStyles = (settings: any) => {
 
     footer: {
       marginTop: 10,
-      borderTopWidth: 1,
+      borderTopWidth: config.template === 'modern' ? 0 : 1,
       borderTopStyle: 'dashed',
       borderTopColor: '#999',
       paddingTop: 10,

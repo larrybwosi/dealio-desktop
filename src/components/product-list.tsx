@@ -77,7 +77,7 @@ export function ProductList() {
 
   const handleAddToCartWrapper = useCallback((item: any) => {
     addItemToOrder(
-        {...item.product, variantId: item.variant.id}, 
+        {...item.product, variantId: item.variant.variantId}, 
         { ...item.unit, originalRetailPrice: item.unit.price }, 
         item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }

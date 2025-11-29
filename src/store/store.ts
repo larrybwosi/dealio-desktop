@@ -140,6 +140,11 @@ export interface ReceiptConfig {
   showQrCode: boolean;
   qrCodeTarget: 'order-link' | 'review-link' | 'website'; // What the QR does
   qrCodeCustomUrl?: string; // If target is review/website
+
+  // Visuals
+  template: 'standard' | 'minimal' | 'modern';
+  showBorder: boolean;
+  borderColor?: string;
 }
 
 export interface ThemeConfig {
@@ -442,6 +447,11 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
   showQrCode: false,
   qrCodeTarget: 'order-link', // Default to tracking link
   qrCodeCustomUrl: '',
+
+  // Visuals
+  template: 'standard',
+  showBorder: false,
+  borderColor: '#000000',
 });
 
 const getDefaultThemeConfig = (): ThemeConfig => ({

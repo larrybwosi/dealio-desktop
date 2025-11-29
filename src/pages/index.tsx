@@ -17,7 +17,6 @@ import { CashDrawerPage } from '@/components/cash-drawer-page';
 import { InventoryPage } from '@/components/inventory-page';
 import { NotificationCenter } from '@/components/notification-center';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
-import { MemberCheckinPage } from '@/components/member-checkin-page';
 import { TillManagementPage } from '@/components/till-management-page';
 import {
   AlertDialog,
@@ -104,7 +103,6 @@ export default function Home() {
           {activeTab === 'withdrawl' && <CashDrawerPage />}
           {activeTab === 'inventory' && <InventoryPage />}
           {activeTab === 'manage-table' && <ManageTablesPage />}
-          {activeTab === 'member-checkin' && <MemberCheckinPage />}
           {activeTab === 'till-management' && <TillManagementPage />}
           {activeTab === 'pending-transactions' && <PendingTransactionsPage />}
           {activeTab !== 'order' &&
@@ -116,7 +114,6 @@ export default function Home() {
             activeTab !== 'withdrawl' &&
             activeTab !== 'inventory' &&
             activeTab !== 'manage-table' &&
-            activeTab !== 'member-checkin' &&
             activeTab !== 'till-management' && (
               <div className="p-6">
                 <h2 className="text-2xl font-bold capitalize">{activeTab.replace('-', ' ')}</h2>

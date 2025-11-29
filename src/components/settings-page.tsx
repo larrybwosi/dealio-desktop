@@ -16,7 +16,7 @@ import { ScanBarcode, Play, Square, RefreshCcw, Search } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
-import PrinterSettings from './printer-conf';
+import PrinterSettings from './printer.config';
 
 interface HidDevice {
   vid: number;
@@ -80,7 +80,7 @@ export function SettingsPage() {
     
     setVid(vidHex);
     setPid(pidHex);
-    setDetectedDevices([]); // Clear list after selection
+    setDetectedDevices([]);
   };
 
   const [businessName, setBusinessName] = useState(settings?.businessName || '');
