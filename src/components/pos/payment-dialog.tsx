@@ -296,6 +296,7 @@ const PaymentModal = ({
       discountAmount: newOrder.discount,
       enableStockTracking: false,
       locationId:'',
+      customerId: customer?.id || null,
       cartItems: cartItems.map(item => ({
         ...item,
         variant: item.variant || undefined,

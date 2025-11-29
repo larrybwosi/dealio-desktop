@@ -84,6 +84,7 @@ export interface Order {
   instructions?: string;
   metadata?: Record<string, any>;
   cashierName?: string;
+  customerId?: string;
 }
 
 export interface SidebarItem {
@@ -348,7 +349,7 @@ interface PosStore {
   addCustomer: (customer: Omit<Customer, 'id' | 'totalPurchases' | 'lastVisit' | 'loyaltyPoints'>) => void;
   updateCustomer: (id: string, customer: Partial<Customer>) => void;
   deleteCustomer: (id: string) => void;
-  selectCustomer: (customerId: string) => void;
+  selectCustomer: (customer: Customer | string) => void;
 
   addEmployee: (employee: Omit<Employee, 'id'>) => void;
   updateEmployee: (id: string, employee: Partial<Employee>) => void;
@@ -679,6 +680,7 @@ export const usePosStore = create<PosStore>()(
             tableNumber: state.currentOrder.tableNumber,
             instructions: state.currentOrder.instructions,
             metadata: state.currentOrder.metadata,
+            customerId: state.currentOrder.customerId,
           };
 
           if (state.activeCashDrawerId && paymentMethod === 'cash') {
@@ -798,6 +800,7 @@ export const usePosStore = create<PosStore>()(
             tableNumber: state.currentOrder.tableNumber,
             instructions: state.currentOrder.instructions,
             metadata: state.currentOrder.metadata,
+            customerId: state.currentOrder.customerId,
           };
 
           return {
@@ -837,9 +840,32 @@ export const usePosStore = create<PosStore>()(
           customers: state.customers.filter(c => c.id !== id),
         })),
 
-      selectCustomer: customerId =>
+      selectCustomer: customerOrId =>
         set(state => {
-          const customer = state.customers.find(c => c.id === customerId);
+          let customer: Customer | undefined;
+
+          if (typeof customerOrId === 'string') {
+            // If ID provided, look up in store
+            customer = state.customers.find(c => c.id === customerOrId);
+          } else {
+            // If object provided, use it
+            customer = customerOrId;
+            
+            // Optional: Check if we need to add it to the store if it doesn't exist
+            // This depends on if we want to persist search results that are selected
+            const exists = state.customers.some(c => c.id === customerOrId.id);
+            if (!exists) {
+              return {
+                customers: [...state.customers, customer],
+                currentOrder: {
+                  ...state.currentOrder,
+                  customerName: customer.name,
+                  customerId: customer.id,
+                },
+              };
+            }
+          }
+
           if (!customer) return state;
 
           return {

@@ -78,12 +78,9 @@ export default function Home() {
               Check Out
             </Button>
 
-            <Button variant="ghost" size="icon">
-              <Calendar className="w-5 h-5" />
-            </Button>
             <Button variant="outline" className="gap-2 bg-transparent">
               <Calendar className="w-4 h-4" />
-              07 Mei 2025
+              {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
             </Button>
           </div>
         </header>

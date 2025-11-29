@@ -497,10 +497,6 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: "warranty", label: "Warranty", icon: "Shield", enabled: true })
   }
 
-  if (config.features.loyaltyProgram) {
-    items.push({ id: "member-checkin", label: "Member Check-In", icon: "UserCheck", enabled: true })
-  }
-
   if (businessType === "retail" || businessType === "wholesale") {
     items.push({ id: "till-management", label: "Till Management", icon: "Calculator", enabled: true })
   }

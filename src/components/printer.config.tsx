@@ -63,8 +63,8 @@ export default function PrinterSettings() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-blue-100 rounded-lg">
-            <Printer className="h-5 w-5 text-blue-700" />
+          <div className="p-2 bg-background rounded-lg">
+            <Printer className="h-5 w-5 text-foreground" />
           </div>
           <div>
             <h2 className="text-xl font-semibold">Printer Configuration</h2>
@@ -88,7 +88,7 @@ export default function PrinterSettings() {
           
           <div className="space-y-4">
             {/* 1. Receipt Printer Assignment */}
-            <div className="bg-gray-50 p-4 rounded-lg border">
+            <div className="bg-background p-4 rounded-lg border">
               <div className="flex items-center gap-2 mb-2">
                 <Receipt className="h-4 w-4 text-orange-600" />
                 <label className="text-sm font-semibold">Receipt Printer</label>
@@ -116,7 +116,7 @@ export default function PrinterSettings() {
             </div>
 
             {/* 2. Invoice Printer Assignment */}
-            <div className="bg-gray-50 p-4 rounded-lg border">
+            <div className="bg-background p-4 rounded-lg border">
               <div className="flex items-center gap-2 mb-2">
                 <FileText className="h-4 w-4 text-blue-600" />
                 <label className="text-sm font-semibold">Invoice Printer</label>
@@ -144,7 +144,7 @@ export default function PrinterSettings() {
             </div>
 
             {/* 3. Kitchen Printer (Optional) */}
-            <div className="bg-gray-50 p-4 rounded-lg border">
+            <div className="bg-background p-4 rounded-lg border">
               <div className="flex items-center gap-2 mb-2">
                 <ChefHat className="h-4 w-4 text-green-600" />
                 <label className="text-sm font-semibold">Kitchen Printer</label>
@@ -180,12 +180,12 @@ export default function PrinterSettings() {
                 <div className="text-sm text-muted-foreground italic">No printers found.</div>
              )}
              {availablePrinters.map((printer) => {
-               // Check if this printer is assigned to anything
+               // Check if this printer is assigned to anythings
                const roles = (Object.keys(assignments) as PrinterJobType[])
                  .filter(role => assignments[role] === printer.id);
 
                return (
-                 <div key={printer.id} className="p-3 border rounded text-sm hover:bg-gray-50">
+                 <div key={printer.id} className="p-3 border rounded text-sm hover:bg-background">
                    <div className="font-medium">{printer.name}</div>
                    <div className="text-xs text-muted-foreground truncate">{printer.driver_name}</div>
                    

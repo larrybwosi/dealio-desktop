@@ -51,14 +51,11 @@ export function CustomerSelector() {
   const currentOrder = usePosStore(state => state.currentOrder);
   const selectCustomer = usePosStore(state => state.selectCustomer);
   const setCustomerName = usePosStore(state => state.setCustomerName);
-  const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
+  // const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
 
   // We still access the local store to get the *currently selected* customer object
   // just in case they aren't in the current search results.
   const storedCustomers = usePosStore(state => state.customers);
-
-  const businessConfig = getBusinessConfig();
-  const showB2BFeatures = businessConfig.features?.b2bBulkPurchase;
 
   // -------------------------------------------------------
   // 1. React Query: Fetch customers from API
@@ -82,7 +79,7 @@ export function CustomerSelector() {
     },
     // Only run query if we have a search term (or keep enabled to show recent)
     enabled: open,
-    staleTime: 1000 * 60, // Cache results for 1 minute
+    staleTime: 1000 * 60 * 60, // Cache results for 1 hour
   });
 
   // -------------------------------------------------------
@@ -98,9 +95,21 @@ export function CustomerSelector() {
       setCustomerName('');
       selectCustomer('walk-in'); // Assuming store handles ID assignment or null
     } else {
-      // You might want to update the local store with this customer
-      // so details persist if the user clears the search
-      selectCustomer(customer.id);
+      // Map SearchResultCustomer to Customer interface
+      const mappedCustomer: any = {
+        id: customer.id,
+        name: customer.name,
+        email: customer.email || '',
+        phone: customer.phone || '',
+        totalPurchases: 0, // Default for search result
+        lastVisit: new Date(), // Default
+        loyaltyPoints: customer.loyaltyPoints,
+        customerType: customer.type === 'B2B' ? 'b2b' : 'retail',
+        businessName: customer.company || undefined,
+        // Add other fields if necessary
+      };
+      
+      selectCustomer(mappedCustomer);
     }
     setOpen(false);
   };
@@ -151,8 +160,6 @@ export function CustomerSelector() {
 
       <PopoverContent className="w-[400px] p-0" align="start">
         <Command shouldFilter={false}>
-          {' '}
-          {/* We filter via API, so disable local filtering */}
           <div className="flex items-center border-b px-3" cmdk-input-wrapper="">
             <User className="mr-2 h-4 w-4 shrink-0 opacity-50" />
             <CommandInput
@@ -165,13 +172,17 @@ export function CustomerSelector() {
           </div>
           <CommandList>
             {/* Empty State */}
-            {!isLoading && searchResults.length === 0 && (
+            {!isLoading && !isFetching && searchResults.length === 0 && (
               <CommandEmpty>{searchTerm ? 'No customer found.' : 'Type to search...'}</CommandEmpty>
             )}
 
             {/* Walk-In Option */}
             <CommandGroup heading="Quick Select">
-              <CommandItem value="walk-in" onSelect={() => handleSelectCustomer('walk-in')}>
+              <CommandItem 
+                value="walk-in-customer" 
+                onSelect={() => handleSelectCustomer('walk-in')}
+                className="cursor-pointer"
+              >
                 <Check className={cn('mr-2 h-4 w-4', !selectedCustomer ? 'opacity-100' : 'opacity-0')} />
                 <div className="flex flex-col">
                   <span className="font-medium">Walk-in Customer</span>
@@ -186,7 +197,7 @@ export function CustomerSelector() {
                 {retailResults.map(customer => (
                   <CommandItem
                     key={customer.id}
-                    value={customer.id} // Value is less important as we handle selection manually
+                    value={`${customer.name}-${customer.email || ''}-${customer.phone || ''}-${customer.id}`}
                     onSelect={() => handleSelectCustomer(customer)}
                     className="cursor-pointer"
                   >
@@ -219,12 +230,12 @@ export function CustomerSelector() {
             )}
 
             {/* B2B Group */}
-            {showB2BFeatures && b2bResults.length > 0 && (
+            {b2bResults.length > 0 && (
               <CommandGroup heading="B2B Customers">
                 {b2bResults.map(customer => (
                   <CommandItem
                     key={customer.id}
-                    value={customer.id}
+                    value={`${customer.name}-${customer.company || ''}-${customer.email || ''}-${customer.phone || ''}-${customer.id}`}
                     onSelect={() => handleSelectCustomer(customer)}
                     className="cursor-pointer"
                   >
