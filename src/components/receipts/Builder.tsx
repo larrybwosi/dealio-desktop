@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFViewer,  } from '@react-pdf/renderer';
 import { 
   Settings, 
   Layout, 
   Type, 
-  Palette, 
   FileText, 
-  Download, 
   Code, 
   ChevronDown, 
   ChevronRight,
@@ -18,8 +16,8 @@ import {
 } from 'lucide-react';
 
 // Import your existing components
-import { EnhancedThermalReceiptPDF } from './thermal-receipt';
-import { ReceiptConfig, OrganizationData, PaymentData, CartItem } from './types';
+// import { EnhancedThermalReceiptPDF } from './thermal-receipt';
+import { ReceiptConfig, OrganizationData, PaymentData } from './types';
 import { cn } from '@/lib/utils';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
@@ -116,6 +114,9 @@ const DEFAULT_CONFIG: ReceiptConfig = {
   showPaymentSection: true,
   showOrderNotes: true,
   showSpecialInstructions: true,
+  currency: "USD",
+  locale: "en-US",
+  taxLabel: "Tax",
   showPromoCode: true,
   showFooter: true,
   showPerforation: true,
@@ -142,12 +143,12 @@ const DEFAULT_ORG: OrganizationData = {
   tagline: "Taste the Excellence"
 };
 
-const DEFAULT_ITEMS: CartItem[] = [
-  { id: '1', name: "Truffle Burger", price: 18.50, quantity: 1, variant: "Medium Rare", notes: "No onions" },
-  { id: '2', name: "Sweet Potato Fries", price: 6.00, quantity: 2 },
-  { id: '3', name: "Craft Cola", price: 3.50, quantity: 2 },
-  { id: '4', name: "Cheesecake", price: 8.00, quantity: 1, addition: "Strawberry Sauce" }
-];
+// const DEFAULT_ITEMS: CartItem[] = [
+//   { id: '1', name: "Truffle Burger", price: 18.50, quantity: 1, variant: "Medium Rare", notes: "No onions" },
+//   { id: '2', name: "Sweet Potato Fries", price: 6.00, quantity: 2 },
+//   { id: '3', name: "Craft Cola", price: 3.50, quantity: 2 },
+//   { id: '4', name: "Cheesecake", price: 8.00, quantity: 1, addition: "Strawberry Sauce" }
+// ];
 
 const DEFAULT_PAYMENT: PaymentData = {
   orderId: "ORD-2023-8492",
@@ -167,7 +168,7 @@ export default function ReceiptBuilderPage() {
   // State for the Receipt
   const [config, setConfig] = useState<ReceiptConfig>(DEFAULT_CONFIG);
   const [organization, setOrganization] = useState<OrganizationData>(DEFAULT_ORG);
-  const [items, setItems] = useState<CartItem[]>(DEFAULT_ITEMS);
+  // const [items] = useState<CartItem[]>(DEFAULT_ITEMS);
   const [payment, setPayment] = useState<PaymentData>(DEFAULT_PAYMENT);
 
   // Helper to update nested config
@@ -448,7 +449,7 @@ export default function ReceiptBuilderPage() {
             </span>
           </div>
           
-          <PDFDownloadLink
+          {/* <PDFDownloadLink
             document={
               <EnhancedThermalReceiptPDF
                 items={items}
@@ -472,7 +473,7 @@ export default function ReceiptBuilderPage() {
                 {loading ? 'Generating...' : 'Download PDF'}
               </button>
             )}
-          </PDFDownloadLink>
+          </PDFDownloadLink> */}
         </div>
 
         {/* PDF Stage */}
@@ -486,7 +487,7 @@ export default function ReceiptBuilderPage() {
                className="w-full h-full border-0"
                showToolbar={false} // Clean look
              >
-                <EnhancedThermalReceiptPDF
+                {/* <EnhancedThermalReceiptPDF
                   items={items}
                   paymentData={payment}
                   organization={organization}
@@ -494,7 +495,7 @@ export default function ReceiptBuilderPage() {
                   orderType="dine-in"
                   notes="Please handle with care"
                   promoCode="SUMMER2024"
-                />
+                /> */}
              </PDFViewer>
           </Card>
         </div>

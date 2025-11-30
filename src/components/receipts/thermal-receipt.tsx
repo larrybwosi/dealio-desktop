@@ -299,7 +299,7 @@ const HeaderSection = ({ organization, config, paymentData, orderType, currentDa
   </View>
 )
 
-const CustomerSection = ({ config, paymentData, styles }: {
+const CustomerSection = ({  paymentData, styles }: {
   config: ReceiptConfig
   paymentData: PaymentData
   styles: any
@@ -323,8 +323,7 @@ const CustomerSection = ({ config, paymentData, styles }: {
   </View>
 )
 
-const ItemsSection = ({ config, items, formatCurrency, styles }: {
-  config: ReceiptConfig
+const ItemsSection = ({ items, formatCurrency, styles }: {
   items: CartItem[]
   formatCurrency: (amount: number) => string
   styles: any
@@ -343,6 +342,7 @@ const ItemsSection = ({ config, items, formatCurrency, styles }: {
         <View key={index}>
           <View style={styles.tableRow}>
             <View style={styles.itemName}>
+              {/* @ts-ignore */}
               <Text>{item.name}</Text>
               {item.variant && <Text style={styles.itemVariant}>{item.variant}</Text>}
               {item.addition && <Text style={styles.itemVariant}>+ {item.addition}</Text>}
@@ -538,7 +538,6 @@ export const EnhancedThermalReceiptPDF = ({
         {/* Order Items */}
         {config.showItemsSection && (
           <ItemsSection
-            config={config}
             items={items}
             formatCurrency={formatCurrency}
             styles={styles}

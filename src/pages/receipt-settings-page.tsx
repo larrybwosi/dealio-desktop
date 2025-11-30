@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { usePosStore, type ReceiptConfig } from '@/store/store';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
 import { ReceiptPreview } from '@/components/receipt-preview';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
@@ -20,14 +19,11 @@ import {
   Printer,
   RotateCcw,
   Layout,
-  Type,
   FileText,
   QrCode,
   ZoomIn,
   ZoomOut,
   Palette,
-  Check,
-  Smartphone,
   Store
 } from 'lucide-react';
 import QRCode from 'qrcode';
@@ -107,7 +103,9 @@ export function ReceiptSettingsPage() {
   const applyPreset = (presetName: keyof typeof PRESETS) => {
     const preset = PRESETS[presetName];
     const newConfig = { ...config, ...preset };
+    // @ts-ignore
     setConfig(newConfig);
+    // @ts-ignore
     updateReceiptConfig(newConfig);
   };
 

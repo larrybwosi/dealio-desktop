@@ -168,7 +168,7 @@ export function ProductList() {
             {allProducts.map((product) => (
               <ProductCard 
                 key={product.productId} 
-                product={product} 
+                product={product as any} 
                 onAddToCart={handleAddToCartWrapper}
                 pricingMode={pricingMode}
               />

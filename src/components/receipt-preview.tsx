@@ -218,7 +218,7 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
             )}
 
             {config.showQrCode && (
-              <div className={cn('flex flex-col', alignClass === 'center' ? 'items-center' : 'items-start')}>
+              <div className={cn('flex flex-col', alignClass === 'text-center' ? 'items-center' : 'items-start')}>
                 <canvas ref={qrCodeRef} />
                 <span className="text-[9px] mt-1 text-gray-400 uppercase tracking-widest">Scan Me</span>
               </div>
