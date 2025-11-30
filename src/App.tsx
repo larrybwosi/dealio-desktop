@@ -4,6 +4,7 @@ import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import Home from '@/pages';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { UpdaterProvider } from '@/lib/UpdateProvider';
 
 const AppRoutes = () => {
   const { deviceKey, currentLocation } = useAuthStore();
@@ -32,7 +33,9 @@ const DynamicRenderer = () => {
 
   return (
     <Router>
-      <AppRoutes />
+      <UpdaterProvider autoDownload={true} checkInterval={60 * 60 * 1000 * 4}> {/* 4 hours */}
+        <AppRoutes />
+      </UpdaterProvider>
     </Router>
   );
 };

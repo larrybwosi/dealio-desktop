@@ -40,7 +40,6 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEIzOEJGRjBBRkYyQkY1NkMKUldSczlTdi9DditMczJ6L3NqZ3BZTGhiUS9yK2ZqUkNxZ2RrK2tlUkRPWHdhSWJJSXNSTTRLblUK",
       "endpoints": [
-        "https://dealioerp.vercel.app/{{target}}/{{arch}}/{{current_version}}",
         "https://github.com/larrybwosi/dealio-desktop/releases/latest/download/latest.json"
       ],
       "windows": {

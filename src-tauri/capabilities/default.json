@@ -8,6 +8,8 @@
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
+    "websocket:default",
+    "window-state:default",
     "store:default",
     "dialog:allow-save",
     "fs:default",
@@ -50,6 +52,7 @@
     "updater:allow-download-and-install",
     "updater:allow-install",
     "process:default",
+    "os:default",
     {
       "identifier": "opener:allow-open-path",
       "allow": [
