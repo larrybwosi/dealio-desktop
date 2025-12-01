@@ -10,6 +10,7 @@ import {
   Banknote,
   CheckCircle2,
   Truck,
+  Download,
 } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,7 @@ interface Transaction {
   date: string;
   status: 'pending' | 'partially_paid' | 'paid' | 'dispatched'; 
   fulfillmentId?: string | null;
+  invoiceLink?: string; // Add invoice link field
 }
 
 // --- Fetch Function ---
@@ -65,6 +67,43 @@ export default function PendingTransactionsPage() {
   const handleOpenReconcile = (txId: string) => {
     setActiveTxId(txId);
     setIsReconcileOpen(true);
+  };
+
+  const handleDownloadInvoice = async (tx: Transaction) => {
+    if (!tx.invoiceLink) return;
+    
+    try {
+      // You can use different approaches depending on how your invoice links work:
+      
+      // Approach 1: Direct download if it's a direct file URL
+      const link = document.createElement('a');
+      link.href = tx.invoiceLink;
+      link.download = `invoice-${tx.number || tx.id.slice(-6)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Approach 2: If you need to get the file from your API
+      // const response = await apiClient.get(tx.invoiceLink, {
+      //   responseType: 'blob'
+      // });
+      // const url = window.URL.createObjectURL(new Blob([response.data]));
+      // const link = document.createElement('a');
+      // link.href = url;
+      // link.download = `invoice-${tx.number || tx.id.slice(-6)}.pdf`;
+      // document.body.appendChild(link);
+      // link.click();
+      // window.URL.revokeObjectURL(url);
+      // document.body.removeChild(link);
+      
+      // Approach 3: If it's a URL that should open in a new tab
+      // window.open(tx.invoiceLink, '_blank');
+      
+    } catch (error) {
+      console.error('Failed to download invoice:', error);
+      // You might want to add toast notification here
+      // toast.error('Failed to download invoice');
+    }
   };
 
   // --- Helpers ---
@@ -151,6 +190,17 @@ export default function PendingTransactionsPage() {
                       Copy ID
                     </DropdownMenuItem>
                     
+                    {/* Download Invoice Menu Item */}
+                    {tx.invoiceLink && (
+                      <DropdownMenuItem 
+                        onClick={() => handleDownloadInvoice(tx)}
+                        className="text-green-600 focus:text-green-600"
+                      >
+                        <Download className="mr-2 h-4 w-4" /> 
+                        Download Invoice
+                      </DropdownMenuItem>
+                    )}
+
                     {tx.status === 'dispatched' && (
                       <DropdownMenuItem onClick={() => handleOpenReconcile(tx.id)} className="text-blue-600 focus:text-blue-600">
                         <CheckCircle2 className="mr-2 h-4 w-4" /> Reconcile Delivery

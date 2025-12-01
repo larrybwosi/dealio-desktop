@@ -7,11 +7,11 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
-import { Minus, Plus, ShoppingCart, Package } from 'lucide-react';
+import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 
 // --- Types ---
 interface Unit {
@@ -30,6 +30,7 @@ interface Variant {
 }
 
 interface Product {
+  productId?: string; // Optional if not strictly needed for display
   name: string;
   category: string;
   imageUrl?: string;
@@ -47,7 +48,7 @@ interface ProductProps {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD', // Change to your local currency
+    currency: 'USD',
   }).format(amount);
 };
 
@@ -57,6 +58,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
   );
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
+  const [imgError, setImgError] = useState(false);
 
   // Derive Current Variant
   const currentVariant = useMemo(
@@ -80,6 +82,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
 
   const stock = currentVariant?.stock || 0;
   const isOutOfStock = stock <= 0;
+  const isLowStock = stock > 0 && stock < 10;
 
   // Calculate Price
   const price = useMemo(() => {
@@ -100,155 +103,186 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
       unit: { ...currentUnit, price },
       quantity: qty,
     });
-    setQty(0);
+    setQty(0); // Reset after adding
   };
 
   const handleQtyChange = (val: number) => {
     if (val < 0) return;
-    if (val > stock) return;
+    if (val > stock) return; // Prevent exceeding stock
     setQty(val);
   };
 
   return (
-    <Card className="group relative flex flex-col h-full overflow-hidden border-border/50 transition-all duration-300 hover:shadow-lg hover:border-primary/50">
+    <Card className={cn(
+        "group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300",
+        "hover:shadow-md hover:border-primary/40 bg-card"
+    )}>
       
-      {/* --- Image Area --- */}
-      <div className="relative aspect-[4/3] bg-muted overflow-hidden">
-        <img
-          src={product.imageUrl || '/placeholder.svg?height=300&width=400'}
-          alt={product.name}
-          className={cn(
-            'object-cover w-full h-full transition-transform duration-700 group-hover:scale-110',
-            isOutOfStock && 'grayscale opacity-60'
-          )}
-          loading="lazy"
-        />
+      {/* --- Image Section --- */}
+      <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
+        {!imgError && product.imageUrl ? (
+          <img
+            src={product.imageUrl}
+            alt={product.name}
+            onError={() => setImgError(true)}
+            className={cn(
+              'object-cover w-full h-full transition-transform duration-500 group-hover:scale-105',
+              isOutOfStock && 'grayscale opacity-50'
+            )}
+            loading="lazy"
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
+            <ImageOff className="w-10 h-10 mb-2" />
+            <span className="text-xs font-medium">No Image</span>
+          </div>
+        )}
         
-        {/* Floating Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {isOutOfStock ? (
-            <Badge variant="destructive" className="font-bold shadow-sm">
-              SOLD OUT
+        {/* Status Badges Overlay */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1.5 z-10">
+          {isOutOfStock && (
+            <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
+              Sold Out
             </Badge>
-          ) : stock < 10 ? (
-            <Badge variant="secondary" className="text-orange-600 bg-orange-100 font-semibold shadow-sm">
-              Low Stock
+          )}
+          {isLowStock && !isOutOfStock && (
+            <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200 shadow-sm text-[10px] font-medium">
+              Only {stock} left
             </Badge>
-          ) : null}
+          )}
           {pricingMode === 'wholesale' && (
-            <Badge className="bg-blue-600 text-white shadow-sm w-fit">Wholesale</Badge>
+            <Badge className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-fit text-[10px] gap-1">
+              <Tag className="w-3 h-3" /> Wholesale
+            </Badge>
           )}
         </div>
       </div>
 
-      {/* --- Content Area --- */}
-      <div className="flex flex-col flex-1 p-4 space-y-4">
+      {/* --- Content Section --- */}
+      <div className="flex flex-col flex-1 p-3 space-y-3">
         
-        {/* Header & Price */}
+        {/* Title & Category */}
         <div className="space-y-1">
-          <div className="flex justify-between items-start gap-2">
-            <h3 className="font-semibold text-base leading-tight line-clamp-2" title={product.name}>
-              {product.name}
+            <div className="flex justify-between items-start gap-2">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
+                    {product.category}
+                </span>
+                {/* SKU for quick reference */}
+                <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-70">
+                   <Package className="w-3 h-3" /> {currentVariant?.sku}
+                </span>
+            </div>
+            <h3 className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
+                {product.name}
             </h3>
-            <div className="text-lg font-bold text-primary shrink-0">
-              {formatCurrency(price)}
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
-            {product.category}
-          </p>
         </div>
 
-        {/* Controls Section */}
-        <div className="space-y-3 mt-auto pt-2">
-          
-          {/* Variant Selector (Hide if single variant) */}
-          {product.variants.length > 1 && (
-            <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-              <SelectTrigger className="h-8 text-xs w-full bg-muted/30">
-                <span className="text-muted-foreground mr-2">Variant:</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {product.variants.map((v) => (
-                  <SelectItem key={v.variantId} value={v.variantId} className="text-xs">
-                    {v.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        <Separator className="bg-border/50" />
 
-          {/* Unit Selector (Hide if single unit) */}
-          {currentVariant && currentVariant.sellableUnits.length > 1 && (
-            <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
-              <SelectTrigger className="h-8 text-xs w-full bg-muted/30">
-                 <span className="text-muted-foreground mr-2">Unit:</span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {currentVariant.sellableUnits.map((unit) => (
-                  <SelectItem key={unit.unitId} value={unit.unitId} className="text-xs">
-                    {unit.unitName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+        {/* Dynamic Controls (Variants/Units) and Price in one row */}
+        <div className="space-y-2">
+            {/* If we have multiple variants OR multiple units, we show selectors */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                {/* Variant and Unit Selectors */}
+                <div className="grid grid-cols-2 gap-2 flex-1">
+                    {product.variants.length > 1 ? (
+                         <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                                <span className="truncate">{currentVariant.name}</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {product.variants.map((v) => (
+                                    <SelectItem key={v.variantId} value={v.variantId} className="text-xs">
+                                        {v.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                         </Select>
+                    ) : <div />} {/* Spacer if no variant selector */}
 
-          {/* Action Row: Quantity + Add Button */}
-          <div className="flex items-center gap-2">
-            {/* Quantity Control */}
-            <div className={cn(
-                "flex items-center rounded-md border bg-background transition-colors focus-within:ring-1 focus-within:ring-ring",
-                isOutOfStock ? "opacity-50 pointer-events-none" : ""
-              )}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-8 rounded-l-md hover:bg-transparent text-muted-foreground hover:text-foreground"
-                disabled={qty <= 0}
-                onClick={() => handleQtyChange(qty - 1)}
-              >
-                <Minus className="h-3 w-3" />
-              </Button>
-              <Input
-                type="number"
-                className="h-9 w-10 border-0 p-0 text-center text-sm shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none"
-                value={qty > 0 ? qty : ''}
-                placeholder="0"
-                onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-8 rounded-r-md hover:bg-transparent text-muted-foreground hover:text-foreground"
-                disabled={qty >= stock}
-                onClick={() => handleQtyChange(qty + 1)}
-              >
-                <Plus className="h-3 w-3" />
-              </Button>
+                    {currentVariant?.sellableUnits?.length > 1 ? (
+                        <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
+                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                                 <span className="truncate">{currentUnit?.unitName}</span>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {currentVariant.sellableUnits.map((u) => (
+                                    <SelectItem key={u.unitId} value={u.unitId} className="text-xs">
+                                        {u.unitName}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    ) : <div />} {/* Spacer if no unit selector */}
+                </div>
+
+                {/* Price Display - Moved here to be in the same row */}
+                <div className="flex flex-col items-end min-w-[100px]">
+                    <span className="text-[10px] text-muted-foreground font-medium text-right">
+                        Price
+                    </span>
+                    <span className={cn("text-xl font-bold tracking-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
+                        {formatCurrency(price)}
+                    </span>
+                    <span className="text-[9px] text-muted-foreground text-right">
+                        per {currentUnit?.unitName}
+                    </span>
+                </div>
             </div>
-
-            {/* Add to Cart Button */}
-            <Button
-              className="flex-1 h-9 shadow-sm"
-              disabled={isOutOfStock || qty <= 0}
-              onClick={handleAdd}
-            >
-              <ShoppingCart className="w-4 h-4 mr-2" />
-              {isOutOfStock ? 'No Stock' : 'Add'}
-            </Button>
-          </div>
         </div>
 
-        {/* Footer Info */}
-        <div className="flex items-center justify-between pt-2 border-t border-dashed text-[10px] text-muted-foreground">
-           <div className="flex items-center gap-1">
-             <Package className="w-3 h-3" />
-             <span className="font-mono">{currentVariant?.sku}</span>
-           </div>
-           <span>{stock} available</span>
+        {/* Footer: Actions Only */}
+        <div className="mt-auto pt-1">
+            {/* Action Bar */}
+            <div className="flex items-center gap-2 h-9">
+                {/* Quantity Segmented Control */}
+                <div className={cn(
+                    "flex items-center h-full rounded-md border bg-background shadow-sm",
+                    isOutOfStock ? "opacity-50 pointer-events-none" : "hover:border-primary/50"
+                )}>
+                    <button
+                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-l-md transition-colors disabled:opacity-50"
+                        disabled={qty <= 0}
+                        onClick={() => handleQtyChange(qty - 1)}
+                    >
+                        <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    
+                    <div className="h-4 w-px bg-border/50" />
+                    
+                    <Input
+                        type="number"
+                        className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none"
+                        value={qty > 0 ? qty : ''}
+                        placeholder="0"
+                        onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
+                    />
+                    
+                    <div className="h-4 w-px bg-border/50" />
+
+                    <button
+                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-r-md transition-colors disabled:opacity-50"
+                        disabled={qty >= stock}
+                        onClick={() => handleQtyChange(qty + 1)}
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                    </button>
+                </div>
+
+                {/* Add Button */}
+                <Button
+                    className={cn(
+                        "flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide", 
+                        qty > 0 ? "animate-in zoom-in-95 duration-200" : ""
+                    )}
+                    disabled={isOutOfStock || qty <= 0}
+                    onClick={handleAdd}
+                    variant={qty > 0 ? "default" : "secondary"}
+                >
+                    <ShoppingCart className="w-3.5 h-3.5 mr-2" />
+                    Add
+                </Button>
+            </div>
         </div>
       </div>
     </Card>

@@ -2,6 +2,10 @@ import { PrinterDevice, PrinterJobType, usePrinterStore } from '@/store/printer-
 import { useEffect, useState } from 'react';
 // Import the specific functions from the v2 plugin
 import { getPrinters, printPdf, printHtml } from 'tauri-plugin-printer-v2'; 
+import { Order, BusinessSettings } from '@/store/store';
+import { generateReceiptPDF, savePdfToTempFile } from '@/lib/receipt-generator';
+import { PrintJob, PrintResult } from '@/types/print-types';
+import { v4 as uuidv4 } from 'uuid';
 
 export const usePrinter = () => {
   const store = usePrinterStore();
@@ -86,6 +90,103 @@ export const usePrinter = () => {
     }
   };
 
+  /**
+   * Print a PDF receipt for an order
+   */
+  const printPdfReceipt = async (
+    order: Order,
+    settings: BusinessSettings,
+    copies: number = 1
+  ): Promise<PrintResult> => {
+    const jobId = uuidv4();
+    const printJob: PrintJob = {
+      id: jobId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      timestamp: new Date(),
+      status: 'pending',
+      format: 'pdf',
+      retryCount: 0,
+      maxRetries: 2,
+      jobType: 'customer',
+    };
+
+    try {
+      // Add job to history
+      store.addPrintJob({ ...printJob, status: 'printing' });
+
+      // Generate PDF
+      const pdfBlob = await generateReceiptPDF(order, settings);
+      
+      // Save to temp file
+      const pdfPath = await savePdfToTempFile(pdfBlob, order.id);
+
+      // Print the specified number of copies
+      for (let i = 0; i < copies; i++) {
+        await printDocument('receipt', pdfPath, true);
+      }
+
+      // Update job status
+      store.updatePrintJob(jobId, { status: 'success' });
+
+      return { success: true, jobId };
+    } catch (error) {
+      console.error('Print PDF receipt error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Update job status
+      store.updatePrintJob(jobId, { 
+        status: 'failed', 
+        error: errorMessage 
+      });
+
+      return { 
+        success: false, 
+        jobId, 
+        error: errorMessage,
+        requiresRetry: true 
+      };
+    }
+  };
+
+  /**
+   * Retry a failed print job from the queue
+   */
+  const retryPrintJob = async (queueItem: any): Promise<PrintResult> => {
+    const { id, orderId, retryCount, maxRetries, orderData } = queueItem;
+    console.log(orderId);
+    if (retryCount >= maxRetries) {
+      return {
+        success: false,
+        error: 'Maximum retry attempts reached',
+        requiresRetry: false,
+      };
+    }
+
+    // Update retry count
+    store.updatePrintJob(id, { 
+      retryCount: retryCount + 1,
+      status: 'printing' 
+    });
+
+    // Attempt to print again
+    const result = await printPdfReceipt(
+      orderData,
+      orderData.settings,
+      orderData.copies || 1
+    );
+
+    if (!result.success) {
+      // Keep in queue if retry is needed
+      store.updatePrintJob(id, { status: 'queued' });
+    } else {
+      // Remove from queue on success
+      store.removeFromQueue(id);
+    }
+
+    return result;
+  };
+
   useEffect(() => {
     refreshPrinters();
   }, []);
@@ -95,6 +196,8 @@ export const usePrinter = () => {
     loading,
     error,
     refreshPrinters,
-    printDocument
+    printDocument,
+    printPdfReceipt,
+    retryPrintJob,
   };
 };

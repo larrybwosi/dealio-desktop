@@ -1,6 +1,7 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
+import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
 export type OrderType = 'takeaway' | 'delivery' | 'dine-in' | 'pickup' | 'online';
 export type OrderStatus = 'waiting' | 'ready' | 'canceled' | 'completed';
@@ -218,7 +219,8 @@ export interface BusinessSettings {
   printers: PrinterConfig[];
   securityConfig: SecurityConfig;
   apiSyncConfig: ApiSyncConfig;
-  notificationSettings: NotificationSettings; // Added notification settings
+  notificationSettings: NotificationSettings;
+  autoPrintConfig: AutoPrintConfig; // Auto-print configuration
 }
 
 export interface Customer {
@@ -385,6 +387,8 @@ interface PosStore {
 
   updateApiSyncConfig: (config: Partial<ApiSyncConfig>) => void;
 
+  updateAutoPrintConfig: (config: Partial<AutoPrintConfig>) => void;
+
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
@@ -548,7 +552,8 @@ export const usePosStore = create<PosStore>()(
         printers: getDefaultPrinters(),
         securityConfig: getDefaultSecurityConfig(),
         apiSyncConfig: getDefaultApiSyncConfig(),
-        notificationSettings: getDefaultNotificationSettings(), // Added default notification settings
+        notificationSettings: getDefaultNotificationSettings(),
+        autoPrintConfig: DEFAULT_AUTO_PRINT_CONFIG, // Auto-print configuration
       },
       customers: [],
       employees: [],
@@ -1197,6 +1202,14 @@ export const usePosStore = create<PosStore>()(
           settings: {
             ...state.settings,
             apiSyncConfig: { ...state.settings.apiSyncConfig, ...config },
+          },
+        })),
+
+      updateAutoPrintConfig: (config: Partial<AutoPrintConfig>) =>
+        set(state => ({
+          settings: {
+            ...state.settings,
+            autoPrintConfig: { ...state.settings.autoPrintConfig, ...config },
           },
         })),
 

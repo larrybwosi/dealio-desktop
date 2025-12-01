@@ -505,10 +505,5 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: "loyalty", label: "Loyalty Program", icon: "Gift", enabled: true })
   }
 
-  items.push(
-    { id: "withdrawl", label: "Cash Drawer", icon: "DollarSign", enabled: true },
-    { id: "payment", label: "Payment", icon: "CreditCard", enabled: true },
-  )
-
   return items
 }

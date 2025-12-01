@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
+import { getVersion } from '@tauri-apps/api/app';
 
 // --- Types ---
 interface Location {
@@ -283,6 +284,7 @@ export default function SetupPage() {
   const [step, setStep] = useState(1);
   const [setupData, setSetupData] = useState<SetupData>({ apiKey: '', location: null });
   const [viewMode, setViewMode] = useState<'form' | 'instructions'>('form');
+  const [appVersion, setAppVersion] = useState<string>('');
 
   const handleApiKeyNext = (key: string) => {
     setSetupData(prev => ({ ...prev, apiKey: key }));
@@ -293,6 +295,22 @@ export default function SetupPage() {
     setSetupData(prev => ({ ...prev, location }));
     setStep(3);
   };
+
+  
+  useEffect(() => {
+    // Async function to fetch version
+    const fetchAppVersion = async () => {
+      try {
+        const v = await getVersion();
+        setAppVersion(v);
+      } catch (err) {
+        console.error('Failed to get app version:', err);
+        setAppVersion('Unknown');
+      }
+    };
+
+    fetchAppVersion();
+  }, []);
 
   return (
     // FULL WIDTH CONTAINER - No rounded corners, fills viewport
@@ -346,7 +364,7 @@ export default function SetupPage() {
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Secure Connection</span>
             </div>
-            <span>v2.4.0 (Tauri Stable)</span>
+            <span className="text-slate-500">v{appVersion}</span>
         </div>
       </div>
 
