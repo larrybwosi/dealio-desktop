@@ -3,8 +3,8 @@ import { toast } from 'sonner';
 import { AxiosError, isAxiosError } from 'axios';
 import { apiClient } from '@/lib/axios';
 import { useOfflineSaleStore } from '@/store/offline-sale';
-import z from 'zod/v3';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { ProcessSaleInput } from '@/lib/validation/transactions';
 
 export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
   const response = await apiClient.post(`/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, {...data, locationId});
@@ -48,6 +48,25 @@ export enum PaymentStatus {
   VOIDED = 'VOIDED',
 }
 
+export const FulfillmentType = {
+    IMMEDIATE: "IMMEDIATE",
+    PICKUP: "PICKUP",
+    DELIVERY: "DELIVERY",
+    SHIPPING: "SHIPPING",
+    DIGITAL: "DIGITAL",
+    DINE_IN: "DINE_IN",
+    SERVICE: "SERVICE"
+} as const;
+
+
+export enum TransactionType {
+    POS_SALE = "POS_SALE",
+    ONLINE_ORDER = "ONLINE_ORDER",
+    SALES_ORDER = "SALES_ORDER",
+    SERVICE_BOOKING = "SERVICE_BOOKING",
+    SUBSCRIPTION = "SUBSCRIPTION",
+    QUOTE = "QUOTE"
+}
 
 /**
  * Hook to process a new sale.
@@ -147,170 +166,37 @@ export const useSyncOfflineSales = () => {
   };
 };
 
-const kenyanPhoneRegex = /^(?:254|\+254|0)?(7(?:(?:[129][0-9])|(?:0[0-8])|(?:4[0-1]))[0-9]{6})$/;
 
-export const ProcessSaleInputSchema = z
-  .object({
-    cartItems: z
-      .array(
-        z.object(
-          {
-            productId: z.string({ required_error: 'Product ID is required' }).min(1, 'Product ID cannot be empty'),
-            variantId: z.string({ required_error: 'Variant ID is required' }).min(1, 'Variant ID cannot be empty'),
-            quantity: z
-              .number({
-                required_error: 'Quantity is required',
-                invalid_type_error: 'Quantity must be a number',
-              })
-              .int('Quantity must be a whole number')
-              .positive('Quantity must be greater than zero'),
-            sellingUnitId: z
-              .string({ required_error: 'Selling unit ID is required' })
-              .min(1, 'Selling unit ID cannot be empty'),
-          },
-          { required_error: 'Cart items are required' }
-        )
-      )
-      .min(1, 'At least one cart item is required'),
 
-    locationId: z.string({ required_error: 'Location ID is required' }).min(1, 'Location ID cannot be empty'),
-    saleNumber: z.string().optional().nullable(),
-    isWholesale: z.boolean().optional().default(false),
+export interface OrderFormValues {
+  // Define your order form values interface
+  [key: string]: any;
+}
 
-    customerId: z
-      .string()
-      .optional()
-      .nullable()
-      .refine(val => !val || val.length > 0, {
-        message: 'Customer ID cannot be empty if provided',
-      }),
+export interface UseCreateOrderOptions {
+  onSuccess?: (data: any) => void;
+  onError?: (error: Error) => void;
+  onSettled?: () => void;
+}
 
-    businessAccountId: z
-      .string()
-      .optional()
-      .nullable()
-      .refine(val => !val || val.length > 0, {
-        message: 'Business Account ID cannot be empty if provided',
-      }),
+export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
+  
+  const { currentLocation } = useAuthStore();
 
-    // Payment Details
-    paymentMethod: z.nativeEnum(PaymentMethod, {
-      required_error: 'Payment method is required',
-      invalid_type_error: 'Invalid payment method',
-    }),
+  const locationId = currentLocation?.id;
 
-    paymentStatus: z.nativeEnum(PaymentStatus, {
-      required_error: 'Payment status is required',
-      invalid_type_error: 'Invalid payment status',
-    }),
-
-    // M-Pesa Specific
-    mpesaPhoneNumber: z
-      .string()
-      .regex(kenyanPhoneRegex, 'Invalid Kenyan Phone Number')
-      .transform(val => val.replace(/^\+/, '').replace(/^0/, '254')) // Normalize to 254
-      .optional()
-      .nullable(),
-
-    amountReceived: z
-      .number({
-        invalid_type_error: 'Amount received must be a number',
-      })
-      .nonnegative('Amount received cannot be negative')
-      .optional(),
-
-    change: z
-      .number({
-        invalid_type_error: 'Change amount must be a number',
-      })
-      .nonnegative('Change amount cannot be negative')
-      .optional(),
-
-    discountAmount: z
-      .number({
-        invalid_type_error: 'Discount amount must be a number',
-      })
-      .nonnegative('Discount amount cannot be negative')
-      .default(0)
-      .nullable(),
-
-    cashDrawerId: z
-      .string()
-      .optional()
-      .nullable()
-      .refine(val => !val || val.length > 0, {
-        message: 'Cash drawer ID cannot be empty if provided',
-      }),
-
-    notes: z.string().max(500, 'Notes cannot exceed 500 characters').optional().nullable(),
-
-    enableStockTracking: z.boolean({
-      required_error: 'Stock tracking preference is required',
-      invalid_type_error: 'Stock tracking must be a boolean',
-    }),
-
-    taxIds: z
-      .array(z.string().min(1, 'Tax ID cannot be empty'), {
-        invalid_type_error: 'Tax IDs must be an array of strings',
-      })
-      .optional(),
-
-    saleDate: z
-      .date({
-        required_error: 'Sale date is required',
-        invalid_type_error: 'Invalid date format',
-      })
-      .max(new Date(), 'Sale date cannot be in the future')
-      .optional(),
-  })
-  // Refinement 1: Require Phone Number if M-Pesa
-  .refine(
-    data => {
-      if (data.paymentMethod === 'MPESA') {
-        return !!data.mpesaPhoneNumber;
-      }
-      return true;
+  return useMutation({
+    mutationFn: async (newOrder: OrderFormValues) => {
+      const response = await apiClient.post(`/api/v1/pos/orders?locationId=${locationId}`, newOrder);
+      return response.data;
     },
-    {
-      message: 'Phone number is required for M-Pesa payments',
-      path: ['mpesaPhoneNumber'],
-    }
-  )
-  // Refinement 2: Validate Amount Received rules
-  .refine(
-    data => {
-      // If M-Pesa, we expect an amount to push, even if status is pending
-      if (data.paymentMethod === 'MPESA') {
-        return data.amountReceived !== undefined && data.amountReceived !== null && data.amountReceived > 0;
-      }
-      // Existing logic for other methods
-      if (data.paymentStatus !== 'PENDING' && data.paymentMethod !== 'CREDIT') {
-        return data.amountReceived !== undefined && data.amountReceived !== null;
-      }
-      return true;
+    onSuccess: (data) => {
+      options.onSuccess?.(data);
     },
-    {
-      message: 'Amount to charge is required',
-      path: ['amountReceived'],
-    }
-  )
-  // Refinement 3: Validate that amount covers the total for cash payments
-  .refine(
-    data => {
-      if (data.paymentMethod === 'CASH' && data.paymentStatus === 'COMPLETED') {
-        return (
-          data.amountReceived !== undefined &&
-          data.amountReceived !== null &&
-          data.change !== undefined &&
-          data.change !== null
-        );
-      }
-      return true;
+    onError: (error) => {
+      console.error('Failed to create order:', error);
+      options.onError?.(error);
     },
-    {
-      message: 'Both amount received and change must be provided for cash payments',
-      path: ['amountReceived'],
-    }
-  );
-
-export type ProcessSaleInput = z.infer<typeof ProcessSaleInputSchema>;
+    onSettled: options.onSettled,
+  });
+};

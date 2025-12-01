@@ -118,6 +118,20 @@ export function Sidebar({ activeTab, onTabChange }: SidebarProps) {
           <Receipt className="w-4 h-4 shrink-0" />
           {!isCollapsed && <span className="truncate">Pending Transactions</span>}
         </button>
+        <button
+          onClick={() => onTabChange('create-order')}
+          className={cn(
+            'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium mb-1 transition-colors',
+            activeTab === 'create-order'
+              ? 'bg-primary text-primary-foreground'
+              : 'text-sidebar-foreground hover:bg-sidebar-accent',
+            isCollapsed && 'justify-center px-0'
+          )}
+          title={isCollapsed ? 'Create Order' : undefined}
+        >
+          <Receipt className="w-4 h-4 shrink-0" />
+          {!isCollapsed && <span className="truncate">Create Order</span>}
+        </button>
       </nav>
 
       <div className="p-4 border-t border-border space-y-2">

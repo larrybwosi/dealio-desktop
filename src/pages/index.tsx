@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import PendingTransactionsPage from './pending-transactions';
+import CreateOrderPage from './createa-order';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState('order');
@@ -102,6 +103,7 @@ export default function Home() {
           {activeTab === 'manage-table' && <ManageTablesPage />}
           {activeTab === 'till-management' && <TillManagementPage />}
           {activeTab === 'pending-transactions' && <PendingTransactionsPage />}
+          {activeTab === 'create-order' && <CreateOrderPage />}
           {activeTab !== 'order' &&
             activeTab !== 'settings' &&
             activeTab !== 'history' &&

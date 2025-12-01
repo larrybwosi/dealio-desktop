@@ -35,8 +35,9 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
-import { PaymentMethod, PaymentStatus, ProcessSaleInput, ProcessSaleInputSchema, useProcessSale } from '@/hooks/sales';
+import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { ably } from '@/lib/ably';
+import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 
 // --- COMPONENT ---
 
