@@ -1,8 +1,7 @@
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { v4 as uuidv4 } from 'uuid';
 import { format } from 'date-fns';
-import { z } from 'zod/v3';
 import { QRCodeSVG } from 'qrcode.react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
@@ -21,45 +20,48 @@ import {
   Star,
   Zap,
   Info,
+  Loader2,
 } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { getCurrentPhoneConfig } from '@/lib/phone.config';
 import { writeText } from '@tauri-apps/plugin-clipboard-manager';
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification';
-import { initiateMpesaPayment, subscribeToAbly } from '@/lib/mpesa-client';
 import { CartItem, Customer, Order, OrderType } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
-import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
+import { PaymentMethod, PaymentStatus, ProcessSaleInput, ProcessSaleInputSchema, useProcessSale } from '@/hooks/sales';
+import { ably } from '@/lib/ably';
 
-// Memoized customer badge component change
+// --- COMPONENT ---
+
+// Memoized customer badge component
 const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
   if (!customer) return null;
   const tierLevel = customer.loyaltyPoints || 0;
 
   if (tierLevel >= 1000) {
     return (
-      <Badge variant="secondary" className="bg-linear-to-r from-yellow-400 to-yellow-600 text-yellow-900">
+      <Badge variant="secondary" className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-yellow-900">
         <Crown className="w-3 h-3 mr-1" /> VIP
       </Badge>
     );
   }
   if (tierLevel >= 500) {
     return (
-      <Badge variant="secondary" className="bg-linear-to-r from-purple-400 to-purple-600 text-purple-900">
+      <Badge variant="secondary" className="bg-gradient-to-r from-purple-400 to-purple-600 text-purple-900">
         <Star className="w-3 h-3 mr-1" /> Gold
       </Badge>
     );
   }
   if (tierLevel >= 100) {
     return (
-      <Badge variant="secondary" className="bg-linear-to-r from-blue-400 to-blue-600 text-blue-900">
+      <Badge variant="secondary" className="bg-gradient-to-r from-blue-400 to-blue-600 text-blue-900">
         <Zap className="w-3 h-3 mr-1" /> Silver
       </Badge>
     );
@@ -68,7 +70,19 @@ const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
 });
 CustomerBadge.displayName = 'CustomerBadge';
 
-// Phone number normalization utility
+// Helper for UI payment method mapping to Prisma Enum
+const mapUiMethodToPrisma = (method: string): PaymentMethod => {
+  switch (method) {
+    case 'MOBILE_PAYMENT':
+      return PaymentMethod.MPESA;
+    case 'CREDIT_CARD':
+      return PaymentMethod.CREDIT;
+    case 'CASH':
+    default:
+      return PaymentMethod.CASH;
+  }
+};
+
 const normalizePhoneNumber = (phone: string, config: { countryCode: string }): string => {
   const cleaned = phone.replace(/[^\d+]/g, '');
   if (cleaned.startsWith(config.countryCode)) return cleaned;
@@ -103,43 +117,42 @@ const PaymentModal = ({
   onOpenCustomer,
   onPaymentComplete,
 }: PaymentModalProps) => {
-  // Payment method and general state
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(PaymentMethod.CASH);
+  // UI State
+  const [selectedTab, setSelectedTab] = useState<string>('CASH');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [notes, setNotes] = useState('');
-  const [editableDiscount, setEditableDiscount] = useState<number>(discount); // Local state for discount
+  const [editableDiscount, setEditableDiscount] = useState<number>(discount);
+  
+  // Mobile Payment State
+  const [mpesaPhone, setMpesaPhone] = useState(customer?.phone || '');
+  const [mpesaWaiting, setMpesaWaiting] = useState(false);
+  const [mpesaStatus, setMpesaStatus] = useState<'IDLE' | 'WAITING' | 'SUCCESS' | 'FAILED'>('IDLE');
+  
+  // Validation Error State
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
-  const { mutate: createSale, isPending: isProcessing } = useProcessSale();
-  // const { addPendingOrder } = useOrderStore();
-  const settings = usePosStore(state => state.settings);
+  // Hooks / Store
+  const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
+  const settings = usePosStore((state) => state.settings);
   const taxRate = settings?.taxRate;
 
   const formatCurrency = useFormattedCurrency();
   const PHONE_CONFIG = getCurrentPhoneConfig();
 
-  // Mobile payment specific state
-  const [mobilePayment, setMobilePayment] = useState({
-    status: 'idle' as 'idle' | 'sending' | 'sent' | 'confirmed' | 'failed',
-    phoneNumber: customer?.phone || '',
-    phoneError: '',
-    checkoutRequestId: '',
-  });
-
-  // Memoized values
+  // IDs
   const orderId = useMemo(() => uuidv4(), [isOpen]);
   const saleNumber = useMemo(
     () => `SALE-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
     [isOpen]
   );
 
-  // Update local discount if prop changes (optional, but good practice)
   useEffect(() => {
     setEditableDiscount(discount);
   }, [discount]);
 
-  // Tax-inclusive calculations
+  // Calculations
   const { totalPayable, priceBeforeTax, calculatedTax } = useMemo(() => {
-    const total = Math.max(0, subtotal - editableDiscount); // Ensure total is not negative
+    const total = Math.max(0, subtotal - editableDiscount);
     const rate = Number(taxRate) || 0;
     const taxableAmount = total / (1 + rate);
     const taxAmount = total - taxableAmount;
@@ -156,205 +169,156 @@ const PaymentModal = ({
     [orderId, totalPayable, customer]
   );
 
-  // Effects
+  // Initialize cash received
   useEffect(() => {
-    setCashReceived(totalPayable.toFixed(2));
-  }, [totalPayable]);
-
-  useEffect(() => {
-    if (!mobilePayment.checkoutRequestId || mobilePayment.status !== 'sent') return;
-
-    const unsubscribe = subscribeToAbly(mobilePayment.checkoutRequestId, {
-      onSuccess: () => setMobilePayment(prev => ({ ...prev, status: 'confirmed' })),
-      onFailed: () => setMobilePayment(prev => ({ ...prev, status: 'failed' })),
-    });
-
-    return () => unsubscribe();
-  }, [mobilePayment.checkoutRequestId, mobilePayment.status]);
-
-  // Phone validation schema
-  const phoneSchema = useMemo(
-    () =>
-      z.string().refine(phone => {
-        const normalizedPhone = normalizePhoneNumber(phone, PHONE_CONFIG);
-        return normalizedPhone.length === 13 && normalizedPhone.startsWith(PHONE_CONFIG.countryCode);
-      }, `Please enter a valid ${PHONE_CONFIG.displayName} phone number`),
-    [PHONE_CONFIG]
-  );
-
-  // Event handlers
-  const handlePhoneNumberChange = useCallback(
-    (value: string) => {
-      setMobilePayment(prev => ({ ...prev, phoneNumber: value, phoneError: '' }));
-      try {
-        if (value.trim()) phoneSchema.parse(value);
-      } catch (error) {
-        if (error instanceof z.ZodError) {
-          setMobilePayment(prev => ({ ...prev, phoneError: error.errors[0].message }));
-        }
-      }
-    },
-    [phoneSchema]
-  );
-
-  const sendStkPush = useCallback(async () => {
-    if (mobilePayment.phoneError || !mobilePayment.phoneNumber) return;
-
-    setMobilePayment(prev => ({ ...prev, status: 'sending' }));
-    const normalizedPhone = normalizePhoneNumber(mobilePayment.phoneNumber, PHONE_CONFIG);
-
-    console.log('Sending STK push to:', normalizedPhone, 'Amount:', totalPayable, 'Order ID:', saleNumber);
-    try {
-      const { checkoutRequestId } = await initiateMpesaPayment({
-        phoneNumber: normalizedPhone,
-        amount: totalPayable,
-        orderId: saleNumber,
-      });
-      if(!checkoutRequestId) return
-      setMobilePayment(prev => ({ ...prev, status: 'sent', checkoutRequestId }));
-    } catch (error) {
-      console.error('STK push failed:', error);
-      setMobilePayment(prev => ({ ...prev, status: 'failed' }));
+    if (selectedTab === 'CASH') {
+      setCashReceived(totalPayable.toFixed(2));
     }
-  }, [mobilePayment.phoneNumber, mobilePayment.phoneError, totalPayable, saleNumber, PHONE_CONFIG]);
+  }, [totalPayable, selectedTab]);
 
-  const resetMobilePayment = useCallback(() => {
-    setMobilePayment({
-      status: 'idle',
-      phoneNumber: customer?.phone || '',
-      phoneError: '',
-      checkoutRequestId: '',
-    });
-  }, [customer]);
-
-  const copyPaymentUrl = useCallback(async () => {
+  const handleCopyPaymentUrl = async () => {
     await writeText(paymentUrl);
     if ((await isPermissionGranted()) || (await requestPermission()) === 'granted') {
       sendNotification({ title: 'Copied!', body: 'Payment link copied to clipboard.' });
     }
-  }, [paymentUrl]);
+  };
 
-  const createOrderPayload = useCallback(
-    (): Order => ({
-      id: orderId,
-      orderNumber: `ORD-${Date.now().toString().slice(-8)}`,
-      items: cartItems.map(item => ({
-        ...item,
-        variant: item.variant || undefined,
-        addition: item.addition || undefined,
-        variantId: item.variantId || undefined,
+  // --- CORE PAYMENT LOGIC ---
+
+  const preparePayload = (status: PaymentStatus): ProcessSaleInput | null => {
+    const prismaMethod = mapUiMethodToPrisma(selectedTab);
+
+    // Basic payload structure
+    const payload: any = {
+      cartItems: cartItems.map((item) => ({
         productId: item.productId || '',
-      })),
-      customer,
-      subtotal: priceBeforeTax,
-      discount: editableDiscount,
-      tax: calculatedTax,
-      total: totalPayable,
-      orderType,
-      tableNumber,
-      datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-      notes,
-      status: 'completed',
-      paymentMethod,
-      saleNumber,
-      amountPaid: paymentMethod === 'CASH' ? parseFloat(cashReceived) || 0 : totalPayable,
-      change: paymentMethod === 'CASH' ? change : 0,
-      ...(paymentMethod === 'MOBILE_PAYMENT' && {
-        mobilePaymentPhone: normalizePhoneNumber(mobilePayment.phoneNumber, PHONE_CONFIG),
-      }),
-    }),
-    [
-      orderId,
-      cartItems,
-      customer,
-      priceBeforeTax,
-      editableDiscount,
-      calculatedTax,
-      totalPayable,
-      orderType,
-      tableNumber,
-      notes,
-      paymentMethod,
-      cashReceived,
-      change,
-      mobilePayment.phoneNumber,
-      PHONE_CONFIG,
-    ]
-  );
-
-  const handlePayment = useCallback(async () => {
-    const isMobilePaymentInvalid = paymentMethod === 'MOBILE_PAYMENT' && mobilePayment.status !== 'confirmed';
-    if (isProcessing || isMobilePaymentInvalid) return;
-
-    const newOrder = createOrderPayload();
-
-    createSale({
-      ...newOrder,
-      saleNumber,
-      paymentStatus: PaymentStatus.COMPLETED,
-      amountReceived: newOrder.amountPaid,
-      discountAmount: newOrder.discount,
-      enableStockTracking: false,
-      locationId:'',
-      customerId: customer?.id || null,
-      cartItems: cartItems.map(item => ({
-        ...item,
-        variant: item.variant || undefined,
-        addition: item.addition || undefined,
         variantId: item.variantId || '',
-        productId: item.productId || '',
+        quantity: item.quantity,
         sellingUnitId: item.selectedUnit?.unitId || '',
       })),
-    });
-
-    onPaymentComplete(newOrder);
-    onClose();
-  }, [
-    isProcessing,
-    paymentMethod,
-    mobilePayment.status,
-    createOrderPayload,
-    createSale,
-    saleNumber,
-    onPaymentComplete,
-    onClose,
-  ]);
-
-  const handleSaveAsPending = useCallback(() => {
-    const newOrder: Order = {
-      id: orderId,
-      orderNumber: `ORD-${Date.now().toString().slice(-8)}`,
-      items: cartItems,
-      customer,
-      subtotal: priceBeforeTax,
-      discount: editableDiscount,
-      tax: calculatedTax,
-      total: totalPayable,
-      orderType,
-      status: 'pending-payment',
-      paymentMethod: PaymentMethod.CASH,
-      tableNumber,
-      datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-      notes,
+      locationId: 'LOC-DEFAULT', // Replace with actual location ID from store
+      saleNumber: saleNumber,
+      isWholesale: false,
+      customerId: customer?.id || null,
+      paymentMethod: prismaMethod,
+      paymentStatus: status,
+      enableStockTracking: true, // Or based on settings
+      notes: notes,
+      discountAmount: editableDiscount,
+      // Add tax IDs if available in settings
     };
 
-    // addPendingOrder(newOrder);
-    onPaymentComplete(newOrder);
+    // Add method specific fields
+    if (prismaMethod === PaymentMethod.MPESA) {
+      payload.mpesaPhoneNumber = normalizePhoneNumber(mpesaPhone, PHONE_CONFIG);
+      payload.amountReceived = totalPayable;
+      payload.change = 0;
+    } else if (prismaMethod === PaymentMethod.CASH) {
+      payload.amountReceived = parseFloat(cashReceived) || 0;
+      payload.change = change;
+      // payload.cashDrawerId = '...'; // If relevant
+    } else {
+      // Card / Other
+      payload.amountReceived = totalPayable;
+      payload.change = 0;
+    }
+
+    // Validate using Zod
+    const result = ProcessSaleInputSchema.safeParse(payload);
+
+    if (!result.success) {
+      const errors = result.error.errors.map((e) => e.message);
+      setValidationErrors(errors);
+      return null;
+    }
+
+    setValidationErrors([]);
+    return result.data;
+  };
+
+  const handlePaymentSubmission = async (status: PaymentStatus = PaymentStatus.COMPLETED) => {
+    const payload = preparePayload(status);
+    if (!payload) return;
+
+    try {
+      setMpesaStatus('IDLE');
+      
+      // Submit to backend
+      // Note: We cast response to any here because standard useMutation types might not capture the custom meta fields
+      // returned by the specific 202 response unless typed explicitly in the hook.
+      const response: any = await createSale(payload);
+
+      // --- M-PESA LOGIC START ---
+      if (payload.paymentMethod === 'MPESA' && response?.status === 202 && response?.meta?.ablyChannel) {
+        
+        setMpesaWaiting(true);
+        setMpesaStatus('WAITING');
+
+        // Subscribe to Ably
+        const channel = ably?.channels.get(response.meta.ablyChannel);
+
+        channel?.subscribe('payment-update', (msg) => {
+          if (msg.data.transactionId === response.id) {
+            if (msg.data.status === 'COMPLETED') {
+              setMpesaStatus('SUCCESS');
+              setMpesaWaiting(false);
+              
+              // Finalize UI
+              setTimeout(() => {
+                completeOrderFlow(payload, response);
+                channel?.unsubscribe();
+              }, 1500);
+            } else {
+              setMpesaStatus('FAILED');
+              setMpesaWaiting(false);
+              setValidationErrors(['Payment failed or was cancelled. Please try again.']);
+              channel?.unsubscribe();
+            }
+          }
+        });
+
+      } 
+      // --- M-PESA LOGIC END ---
+      
+      else {
+        // Standard Success (Cash, Card, or direct confirmation)
+        completeOrderFlow(payload, response);
+      }
+
+    } catch (error) {
+      console.error('Payment Error:', error);
+      // Determine if it's a validation error from server or network error
+      setValidationErrors(['Failed to process sale. Please check connection and try again.']);
+    }
+  };
+
+  const completeOrderFlow = (payload: ProcessSaleInput, response: any) => {
+    const completedOrder: Order = {
+        id: response?.id || orderId,
+        orderNumber: response?.orderNumber || `ORD-${Date.now()}`,
+        items: cartItems,
+        customer: customer,
+        subtotal: priceBeforeTax,
+        discount: editableDiscount,
+        tax: calculatedTax,
+        total: totalPayable,
+        orderType: orderType,
+        tableNumber: tableNumber,
+        datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        notes: notes,
+        status: payload.paymentStatus === 'COMPLETED' ? 'completed' : 'pending-payment',
+        paymentMethod: selectedTab as any,
+        saleNumber: saleNumber,
+        amountPaid: payload.amountReceived || 0,
+        change: payload.change || 0,
+    }
+    onPaymentComplete(completedOrder);
     onClose();
-  }, [
-    orderId,
-    cartItems,
-    customer,
-    priceBeforeTax,
-    editableDiscount,
-    calculatedTax,
-    totalPayable,
-    orderType,
-    tableNumber,
-    notes,
-    onPaymentComplete,
-    onClose,
-  ]);
+  };
+
+  const handleSaveAsPending = () => {
+      handlePaymentSubmission(PaymentStatus.PENDING);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -362,8 +326,36 @@ const PaymentModal = ({
         {isOpen && (
           <DialogContent
             className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto"
-            onInteractOutside={e => isProcessing && e.preventDefault()}
+            onInteractOutside={(e) => (isProcessing || mpesaWaiting) && e.preventDefault()}
           >
+            {/* OVERLAY FOR M-PESA WAITING */}
+            {mpesaWaiting && (
+                <div className="absolute inset-0 z-50 bg-background/95 backdrop-blur-sm flex flex-col items-center justify-center p-8 text-center rounded-lg">
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        className="space-y-6 max-w-md"
+                    >
+                        <div className="mx-auto w-20 h-20 bg-green-100 rounded-full flex items-center justify-center relative">
+                             <div className="absolute inset-0 rounded-full border-4 border-green-500 border-t-transparent animate-spin"></div>
+                             <Smartphone className="w-8 h-8 text-green-700" />
+                        </div>
+                        
+                        <div>
+                            <h3 className="text-2xl font-bold mb-2">Check Customer Phone</h3>
+                            <p className="text-muted-foreground">
+                                An M-Pesa prompt has been sent to <strong>{mpesaPhone}</strong>.
+                                Waiting for PIN entry...
+                            </p>
+                        </div>
+                        
+                        <div className="flex justify-center pt-4">
+                             <Button variant="outline" onClick={() => setMpesaWaiting(false)}>Cancel Waiting</Button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -382,8 +374,25 @@ const PaymentModal = ({
                 </DialogTitle>
               </DialogHeader>
 
+              {/* Validation Errors Display */}
+              {validationErrors.length > 0 && (
+                <div className="px-6 pb-2">
+                    <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Action Required</AlertTitle>
+                        <AlertDescription>
+                            <ul className="list-disc pl-4 space-y-1 mt-1">
+                                {validationErrors.map((err, idx) => (
+                                    <li key={idx} className="text-xs">{err}</li>
+                                ))}
+                            </ul>
+                        </AlertDescription>
+                    </Alert>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6 pt-0">
-                {/* Left Column - QR Code and Payment Link */}
+                {/* Left Column - QR Code */}
                 <div className="lg:col-span-1 flex flex-col items-center p-4 border rounded-lg bg-background">
                   <h3 className="text-sm font-medium mb-3 flex items-center gap-2 text-slate-600">
                     <QrCode className="w-4 h-4" /> Scan to Pay
@@ -392,7 +401,7 @@ const PaymentModal = ({
                     <QRCodeSVG value={paymentUrl} size={160} />
                   </motion.div>
                   <div className="flex items-center gap-2 mt-4 w-full">
-                    <Button variant="outline" size="sm" onClick={copyPaymentUrl} className="flex-1">
+                    <Button variant="outline" size="sm" onClick={handleCopyPaymentUrl} className="flex-1">
                       <Copy className="w-3 h-3 mr-1.5" /> Copy Link
                     </Button>
                     <Button asChild variant="outline" size="icon" className="h-9 w-9">
@@ -401,21 +410,16 @@ const PaymentModal = ({
                       </a>
                     </Button>
                   </div>
-
-                  {/* Order Info Badges */}
                   <div className="mt-4 flex flex-wrap gap-1 justify-center">
                     <Badge variant="outline" className="text-xs">
-                      Order #{orderId.slice(-6)}
-                    </Badge>
-                    <Badge variant={orderType === 'Dine in' ? 'default' : 'secondary'} className="text-xs">
-                      {orderType === 'Dine in' ? 'Dine In' : orderType === 'Takeaway' ? 'Takeout' : 'Delivery'}
+                      {saleNumber}
                     </Badge>
                   </div>
                 </div>
 
                 {/* Right Column - Payment Details */}
                 <div className="lg:col-span-2 space-y-6">
-                  {/* Customer Section */}
+                  {/* Customer Info */}
                   <div className="p-4 border rounded-md">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-medium">Customer Information</h3>
@@ -431,16 +435,15 @@ const PaymentModal = ({
                           <CustomerBadge customer={customer} />
                         </div>
                         {customer.phone && <p className="text-xs text-muted-foreground">{customer.phone}</p>}
-                        {customer.email && <p className="text-xs text-muted-foreground">{customer.email}</p>}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground">No customer selected</p>
                     )}
                   </div>
 
-                  {/* Order Summary */}
-                  <div className="p-4 border rounded-lg space-y-2">
-                    <div className="flex justify-between text-sm">
+                  {/* Totals */}
+                  <div className="p-4 border rounded-lg space-y-2 bg-muted/20">
+                    <div className="flex justify-between items-center text-sm">
                       <span className="text-muted-foreground">Subtotal</span>
                       <span>{formatCurrency(subtotal)}</span>
                     </div>
@@ -458,7 +461,7 @@ const PaymentModal = ({
                                 if (isNaN(val)) setEditableDiscount(0);
                                 else setEditableDiscount(Math.min(val, subtotal));
                             }}
-                            className="h-8 text-right text-red-600"
+                            className="h-8 text-right text-red-600 bg-background"
                          />
                       </div>
                     </div>
@@ -466,26 +469,20 @@ const PaymentModal = ({
                       <span>Total Payable</span>
                       <span>{formatCurrency(totalPayable)}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground pt-2 border-t flex justify-between items-center">
-                      <span>
-                        Includes Tax ({Number(taxRate) * 100}%): {formatCurrency(calculatedTax)}
-                      </span>
+                    <div className="text-xs text-muted-foreground pt-1 flex justify-between items-center">
+                      <span>Tax included: {formatCurrency(calculatedTax)}</span>
                       <Info className="w-3 h-3" />
                     </div>
                   </div>
 
-                  {/* Payment Method */}
+                  {/* Payment Tabs */}
                   <div className="space-y-3">
                     <Label>Payment Method</Label>
-                    <Tabs
-                      value={paymentMethod}
-                      onValueChange={val => setPaymentMethod(val as PaymentMethod)}
-                      className="w-full"
-                    >
+                    <Tabs value={selectedTab} onValueChange={setSelectedTab} className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="MOBILE_PAYMENT">
                           <Smartphone className="mr-2 h-4 w-4" />
-                          Mobile
+                          M-Pesa
                         </TabsTrigger>
                         <TabsTrigger value="CASH">
                           <DollarSign className="mr-2 h-4 w-4" />
@@ -497,163 +494,78 @@ const PaymentModal = ({
                         </TabsTrigger>
                       </TabsList>
 
-                      {/* Mobile Payment Tab */}
                       <TabsContent value="MOBILE_PAYMENT" className="pt-4">
-                        <motion.div
-                          key="mobile"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="space-y-4"
-                        >
-                          {!mobilePayment.checkoutRequestId ? (
+                        <div className="space-y-4">
                             <div className="space-y-2">
-                              <Label htmlFor="phone-number">Customer Phone ({PHONE_CONFIG.displayName})</Label>
+                              <Label htmlFor="phone-number">M-Pesa Number</Label>
                               <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                                 <Input
                                   id="phone-number"
                                   placeholder="e.g. 0712345678"
-                                  value={mobilePayment.phoneNumber}
-                                  onChange={e => handlePhoneNumberChange(e.target.value)}
-                                  className={`pl-10 ${mobilePayment.phoneError ? 'border-red-500' : ''}`}
+                                  value={mpesaPhone}
+                                  onChange={(e) => {
+                                      setMpesaPhone(e.target.value);
+                                      setValidationErrors([]); // clear errors on edit
+                                  }}
+                                  className="pl-10"
                                 />
                               </div>
-                              <AnimatePresence>
-                                {mobilePayment.phoneError && (
-                                  <motion.p
-                                    initial={{ opacity: 0, y: -5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: -5 }}
-                                    className="text-sm text-red-600 flex items-center gap-1"
-                                  >
-                                    <AlertCircle size={14} />
-                                    {mobilePayment.phoneError}
-                                  </motion.p>
-                                )}
-                              </AnimatePresence>
                               <p className="text-xs text-muted-foreground">
-                                Supported formats: +254xxxxxxxxx, 254xxxxxxxxx, 07xxxxxxxx, 01xxxxxxxx
+                                Entering a number will trigger an STK Push upon clicking Complete Payment.
                               </p>
-                              <Button
-                                onClick={sendStkPush}
-                                disabled={
-                                  !!mobilePayment.phoneError ||
-                                  !mobilePayment.phoneNumber ||
-                                  mobilePayment.status === 'sending'
-                                }
-                                className="w-full"
-                              >
-                                {mobilePayment.status === 'sending' ? (
-                                  <>
-                                    <motion.div className="mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                    Sending...
-                                  </>
-                                ) : (
-                                  `Send Payment Request (${formatCurrency(totalPayable)})`
-                                )}
-                              </Button>
                             </div>
-                          ) : (
-                            <div className="space-y-3 text-center">
-                              <AnimatePresence mode="wait">
-                                <motion.div
-                                  key={mobilePayment.status}
-                                  initial={{ opacity: 0, y: 10 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: -10 }}
-                                >
-                                  {mobilePayment.status === 'sent' && (
-                                    <Alert>
-                                      <Smartphone className="h-4 w-4" />
-                                      <AlertDescription>
-                                        STK push sent to {mobilePayment.phoneNumber}. Waiting for confirmation...
-                                      </AlertDescription>
-                                    </Alert>
-                                  )}
-                                  {mobilePayment.status === 'confirmed' && (
-                                    <Alert variant="default">
-                                      <Check className="h-4 w-4" />
-                                      <AlertDescription>
-                                        Payment confirmed! You can now complete the sale.
-                                      </AlertDescription>
-                                    </Alert>
-                                  )}
-                                  {mobilePayment.status === 'failed' && (
-                                    <Alert variant="destructive">
-                                      <AlertCircle className="h-4 w-4" />
-                                      <AlertDescription>Payment failed or was cancelled by user.</AlertDescription>
-                                    </Alert>
-                                  )}
-                                </motion.div>
-                              </AnimatePresence>
-                              <div className="flex gap-2 justify-center">
-                                <Button
-                                  onClick={sendStkPush}
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={mobilePayment.status === 'sending' || mobilePayment.status === 'confirmed'}
-                                >
-                                  Resend
-                                </Button>
-                                <Button onClick={resetMobilePayment} variant="ghost" size="sm">
-                                  Change Number
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </motion.div>
+                            
+                            {mpesaStatus === 'FAILED' && (
+                                <Alert variant="destructive">
+                                    <AlertCircle className="h-4 w-4" />
+                                    <AlertDescription>
+                                        Transaction failed. Please try again or use a different method.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+                        </div>
                       </TabsContent>
 
-                      {/* Cash Payment Tab */}
                       <TabsContent value="CASH" className="pt-4">
-                        <motion.div
-                          key="cash"
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="grid grid-cols-2 gap-4"
-                        >
+                        <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-1">
                             <Label htmlFor="cash-received">Amount Received</Label>
                             <Input
                               id="cash-received"
                               value={cashReceived}
-                              onChange={e => setCashReceived(e.target.value)}
+                              onChange={(e) => setCashReceived(e.target.value)}
                               type="number"
                               step="0.01"
                             />
                           </div>
                           <div className="space-y-1">
                             <Label>Change Due</Label>
-                            <div className="px-3 py-2 bg-background border rounded-md font-medium h-10 flex items-center">
+                            <div className={`px-3 py-2 border rounded-md font-medium h-10 flex items-center ${change < 0 ? 'text-red-500 bg-red-50 border-red-200' : 'bg-background'}`}>
                               {formatCurrency(change)}
                             </div>
                           </div>
-                        </motion.div>
+                        </div>
                       </TabsContent>
 
-                      {/* Card Payment Tab */}
                       <TabsContent value="CREDIT_CARD" className="pt-4">
-                        <motion.div key="card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                          <Alert>
+                        <Alert>
                             <CreditCard className="h-4 w-4" />
                             <AlertDescription>
-                              Process the payment of {formatCurrency(totalPayable)} using the external card terminal,
-                              then complete the sale.
+                              Charge <strong>{formatCurrency(totalPayable)}</strong> on the external terminal.
                             </AlertDescription>
                           </Alert>
-                        </motion.div>
                       </TabsContent>
                     </Tabs>
                   </div>
 
-                  {/* Order Notes */}
                   <div className="space-y-2">
                     <Label htmlFor="notes">Order Notes</Label>
                     <Input
                       id="notes"
-                      placeholder="Add any special instructions"
+                      placeholder="Optional notes..."
                       value={notes}
-                      onChange={e => setNotes(e.target.value)}
+                      onChange={(e) => setNotes(e.target.value)}
                     />
                   </div>
                 </div>
@@ -673,23 +585,19 @@ const PaymentModal = ({
                   Save as Pending
                 </Button>
                 <Button
-                  onClick={handlePayment}
-                  className="w-full sm:w-auto"
-                  disabled={
-                    isProcessing ||
-                    (paymentMethod === 'CASH' && (parseFloat(cashReceived) || 0) < totalPayable) ||
-                    (paymentMethod === 'MOBILE_PAYMENT' && mobilePayment.status !== 'confirmed')
-                  }
+                  onClick={() => handlePaymentSubmission(PaymentStatus.COMPLETED)}
+                  className="w-full sm:w-auto min-w-[140px]"
+                  disabled={isProcessing || (selectedTab === 'CASH' && (parseFloat(cashReceived) || 0) < totalPayable)}
                 >
                   {isProcessing ? (
                     <>
-                      <motion.div className="mr-2 h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Processing...
                     </>
                   ) : (
                     <>
                       <Check className="mr-2 h-4 w-4" />
-                      Complete Payment
+                      {selectedTab === 'MOBILE_PAYMENT' ? 'Send Request & Pay' : 'Complete Payment'}
                     </>
                   )}
                 </Button>

@@ -33,6 +33,7 @@ export enum PaymentMethod {
   GIFT_CARD = 'GIFT_CARD',
   LOYALTY_POINTS = 'LOYALTY_POINTS',
   ON_ACCOUNT = 'ON_ACCOUNT',
+  MPESA = 'MPESA',
   OTHER = 'OTHER',
 }
 
@@ -146,7 +147,7 @@ export const useSyncOfflineSales = () => {
   };
 };
 
-
+const kenyanPhoneRegex = /^(?:254|\+254|0)?(7(?:(?:[129][0-9])|(?:0[0-8])|(?:4[0-1]))[0-9]{6})$/;
 
 export const ProcessSaleInputSchema = z
   .object({
@@ -173,7 +174,8 @@ export const ProcessSaleInputSchema = z
       .min(1, 'At least one cart item is required'),
 
     locationId: z.string({ required_error: 'Location ID is required' }).min(1, 'Location ID cannot be empty'),
-    saleNumber: z.string().optional().nullable(), // Will map to Transaction.number
+    saleNumber: z.string().optional().nullable(),
+    isWholesale: z.boolean().optional().default(false),
 
     customerId: z
       .string()
@@ -183,7 +185,6 @@ export const ProcessSaleInputSchema = z
         message: 'Customer ID cannot be empty if provided',
       }),
 
-    // NEW: Added businessAccountId for B2B POS sales
     businessAccountId: z
       .string()
       .optional()
@@ -191,6 +192,25 @@ export const ProcessSaleInputSchema = z
       .refine(val => !val || val.length > 0, {
         message: 'Business Account ID cannot be empty if provided',
       }),
+
+    // Payment Details
+    paymentMethod: z.nativeEnum(PaymentMethod, {
+      required_error: 'Payment method is required',
+      invalid_type_error: 'Invalid payment method',
+    }),
+
+    paymentStatus: z.nativeEnum(PaymentStatus, {
+      required_error: 'Payment status is required',
+      invalid_type_error: 'Invalid payment status',
+    }),
+
+    // M-Pesa Specific
+    mpesaPhoneNumber: z
+      .string()
+      .regex(kenyanPhoneRegex, 'Invalid Kenyan Phone Number')
+      .transform(val => val.replace(/^\+/, '').replace(/^0/, '254')) // Normalize to 254
+      .optional()
+      .nullable(),
 
     amountReceived: z
       .number({
@@ -205,11 +225,6 @@ export const ProcessSaleInputSchema = z
       })
       .nonnegative('Change amount cannot be negative')
       .optional(),
-
-    paymentMethod: z.nativeEnum(PaymentMethod, {
-      required_error: 'Payment method is required',
-      invalid_type_error: 'Invalid payment method',
-    }),
 
     discountAmount: z
       .number({
@@ -234,11 +249,6 @@ export const ProcessSaleInputSchema = z
       invalid_type_error: 'Stock tracking must be a boolean',
     }),
 
-    paymentStatus: z.nativeEnum(PaymentStatus, {
-      required_error: 'Payment status is required',
-      invalid_type_error: 'Invalid payment status',
-    }),
-
     taxIds: z
       .array(z.string().min(1, 'Tax ID cannot be empty'), {
         invalid_type_error: 'Tax IDs must be an array of strings',
@@ -253,23 +263,40 @@ export const ProcessSaleInputSchema = z
       .max(new Date(), 'Sale date cannot be in the future')
       .optional(),
   })
+  // Refinement 1: Require Phone Number if M-Pesa
   .refine(
     data => {
-      // Validate that amountReceived is provided for non-pending payments
-      // Changed 'ON_ACCOUNT' to 'CREDIT' as per new schema
+      if (data.paymentMethod === 'MPESA') {
+        return !!data.mpesaPhoneNumber;
+      }
+      return true;
+    },
+    {
+      message: 'Phone number is required for M-Pesa payments',
+      path: ['mpesaPhoneNumber'],
+    }
+  )
+  // Refinement 2: Validate Amount Received rules
+  .refine(
+    data => {
+      // If M-Pesa, we expect an amount to push, even if status is pending
+      if (data.paymentMethod === 'MPESA') {
+        return data.amountReceived !== undefined && data.amountReceived !== null && data.amountReceived > 0;
+      }
+      // Existing logic for other methods
       if (data.paymentStatus !== 'PENDING' && data.paymentMethod !== 'CREDIT') {
         return data.amountReceived !== undefined && data.amountReceived !== null;
       }
       return true;
     },
     {
-      message: 'Amount received is required for completed payments',
+      message: 'Amount to charge is required',
       path: ['amountReceived'],
     }
   )
+  // Refinement 3: Validate that amount covers the total for cash payments
   .refine(
     data => {
-      // Validate that amount covers the total for cash payments
       if (data.paymentMethod === 'CASH' && data.paymentStatus === 'COMPLETED') {
         return (
           data.amountReceived !== undefined &&
