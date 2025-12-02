@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { DollarSign, ArrowUp, ArrowDown, Lock, Unlock } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function CashDrawerPage() {
+export default function CashDrawerPage() {
   const settings = usePosStore((state) => state.settings)
   const cashDrawers = usePosStore((state) => state.cashDrawers)
   const activeCashDrawerId = usePosStore((state) => state.activeCashDrawerId)

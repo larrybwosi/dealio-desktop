@@ -1,4 +1,6 @@
+// components/layout/app-layout.tsx
 import { useState } from 'react';
+import { Sidebar } from '@/components/sidebar';
 import { Input } from '@/components/ui/input';
 import { Calendar, Search, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,19 +17,27 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { Outlet, useLocation } from 'react-router';
+import { Cart } from './cart';
 
-export default function Home() {
+export default function Layout() {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
-
   const { checkOut, currentMember } = useAuth();
+  const location = useLocation();
 
   const handleCheckout = () => {
     checkOut();
     setShowCheckoutDialog(false);
   };
 
+  // Show sidebar for all routes except checkout/setup
+  const showSidebar = !['/checkin', '/setup'].includes(location.pathname);
+  // Show cart only on order page
+  const showCart = location.pathname === '/order';
+
   return (
     <div className="flex h-screen overflow-hidden">
+      {showSidebar && <Sidebar />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
@@ -63,8 +73,13 @@ export default function Home() {
             </Button>
           </div>
         </header>
+
+        <div className="flex-1 overflow-auto">
+          <Outlet />
+        </div>
       </div>
 
+      {showCart && <Cart />}
 
       <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
         <AlertDialogContent>

@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Plus, Edit2, Trash2, Users, MapPin, CheckCircle2, Clock, Ban } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-export function ManageTablesPage() {
+export default function ManageTablesPage() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTable, setEditingTable] = useState<Table | null>(null)
   const [filterSection, setFilterSection] = useState<string>("all")

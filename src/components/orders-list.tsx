@@ -6,11 +6,11 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ShoppingBag, Truck, UtensilsCrossed, ChevronDown, ChevronUp } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { OrderDetailsDialog } from "./order-details-dialog"
+import { OrderDetailsDialog } from "@/components/order-details-dialog"
 import type { Order } from "@/store/store"
-import PaymentDialog from "./pos/payment-dialog"
+import PaymentDialog from "@/components/pos/payment-dialog"
 
-export function OrdersList() {
+export default function PendingOrdersList() {
   const [isExpanded, setIsExpanded] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)

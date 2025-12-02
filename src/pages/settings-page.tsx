@@ -16,14 +16,14 @@ import { ScanBarcode, Play, Square, RefreshCcw, Search } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
-import PrinterSettings from './printer.config';
+import PrinterSettings from '@/components/printer.config';
 
 interface HidDevice {
   vid: number;
   pid: number;
   name: string;
 }
-export function SettingsPage() {
+export default function SettingsPage() {
   const settings = usePosStore(state => state.settings);
   const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
   const toggleSidebarItem = usePosStore(state => state.toggleSidebarItem);

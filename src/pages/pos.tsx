@@ -16,15 +16,16 @@ import {
   PackageOpen
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BarcodeScannerDialog } from './barcode-scanner-dialog';
+import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
-import { Skeleton } from './ui/skeleton';
+import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
 import { useInView } from 'react-intersection-observer';
 import { useDebounce } from 'use-debounce';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import PendingOrdersList from '@/components/orders-list';
 
-export function ProductList() {
+export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [inputValue, setInputValue] = useState('');
   const [knownCategories, setKnownCategories] = useState<Set<string>>(new Set());
@@ -53,6 +54,7 @@ export function ProductList() {
 
   // 3. Store Actions
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
+  const businessConfig = usePosStore(state => state.getBusinessConfig());
 
   // 4. Infinite Scroll Observer
   const { ref, inView } = useInView();
@@ -68,14 +70,10 @@ export function ProductList() {
     return data?.pages.flatMap(page => page.products) || [];
   }, [data]);
 
-  // Dynamic Category Extraction
-  // We only update the category list when viewing 'all' to prevent the list 
-  // from shrinking when a specific category is selected (and the API returns filtered results)
   useEffect(() => {
     if (activeCategory === 'all' && allProducts.length > 0) {
       const categories = new Set(knownCategories);
       allProducts.forEach((p: any) => {
-        // Assuming your product object has a 'category' string field
         if (p.category) categories.add(p.category);
       });
       setKnownCategories(new Set(Array.from(categories).sort()));
@@ -92,11 +90,8 @@ export function ProductList() {
         setInputValue('');
         searchInputRef.current?.blur();
       } else if (e.key.length === 1) {
-        // Only focus if it's a letter/number
         if (/[a-zA-Z0-9]/.test(e.key)) {
             searchInputRef.current?.focus();
-            // We rely on the native input behavior after focus, 
-            // or we can append manually if focus doesn't trigger input
         }
       }
     };
@@ -141,6 +136,7 @@ export function ProductList() {
 
   return (
     <div className="flex flex-col h-full bg-background/50">
+      {businessConfig.features.showOrdersList && <PendingOrdersList />}
       
       {/* --- Header Section (Sticky) --- */}
       <div className="flex flex-col gap-4 p-4 pb-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 sticky top-0 border-b">

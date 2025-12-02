@@ -8,7 +8,7 @@ import { TrendingUp, DollarSign, ShoppingCart, Package, Calendar } from "lucide-
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export function AnalyticsPage() {
+export default function AnalyticsPage() {
   const settings = usePosStore((state) => state.settings)
   const getDailySummary = usePosStore((state) => state.getDailySummary)
   const getTopProducts = usePosStore((state) => state.getTopProducts)

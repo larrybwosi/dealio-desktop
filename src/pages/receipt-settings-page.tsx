@@ -36,7 +36,7 @@ const PRESETS = {
   modern: { template: 'modern', fontFamily: 'sans', textAlignment: 'center', fontSize: 'medium', showBorder: false },
 };
 
-export function ReceiptSettingsPage() {
+export default function ReceiptSettingsPage() {
   const settings = usePosStore(state => state.settings);
   const receiptConfig = usePosStore(state => state.settings.receiptConfig);
   const updateReceiptConfig = usePosStore(state => state.updateReceiptConfig);

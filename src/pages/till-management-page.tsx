@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DollarSign, TrendingUp, TrendingDown, AlertCircle, Lock, Unlock, Plus, Minus, Calculator } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export function TillManagementPage() {
+export default function TillManagementPage() {
   const settings = usePosStore((state) => state.settings)
   const cashDrawers = usePosStore((state) => state.cashDrawers)
   const activeCashDrawerId = usePosStore((state) => state.activeCashDrawerId)

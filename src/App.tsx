@@ -2,9 +2,21 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
 import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
-import Home from '@/pages';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { UpdaterProvider } from '@/lib/UpdateProvider';
+import AppLayout from '@/components/app.layout';
+import { HistoryPage } from '@/components/history-page';
+import AnalyticsPage from '@/pages/analytics-page';
+import CustomersPage from '@/pages/customers-page';
+import ManageTablesPage from '@/pages/manage-tables-page';
+import CashDrawerPage from '@/pages/cash-drawer-page';
+import TillManagementPage from '@/pages/till-management-page';
+import ReceiptSettingsPage from '@/pages/receipt-settings-page';
+import PendingTransactionsPage from '@/pages/pending-transactions';
+import CreateOrderPage from '@/pages/create-order';
+import { POS } from '@/pages/pos';
+import SettingsPage from '@/pages/settings-page';
+
 
 const AppRoutes = () => {
   const { deviceKey, currentLocation } = useAuthStore();
@@ -20,7 +32,19 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/" element={<AppLayout />}>
+        <Route index element={<POS />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/history" element={<HistoryPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/manage-tables" element={<ManageTablesPage />} />
+        <Route path="/cash-drawer" element={<CashDrawerPage />} />
+        <Route path="/till-management" element={<TillManagementPage />} />
+        <Route path="/receipt-settings" element={<ReceiptSettingsPage />} />
+        <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
+        <Route path="/create-order" element={<CreateOrderPage />} />
+      </Route>
       <Route path="/checkin" element={<CheckinPage />} />
       <Route path="/setup" element={<SetupPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
@@ -33,7 +57,7 @@ const DynamicRenderer = () => {
 
   return (
     <Router>
-      <UpdaterProvider autoDownload={true} checkInterval={60 * 60 * 1000 * 4}> {/* 4 hours */}
+      <UpdaterProvider autoDownload={true} checkInterval={60 * 60 * 1000 * 4}>
         <AppRoutes />
       </UpdaterProvider>
     </Router>

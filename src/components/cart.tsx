@@ -12,8 +12,16 @@ import { CustomerSelector } from './customer-selector';
 import { AgeVerificationDialog } from './age-verification-dialog';
 import type { Order, CartItem, Customer, OrderType } from '@/types';
 import { ReceiptDialog } from './receipt-dialog';
+import { useLocation } from 'react-router';
 
 export function Cart() {
+  
+  const location = useLocation();
+  
+  // Only render on order page
+  if (location.pathname !== '/') {
+    return null;
+  }
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [ageVerificationOpen, setAgeVerificationOpen] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);
@@ -48,8 +56,6 @@ export function Cart() {
       return sum + price * item.quantity;
     }, 0);
 
-    // Extract tax from the total (Assuming prices are tax-inclusive)
-    // Formula: Tax = Total - (Total / (1 + TaxRate/100))
     const extractedTax = totalWithTax - totalWithTax / (1 + taxRate / 100);
     const subTotalBeforeTax = totalWithTax - extractedTax;
 
@@ -107,17 +113,9 @@ export function Cart() {
 const handlePaymentComplete = useCallback(
   (completedOrder: Order) => {
     console.log('Order Completed:', completedOrder);
-
-    // 1. Set the completed order data
     setLastCompletedOrder(completedOrder);
-
-    // 2. Close payment modal
     setPaymentDialogOpen(false);
-
-    // 3. Open Receipt Dialog
     setReceiptDialogOpen(true);
-
-    // 4. Reset local logic
     setAgeVerified(false);
 
     // Note: We do NOT call resetOrder() here immediately anymore.

@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Search, Plus, Mail, Phone, Edit, Trash2, User } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
-export function CustomersPage() {
+export default function CustomersPage() {
   const customers = usePosStore((state) => state.customers)
   const addCustomer = usePosStore((state) => state.addCustomer)
   const updateCustomer = usePosStore((state) => state.updateCustomer)
