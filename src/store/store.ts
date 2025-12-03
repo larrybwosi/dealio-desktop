@@ -65,7 +65,7 @@ export interface OrderItem {
   isWholesale?: boolean;
   imageUrl?: string;
   sku?: string;
-  note?: string;
+  notes?: string;
 }
 
 export interface Order {
@@ -337,6 +337,7 @@ interface PosStore {
   setOrderType: (type: OrderType) => void;
   addItemToOrder: (product: Product, unit: SellableUnit, quantity: number, options?: { isWholesale?: boolean }) => void;
   updateItemQuantity: (productId: string, unitId: string, quantity: number) => void;
+  updateItemInOrder: (item: OrderItem) => void;
   removeItemFromOrder: (productId: string, unitId: string) => void;
   resetOrder: () => void;
   completeOrder: (paymentMethod: string, discountAmount: number) => void;
@@ -629,6 +630,19 @@ export const usePosStore = create<PosStore>()(
             ...state.currentOrder,
             items: state.currentOrder.items.map(item =>
               item.productId === productId && item.selectedUnit.unitId === unitId ? { ...item, quantity } : item
+            ),
+          },
+        })),
+
+      updateItemInOrder: (updatedItem) =>
+        set(state => ({
+          currentOrder: {
+            ...state.currentOrder,
+            items: state.currentOrder.items.map(item =>
+              item.productId === updatedItem.productId && 
+              item.selectedUnit.unitId === updatedItem.selectedUnit.unitId
+                ? { ...item, ...updatedItem }
+                : item
             ),
           },
         })),

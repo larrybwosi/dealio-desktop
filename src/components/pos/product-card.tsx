@@ -30,7 +30,7 @@ interface Variant {
 }
 
 interface Product {
-  productId?: string; // Optional if not strictly needed for display
+  productId?: string;
   name: string;
   category: string;
   imageUrl?: string;
@@ -94,21 +94,29 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
     return Number(currentUnit.price);
   }, [currentUnit, pricingMode]);
 
+  // --- MODIFIED LOGIC START ---
   const handleAdd = () => {
-    if (qty <= 0 || !currentVariant || !currentUnit) return;
+    if (!currentVariant || !currentUnit) return;
+    
+    // If user hasn't selected a number (qty is 0), default to 1
+    const quantityToAdd = qty > 0 ? qty : 1;
+
+    // specific check to ensure we don't add 1 if stock is actually 0
+    if (quantityToAdd > stock) return; 
 
     onAddToCart({
       product: { ...product, imageUrls: [product.imageUrl] },
       variant: currentVariant,
       unit: { ...currentUnit, price },
-      quantity: qty,
+      quantity: quantityToAdd,
     });
     setQty(0); // Reset after adding
   };
+  // --- MODIFIED LOGIC END ---
 
   const handleQtyChange = (val: number) => {
     if (val < 0) return;
-    if (val > stock) return; // Prevent exceeding stock
+    if (val > stock) return; 
     setQty(val);
   };
 
@@ -159,7 +167,8 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
       </div>
 
       {/* --- Content Section --- */}
-      <div className="flex flex-col flex-1 p-3 space-y-3">
+      {/* MODIFIED: Changed space-y-3 to space-y-2 to reduce distance between Name and Separator */}
+      <div className="flex flex-col flex-1 p-3 space-y-2">
         
         {/* Title & Category */}
         <div className="space-y-1">
@@ -275,11 +284,13 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
                         "flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide", 
                         qty > 0 ? "animate-in zoom-in-95 duration-200" : ""
                     )}
-                    disabled={isOutOfStock || qty <= 0}
+                    /* MODIFIED: Removed 'qty <= 0' check so it's only disabled if out of stock */
+                    disabled={isOutOfStock}
                     onClick={handleAdd}
                     variant={qty > 0 ? "default" : "secondary"}
                 >
                     <ShoppingCart className="w-3.5 h-3.5 mr-2" />
+                    {/* Optional: You could change text to "Add 1" if qty is 0, but "Add" works fine */}
                     Add
                 </Button>
             </div>

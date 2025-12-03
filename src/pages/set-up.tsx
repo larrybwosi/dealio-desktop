@@ -28,6 +28,7 @@ import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
+import { API_ENDPOINT } from '@/lib/axios';
 
 // --- Types ---
 interface Location {
@@ -66,7 +67,7 @@ const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
       <div className="grid gap-4">
         {[
           { icon: Laptop, title: "1. Login to Dashboard", desc: "Sign in to your Merchant Portal." },
-          { icon: Settings, title: "2. Go to Settings", desc: "Navigate to Developer > API Keys." },
+          { icon: Settings, title: "2. Go to Settings", desc: "Navigate to Settings > API Keys." },
           { icon: Key, title: "3. Generate Key", desc: "Create a new 'POS Terminal' key." },
           { icon: ClipboardCheck, title: "4. Copy & Paste", desc: "Copy the secret starting with pk_live." }
         ].map((item, i) => (
@@ -81,7 +82,7 @@ const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
       </div>
 
       <Button variant="outline" className="w-full h-11" asChild>
-        <a href="https://dashboard.dealio.com" target="_blank" rel="noreferrer">
+        <a href={`${API_ENDPOINT}/settings/integrations?tab=api_keys`} target="_blank" rel="noreferrer">
           Open Dashboard <ExternalLink className="w-4 h-4 ml-2" />
         </a>
       </Button>
@@ -313,13 +314,7 @@ export default function SetupPage() {
   }, []);
 
   return (
-    // FULL WIDTH CONTAINER - No rounded corners, fills viewport
     <div className="h-screen w-screen flex bg-white dark:bg-zinc-950 overflow-hidden font-sans select-none">
-      
-      {/* TAURI DRAG REGION 
-        This transparent div allows the user to drag the window 
-        without a native title bar.
-      */}
       <div 
         data-tauri-drag-region 
         className="absolute top-0 left-0 w-full h-10 z-50 bg-transparent" 

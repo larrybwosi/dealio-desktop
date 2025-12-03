@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router';
 import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
@@ -17,6 +17,14 @@ import CreateOrderPage from '@/pages/create-order';
 import { POS } from '@/pages/pos';
 import SettingsPage from '@/pages/settings-page';
 
+// Layout wrapper component that uses AppLayout
+const LayoutWrapper = () => {
+  return (
+    <AppLayout>
+      <Outlet /> {/* This renders the nested routes */}
+    </AppLayout>
+  );
+};
 
 const AppRoutes = () => {
   const { deviceKey, currentLocation } = useAuthStore();
@@ -32,8 +40,9 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      <Route path="/" element={<AppLayout />}>
-        <Route index element={<POS />} />
+      {/* Routes with AppLayout wrapper */}
+      <Route element={<LayoutWrapper />}>
+        <Route index path='/' element={<POS />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
@@ -45,6 +54,8 @@ const AppRoutes = () => {
         <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
         <Route path="/create-order" element={<CreateOrderPage />} />
       </Route>
+      
+      {/* Routes without AppLayout */}
       <Route path="/checkin" element={<CheckinPage />} />
       <Route path="/setup" element={<SetupPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />

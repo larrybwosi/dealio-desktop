@@ -17,10 +17,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/hooks/use-auth';
-import { Outlet, useLocation } from 'react-router';
+import { useLocation } from 'react-router';
 import { Cart } from './cart';
 
-export default function Layout() {
+interface AppLayoutProviderProps {
+  children: React.ReactNode;
+}
+
+export default function AppLayoutProvider({ children }: AppLayoutProviderProps) {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const { checkOut, currentMember } = useAuth();
   const location = useLocation();
@@ -33,7 +37,7 @@ export default function Layout() {
   // Show sidebar for all routes except checkout/setup
   const showSidebar = !['/checkin', '/setup'].includes(location.pathname);
   // Show cart only on order page
-  const showCart = location.pathname === '/order';
+  const showCart = location.pathname === '/';
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -75,7 +79,7 @@ export default function Layout() {
         </header>
 
         <div className="flex-1 overflow-auto">
-          <Outlet />
+          {children}
         </div>
       </div>
 

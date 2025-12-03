@@ -15,6 +15,7 @@ export interface CartItem {
   productName: string;
   quantity: number;
   price: number;
+  notes?: string;
   imageUrl?: string;
   // Variant/Unit details specific to the modal's mapping
   variantId?: string;

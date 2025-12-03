@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "dealio-desktop",
+  "productName": "Dealio",
   "version": "1.0.9",
-  "identifier": "com.dealio.desktop",
+  "identifier": "com.dealio.pos",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
