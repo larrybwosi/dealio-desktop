@@ -93,7 +93,7 @@ export function generateKitchenReceiptData(order: Order) {
       productName: item.productName,
       variantName: item.variantName,
       quantity: item.quantity,
-      note: item.note,
+      note: item.notes,
     })),
     instructions: order.instructions,
     timestamp: new Date(order.createdAt),

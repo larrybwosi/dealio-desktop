@@ -13,6 +13,12 @@ export interface SellableUnit {
   isBaseUnit: boolean;
 }
 
+export interface Variant {
+  variantId: string;
+  variantName: string;
+  barcode: string;
+}
+
 export interface PosProduct {
   productId: string;
   productName: string;
@@ -24,6 +30,7 @@ export interface PosProduct {
   imageUrl?: string;
   stock: number;
   sellableUnits: SellableUnit[];
+  variants: Variant[];
 }
 
 // Add pagination metadata interface

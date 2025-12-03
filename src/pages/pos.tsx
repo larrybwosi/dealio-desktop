@@ -13,7 +13,10 @@ import {
   RefreshCw, 
   Loader2, 
   X,
-  PackageOpen
+  PackageOpen,
+  CheckCircle2,
+  WifiOff,
+  Wifi
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
@@ -24,6 +27,8 @@ import { useInView } from 'react-intersection-observer';
 import { useDebounce } from 'use-debounce';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import PendingOrdersList from '@/components/orders-list';
+import { useScanner } from '@/hooks/use-scanner';
+import { toast } from 'sonner';
 
 export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -36,6 +41,17 @@ export function POS() {
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastProcessedBarcode = useRef<string | null>(null);
+
+  // Initialize scanner hook
+  const { 
+    startScanner, 
+    stopScanner, 
+    isScanning, 
+    isConnected, 
+    lastScanned, 
+    error: scannerError 
+  } = useScanner();
 
   // 2. Fetching Logic
   const { 
@@ -117,6 +133,96 @@ export function POS() {
     await refetch();
   };
 
+  // Initialize scanner on mount
+  useEffect(() => {
+    startScanner();
+    return () => {
+      stopScanner();
+    };
+  }, []);
+
+  // Handle barcode scans
+  useEffect(() => {
+    if (!lastScanned || lastScanned === lastProcessedBarcode.current) {
+      return;
+    }
+
+    lastProcessedBarcode.current = lastScanned;
+
+    // Search for product by barcode in loaded products
+    const product = allProducts.find((p: any) => {
+      // Check main product barcode
+      if (p.barcode === lastScanned) return true;
+      
+      // Check variant barcodes
+      return p.variants?.some((v: any) => v.barcode === lastScanned);
+    });
+
+    if (!product) {
+      toast.error('Product Not Found', {
+        description: `No product found with barcode: ${lastScanned}`,
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Find the matching variant or use default
+    const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
+    
+    if (!variant) {
+      toast.error('Invalid Product', {
+        description: `Product ${product.productName} has no valid variants`,
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Check stock
+    if (product.stock <= 0) {
+      toast.warning('Out of Stock', {
+        description: `${product.productName} is currently out of stock`,
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Find default unit
+    const defaultUnit = product.sellableUnits?.find((u: any) => u.isBaseUnit) || product.sellableUnits?.[0];
+    
+    if (!defaultUnit) {
+      toast.error('Invalid Product', {
+        description: `Product ${product.productName} has no sellable units`,
+        duration: 3000,
+      });
+      return;
+    }
+
+    // Add to cart
+    addItemToOrder(
+      { ...product, variantId: variant.variantId },
+      { ...defaultUnit, },
+      1,
+      { isWholesale: pricingMode === 'wholesale' }
+    );
+
+    // Success feedback
+    toast.success('Added to Cart', {
+      description: `${product.productName} (${variant.variantName || 'Default'})`,
+      duration: 2000,
+      icon: <CheckCircle2 className="w-5 h-5" />,
+    });
+  }, [lastScanned, allProducts, addItemToOrder, pricingMode]);
+
+  // Show scanner error toasts
+  useEffect(() => {
+    if (scannerError) {
+      toast.error('Scanner Error', {
+        description: scannerError,
+        duration: 4000,
+      });
+    }
+  }, [scannerError]);
+
   if (isError) {
     return (
       <div className="flex flex-col items-center justify-center h-full space-y-4 bg-muted/10 rounded-lg border border-dashed p-10">
@@ -143,17 +249,38 @@ export function POS() {
         
         {/* Top Bar: Title & Primary Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-             <div className="p-2 bg-primary/10 rounded-lg">
-                <PackageOpen className="w-5 h-5 text-primary" />
-             </div>
-             <div>
-                 <h2 className="text-xl font-bold tracking-tight">Product List</h2>
-                 <p className="text-xs text-muted-foreground hidden sm:block">
-                     {allProducts.length} items loaded • {pricingMode} mode
-                 </p>
-             </div>
-          </div>
+           <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                 <PackageOpen className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                  <h2 className="text-xl font-bold tracking-tight">Product List</h2>
+                  <p className="text-xs text-muted-foreground hidden sm:block">
+                      {allProducts.length} items loaded • {pricingMode} mode
+                  </p>
+              </div>
+              {/* Scanner Status Indicator */}
+              {isScanning && (
+                <div className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
+                  isConnected 
+                    ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" 
+                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
+                )}>
+                  {isConnected ? (
+                    <>
+                      <Wifi className="w-3.5 h-3.5" />
+                      <span>Scanner Ready</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-3.5 h-3.5" />
+                      <span>Scanner Connecting...</span>
+                    </>
+                  )}
+                </div>
+              )}
+           </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto">
             {/* Mode Switcher - Segmented Control Style */}

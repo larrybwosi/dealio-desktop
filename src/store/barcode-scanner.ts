@@ -26,6 +26,7 @@ interface ScannerState {
   addScannedItem: (code: string) => void;
   setError: (error: string | null) => void;
   clearHistory: () => void;
+  clearLastScanned: () => void;
 }
 
 export const useScannerStore = create<ScannerState>()(
@@ -60,6 +61,8 @@ export const useScannerStore = create<ScannerState>()(
       setError: (error) => set({ error }),
       
       clearHistory: () => set({ scanHistory: [], lastScanned: null }),
+      
+      clearLastScanned: () => set({ lastScanned: null }),
     }),
     {
       name: 'scanner-config-storage', // name of the item in localStorage

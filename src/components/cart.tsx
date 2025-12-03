@@ -21,10 +21,9 @@ import {
   Edit2, 
   Minus, 
   Plus, 
-  PanelRightClose, // Icon for collapse
-  PanelRightOpen,  // Icon for expand
+  PanelRightClose, 
+  PanelRightOpen, 
   ShoppingCart, 
-  GripVertical     // Icon for resize handle visual
 } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
@@ -36,7 +35,7 @@ import { cn } from '@/lib/utils';
 export function Cart() {
   // --- Layout & Resize States ---
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [width, setWidth] = useState(384); // Default 384px (w-96)
+  const [width, setWidth] = useState(384);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
@@ -279,7 +278,7 @@ export function Cart() {
             <div className="flex-1">
                 <h2 className="text-lg md:text-xl font-semibold">Order Details</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                    #{currentOrder.id || 'New Order'}
+                    #{'New Order'}
                 </p>
             </div>
             

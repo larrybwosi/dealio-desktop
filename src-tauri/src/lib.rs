@@ -2,7 +2,6 @@ use hidapi::HidApi;
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_printer_v2::init;
 
-// Define the payload structure for the event
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
