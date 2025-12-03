@@ -72,49 +72,38 @@ export enum TransactionType {
  * Hook to process a new sale.
  * Automatically handles offline queuing.
  */
+/**
+ * Hook to process a new sale.
+ * NOW LOCAL-FIRST: Saves to local DB immediately, then syncs in background.
+ */
 export const useProcessSale = () => {
   const addToQueue = useOfflineSaleStore(state => state.addToQueue);
-  const locationId = useAuthStore(state => state.currentLocation?.id);
+  const { syncSales } = useSyncOfflineSales();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: ProcessSaleInput) => processSaleApi(data, locationId),
+    mutationFn: async (data: ProcessSaleInput) => {
+      // 1. Local First: Save to store immediately
+      const queuedSale = addToQueue(data);
+      
+      // 2. Trigger background sync (fire and forget)
+      // We don't await this because we want immediate UI feedback
+      syncSales();
 
-    // We use onMutate to allow for immediate UI feedback if needed
-    onMutate: async () => {
-      // Cancel outgoing refetches so they don't overwrite our optimistic update
-      await queryClient.cancelQueries({ queryKey: ['sales'] });
+      return queuedSale;
     },
 
     onSuccess: () => {
       toast.success('Sale processed successfully');
-      // Invalidate relevant queries to refresh data
+      // Invalidate queries to show the new sale in lists (if we pull from local state or if we want to refresh)
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
     },
 
-    onError: (error: AxiosError | Error, variables: ProcessSaleInput) => {
-      // CHECK: Is this a network error?
-      if (isNetworkError(error)) {
-        console.warn('Network error detected. Queuing sale.');
-
-        // 1. Save to Zustand Store
-        addToQueue(variables);
-
-        // 2. Notify user differently
-        toast.warning('Device offline. Sale saved to outbox and will sync later.');
-
-        // 3. OPTIONAL: You might want to treat this as a "soft success"
-        // to clear the cart in the UI.
-        // If so, you'd handle clearing logic in the component based on this specific error flow.
-        return;
-      }
-
-      // Handle standard server errors (400, 500)
-      const errorMessage = (error as AxiosError<{ error: string }>)?.response?.data?.error || 'Failed to process sale';
-
-      toast.error(errorMessage);
-    },
+    onError: (error) => {
+      console.error("Critical error saving sale locally:", error);
+      toast.error("Failed to save sale locally. Please try again.");
+    }
   });
 };
 
@@ -123,36 +112,53 @@ export const useProcessSale = () => {
  * Call this inside a useEffect in your main layout or a "Sync" button.
  */
 export const useSyncOfflineSales = () => {
-  const { queue, removeFromQueue } = useOfflineSaleStore();
+  const { getPendingSales, updateQueueItem, removeFromQueue } = useOfflineSaleStore();
   const queryClient = useQueryClient();
+  const locationId = useAuthStore(state => state.currentLocation?.id);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (queue.length === 0) return;
+      const pendingSales = getPendingSales();
+      if (pendingSales.length === 0) return;
 
       const results = [];
 
-      // Process queue sequentially to maintain order
-      for (const item of queue) {
+      for (const sale of pendingSales) {
         try {
-          const result = await processSaleApi(item.data);
-          removeFromQueue(item.id); // Remove from queue only on success
+          // Update status to SYNCING
+          updateQueueItem(sale.id, { status: 'SYNCING' });
+
+          // Attempt API call
+          const result = await processSaleApi(sale.data, locationId);
+
+          // Success!
+          updateQueueItem(sale.id, { status: 'SYNCED' });
+          // Optional: Remove from queue after a delay or immediately if we don't want history
+          removeFromQueue(sale.id); 
+          
           results.push(result);
         } catch (error) {
-          // If it's a validation error (400), we must remove it or it will block the queue forever.
-          // If it's still a network error, we leave it in the queue.
-          if (!isNetworkError(error)) {
-            console.error('Validation error in queued item, removing:', item);
-            removeFromQueue(item.id);
-            // Ideally, you would move this to a "Failed Permanently" log
-          }
+          console.error(`Failed to sync sale ${sale.id}:`, error);
+          
+          const isNetwork = isNetworkError(error);
+          const errorMessage = (error as any)?.response?.data?.error || (error as Error).message;
+
+          // Update status to FAILED but keep in queue
+          updateQueueItem(sale.id, { 
+            status: 'FAILED', 
+            retryCount: (sale.retryCount || 0) + 1,
+            lastError: errorMessage
+          });
+
+          // If it's a validation error (400), it might never succeed. 
+          // For now, we keep it as FAILED so the user can see it in a "Failed Sales" list.
         }
       }
       return results;
     },
     onSuccess: data => {
       if (data && data.length > 0) {
-        toast.success(`${data.length} offline sales synced successfully.`);
+        // toast.success(`${data.length} sales synced to server.`);
         queryClient.invalidateQueries({ queryKey: ['sales'] });
         queryClient.invalidateQueries({ queryKey: ['inventory'] });
       }
@@ -162,7 +168,7 @@ export const useSyncOfflineSales = () => {
   return {
     syncSales: syncMutation.mutate,
     isSyncing: syncMutation.isPending,
-    pendingCount: queue.length,
+    pendingCount: getPendingSales().length,
   };
 };
 

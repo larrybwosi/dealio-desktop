@@ -11,7 +11,14 @@ import {
   CheckCircle2,
   Truck,
   Download,
+  RefreshCw, 
+  Loader2    
 } from 'lucide-react';
+import { toast } from 'sonner'; 
+
+import { isTauri } from '@tauri-apps/api/core';
+import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { documentDir } from '@tauri-apps/api/path';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,7 +43,7 @@ interface Transaction {
   date: string;
   status: 'pending' | 'partially_paid' | 'paid' | 'dispatched'; 
   fulfillmentId?: string | null;
-  invoiceLink?: string; // Add invoice link field
+  invoiceLink?: string; 
 }
 
 // --- Fetch Function ---
@@ -51,9 +58,17 @@ export default function PendingTransactionsPage() {
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
+  
+  // State for download tracking
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // --- Query: Get Transactions ---
-  const { data: transactions = [], isLoading } = useQuery({
+  const { 
+    data: transactions = [], 
+    isLoading, 
+    isRefetching, 
+    refetch 
+  } = useQuery({
     queryKey: ['transactions'],
     queryFn: () => fetchTransactions(),
   });
@@ -69,55 +84,87 @@ export default function PendingTransactionsPage() {
     setIsReconcileOpen(true);
   };
 
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['transactions'] });
+    refetch();
+  };
+
   const handleDownloadInvoice = async (tx: Transaction) => {
     if (!tx.invoiceLink) return;
-    
+    if (isDownloading) return;
+
+    setIsDownloading(true);
+
     try {
-      // You can use different approaches depending on how your invoice links work:
-      
-      // Approach 1: Direct download if it's a direct file URL
-      const link = document.createElement('a');
-      link.href = tx.invoiceLink;
-      link.download = `invoice-${tx.number || tx.id.slice(-6)}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      // Approach 2: If you need to get the file from your API
-      // const response = await apiClient.get(tx.invoiceLink, {
-      //   responseType: 'blob'
-      // });
-      // const url = window.URL.createObjectURL(new Blob([response.data]));
-      // const link = document.createElement('a');
-      // link.href = url;
-      // link.download = `invoice-${tx.number || tx.id.slice(-6)}.pdf`;
-      // document.body.appendChild(link);
-      // link.click();
-      // window.URL.revokeObjectURL(url);
-      // document.body.removeChild(link);
-      
-      // Approach 3: If it's a URL that should open in a new tab
-      // window.open(tx.invoiceLink, '_blank');
-      
+      // 1. Fetch the file as a Blob from the API link
+      const response = await apiClient.get(tx.invoiceLink, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+
+      // Clean up filename
+      const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
+      const fileName = `Receipt_${safeOrderNum}.pdf`;
+
+      if (isTauri()) {
+        // --- TAURI DOWNLOAD LOGIC ---
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Ensure 'Dealio' directory exists in Downloads
+        if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
+          await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
+        }
+
+        const documentDirPath = await documentDir();
+        const dealioFolderPath = `${documentDirPath}/Dealio`;
+        const filePath = `${dealioFolderPath}/${fileName}`;
+        
+        await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
+
+        toast.success('Saved to Downloads', {
+          action: {
+            label: 'Open',
+            onClick: async () => {
+              try {
+                const { openPath } = await import('@tauri-apps/plugin-opener');
+                await openPath(filePath);
+              } catch (e) {
+                console.error('Could not open file', e);
+              }
+            },
+          },
+          duration: 5000,
+        });
+      } else {
+        // --- BROWSER DOWNLOAD LOGIC ---
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        toast.success('Download started');
+      }
     } catch (error) {
-      console.error('Failed to download invoice:', error);
-      // You might want to add toast notification here
-      // toast.error('Failed to download invoice');
+      console.error('Download error:', error);
+      toast.error('Failed to save receipt');
+    } finally {
+      setIsDownloading(false);
     }
   };
 
-  // --- Helpers ---
   const formatCurrency = (amount: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'KSH' }).format(amount);
 
   const getActiveTransaction = () => transactions.find(t => t.id === activeTxId);
 
-  // --- Filter Logic ---
   const pendingTx = transactions.filter(t => t.status === 'pending');
   const dispatchedTx = transactions.filter(t => t.status === 'dispatched');
   const totalOutstanding = transactions.reduce((acc, curr) => acc + (curr.totalAmount - curr.paidAmount), 0);
 
-  // --- Table Component ---
   const TransactionTable = ({ data }: { data: Transaction[] }) => (
     <Table>
       <TableHeader>
@@ -131,9 +178,13 @@ export default function PendingTransactionsPage() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {isLoading ? (
+        {isLoading && data.length === 0 ? (
            <TableRow>
-             <TableCell colSpan={6} className="text-center h-24">Loading transactions...</TableCell>
+             <TableCell colSpan={6} className="text-center h-24">
+               <div className="flex items-center justify-center gap-2">
+                 <Loader2 className="h-4 w-4 animate-spin" /> Loading transactions...
+               </div>
+             </TableCell>
            </TableRow>
         ) : data.length === 0 ? (
           <TableRow>
@@ -194,9 +245,14 @@ export default function PendingTransactionsPage() {
                     {tx.invoiceLink && (
                       <DropdownMenuItem 
                         onClick={() => handleDownloadInvoice(tx)}
-                        className="text-green-600 focus:text-green-600"
+                        disabled={isDownloading}
+                        className="text-green-600 focus:text-green-600 cursor-pointer"
                       >
-                        <Download className="mr-2 h-4 w-4" /> 
+                        {isDownloading ? (
+                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                           <Download className="mr-2 h-4 w-4" /> 
+                        )}
                         Download Invoice
                       </DropdownMenuItem>
                     )}
@@ -231,8 +287,14 @@ export default function PendingTransactionsPage() {
           <p className="text-muted-foreground mt-1">Manage payments, balances, and outstanding invoices.</p>
         </div>
         <div className="flex gap-2">
-            <Button variant="outline" onClick={() => queryClient.invalidateQueries({ queryKey: ['transactions'] })}>
-                Refresh
+            {/* Enhanced Refresh Button */}
+            <Button 
+              variant="outline" 
+              onClick={handleRefresh}
+              disabled={isLoading || isRefetching}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+              Refresh
             </Button>
             <Button>
                 <Plus className="mr-2 h-4 w-4" /> Create Invoice

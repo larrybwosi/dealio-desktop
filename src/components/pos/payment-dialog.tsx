@@ -35,9 +35,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
-import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
+import { PaymentMethod, PaymentStatus, useProcessSale, processSaleApi } from '@/hooks/sales';
+import { useAuthStore } from '@/store/pos-auth-store';
 import { ably } from '@/lib/ably';
 import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
+import { toast } from 'sonner';
 
 // --- COMPONENT ---
 
@@ -135,6 +137,7 @@ const PaymentModal = ({
   // Hooks / Store
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const settings = usePosStore((state) => state.settings);
+  const locationId = useAuthStore(state => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
 
   const formatCurrency = useFormattedCurrency();
@@ -244,46 +247,50 @@ const PaymentModal = ({
     try {
       setMpesaStatus('IDLE');
       
-      // Submit to backend
-      // Note: We cast response to any here because standard useMutation types might not capture the custom meta fields
-      // returned by the specific 202 response unless typed explicitly in the hook.
-      const response: any = await createSale(payload);
+      // --- M-PESA LOGIC START (ONLINE ONLY) ---
+      if (payload.paymentMethod === 'MPESA') {
+        // Use direct API call for M-Pesa to get the server response (STK Push)
+        // This bypasses the local-first queue initially
+        const response: any = await processSaleApi(payload, locationId);
 
-      // --- M-PESA LOGIC START ---
-      if (payload.paymentMethod === 'MPESA' && response?.status === 202 && response?.meta?.ablyChannel) {
-        
-        setMpesaWaiting(true);
-        setMpesaStatus('WAITING');
+        if (response?.status === 202 && response?.meta?.ablyChannel) {
+          setMpesaWaiting(true);
+          setMpesaStatus('WAITING');
 
-        // Subscribe to Ably
-        const channel = ably?.channels.get(response.meta.ablyChannel);
+          // Subscribe to Ably
+          const channel = ably?.channels.get(response.meta.ablyChannel);
 
-        channel?.subscribe('payment-update', (msg) => {
-          if (msg.data.transactionId === response.id) {
-            if (msg.data.status === 'COMPLETED') {
-              setMpesaStatus('SUCCESS');
-              setMpesaWaiting(false);
-              
-              // Finalize UI
-              setTimeout(() => {
-                completeOrderFlow(payload, response);
+          channel?.subscribe('payment-update', (msg) => {
+            if (msg.data.transactionId === response.id) {
+              if (msg.data.status === 'COMPLETED') {
+                setMpesaStatus('SUCCESS');
+                setMpesaWaiting(false);
+                
+                // Finalize UI
+                setTimeout(() => {
+                  completeOrderFlow(payload, response);
+                  channel?.unsubscribe();
+                }, 1500);
+              } else {
+                setMpesaStatus('FAILED');
+                setMpesaWaiting(false);
+                setValidationErrors(['Payment failed or was cancelled. Please try again.']);
                 channel?.unsubscribe();
-              }, 1500);
-            } else {
-              setMpesaStatus('FAILED');
-              setMpesaWaiting(false);
-              setValidationErrors(['Payment failed or was cancelled. Please try again.']);
-              channel?.unsubscribe();
+              }
             }
-          }
-        });
-
+          });
+        } else {
+           // Fallback if no Ably channel (e.g. direct success or different flow)
+           completeOrderFlow(payload, response);
+        }
       } 
       // --- M-PESA LOGIC END ---
       
       else {
-        // Standard Success (Cash, Card, or direct confirmation)
-        completeOrderFlow(payload, response);
+        // Submit to backend (Local First) for Cash/Card
+        // response is now a QueuedSale object
+        const queuedSale: any = await createSale(payload);
+        completeOrderFlow(payload, queuedSale);
       }
 
     } catch (error) {
@@ -294,9 +301,10 @@ const PaymentModal = ({
   };
 
   const completeOrderFlow = (payload: ProcessSaleInput, response: any) => {
+    // Construct Order from local payload and response/queuedSale info
     const completedOrder: Order = {
         id: response?.id || orderId,
-        orderNumber: response?.orderNumber || `ORD-${Date.now()}`,
+        orderNumber: response?.orderNumber || `ORD-${Date.now().toString().slice(-6)}`, // Generate local order number if needed
         items: cartItems,
         customer: customer,
         subtotal: priceBeforeTax,
