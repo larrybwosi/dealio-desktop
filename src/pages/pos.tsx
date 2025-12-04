@@ -218,7 +218,7 @@ export function POS() {
     if (scannerError) {
       toast.error('Scanner Error', {
         description: scannerError,
-        duration: 4000,
+        duration: 2000,
       });
     }
   }, [scannerError]);

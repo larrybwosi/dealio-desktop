@@ -190,7 +190,7 @@ const PaymentModal = ({
   // --- CORE PAYMENT LOGIC ---
 
   const preparePayload = (status: PaymentStatus): ProcessSaleInput | null => {
-    const prismaMethod = mapUiMethodToPrisma(selectedTab);
+    const paymentMethod = mapUiMethodToPrisma(selectedTab);
 
     // Basic payload structure
     const payload: any = {
@@ -204,7 +204,7 @@ const PaymentModal = ({
       saleNumber: saleNumber,
       isWholesale: false,
       customerId: customer?.id || null,
-      paymentMethod: prismaMethod,
+      paymentMethod: paymentMethod,
       paymentStatus: status,
       enableStockTracking: true, // Or based on settings
       notes: notes,
@@ -213,11 +213,11 @@ const PaymentModal = ({
     };
 
     // Add method specific fields
-    if (prismaMethod === PaymentMethod.MPESA) {
+    if (paymentMethod === PaymentMethod.MPESA) {
       payload.mpesaPhoneNumber = normalizePhoneNumber(mpesaPhone, PHONE_CONFIG);
       payload.amountReceived = totalPayable;
       payload.change = 0;
-    } else if (prismaMethod === PaymentMethod.CASH) {
+    } else if (paymentMethod === PaymentMethod.CASH) {
       payload.amountReceived = parseFloat(cashReceived) || 0;
       payload.change = change;
       // payload.cashDrawerId = '...'; // If relevant
