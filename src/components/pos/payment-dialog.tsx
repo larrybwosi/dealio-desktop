@@ -39,7 +39,6 @@ import { PaymentMethod, PaymentStatus, useProcessSale, processSaleApi } from '@/
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ably } from '@/lib/ably';
 import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
-import { toast } from 'sonner';
 
 // --- COMPONENT ---
 
@@ -200,7 +199,7 @@ const PaymentModal = ({
         quantity: item.quantity,
         sellingUnitId: item.selectedUnit?.unitId || '',
       })),
-      locationId: 'LOC-DEFAULT', // Replace with actual location ID from store
+      locationId: locationId,
       saleNumber: saleNumber,
       isWholesale: false,
       customerId: customer?.id || null,
@@ -247,7 +246,6 @@ const PaymentModal = ({
     try {
       setMpesaStatus('IDLE');
       
-      // --- M-PESA LOGIC START (ONLINE ONLY) ---
       if (payload.paymentMethod === 'MPESA') {
         // Use direct API call for M-Pesa to get the server response (STK Push)
         // This bypasses the local-first queue initially
@@ -284,12 +282,12 @@ const PaymentModal = ({
            completeOrderFlow(payload, response);
         }
       } 
-      // --- M-PESA LOGIC END ---
       
       else {
         // Submit to backend (Local First) for Cash/Card
         // response is now a QueuedSale object
         const queuedSale: any = await createSale(payload);
+        console.log('Queued Sale:', queuedSale);
         completeOrderFlow(payload, queuedSale);
       }
 

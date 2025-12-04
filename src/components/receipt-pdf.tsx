@@ -301,13 +301,14 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
             return (
               <View key={i} style={styles.tableRow}>
                 <View style={styles.colItem}>
-                  <Text style={styles.itemName}>{item.productName}</Text>
-                  {/* Handle variant description like "Spicy" in the PDF */}
-                  {(item.variantName || item.sku) && (
-                    <Text style={styles.itemVariant}>
-                      {item.variantName || item.sku}
-                    </Text>
-                  )}
+                  <Text style={styles.itemName}>
+                    {item.productName}
+                    {/* Show variant in brackets if it exists and is not "Default" or "Default Variant" */
+                    (item.variantName || item.sku) && 
+                    !['Default', 'Default Variant'].includes(item.variantName || '') && 
+                    !['Default', 'Default Variant'].includes(item.sku || '') ? 
+                      ` (${item.variantName || item.sku})` : ''}
+                  </Text>
                 </View>
                 <Text style={styles.colQty}>{item.quantity}</Text>
                 <Text style={styles.colTotal}>
