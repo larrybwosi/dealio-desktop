@@ -1,19 +1,21 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useOfflineSaleStore } from "@/store/offline-sale"
 import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Download, Eye, Printer } from "lucide-react"
+import { Search, Download, Eye, Printer, AlertCircle, CheckCircle2, Cloud, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function HistoryPage() {
-  const orders = usePosStore((state) => state.orders)
+  const queue = useOfflineSaleStore((state) => state.queue)
   const settings = usePosStore((state) => state.settings)
-  const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
+  
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
@@ -41,21 +43,39 @@ export function HistoryPage() {
         break
     }
 
-    return orders.filter((order) => {
+    return queue.filter((item) => {
+      // CHANGED: Access data via item.data
+      const customerId = item.data.customerId || ""
+      const saleNumber = item.data.saleNumber || ""
+      
       const matchesSearch =
-        order.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        order.orderNumber.toLowerCase().includes(searchQuery.toLowerCase())
-      const matchesStatus = statusFilter === "all" || order.status === statusFilter
-      const matchesDate = !startDate || new Date(order.createdAt) >= startDate
+        customerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        saleNumber.toLowerCase().includes(searchQuery.toLowerCase())
+      
+      // CHANGED: Filter by Queue Status
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter
+      
+      // CHANGED: Use item.timestamp
+      const matchesDate = !startDate || new Date(item.timestamp) >= startDate
 
       return matchesSearch && matchesStatus && matchesDate
     })
-  }, [orders, searchQuery, statusFilter, dateFilter])
+  }, [queue, searchQuery, statusFilter, dateFilter])
 
-  const selectedOrderData = selectedOrder ? orders.find((o) => o.id === selectedOrder) : null
+  const selectedOrderData = selectedOrderId ? queue.find((o) => o.id === selectedOrderId) : null
 
-  const totalSales = filteredOrders.filter((o) => o.status === "completed").reduce((sum, order) => sum + order.total, 0)
-  const completedOrders = filteredOrders.filter((o) => o.status === "completed").length
+  // CHANGED: Calculate totals based on Payment Data (Amount Received - Change)
+  const calculateTotal = (data: any) => {
+    const received = data.amountReceived || 0
+    const change = data.change || 0
+    return Math.max(0, received - change)
+  }
+
+  const totalSales = filteredOrders
+    .filter((o) => o.status === "SYNCED")
+    .reduce((sum, order) => sum + calculateTotal(order.data), 0)
+    
+  const completedOrders = filteredOrders.filter((o) => o.status === "SYNCED").length
   const avgOrderValue = completedOrders > 0 ? totalSales / completedOrders : 0
   const totalOrders = filteredOrders.length
 
@@ -66,28 +86,28 @@ export function HistoryPage() {
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold">Sales History</h1>
-            <p className="text-muted-foreground mt-1">View and manage all your completed transactions</p>
+            <h1 className="text-3xl font-bold">Transaction History</h1>
+            <p className="text-muted-foreground mt-1">View offline queue and synced transactions</p>
           </div>
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card className="p-4">
-              <div className="text-sm text-muted-foreground">Total Orders</div>
+              <div className="text-sm text-muted-foreground">Total Transactions</div>
               <div className="text-2xl font-bold mt-1">{totalOrders}</div>
             </Card>
             <Card className="p-4">
-              <div className="text-sm text-muted-foreground">Completed</div>
+              <div className="text-sm text-muted-foreground">Synced Successfully</div>
               <div className="text-2xl font-bold mt-1 text-emerald-600">{completedOrders}</div>
             </Card>
             <Card className="p-4">
-              <div className="text-sm text-muted-foreground">Total Sales</div>
+              <div className="text-sm text-muted-foreground">Total Revenue (Synced)</div>
               <div className="text-2xl font-bold mt-1">
                 {settings.currency} {totalSales.toLocaleString()}
               </div>
             </Card>
             <Card className="p-4">
-              <div className="text-sm text-muted-foreground">Avg. Order Value</div>
+              <div className="text-sm text-muted-foreground">Avg. Value</div>
               <div className="text-2xl font-bold mt-1">
                 {settings.currency} {totalOrders > 0 ? Math.round(avgOrderValue).toLocaleString() : 0}
               </div>
@@ -100,7 +120,7 @@ export function HistoryPage() {
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by customer or order number..."
+                  placeholder="Search by ID or Sale #..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -113,10 +133,10 @@ export function HistoryPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="waiting">Waiting</SelectItem>
-                  <SelectItem value="ready">Ready</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="canceled">Canceled</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="SYNCING">Syncing</SelectItem>
+                  <SelectItem value="SYNCED">Synced</SelectItem>
+                  <SelectItem value="FAILED">Failed</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -145,66 +165,71 @@ export function HistoryPage() {
               <table className="w-full">
                 <thead className="border-b border-border">
                   <tr className="text-sm text-muted-foreground">
-                    <th className="text-left p-4 font-medium">Order #</th>
-                    <th className="text-left p-4 font-medium">Customer</th>
-                    <th className="text-left p-4 font-medium">Type</th>
+                    <th className="text-left p-4 font-medium">Sale #</th>
+                    <th className="text-left p-4 font-medium">Customer ID</th>
+                    <th className="text-left p-4 font-medium">Payment</th>
                     <th className="text-left p-4 font-medium">Date & Time</th>
                     <th className="text-left p-4 font-medium">Items</th>
                     <th className="text-left p-4 font-medium">Total</th>
-                    <th className="text-left p-4 font-medium">Status</th>
+                    <th className="text-left p-4 font-medium">Sync Status</th>
                     <th className="text-left p-4 font-medium">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map((order) => (
+                  {filteredOrders.map((item) => (
                     <tr
-                      key={order.id}
+                      key={item.id}
                       className={cn(
                         "border-b border-border hover:bg-muted/50 transition-colors cursor-pointer",
-                        selectedOrder === order.id && "bg-muted",
+                        selectedOrderId === item.id && "bg-muted",
                       )}
-                      onClick={() => setSelectedOrder(order.id)}
+                      onClick={() => setSelectedOrderId(item.id)}
                     >
                       <td className="p-4">
-                        <span className="font-medium">{order.orderNumber}</span>
-                      </td>
-                      <td className="p-4">
-                        <span>{order.customerName}</span>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="secondary" className={getOrderTypeColor(order.orderType)}>
-                          {order.orderType}
-                        </Badge>
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {new Date(order.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}{" "}
-                        {new Date(order.createdAt).toLocaleTimeString("en-US", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </td>
-                      <td className="p-4 text-sm">{order.items.length} items</td>
-                      <td className="p-4">
-                        <span className="font-semibold">
-                          {settings.currency} {order.total.toLocaleString()}
+                        <span className="font-medium">
+                            {item.data.saleNumber || <span className="text-muted-foreground text-xs italic">Pending Gen</span>}
                         </span>
                       </td>
                       <td className="p-4">
-                        <Badge variant="secondary" className={getStatusColor(order.status)}>
-                          {order.status}
+                        <span className="text-sm">
+                            {item.data.customerId ? 
+                                item.data.customerId.slice(0, 8) + '...' : 
+                                <span className="text-muted-foreground">Guest</span>}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="outline" className="text-xs">
+                          {item.data.paymentMethod}
+                        </Badge>
+                      </td>
+                      <td className="p-4 text-sm text-muted-foreground">
+                        {new Date(item.timestamp).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })}{" "}
+                        <span className="text-xs">
+                            {new Date(item.timestamp).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            })}
+                        </span>
+                      </td>
+                      <td className="p-4 text-sm">{item.data.cartItems.length} items</td>
+                      <td className="p-4">
+                        <span className="font-semibold">
+                          {settings.currency} {calculateTotal(item.data).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="p-4">
+                        <Badge variant="secondary" className={getQueueStatusColor(item.status)}>
+                          {getQueueStatusIcon(item.status)}
+                          <span className="ml-1">{item.status}</span>
                         </Badge>
                       </td>
                       <td className="p-4">
                         <div className="flex gap-2">
                           <Button variant="ghost" size="icon" className="h-8 w-8">
                             <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Printer className="w-4 h-4" />
                           </Button>
                         </div>
                       </td>
@@ -215,7 +240,7 @@ export function HistoryPage() {
 
               {filteredOrders.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
-                  <p>No orders found matching your criteria</p>
+                  <p>No transactions found matching your criteria</p>
                 </div>
               )}
             </div>
@@ -223,69 +248,71 @@ export function HistoryPage() {
         </div>
       </div>
 
-      {/* Order Details Sidebar */}
+      {/* Transaction Details Sidebar */}
       {selectedOrderData && (
         <div className="w-96 border-l border-border bg-card overflow-y-auto">
           <div className="p-6 border-b border-border">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Order Details</h2>
-              <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(null)}>
+              <h2 className="text-xl font-semibold">Transaction Details</h2>
+              <Button variant="ghost" size="icon" onClick={() => setSelectedOrderId(null)}>
                 ✕
               </Button>
             </div>
 
             <div className="space-y-3">
               <div>
-                <div className="text-sm text-muted-foreground">Order Number</div>
-                <div className="font-semibold text-lg">{selectedOrderData.orderNumber}</div>
+                <div className="text-sm text-muted-foreground">Transaction ID (UUID)</div>
+                <div className="font-mono text-xs text-muted-foreground break-all">{selectedOrderData.id}</div>
               </div>
 
-              <div className="flex gap-2">
-                <Badge variant="secondary" className={getStatusColor(selectedOrderData.status)}>
-                  {selectedOrderData.status}
+              <div className="flex gap-2 mt-2">
+                 <Badge variant="secondary" className={getQueueStatusColor(selectedOrderData.status)}>
+                    {selectedOrderData.status}
                 </Badge>
-                <Badge variant="secondary" className={getOrderTypeColor(selectedOrderData.orderType)}>
-                  {selectedOrderData.orderType}
-                </Badge>
+                {selectedOrderData.data.isWholesale && (
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-700">Wholesale</Badge>
+                )}
               </div>
             </div>
           </div>
 
           <div className="p-6 space-y-6">
             <div>
-              <h3 className="font-semibold mb-3">Customer Information</h3>
+              <h3 className="font-semibold mb-3">Customer & Payment</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Name</span>
-                  <span className="font-medium">{selectedOrderData.customerName}</span>
+                  <span className="text-muted-foreground">Customer ID</span>
+                  <span className="font-mono text-xs">{selectedOrderData.data.customerId || "N/A"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date</span>
-                  <span className="font-medium">{new Date(selectedOrderData.createdAt).toLocaleDateString()}</span>
+                  <span className="text-muted-foreground">Method</span>
+                  <span className="font-medium">{selectedOrderData.data.paymentMethod}</span>
                 </div>
+                {selectedOrderData.data.paymentMethod === 'MPESA' && (
+                    <div className="flex justify-between">
+                    <span className="text-muted-foreground">M-Pesa Phone</span>
+                    <span className="font-medium">{selectedOrderData.data.mpesaPhoneNumber || "N/A"}</span>
+                    </div>
+                )}
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Time</span>
-                  <span className="font-medium">{new Date(selectedOrderData.createdAt).toLocaleTimeString()}</span>
+                  <span className="text-muted-foreground">Payment Status</span>
+                  <span className="font-medium">{selectedOrderData.data.paymentStatus}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-3">Order Items</h3>
-              <div className="space-y-3">
-                {selectedOrderData.items.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm">
-                    <div className="flex-1">
-                      <div className="font-medium">{item.productName}</div>
-                      <div className="text-muted-foreground text-xs">
-                        {item.variantName} • {item.selectedUnit?.unitName}
-                      </div>
+              <h3 className="font-semibold mb-3">Items (IDs)</h3>
+              <div className="space-y-3 bg-muted/30 p-3 rounded-lg">
+                {selectedOrderData.data.cartItems.map((item, index) => (
+                  <div key={index} className="flex justify-between text-sm border-b border-border/50 pb-2 last:border-0">
+                    <div className="flex-1 pr-4">
+                      {/* Note: We only have IDs in the offline store data, not names */}
+                      <div className="font-mono text-xs text-muted-foreground truncate w-48">Prod: {item.productId}</div>
+                      <div className="font-mono text-[10px] text-muted-foreground truncate w-48">Var: {item.variantId}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">
-                        {settings.currency} {((item.selectedUnit?.price || 0) * item.quantity).toLocaleString()}
-                      </div>
-                      <div className="text-muted-foreground text-xs">x{item.quantity}</div>
+                      <div className="font-medium">Qty: {item.quantity}</div>
                     </div>
                   </div>
                 ))}
@@ -294,43 +321,53 @@ export function HistoryPage() {
 
             <div className="pt-4 border-t border-border space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
+                <span className="text-muted-foreground">Amount Received</span>
                 <span>
-                  {settings.currency} {selectedOrderData.subTotal.toLocaleString()}
+                  {settings.currency} {(selectedOrderData.data.amountReceived || 0).toLocaleString()}
                 </span>
               </div>
-              {selectedOrderData.discount > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Discount</span>
-                  <span className="text-emerald-600">
-                    -{settings.currency} {selectedOrderData.discount.toLocaleString()}
-                  </span>
-                </div>
-              )}
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tax ({settings.taxRate}%)</span>
+                <span className="text-muted-foreground">Change</span>
                 <span>
-                  {settings.currency} {selectedOrderData.taxes.toLocaleString()}
+                  {settings.currency} {(selectedOrderData.data.change || 0).toLocaleString()}
                 </span>
               </div>
+               <div className="flex justify-between">
+                <span className="text-muted-foreground">Discount</span>
+                <span className="text-emerald-600">
+                  -{settings.currency} {(selectedOrderData.data.discountAmount || 0).toLocaleString()}
+                </span>
+              </div>
+              
               <div className="flex justify-between pt-2 border-t border-border">
-                <span className="font-semibold">Total</span>
+                <span className="font-semibold">Calculated Total</span>
                 <span className="font-bold text-lg">
-                  {settings.currency} {selectedOrderData.total.toLocaleString()}
+                  {settings.currency} {calculateTotal(selectedOrderData.data).toLocaleString()}
                 </span>
               </div>
             </div>
+
+            {selectedOrderData.data.notes && (
+                <div className="bg-amber-50 p-3 rounded-md text-amber-900 text-sm">
+                    <span className="font-semibold block mb-1">Notes:</span>
+                    {selectedOrderData.data.notes}
+                </div>
+            )}
 
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 gap-2 bg-transparent">
                 <Printer className="w-4 h-4" />
                 Print
               </Button>
-              <Button variant="outline" className="flex-1 gap-2 bg-transparent">
-                <Download className="w-4 h-4" />
-                Download
-              </Button>
             </div>
+            
+            {/* Retry Button for Failed items */}
+            {selectedOrderData.status === 'FAILED' && (
+                 <Button className="w-full gap-2 bg-red-600 hover:bg-red-700 text-white mt-2">
+                 <RefreshCw className="w-4 h-4" />
+                 Retry Sync
+               </Button>
+            )}
           </div>
         </div>
       )}
@@ -338,34 +375,32 @@ export function HistoryPage() {
   )
 }
 
-const getStatusColor = (status: string) => {
+const getQueueStatusColor = (status: string) => {
   switch (status) {
-    case "waiting":
-      return "bg-amber-500/10 text-amber-700 hover:bg-amber-500/20"
-    case "ready":
-      return "bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20"
-    case "completed":
-      return "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20"
-    case "canceled":
-      return "bg-red-500/10 text-red-700 hover:bg-red-500/20"
-    default:
-      return "bg-gray-500/10 text-gray-700 hover:bg-gray-500/20"
-  }
-}
-
-const getOrderTypeColor = (type: string) => {
-  switch (type) {
-    case "takeaway":
-      return "bg-orange-500/10 text-orange-700"
-    case "delivery":
-      return "bg-green-500/10 text-green-700"
-    case "dine-in":
-      return "bg-purple-500/10 text-purple-700"
-    case "pickup":
-      return "bg-cyan-500/10 text-cyan-700"
-    case "online":
-      return "bg-pink-500/10 text-pink-700"
+    case "PENDING":
+      return "bg-amber-500/10 text-amber-700 border-amber-200"
+    case "SYNCING":
+      return "bg-blue-500/10 text-blue-700 border-blue-200 animate-pulse"
+    case "SYNCED":
+      return "bg-emerald-500/10 text-emerald-700 border-emerald-200"
+    case "FAILED":
+      return "bg-red-500/10 text-red-700 border-red-200"
     default:
       return "bg-gray-500/10 text-gray-700"
   }
 }
+
+const getQueueStatusIcon = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return <Cloud className="w-3 h-3" />
+      case "SYNCING":
+        return <RefreshCw className="w-3 h-3 animate-spin" />
+      case "SYNCED":
+        return <CheckCircle2 className="w-3 h-3" />
+      case "FAILED":
+        return <AlertCircle className="w-3 h-3" />
+      default:
+        return null
+    }
+  }

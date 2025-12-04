@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner'; 
-import { AxiosError, isAxiosError } from 'axios';
+import { isAxiosError } from 'axios';
 import { apiClient } from '@/lib/axios';
 import { useOfflineSaleStore } from '@/store/offline-sale';
 import { useAuthStore } from '@/store/pos-auth-store';
@@ -112,7 +112,7 @@ export const useProcessSale = () => {
  * Call this inside a useEffect in your main layout or a "Sync" button.
  */
 export const useSyncOfflineSales = () => {
-  const { getPendingSales, updateQueueItem, removeFromQueue } = useOfflineSaleStore();
+  const { getPendingSales, updateQueueItem } = useOfflineSaleStore();
   const queryClient = useQueryClient();
   const locationId = useAuthStore(state => state.currentLocation?.id);
 
@@ -134,13 +134,13 @@ export const useSyncOfflineSales = () => {
           // Success!
           updateQueueItem(sale.id, { status: 'SYNCED' });
           // Optional: Remove from queue after a delay or immediately if we don't want history
-          removeFromQueue(sale.id); 
+          // removeFromQueue(sale.id); 
           
           results.push(result);
         } catch (error) {
           console.error(`Failed to sync sale ${sale.id}:`, error);
           
-          const isNetwork = isNetworkError(error);
+          // const isNetwork = isNetworkError(error);
           const errorMessage = (error as any)?.response?.data?.error || (error as Error).message;
 
           // Update status to FAILED but keep in queue

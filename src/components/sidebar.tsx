@@ -35,7 +35,6 @@ const routeMap: Record<string, string> = {
   history: '/history',
   analytics: '/analytics',
   customers: '/customers',
-  inventory: '/inventory',
   'manage-table': '/manage-tables',
   'cash-drawer': '/cash-drawer',
   'till-management': '/till-management',

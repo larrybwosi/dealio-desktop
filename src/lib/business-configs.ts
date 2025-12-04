@@ -476,7 +476,6 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     { id: "order", label: "Order", icon: "ShoppingBag", enabled: true },
     { id: "inventory", label: "Inventory", icon: "Package", enabled: true },
     { id: "history", label: "History", icon: "History", enabled: true },
-    { id: "analytic", label: "Analytics", icon: "BarChart3", enabled: true },
   ]
 
   items.push({ id: "customers", label: "Customers", icon: "Users", enabled: true })
