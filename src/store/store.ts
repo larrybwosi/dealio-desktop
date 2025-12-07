@@ -616,11 +616,13 @@ export const usePosStore = create<PosStore>()(
           const variant = product.variants?.find(v => v.variantId === product.variantId);
           const variantName = variant?.name || 'Default Variant';
 
+          console.log(product);
+
           const newItem: OrderItem = {
             productId: product.productId,
             variantId: product.variantId,
-            productName: product.name,
-            variantName: variantName,
+            productName: product.name || product.productName, // Use productName which is required
+            variantName: variantName || 'Default Variant',
             selectedUnit: unit,
             quantity,
             imageUrl: product.imageUrl,

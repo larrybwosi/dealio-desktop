@@ -40,10 +40,10 @@ interface DispatchDialogProps {
   drivers: DriverOption[]; // Pass fetched drivers here
   open: boolean; // Receive open state from parent
   onOpenChange: (open: boolean) => void; // Receive open state change handler from parent
-  trigger?: React.ReactNode; // Optional custom trigger button
+
 }
 
-export function DispatchDialog({ transactionId, drivers, open, onOpenChange, trigger }: DispatchDialogProps) {
+export function DispatchDialog({ transactionId, drivers, open, onOpenChange }: DispatchDialogProps) {
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {

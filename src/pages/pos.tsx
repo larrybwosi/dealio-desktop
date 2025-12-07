@@ -116,8 +116,20 @@ export function POS() {
   }, []);
 
   const handleAddToCartWrapper = useCallback((item: any) => {
+    // console.log("item", item);
+    const storeProduct = {
+      ...item.product,
+      variantId: item.variant.variantId,
+      variantName: item.variant.name,
+      productName: item.product.name,
+      variants: item.product.variants?.map((v: any) => ({
+        ...v,
+        name: v.name || 'Default Variant'
+      })) 
+    };
+
     addItemToOrder(
-        {...item.product, variantId: item.variant.variantId}, 
+        storeProduct, 
         { ...item.unit, originalRetailPrice: item.unit.price }, 
         item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }
@@ -199,8 +211,19 @@ export function POS() {
     }
 
     // Add to cart
+    const storeProduct = {
+      ...product,
+      variantId: variant.variantId,
+      variantName: variant.variantName, // Map variantName
+      name: product.productName, // Map productName to name
+      variants: product.variants?.map((v: any) => ({
+        ...v,
+        name: v.variantName || v.name || 'Default Variant'
+      }))
+    };
+
     addItemToOrder(
-      { ...product, variantId: variant.variantId },
+      storeProduct,
       { ...defaultUnit, },
       1,
       { isWholesale: pricingMode === 'wholesale' }
@@ -208,7 +231,7 @@ export function POS() {
 
     // Success feedback
     toast.success('Added to Cart', {
-      description: `${product.name} (${variant.variantName || 'Default'})`,
+      description: `${product.productName} (${variant.variantName || 'Default'})`,
       duration: 2000,
       icon: <CheckCircle2 className="w-5 h-5" />,
     });
