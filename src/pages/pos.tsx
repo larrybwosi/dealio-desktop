@@ -122,6 +122,7 @@ export function POS() {
         item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }
     );
+    console.log('Added to cart:', item);
   }, [addItemToOrder, pricingMode]);
 
   const clearSearch = () => {
@@ -207,7 +208,7 @@ export function POS() {
 
     // Success feedback
     toast.success('Added to Cart', {
-      description: `${product.productName} (${variant.variantName || 'Default'})`,
+      description: `${product.name} (${variant.variantName || 'Default'})`,
       duration: 2000,
       icon: <CheckCircle2 className="w-5 h-5" />,
     });

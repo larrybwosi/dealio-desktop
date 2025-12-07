@@ -17,8 +17,15 @@ import {
   Check,
   ChevronsUpDown,
   Search,
+  CheckCircle2,
+  Printer,
+  ExternalLink
 } from 'lucide-react';
 import { useFormattedCurrency, cn } from '@/lib/utils';
+
+import { isTauri } from '@tauri-apps/api/core';
+import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
+import { documentDir } from '@tauri-apps/api/path';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -45,8 +52,11 @@ import { CustomerSelect } from '@/components/customer.select';
 import { usePosProducts } from '@/hooks/products';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useDebounce } from 'use-debounce';
+import { useNavigate } from 'react-router';
+import { apiClient } from '@/lib/axios';
+import { toast } from 'sonner';
 
-// --- TYPES (Updated to match JSON) ---
+// --- TYPES ---
 
 export interface SellableUnit {
   unitId: string;
@@ -56,13 +66,10 @@ export interface SellableUnit {
   isBaseUnit: boolean;
 }
 
-// Represents the flattened option used in the UI
 export interface FlattenedProductVariant {
-  // Parent Product Data
   productId: string;
   productName: string;
   imageUrl?: string;
-  // Variant Data
   variantId: string;
   variantName: string;
   sku: string;
@@ -71,7 +78,6 @@ export interface FlattenedProductVariant {
   sellableUnits: SellableUnit[];
 }
 
-// Represents the raw API structure based on your JSON
 interface ApiProduct {
   productId: string;
   name: string;
@@ -86,6 +92,16 @@ interface ApiProduct {
     sellableUnits: SellableUnit[];
   }[];
 }
+
+// --- UTILS ---
+
+const NO_SPINNER_CLASS = "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none";
+
+const blockInvalidChar = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (["e", "E", "+", "-"].includes(e.key)) {
+    e.preventDefault();
+  }
+};
 
 // --- SUB-COMPONENTS ---
 
@@ -114,12 +130,10 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
 
   const isSearching = search !== debouncedSearch || isLoading;
 
-  // Flatten the nested structure: Product -> Variants -> Flattened List
   const products: FlattenedProductVariant[] = useMemo(() => {
     if (!data?.pages) return [];
     
     return data.pages.flatMap(page => {
-      // Assuming page.products is the array of ApiProduct
       //@ts-expect-error
       const pageProducts = (page.products || []) as ApiProduct[];
       
@@ -235,7 +249,6 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
   );
 }
 
-// Optimized Select component for Units
 const UnitSelect = memo(function UnitSelect({ units, value, onValueChange, disabled }: {
   units: SellableUnit[];
   value: string;
@@ -306,14 +319,10 @@ const OrderItemRow = memo(({
               error={!!errors.items?.[index]?.variantId}
               onSelect={(product) => {
                 field.onChange(product.variantId);
-                console.log(product)
                 const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
                 
-                // Set default unit ID and Price if available
                 setValue(`items.${index}.sellingUnitId`, defaultUnit?.unitId || undefined);
                 setValue(`items.${index}.unitPrice`, defaultUnit?.price || 0);
-                
-                // Store units in a hidden field or state to use in UnitSelect
                 setValue(`items.${index}._availableUnits`, product.sellableUnits);
               }}
             />
@@ -351,8 +360,9 @@ const OrderItemRow = memo(({
         <Input
           type="number"
           min="1"
+          onKeyDown={blockInvalidChar}
           {...register(`items.${index}.quantity`, { valueAsNumber: true })}
-          className="h-10 text-center"
+          className={cn("h-10 text-center", NO_SPINNER_CLASS)}
         />
         {errors.items?.[index]?.quantity && (
           <div className="mt-1 text-[10px] text-red-500">{errors.items?.[index]?.quantity.message}</div>
@@ -402,7 +412,9 @@ function OrderTotals({ control, formatCurrency, register }: { control: Control<a
         <Label className="font-normal text-xs">Shipping Fee</Label>
         <Input
           type="number"
-          className="h-7 w-20 text-right text-xs"
+          step="any"
+          onKeyDown={blockInvalidChar}
+          className={cn("h-7 w-20 text-right text-xs", NO_SPINNER_CLASS)}
           {...register('shippingFee', { valueAsNumber: true })}
         />
       </div>
@@ -410,7 +422,9 @@ function OrderTotals({ control, formatCurrency, register }: { control: Control<a
         <Label className="font-normal text-xs">Discount</Label>
         <Input
           type="number"
-          className="h-7 w-20 text-right text-xs"
+          step="any"
+          onKeyDown={blockInvalidChar}
+          className={cn("h-7 w-20 text-right text-xs", NO_SPINNER_CLASS)}
           {...register('discountAmount', { valueAsNumber: true })}
         />
       </div>
@@ -458,14 +472,139 @@ function PaymentBalanceDisplay({ control, formatCurrency }: { control: Control<a
   )
 }
 
+// 5. Success View Component
+function OrderSuccessView({ 
+  orderId, 
+  invoiceUrl,
+  onReset 
+}: { 
+  orderId: string, 
+  invoiceUrl: string,
+  onReset: () => void 
+}) {
+  const navigate = useNavigate();
+  const [isDownloading, setIsDownloading] = useState(false);
+
+    const handleDownloadInvoice = async () => {
+      if (!invoiceUrl) return;
+      if (isDownloading) return;
+  
+      setIsDownloading(true);
+      try {
+        const response = await apiClient.get(invoiceUrl, { responseType: 'blob' });
+        const blob = new Blob([response.data], { type: 'application/pdf' });
+        const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
+        const fileName = `Receipt_${safeOrderNum}.pdf`;
+  
+        if (isTauri()) {
+          const arrayBuffer = await blob.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
+            await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
+          }
+          const documentDirPath = await documentDir();
+          const filePath = `${documentDirPath}/Dealio/${fileName}`;
+          await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
+          
+          toast.success('Saved to Downloads', {
+            action: {
+              label: 'Open',
+              onClick: async () => {
+                try {
+                  const { openPath } = await import('@tauri-apps/plugin-opener');
+                  await openPath(filePath);
+                } catch (e) {
+                  console.error('Could not open file', e);
+                }
+              },
+            },
+            duration: 5000,
+          });
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.success('Download started');
+        }
+      } catch (error) {
+        console.error('Download error:', error);
+        toast.error('Failed to save receipt');
+      } finally {
+        setIsDownloading(false);
+      }
+    };
+
+  return (
+    <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+      <div className="h-20 w-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6">
+        <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
+      </div>
+      
+      <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Order Created Successfully!</h2>
+      <p className="text-zinc-500 max-w-md mb-8">
+        The order has been recorded in the system. You can now view the details, download the invoice, or create another order.
+      </p>
+
+      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
+        <Button 
+          variant="outline" 
+          className="flex-1 gap-2"
+          onClick={handleDownloadInvoice}
+          disabled={!invoiceUrl || isDownloading} // Disable if no URL
+        >
+          {isDownloading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Printer className="h-4 w-4" />}
+          Download Invoice
+        </Button>
+        
+        <Button 
+          variant="outline"
+          className="flex-1 gap-2"
+          onClick={() => navigate(`/pending-transactions?id=${orderId}`)}
+        >
+          <ExternalLink className="h-4 w-4" />
+          View Transaction
+        </Button>
+      </div>
+
+      <div className="mt-8">
+        <Button 
+          size="lg" 
+          className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[200px] gap-2"
+          onClick={onReset}
+        >
+          <Plus className="h-4 w-4" />
+          Create Another Order
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 // --- MAIN PAGE COMPONENT ---
 
 export default function CreateOrderPage() {
   const formatCurrency = useFormattedCurrency();
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+  const [createdInvoiceUrl, setCreatedInvoiceUrl] = useState<string | null>(null);
 
   const { mutate: createOrder, isPending: isSubmitting } = useCreateOrder({
-    onSuccess: (data) => console.log('Order created:', data),
+    onSuccess: (data: any) => {
+      console.log('API Response:', data);
+      setCreatedOrderId(data?.id || data?.orderId || 'new-order');
+      setCreatedInvoiceUrl(data?.invoiceUrl || null);
+      setSubmitStatus('success');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    onError: (error) => {
+      console.error('API Error:', error);
+      setSubmitStatus('error');
+    }
   });
   
   const { currentLocation } = useAuthStore();
@@ -477,6 +616,7 @@ export default function CreateOrderPage() {
     handleSubmit,
     setValue,
     watch,
+    reset,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(CreateOrderSchema),
@@ -505,7 +645,6 @@ export default function CreateOrderPage() {
 
   const onSubmit = (data: OrderFormValues) => {
     setSubmitStatus('idle');
-    // Clean up temporary UI fields (like _availableUnits) before sending to API
     const cleanData = {
       ...data,
       items: data.items.map((item: any) => {
@@ -521,6 +660,42 @@ export default function CreateOrderPage() {
     setSubmitStatus('error');
   };
 
+  const handleReset = () => {
+    setSubmitStatus('idle');
+    setCreatedOrderId(null);
+    reset({
+      type: TransactionType.SALES_ORDER,
+      locationId: locationId,
+      items: [{ 
+        variantId: '', 
+        quantity: 1, 
+        unitPrice: 0,
+        sellingUnitId: undefined,
+      }],
+      payments: [],
+      fulfillment: { type: FulfillmentType.DELIVERY },
+      shippingFee: 0,
+      discountAmount: 0,
+      status: TransactionStatus.PENDING_CONFIRMATION,
+    });
+  };
+
+  // --- RENDER SUCCESS VIEW IF SUCCESSFUL ---
+  if (submitStatus === 'success' && createdOrderId) {
+    return (
+      <div className="min-h-screen bg-zinc-50/50 dark:bg-zinc-950 p-6 md:p-8 font-sans">
+        <div className="mx-auto max-w-3xl bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm">
+           <OrderSuccessView 
+             orderId={createdOrderId} 
+             invoiceUrl={createdInvoiceUrl!} 
+             onReset={handleReset} 
+           />
+        </div>
+      </div>
+    );
+  }
+
+  // --- RENDER FORM ---
   return (
     <div className="min-h-screen bg-zinc-50/50 dark:bg-zinc-950 p-6 md:p-8 font-sans text-zinc-900 dark:text-zinc-100">
       <div className="mx-auto max-w-7xl space-y-8">
@@ -553,7 +728,6 @@ export default function CreateOrderPage() {
               <div className="ml-3">
                 <h3 className="text-sm font-medium text-red-800">There were errors with your submission</h3>
                 <p className="mt-1 text-sm text-red-700">Please check the form fields and try again.</p>
-                {/* Debugging helpers: remove in production */}
                 {Object.keys(errors).length > 0 && (
                    <ul className="list-disc pl-4 mt-2 text-xs">
                      {Object.entries(errors).map(([key, val]: any) => (
@@ -620,7 +794,7 @@ export default function CreateOrderPage() {
                     variantId: '', 
                     quantity: 1, 
                     unitPrice: 0, 
-                    sellingUnitId: undefined, // Must be undefined or valid CUID
+                    sellingUnitId: undefined,
                   })}
                 >
                   <Plus className="mr-2 h-3.5 w-3.5" /> Add Item
@@ -742,7 +916,7 @@ export default function CreateOrderPage() {
                   onClick={() => appendPayment({
                       method: PaymentMethod.CASH,
                       amount: 0, 
-                      status: PaymentStatus.COMPLETED, // Changed default to COMPLETED for POS/Cash logic or PENDING as per Schema
+                      status: PaymentStatus.COMPLETED, 
                     })
                   }
                 >
@@ -781,8 +955,10 @@ export default function CreateOrderPage() {
                         />
                         <Input
                           type="number"
+                          step="any"
+                          onKeyDown={blockInvalidChar}
                           {...register(`payments.${index}.amount`, { valueAsNumber: true })}
-                          className="h-8 text-xs text-right"
+                          className={cn("h-8 text-xs text-right", NO_SPINNER_CLASS)}
                           placeholder="Amount"
                         />
                       </div>

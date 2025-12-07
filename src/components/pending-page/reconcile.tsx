@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useReconcileDeliveryMutation } from '@/hooks/deliveries';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,12 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle2, XCircle, Upload, X, ImageIcon } from 'lucide-react';
 import { toast } from "sonner";
-import { apiClient } from '@/lib/axios';
 
 interface ReconciliationDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  transactionId: string | null;
   fulfillmentId?: string | null;
 }
 
@@ -28,10 +26,8 @@ interface ReconcileForm {
 export function ReconciliationDialog({ 
   open, 
   onOpenChange, 
-  // transactionId, 
   fulfillmentId 
 }: ReconciliationDialogProps) {
-  const queryClient = useQueryClient();
   const [reconcileForm, setReconcileForm] = useState<ReconcileForm>({
     outcome: 'DELIVERED',
     receivedBy: '',
@@ -40,18 +36,10 @@ export function ReconciliationDialog({
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
-  const reconcileMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      return await apiClient.post('/api/v1/pos/deliveries/reconcile-pod', formData);
-    },
+  const reconcileMutation = useReconcileDeliveryMutation({
+    fulfillmentId: fulfillmentId || null,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['transactions'] });
       handleClose();
-      toast.success("Delivery reconciled successfully");
-    },
-    onError: (error: any) => {
-      console.error(error);
-      toast.error(error.response?.data?.error || "Reconciliation failed");
     }
   });
 
@@ -105,7 +93,6 @@ export function ReconciliationDialog({
     }
 
     const formData = new FormData();
-    formData.append('fulfilmentId', fulfillmentId);
     formData.append('outcome', reconcileForm.outcome);
     
     if (reconcileForm.outcome === 'DELIVERED' && reconcileForm.receivedBy.trim()) {

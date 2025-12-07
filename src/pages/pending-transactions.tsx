@@ -1,16 +1,14 @@
+// pending-transactions-page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { 
   Plus, 
   Search, 
-  MoreHorizontal,
   AlertCircle,
   Banknote,
-  CheckCircle2,
   Truck,
-  Download,
   RefreshCw, 
   Loader2    
 } from 'lucide-react';
@@ -23,42 +21,53 @@ import { documentDir } from '@tauri-apps/api/path';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
 import { apiClient } from '@/lib/axios';
 import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
+import { DispatchDialog } from '@/components/pending-page/dispatch-dialog'; // Import DispatchDialog
+import { useSearchParams } from 'react-router';
 
-// --- Types ---
-interface Transaction {
-  id: string;
-  number?: string;
-  customer: string;
-  email: string;
-  totalAmount: number;
-  paidAmount: number;
-  date: string;
-  status: 'pending' | 'partially_paid' | 'paid' | 'dispatched'; 
-  fulfillmentId?: string | null;
-  invoiceLink?: string; 
-}
+// Import the new components
+import { TransactionRow } from '@/components/pending-page/transaction-row';
+import { Transaction } from '@/types';
 
-// --- Fetch Function ---
+// --- Fetch Functions ---
 const fetchTransactions = async (locationId?: string) => {
   const params = locationId ? { locationId } : {};
   const { data } = await apiClient.get<Transaction[]>('/api/v1/pos/sale', { params });
   return data;
 };
 
+// Fetch drivers function
+const fetchDrivers = async () => {
+  const { data } = await apiClient.get('/api/v1/drivers');
+  return data;
+};
+
+interface DriverOption {
+  id: string;
+  member: {
+    name: string;
+  };
+}
+
 export default function PendingTransactionsPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  
+  // Get the ID from URL if it exists (e.g., /transactions?id=123)
+  const [highlightId] = searchParams;
+
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false); // New state for dispatch dialog
   
+  // State to control which dropdown is open programmatically
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   // State for download tracking
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -73,15 +82,47 @@ export default function PendingTransactionsPage() {
     queryFn: () => fetchTransactions(),
   });
 
+  // --- Query: Get Drivers ---
+  const { 
+    data: drivers = [], 
+    // isLoading: isLoadingDrivers 
+  } = useQuery<DriverOption[]>({
+    queryKey: ['drivers'],
+    queryFn: () => fetchDrivers(),
+    enabled: isDispatchOpen, // Only fetch when dispatch dialog is open
+  });
+
+  // --- Effect: Handle Deep Linking / Highlighting ---
+  useEffect(() => {
+    if (highlightId && transactions.length > 0 && !isLoading) {
+      // 1. Open the menu for this transaction
+      setOpenMenuId(highlightId.get('id'));
+
+      // 2. Scroll the row into view
+      const rowElement = document.getElementById(`tx-row-${highlightId}`);
+      if (rowElement) {
+        rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  }, [highlightId, transactions, isLoading]);
+
   // --- Handlers ---
   const handleOpenPayment = (txId: string) => {
     setActiveTxId(txId);
     setIsPaymentOpen(true);
+    setOpenMenuId(null); // Close menu after action
   };
 
   const handleOpenReconcile = (txId: string) => {
     setActiveTxId(txId);
     setIsReconcileOpen(true);
+    setOpenMenuId(null);
+  };
+
+  const handleOpenDispatch = (txId: string) => { // New handler
+    setActiveTxId(txId);
+    setIsDispatchOpen(true);
+    setOpenMenuId(null);
   };
 
   const handleRefresh = () => {
@@ -89,39 +130,32 @@ export default function PendingTransactionsPage() {
     refetch();
   };
 
+  const handleCopyId = (id: string) => {
+    navigator.clipboard.writeText(id);
+    toast.success('Transaction ID copied to clipboard');
+  };
+
   const handleDownloadInvoice = async (tx: Transaction) => {
     if (!tx.invoiceLink) return;
     if (isDownloading) return;
 
     setIsDownloading(true);
-
     try {
-      // 1. Fetch the file as a Blob from the API link
-      const response = await apiClient.get(tx.invoiceLink, {
-        responseType: 'blob'
-      });
+      const response = await apiClient.get(tx.invoiceLink, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
-
-      // Clean up filename
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Receipt_${safeOrderNum}.pdf`;
 
       if (isTauri()) {
-        // --- TAURI DOWNLOAD LOGIC ---
         const arrayBuffer = await blob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-        
-        // Ensure 'Dealio' directory exists in Downloads
         if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
           await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
         }
-
         const documentDirPath = await documentDir();
-        const dealioFolderPath = `${documentDirPath}/Dealio`;
-        const filePath = `${dealioFolderPath}/${fileName}`;
-        
+        const filePath = `${documentDirPath}/Dealio/${fileName}`;
         await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
-
+        
         toast.success('Saved to Downloads', {
           action: {
             label: 'Open',
@@ -137,7 +171,6 @@ export default function PendingTransactionsPage() {
           duration: 5000,
         });
       } else {
-        // --- BROWSER DOWNLOAD LOGIC ---
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -153,7 +186,12 @@ export default function PendingTransactionsPage() {
       toast.error('Failed to save receipt');
     } finally {
       setIsDownloading(false);
+      setOpenMenuId(null);
     }
+  };
+
+  const handleOpenMenuChange = (isOpen: boolean, txId: string) => {
+    setOpenMenuId(isOpen ? txId : null);
   };
 
   const formatCurrency = (amount: number) => 
@@ -179,13 +217,13 @@ export default function PendingTransactionsPage() {
       </TableHeader>
       <TableBody>
         {isLoading && data.length === 0 ? (
-           <TableRow>
-             <TableCell colSpan={6} className="text-center h-24">
-               <div className="flex items-center justify-center gap-2">
-                 <Loader2 className="h-4 w-4 animate-spin" /> Loading transactions...
-               </div>
-             </TableCell>
-           </TableRow>
+          <TableRow>
+            <TableCell colSpan={6} className="text-center h-24">
+              <div className="flex items-center justify-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" /> Loading transactions...
+              </div>
+            </TableCell>
+          </TableRow>
         ) : data.length === 0 ? (
           <TableRow>
             <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
@@ -194,82 +232,19 @@ export default function PendingTransactionsPage() {
           </TableRow>
         ) : (
           data.map((tx) => (
-            <TableRow key={tx.id}>
-              <TableCell className="font-medium">{tx.number || tx.id.slice(-6)}</TableCell>
-              <TableCell>
-                <div className="flex flex-col">
-                  <span className="font-medium">{tx.customer}</span>
-                  <span className="text-xs text-muted-foreground">{tx.email}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge 
-                  variant={
-                    tx.status === 'dispatched' ? 'default' : 
-                    tx.status === 'pending' ? 'destructive' : 'secondary'
-                  } 
-                  className="capitalize"
-                >
-                  {tx.status === 'dispatched' && <Truck className="w-3 h-3 mr-1" />}
-                  {tx.status.replace('_', ' ')}
-                </Badge>
-              </TableCell>
-              <TableCell className="w-[200px]">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">Paid: {formatCurrency(tx.paidAmount)}</span>
-                    <span className="font-medium">
-                      {Math.round((tx.paidAmount / tx.totalAmount) * 100)}%
-                    </span>
-                  </div>
-                  <Progress value={(tx.paidAmount / tx.totalAmount) * 100} className="h-2" />
-                </div>
-              </TableCell>
-              <TableCell className="text-right font-bold font-mono">
-                {formatCurrency(tx.totalAmount - tx.paidAmount)}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => navigator.clipboard.writeText(tx.id)}>
-                      Copy ID
-                    </DropdownMenuItem>
-                    
-                    {/* Download Invoice Menu Item */}
-                    {tx.invoiceLink && (
-                      <DropdownMenuItem 
-                        onClick={() => handleDownloadInvoice(tx)}
-                        disabled={isDownloading}
-                        className="text-green-600 focus:text-green-600 cursor-pointer"
-                      >
-                        {isDownloading ? (
-                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                           <Download className="mr-2 h-4 w-4" /> 
-                        )}
-                        Download Invoice
-                      </DropdownMenuItem>
-                    )}
-
-                    {tx.status === 'dispatched' && (
-                      <DropdownMenuItem onClick={() => handleOpenReconcile(tx.id)} className="text-blue-600 focus:text-blue-600">
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Reconcile Delivery
-                      </DropdownMenuItem>
-                    )}
-
-                    <DropdownMenuItem onClick={() => handleOpenPayment(tx.id)}>
-                      <Plus className="mr-2 h-4 w-4" /> Add Payment
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <TransactionRow
+              key={tx.id}
+              tx={tx}
+              isHighlighted={tx.id === highlightId.get('id')}
+              isDownloading={isDownloading}
+              openMenuId={openMenuId}
+              onOpenMenuChange={(isOpen) => handleOpenMenuChange(isOpen, tx.id)}
+              onCopyId={handleCopyId}
+              onDownloadInvoice={handleDownloadInvoice}
+              onOpenReconcile={handleOpenReconcile}
+              onOpenPayment={handleOpenPayment}
+              onOpenDispatch={handleOpenDispatch} // Pass dispatch handler
+            />
           ))
         )}
       </TableBody>
@@ -287,18 +262,17 @@ export default function PendingTransactionsPage() {
           <p className="text-muted-foreground mt-1">Manage payments, balances, and outstanding invoices.</p>
         </div>
         <div className="flex gap-2">
-            {/* Enhanced Refresh Button */}
-            <Button 
-              variant="outline" 
-              onClick={handleRefresh}
-              disabled={isLoading || isRefetching}
-            >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
-            <Button>
-                <Plus className="mr-2 h-4 w-4" /> Create Invoice
-            </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleRefresh}
+            disabled={isLoading || isRefetching}
+          >
+            <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" /> Create Invoice
+          </Button>
         </div>
       </div>
 
@@ -337,16 +311,16 @@ export default function PendingTransactionsPage() {
       {/* Tabs */}
       <Tabs defaultValue="all" className="w-full">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-4">
-            <TabsList>
-              <TabsTrigger value="all">All Outstanding</TabsTrigger>
-              <TabsTrigger value="dispatched">Dispatched</TabsTrigger>
-              <TabsTrigger value="pending">Unpaid</TabsTrigger>
-            </TabsList>
-            
-            <div className="relative w-full sm:w-64">
-               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-               <Input placeholder="Search..." className="pl-8" />
-            </div>
+          <TabsList>
+            <TabsTrigger value="all">All Outstanding</TabsTrigger>
+            <TabsTrigger value="dispatched">Dispatched</TabsTrigger>
+            <TabsTrigger value="pending">Unpaid</TabsTrigger>
+          </TabsList>
+          
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search..." className="pl-8" />
+          </div>
         </div>
 
         <TabsContent value="all">
@@ -370,8 +344,15 @@ export default function PendingTransactionsPage() {
       <ReconciliationDialog
         open={isReconcileOpen}
         onOpenChange={setIsReconcileOpen}
-        transactionId={activeTxId}
         fulfillmentId={activeTransaction?.fulfillmentId}
+      />
+
+      {/* Dispatch Dialog */}
+      <DispatchDialog
+        open={isDispatchOpen}
+        onOpenChange={setIsDispatchOpen}
+        transactionId={activeTxId || ''}
+        drivers={drivers}
       />
     </div>
   );

@@ -38,10 +38,11 @@ interface ReceiptDialogProps {
 const formatOrderForReceipt = (order: any): Order | null => {
   if (!order) return null;
 
+
   return {
     id: order.id || 'temp-id',
     orderNumber: order.orderNumber || `#${Math.floor(Math.random() * 10000)}`,
-    customerName: order.customer?.name || 'Guest',
+    customerName: order.customer?.name || order.customerName || 'Guest',
 
     // Enterprise Metadata
     orderType: order.orderType || 'Walk-in',
@@ -49,18 +50,20 @@ const formatOrderForReceipt = (order: any): Order | null => {
     paymentMethod: order.paymentMethod || 'Cash', // Ensure your checkout passes this
     status: 'completed',
 
-    items: (order.items || []).map((item: any) => ({
-      productId: item.productId || item.id,
-      productName: item.productName || item.name,
-      variantName: item.variant || item.variantName || '',
-      sku: item.sku || '',
-      quantity: item.quantity || 1,
-      selectedUnit: {
-        unitName: item.unit || 'Unit',
-        price: parseFloat(item.price || '0'),
-      },
-      note: item.note || '',
-    })),
+    items: (order.items || []).map((item: any) => {
+        return {
+            productId: item.productId || item.id,
+            productName: item.productName || item.name || 'Unknown Product',
+            variantName: item.variantName || item.variant || '',
+            sku: item.sku || '',
+            quantity: item.quantity || 1,
+            selectedUnit: {
+                unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
+                price: parseFloat(item.price || item.selectedUnit?.price || '0'),
+            },
+            note: item.note || item.notes || '',
+        };
+    }),
 
     subTotal: parseFloat(order.subtotal || order.subTotal || '0'),
     discount: parseFloat(order.discount || '0'),

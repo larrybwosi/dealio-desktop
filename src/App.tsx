@@ -68,7 +68,7 @@ const DynamicRenderer = () => {
 
   return (
     <Router>
-      <UpdaterProvider autoDownload={true} checkInterval={60 * 60 * 1000 * 4}>
+      <UpdaterProvider autoDownload={false} checkInterval={60 * 60 * 1000 * 4}>
         <AppRoutes />
       </UpdaterProvider>
     </Router>

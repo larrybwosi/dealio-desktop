@@ -45,6 +45,7 @@ export interface SellableUnit {
 export interface Product {
   productId: string;
   productName: string;
+  name?: string;
   variantId: string;
   variantName: string;
   category: string;
@@ -53,6 +54,12 @@ export interface Product {
   imageUrl?: string;
   stock: number;
   sellableUnits: SellableUnit[];
+  variants?: Variant[];
+}
+
+export interface Variant {
+  variantId: string;
+  name: string;
 }
 
 export interface OrderItem {
@@ -605,11 +612,15 @@ export const usePosStore = create<PosStore>()(
             };
           }
 
+          // Find the variant name from the variants array
+          const variant = product.variants?.find(v => v.variantId === product.variantId);
+          const variantName = variant?.name || 'Default Variant';
+
           const newItem: OrderItem = {
             productId: product.productId,
             variantId: product.variantId,
-            productName: product.productName,
-            variantName: product.variantName,
+            productName: product.name,
+            variantName: variantName,
             selectedUnit: unit,
             quantity,
             imageUrl: product.imageUrl,

@@ -129,6 +129,7 @@ export function Cart() {
 
   // --- Mappers ---
   const mappedCartItems: CartItem[] = useMemo(() => {
+    // console.log('Current Order Items:', currentOrder.items);
     return currentOrder.items.map(item => ({
       productId: item.productId,
       productName: item.productName,

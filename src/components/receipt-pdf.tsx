@@ -4,7 +4,6 @@ import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/
 import { format } from 'date-fns';
 import type { Order, ReceiptConfig } from '@/store/store';
 
-
 Font.register({
   family: 'Roboto',
   fonts: [
@@ -26,7 +25,7 @@ interface ReceiptPdfProps {
   order: Order;
   settings: {
     businessName: string;
-    businessSlogan?: string; // Added for "Quality Products & Services"
+    businessSlogan?: string;
     address?: string;
     phone?: string;
     email?: string;
@@ -77,7 +76,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
       marginBottom: 8,
     },
     businessName: {
-      fontSize: baseFontSize + 6, // Larger like "Cake Panier"
+      fontSize: baseFontSize + 6,
       fontWeight: 'bold',
       marginBottom: 4,
       textAlign: 'center',
@@ -114,7 +113,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
       marginBottom: 12,
       borderBottomWidth: 1,
       borderBottomColor: '#000',
-      borderBottomStyle: 'dashed', // Dashed line separator
+      borderBottomStyle: 'dashed',
       paddingBottom: 8,
     },
     metaText: {
@@ -190,7 +189,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
       width: isThermal ? '100%' : '60%',
       marginTop: 6,
       paddingTop: 4,
-      borderTopWidth: 1, // Double underline effect simulation
+      borderTopWidth: 1,
       borderTopColor: '#000',
       borderBottomWidth: 1,
       borderBottomColor: '#000',
@@ -257,7 +256,6 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
              <Text style={styles.slogan}>{settings.businessSlogan}</Text>
           )}
           
-          {/* Stacked Address/Phone/Email/Web like the PDF */}
           {config.showAddress && settings.address && (
             <Text style={styles.contactInfo}>{settings.address}</Text>
           )}
@@ -298,18 +296,23 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
           {order.items?.map((item, i) => {
             const unitPrice = item.selectedUnit?.price || 0;
             const lineTotal = unitPrice * item.quantity;
+            
+            // Logic to determine if variant should be shown
+            const variantName = item.variantName || '';
+            const shouldShowVariant = variantName && !['Default', 'Default Variant'].includes(variantName);
+
             return (
               <View key={i} style={styles.tableRow}>
                 <View style={styles.colItem}>
-                  <Text style={styles.itemName}>
-                    {item.productName}
-                    {/* Show variant in brackets if it exists and is not "Default" or "Default Variant" */
-                    (item.variantName || item.sku) && 
-                    !['Default', 'Default Variant'].includes(item.variantName || '') && 
-                    !['Default', 'Default Variant'].includes(item.sku || '') ? 
-                      ` (${item.variantName || item.sku})` : ''}
-                  </Text>
+                  {/* Product Name */}
+                  <Text style={styles.itemName}>{item.productName}</Text>
+                  
+                  {/* Variant Name - displayed below in italics if not default */}
+                  {shouldShowVariant && (
+                    <Text style={styles.itemVariant}>{variantName}</Text>
+                  )}
                 </View>
+                
                 <Text style={styles.colQty}>{item.quantity}</Text>
                 <Text style={styles.colTotal}>
                   {formatCurrency(lineTotal, currency)}

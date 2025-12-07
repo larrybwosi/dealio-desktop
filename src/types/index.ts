@@ -58,3 +58,18 @@ export interface Order {
   // Mobile Payment Specifics
   mobilePaymentPhone?: string;
 }
+
+// types/transaction.ts
+export interface Transaction {
+  id: string;
+  number?: string;
+  customer: string;
+  email: string;
+  totalAmount: number;
+  paidAmount: number;
+  date: string;
+  status: 'pending' | 'partially_paid' | 'paid' | 'dispatched'; 
+  fulfillmentId?: string | null;
+  invoiceLink?: string; 
+  deliveryId?: string;
+}

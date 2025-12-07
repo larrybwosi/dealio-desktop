@@ -287,7 +287,6 @@ const PaymentModal = ({
         // Submit to backend (Local First) for Cash/Card
         // response is now a QueuedSale object
         const queuedSale: any = await createSale(payload);
-        console.log('Queued Sale:', queuedSale);
         completeOrderFlow(payload, queuedSale);
       }
 
