@@ -3,7 +3,6 @@ import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { UpdaterProvider } from '@/lib/UpdateProvider';
 import AppLayout from '@/components/app.layout';
 import { HistoryPage } from '@/components/history-page';
 import AnalyticsPage from '@/pages/analytics-page';
@@ -68,9 +67,7 @@ const DynamicRenderer = () => {
 
   return (
     <Router>
-      <UpdaterProvider autoDownload={false} checkInterval={60 * 60 * 1000 * 4}>
-        <AppRoutes />
-      </UpdaterProvider>
+      <AppRoutes />
     </Router>
   );
 };

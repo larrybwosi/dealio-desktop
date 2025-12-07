@@ -8,6 +8,9 @@ type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | '
 
 interface UpdaterContextType {
   isUpdateAvailable: boolean;
+  isCritical: boolean; // <--- NEW: Tells UI to block closing
+  releaseNotes: string | null;
+  releaseDate: string | null;
   status: UpdateStatus;
   downloadProgress: number;
   isModalOpen: boolean;
@@ -15,37 +18,40 @@ interface UpdaterContextType {
   openModal: () => void;
   closeModal: () => void;
   checkForUpdates: () => Promise<void>;
-  startInstall: (shouldRelaunch?: boolean) => Promise<void>;
+  startInstall: () => Promise<void>;
 }
 
 const UpdaterContext = createContext<UpdaterContextType | undefined>(undefined);
 
 interface UpdaterProviderProps {
   children: ReactNode;
-  autoDownload?: boolean; // New prop to enable auto-downloading
-  checkInterval?: number; // Optional: Interval in ms (e.g., 1 hour)
+  checkInterval?: number;
+  deprecatedAfterDays?: number; // How many days before an update becomes mandatory
 }
 
 export const UpdaterProvider = ({ 
   children, 
-  autoDownload = false,
-  checkInterval = 0 
+  checkInterval = 3600000, // Default 1 hour
+  deprecatedAfterDays = 14 // Default 2 weeks
 }: UpdaterProviderProps) => {
   const [update, setUpdate] = useState<Update | null>(null);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
+  const [isCritical, setIsCritical] = useState(false);
+  const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
+  const [releaseDate, setReleaseDate] = useState<string | null>(null);
   const [status, setStatus] = useState<UpdateStatus>('IDLE');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const openModal = useCallback(() => setIsModalOpen(true), []);
-  const closeModal = useCallback(() => setIsModalOpen(false), []);
+  const closeModal = useCallback(() => {
+    // Prevent closing if critical
+    if (isCritical) return; 
+    setIsModalOpen(false);
+  }, [isCritical]);
 
-  /**
-   * Core logic to download and install the update.
-   * We pass the 'update' object explicitly to avoid stale state issues in useEffect.
-   */
-  const processUpdate = useCallback(async (updateObj: Update, shouldRelaunch: boolean = true) => {
+  const processUpdate = useCallback(async (updateObj: Update) => {
     setStatus('DOWNLOADING');
     setError(null);
     
@@ -57,7 +63,6 @@ export const UpdaterProvider = ({
         switch (progress.event) {
           case 'Started':
             totalBytes = progress.data.contentLength || 0;
-            console.log(`Update started. Size: ${totalBytes}`);
             break;
           case 'Progress':
             downloadedBytes += progress.data.chunkLength;
@@ -66,16 +71,14 @@ export const UpdaterProvider = ({
             }
             break;
           case 'Finished':
-            console.log('Download finished.');
+             setStatus('DONE');
             break;
         }
       });
-
-      setStatus('DONE');
-
-      if (shouldRelaunch) {
-        await relaunch();
-      }
+      
+      // Auto relaunch after successful install
+      await relaunch();
+      
     } catch (e: any) {
       console.error('Update failed:', e);
       setError(e.message || 'Failed to update');
@@ -83,22 +86,11 @@ export const UpdaterProvider = ({
     }
   }, []);
 
-  /**
-   * Public function to trigger install manually (e.g., from a button)
-   * Uses the state 'update' object.
-   */
-  const startInstall = useCallback(async (shouldRelaunch: boolean = true) => {
-    if (!update) {
-      console.error('No update available to install.');
-      return;
-    }
-    await processUpdate(update, shouldRelaunch);
+  const startInstall = useCallback(async () => {
+    if (!update) return;
+    await processUpdate(update);
   }, [update, processUpdate]);
 
-  /**
-   * Check for updates.
-   * Handles setting state and triggering auto-download if enabled.
-   */
   const checkForUpdates = useCallback(async () => {
     setStatus('CHECKING');
     setError(null);
@@ -107,49 +99,56 @@ export const UpdaterProvider = ({
       const updateResult = await check();
 
       if (updateResult) {
-        console.log('Update found:', updateResult.version);
         setUpdate(updateResult);
         setIsUpdateAvailable(true);
+        setReleaseNotes(updateResult.body || '');
+        setReleaseDate(updateResult.date || null);
         setStatus('PENDING');
 
-        // Logic for Auto-Download
-        if (autoDownload) {
-          // If auto-download is on, we usually don't want to force relaunch immediately 
-          // (interrupting the user). We download, then let them click a button to restart.
-          // Pass `false` for relaunch, or `true` if you want an aggressive update.
-          await processUpdate(updateResult, false); 
-        } else {
-          // Only open modal if we aren't auto-downloading
-          setIsModalOpen(true);
+        // --- DEPRECATION LOGIC ---
+        let critical = false;
+
+        // 1. Check for manual flag in release notes
+        if (updateResult.body && updateResult.body.includes('[CRITICAL]')) {
+            critical = true;
         }
-      } else {
-        console.log('No update available.');
-        setStatus('IDLE');
+
+        // 2. Check for time-based deprecation
+        if (updateResult.date) {
+            const releaseDateObj = new Date(updateResult.date);
+            const now = new Date();
+            const diffTime = Math.abs(now.getTime() - releaseDateObj.getTime());
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            if (diffDays > deprecatedAfterDays) {
+                critical = true;
+            }
+        }
+
+        setIsCritical(critical);
+        setIsModalOpen(true); // Always open modal on update found
       }
     } catch (e: any) {
       console.error('Failed to check for updates:', e);
       setError(e.message);
       setStatus('ERROR');
     }
-  }, [autoDownload, processUpdate]);
+  }, [deprecatedAfterDays]);
 
-  // Initial Check on Mount
   useEffect(() => {
     checkForUpdates();
-
-    // Optional: Polling interval
     let intervalId: NodeJS.Timeout;
     if (checkInterval > 0) {
       intervalId = setInterval(checkForUpdates, checkInterval);
     }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    return () => clearInterval(intervalId);
   }, [checkForUpdates, checkInterval]);
 
   const value = {
     isUpdateAvailable,
+    isCritical,
+    releaseNotes,
+    releaseDate,
     status,
     downloadProgress,
     isModalOpen,
@@ -165,8 +164,6 @@ export const UpdaterProvider = ({
 
 export const useUpdater = (): UpdaterContextType => {
   const context = useContext(UpdaterContext);
-  if (!context) {
-    throw new Error('useUpdater must be used within an UpdaterProvider');
-  }
+  if (!context) throw new Error('useUpdater must be used within an UpdaterProvider');
   return context;
 };

@@ -8,6 +8,8 @@ import { NotificationToast } from "@/components/notification-toast"
 import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AblyProvider } from "./AblyProvider"
+import { UpdaterProvider } from "./UpdateProvider"
+import { UpdateDialog } from "@/components/update.dialog"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
@@ -71,7 +73,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     <>
       <AblyProvider>
         <NotificationToast />
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
+            {children}
+            <UpdateDialog />
+          </UpdaterProvider>
+        </QueryClientProvider>
         <Toaster />
       </AblyProvider>
     </>

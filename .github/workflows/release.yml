@@ -25,11 +25,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # IMPORTANT: Fetch all history and tags so we can generate a diff for the changelog
+      - name: Fetch tags for changelog
+        run: git fetch --prune --unshallow --tags
+
       # 1. Setup pnpm specifically
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9 # Specify your pnpm version here
+          version: 9 
           run_install: false
 
       # 2. Setup Node.js with pnpm caching
@@ -37,7 +41,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
-          cache: 'pnpm' # This automatically handles the pnpm store cache
+          cache: 'pnpm'
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -48,12 +52,47 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          # Added libudev-dev and libusb-1.0-0-dev below
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev libusb-1.0-0-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev libusb-1.0-0-dev libgtk-3-dev
 
       # 3. Install frontend dependencies using pnpm
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      # --- NEW STEP: Generate Release Notes ---
+      # This script finds the previous tag and logs commits between then and now.
+      # It handles the case where there is no previous tag (first release).
+      # Note: We only run this on one matrix job to avoid conflicts or redundant work, 
+      # but since tauri-action runs per matrix, we actually need it available in every runner 
+      # or we need to standardize. 
+      # However, tauri-action is smart enough to append assets to the same release.
+      # The *last* job to finish might overwrite the body, or the first one creates it.
+      # To be safe, we generate it on all, ensuring consistency.
+      - name: Generate Release Notes
+        id: release_notes
+        shell: bash
+        run: |
+          # Get current tag
+          CURRENT_TAG=${GITHUB_REF#refs/tags/}
+          
+          # Try to get the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || true)
+          
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found. Generating notes from start."
+            LOGS=$(git log --pretty=format:"- %s (%h)" "$CURRENT_TAG")
+          else
+            echo "Generating notes from $PREV_TAG to $CURRENT_TAG"
+            LOGS=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG..$CURRENT_TAG")
+          fi
+          
+          # Prepare EOF delimiter for multiline output in GitHub Actions
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          
+          echo "RELEASE_BODY<<$EOF" >> "$GITHUB_OUTPUT"
+          echo "### Changes in $CURRENT_TAG" >> "$GITHUB_OUTPUT"
+          echo "" >> "$GITHUB_OUTPUT"
+          echo "$LOGS" >> "$GITHUB_OUTPUT"
+          echo "$EOF" >> "$GITHUB_OUTPUT"
 
       # 4. Build and Publish
       - uses: tauri-apps/tauri-action@v0
@@ -64,7 +103,8 @@ jobs:
         with:
           tagName: app-v__VERSION__ 
           releaseName: 'App v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
+          # USE THE GENERATED NOTES HERE:
+          releaseBody: ${{ steps.release_notes.outputs.RELEASE_BODY }}
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
