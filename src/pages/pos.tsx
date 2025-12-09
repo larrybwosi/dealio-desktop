@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePosStore } from '@/store/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +23,6 @@ import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
-import { useInView } from 'react-intersection-observer';
 import { useDebounce } from 'use-debounce';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import PendingOrdersList from '@/components/orders-list';
@@ -53,16 +52,12 @@ export function POS() {
     error: scannerError 
   } = useScanner();
 
-  // 2. Fetching Logic
+  // 2. Fetching Logic (Updated for Sync Hook)
+  // The new hook returns the full filtered array and sync status
   const { 
-    data, 
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage, 
-    isLoading, 
-    isError, 
-    refetch,
-    isRefetching
+    products, 
+    isSyncing, 
+    triggerSync,
   } = usePosProducts({
     search: debouncedSearch,
     category: activeCategory
@@ -72,31 +67,19 @@ export function POS() {
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
   const businessConfig = usePosStore(state => state.getBusinessConfig());
 
-  // 4. Infinite Scroll Observer
-  const { ref, inView } = useInView();
-  
+  // 4. Extract Categories
+  // We only update categories when viewing "all" to ensure we capture the full list
   useEffect(() => {
-    if (inView && hasNextPage) {
-      fetchNextPage();
-    }
-  }, [inView, hasNextPage, fetchNextPage]);
-
-  // 5. Flatten Pages & Extract Categories
-  const allProducts = useMemo(() => {
-    return data?.pages.flatMap(page => page.products) || [];
-  }, [data]);
-
-  useEffect(() => {
-    if (activeCategory === 'all' && allProducts.length > 0) {
+    if (activeCategory === 'all' && products.length > 0) {
       const categories = new Set(knownCategories);
-      allProducts.forEach((p: any) => {
+      products.forEach((p: any) => {
         if (p.category) categories.add(p.category);
       });
       setKnownCategories(new Set(Array.from(categories).sort()));
     }
-  }, [allProducts, activeCategory]);
+  }, [products, activeCategory]);
 
-  // 6. Global Keyboard Shortcuts
+  // 5. Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
@@ -116,15 +99,14 @@ export function POS() {
   }, []);
 
   const handleAddToCartWrapper = useCallback((item: any) => {
-    // console.log("item", item);
     const storeProduct = {
       ...item.product,
       variantId: item.variant.variantId,
       variantName: item.variant.name,
-      productName: item.product.name,
+      productName: item.product.productName, // Updated property mapping based on new hook type
       variants: item.product.variants?.map((v: any) => ({
         ...v,
-        name: v.name || 'Default Variant'
+        name: v.variantName || v.name || 'Default Variant'
       })) 
     };
 
@@ -134,7 +116,6 @@ export function POS() {
         item.quantity, 
         { isWholesale: pricingMode === 'wholesale' }
     );
-    console.log('Added to cart:', item);
   }, [addItemToOrder, pricingMode]);
 
   const clearSearch = () => {
@@ -143,7 +124,7 @@ export function POS() {
   };
 
   const handleRefresh = async () => {
-    await refetch();
+    await triggerSync();
   };
 
   // Initialize scanner on mount
@@ -162,18 +143,17 @@ export function POS() {
 
     lastProcessedBarcode.current = lastScanned;
 
-    // Search for product by barcode in loaded products
-    const product = allProducts.find((p: any) => {
+    // Search for product by barcode in currently loaded products
+    const product = products.find((p: any) => {
       // Check main product barcode
       if (p.barcode === lastScanned) return true;
-      
       // Check variant barcodes
       return p.variants?.some((v: any) => v.barcode === lastScanned);
     });
 
     if (!product) {
       toast.error('Product Not Found', {
-        description: `No product found with barcode: ${lastScanned}`,
+        description: `No product found with barcode: ${lastScanned}. Try clearing filters if applied.`,
         duration: 3000,
       });
       return;
@@ -214,8 +194,8 @@ export function POS() {
     const storeProduct = {
       ...product,
       variantId: variant.variantId,
-      variantName: variant.variantName, // Map variantName
-      name: product.productName, // Map productName to name
+      variantName: variant.variantName, 
+      name: product.productName, 
       variants: product.variants?.map((v: any) => ({
         ...v,
         name: v.variantName || v.name || 'Default Variant'
@@ -235,7 +215,7 @@ export function POS() {
       duration: 2000,
       icon: <CheckCircle2 className="w-5 h-5" />,
     });
-  }, [lastScanned, allProducts, addItemToOrder, pricingMode]);
+  }, [lastScanned, products, addItemToOrder, pricingMode]);
 
   // Show scanner error toasts
   useEffect(() => {
@@ -246,23 +226,6 @@ export function POS() {
       });
     }
   }, [scannerError]);
-
-  if (isError) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full space-y-4 bg-muted/10 rounded-lg border border-dashed p-10">
-        <div className="bg-destructive/10 p-4 rounded-full">
-            <AlertCircle className="w-10 h-10 text-destructive" />
-        </div>
-        <h3 className="font-semibold text-lg">Unable to load menu</h3>
-        <p className="text-muted-foreground text-sm max-w-xs text-center">
-            We encountered an error fetching the product list. Please check your connection.
-        </p>
-        <Button onClick={() => refetch()} variant="outline" className="gap-2">
-          <RefreshCw className="w-4 h-4" /> Retry Connection
-        </Button>
-      </div>
-    );
-  }
 
   return (
     <div className="flex flex-col h-full bg-background/50">
@@ -280,7 +243,8 @@ export function POS() {
               <div>
                   <h2 className="text-xl font-bold tracking-tight">Product List</h2>
                   <p className="text-xs text-muted-foreground hidden sm:block">
-                      {allProducts.length} items loaded • {pricingMode} mode
+                      {products.length} items • {pricingMode} mode
+                      {isSyncing && <span className="ml-2 italic text-primary">(Syncing...)</span>}
                   </p>
               </div>
               {/* Scanner Status Indicator */}
@@ -307,7 +271,7 @@ export function POS() {
            </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto">
-            {/* Mode Switcher - Segmented Control Style */}
+            {/* Mode Switcher */}
             <div className="bg-muted/50 p-1 rounded-lg flex items-center border border-border flex-1 md:flex-none">
               <button
                 onClick={() => setPricingMode('retail')}
@@ -337,11 +301,11 @@ export function POS() {
                 variant="outline" 
                 size="icon" 
                 onClick={handleRefresh}
-                className={cn("shrink-0", isRefetching && "opacity-70")}
-                disabled={isRefetching}
-                title="Refresh Products"
+                className={cn("shrink-0", isSyncing && "opacity-70")}
+                disabled={isSyncing}
+                title="Sync Products"
             >
-                <RefreshCw className={cn("w-4 h-4", isRefetching && "animate-spin")} />
+                <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
             </Button>
           </div>
         </div>
@@ -367,9 +331,6 @@ export function POS() {
                             <X className="w-3 h-3" />
                         </button>
                     )}
-                    {isFetchingNextPage || (isLoading && inputValue) ? (
-                        <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
-                    ) : null}
                 </div>
                 <Button variant="secondary" onClick={() => setShowBarcodeScanner(true)} className="gap-2 shrink-0">
                     <Scan className="w-4 h-4" /> 
@@ -394,8 +355,7 @@ export function POS() {
                                 onClick={() => setActiveCategory(cat)} 
                             />
                         ))}
-                        {/* Fallback if no categories found yet */}
-                        {knownCategories.size === 0 && !isLoading && (
+                        {knownCategories.size === 0 && !isSyncing && (
                             <span className="text-xs text-muted-foreground py-2 italic px-2">
                                 Categories will appear as items load...
                             </span>
@@ -409,12 +369,13 @@ export function POS() {
 
       {/* --- Product Grid Content --- */}
       <div className="flex-1 overflow-y-auto min-h-0 p-4 bg-muted/10"> 
-        {isLoading && !data ? (
+        {/* Only show full skeleton if we have NO items and are syncing */}
+        {isSyncing && products.length === 0 ? (
            <ProductGridSkeleton />
         ) : (
           <div className="pb-20">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4">
-              {allProducts.map((product) => (
+              {products.map((product) => (
                 <ProductCard 
                   key={product.productId} 
                   product={product as any} 
@@ -424,40 +385,25 @@ export function POS() {
               ))}
             </div>
             
-            {/* Infinite Scroll Trigger */}
-            <div className="py-8 w-full">
-                {hasNextPage ? (
-                    <div ref={ref} className="flex flex-col items-center justify-center gap-2">
-                        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                        <p className="text-xs text-muted-foreground">Loading more items...</p>
+            {/* Empty State */}
+            {!isSyncing && products.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <div className="bg-muted p-6 rounded-full mb-4">
+                        <Search className="w-10 h-10 opacity-40" />
                     </div>
-                ) : allProducts.length > 0 ? (
-                    <div className="text-center">
-                        <p className="text-xs font-medium text-muted-foreground bg-muted/50 inline-block px-4 py-1 rounded-full">
-                            You've reached the end of the list
-                        </p>
-                    </div>
-                ) : null}
-
-                {!isLoading && allProducts.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                        <div className="bg-muted p-6 rounded-full mb-4">
-                            <Search className="w-10 h-10 opacity-40" />
-                        </div>
-                        <h4 className="font-semibold text-lg text-foreground">No products found</h4>
-                        <p className="max-w-xs text-center mt-1">
-                            We couldn't find anything matching "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
-                        </p>
-                        <Button 
-                            variant="link" 
-                            onClick={() => {setInputValue(''); setActiveCategory('all');}}
-                            className="mt-2"
-                        >
-                            Clear filters
-                        </Button>
-                    </div>
-                )}
-            </div>
+                    <h4 className="font-semibold text-lg text-foreground">No products found</h4>
+                    <p className="max-w-xs text-center mt-1">
+                        We couldn't find anything matching "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
+                    </p>
+                    <Button 
+                        variant="link" 
+                        onClick={() => {setInputValue(''); setActiveCategory('all');}}
+                        className="mt-2"
+                    >
+                        Clear filters
+                    </Button>
+                </div>
+            )}
           </div>
         )}
       </div>
