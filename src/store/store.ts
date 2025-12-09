@@ -616,8 +616,6 @@ export const usePosStore = create<PosStore>()(
           const variant = product.variants?.find(v => v.variantId === product.variantId);
           const variantName = variant?.name || 'Default Variant';
 
-          console.log(product);
-
           const newItem: OrderItem = {
             productId: product.productId,
             variantId: product.variantId,

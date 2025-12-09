@@ -9,7 +9,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -44,14 +44,6 @@ interface ProductProps {
   pricingMode: 'retail' | 'wholesale';
 }
 
-// --- Helper ---
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
-};
-
 export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductProps) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
     product.variants[0]?.variantId
@@ -59,6 +51,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
   const [imgError, setImgError] = useState(false);
+  const formatCurrency = useFormattedCurrency()
 
   // Derive Current Variant
   const currentVariant = useMemo(

@@ -1,4 +1,3 @@
-// pending-transactions-page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -26,7 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from '@/lib/axios';
 import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
-import { DispatchDialog } from '@/components/pending-page/dispatch-dialog'; // Import DispatchDialog
+import { DispatchDialog } from '@/components/pending-page/dispatch-dialog';
 import { useSearchParams } from 'react-router';
 
 // Import the new components
@@ -63,7 +62,7 @@ export default function PendingTransactionsPage() {
   const [activeTxId, setActiveTxId] = useState<string | null>(null);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
-  const [isDispatchOpen, setIsDispatchOpen] = useState(false); // New state for dispatch dialog
+  const [isDispatchOpen, setIsDispatchOpen] = useState(false);
   
   // State to control which dropdown is open programmatically
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -85,7 +84,6 @@ export default function PendingTransactionsPage() {
   // --- Query: Get Drivers ---
   const { 
     data: drivers = [], 
-    // isLoading: isLoadingDrivers 
   } = useQuery<DriverOption[]>({
     queryKey: ['drivers'],
     queryFn: () => fetchDrivers(),
@@ -95,10 +93,8 @@ export default function PendingTransactionsPage() {
   // --- Effect: Handle Deep Linking / Highlighting ---
   useEffect(() => {
     if (highlightId && transactions.length > 0 && !isLoading) {
-      // 1. Open the menu for this transaction
       setOpenMenuId(highlightId.get('id'));
 
-      // 2. Scroll the row into view
       const rowElement = document.getElementById(`tx-row-${highlightId}`);
       if (rowElement) {
         rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -110,7 +106,7 @@ export default function PendingTransactionsPage() {
   const handleOpenPayment = (txId: string) => {
     setActiveTxId(txId);
     setIsPaymentOpen(true);
-    setOpenMenuId(null); // Close menu after action
+    setOpenMenuId(null);
   };
 
   const handleOpenReconcile = (txId: string) => {
@@ -119,7 +115,7 @@ export default function PendingTransactionsPage() {
     setOpenMenuId(null);
   };
 
-  const handleOpenDispatch = (txId: string) => { // New handler
+  const handleOpenDispatch = (txId: string) => {
     setActiveTxId(txId);
     setIsDispatchOpen(true);
     setOpenMenuId(null);
@@ -135,28 +131,98 @@ export default function PendingTransactionsPage() {
     toast.success('Transaction ID copied to clipboard');
   };
 
+  // --- Invoice Download Handler ---
   const handleDownloadInvoice = async (tx: Transaction) => {
     if (!tx.invoiceLink) return;
     if (isDownloading) return;
 
     setIsDownloading(true);
+    
+    // Create a loading toast
+    const loadingToastId = toast.loading('Downloading receipt...', {
+      description: `Order: ${tx.number || tx.id}`
+    });
+
     try {
       const response = await apiClient.get(tx.invoiceLink, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Receipt_${safeOrderNum}.pdf`;
 
+      await processFileDownload(blob, fileName, loadingToastId);
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Failed to save receipt', {
+        description: 'Please try again',
+        id: loadingToastId
+      });
+    } finally {
+      setIsDownloading(false);
+      setOpenMenuId(null);
+    }
+  };
+
+  // --- Waybill Download Handler (NEW) ---
+  const handleDownloadWaybill = async (tx: Transaction) => {
+    // Waybills usually require a fulfillment/dispatch to exist
+    if (!tx.fulfillmentId) {
+        toast.error("This transaction has not been dispatched yet.");
+        return;
+    }
+
+    if (isDownloading) return;
+
+    setIsDownloading(true);
+    
+    // Create a loading toast
+    const loadingToastId = toast.loading('Downloading waybill...', {
+      description: `Order: ${tx.number || tx.id}`
+    });
+
+    try {
+      // Request waybill based on fulfillment ID
+      const response = await apiClient.get(`/api/v1/pos/waybill/${tx.id}`, { responseType: 'blob' });
+      // NEXT VERSION
+      // const response = await apiClient.get(`/api/v1/fulfillment/${tx.fulfillmentId}/waybill`, { responseType: 'blob' });
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
+      const fileName = `Waybill_${safeOrderNum}.pdf`;
+
+      await processFileDownload(blob, fileName, loadingToastId);
+    } catch (error) {
+      console.error('Waybill download error:', error);
+      toast.error('Failed to save waybill', {
+        description: 'Please try again',
+        id: loadingToastId
+      });
+    } finally {
+      setIsDownloading(false);
+      setOpenMenuId(null);
+    }
+  };
+
+  // Helper to handle Tauri vs Browser download logic to avoid code duplication
+  const processFileDownload = async (blob: Blob, fileName: string, loadingToastId: string | number) => {
+    try {
       if (isTauri()) {
         const arrayBuffer = await blob.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
+        
+        // Ensure directory exists
         if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
           await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
         }
+        
         const documentDirPath = await documentDir();
         const filePath = `${documentDirPath}/Dealio/${fileName}`;
+        
         await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
         
-        toast.success('Saved to Downloads', {
+        // Update loading toast to success
+        toast.success(`Saved ${fileName} to Downloads`, {
+          description: 'File saved successfully',
+          id: loadingToastId,
           action: {
             label: 'Open',
             onClick: async () => {
@@ -179,16 +245,23 @@ export default function PendingTransactionsPage() {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        toast.success('Download started');
+        
+        // Update loading toast to success
+        toast.success('Download started', {
+          description: `${fileName} is being downloaded`,
+          id: loadingToastId,
+          duration: 3000,
+        });
       }
     } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Failed to save receipt');
-    } finally {
-      setIsDownloading(false);
-      setOpenMenuId(null);
+      console.error('File processing error:', error);
+      toast.error('Failed to save file', {
+        description: 'An error occurred while saving the file',
+        id: loadingToastId
+      });
+      throw error;
     }
-  };
+  }
 
   const handleOpenMenuChange = (isOpen: boolean, txId: string) => {
     setOpenMenuId(isOpen ? txId : null);
@@ -235,15 +308,16 @@ export default function PendingTransactionsPage() {
             <TransactionRow
               key={tx.id}
               tx={tx}
-              isHighlighted={tx.id === highlightId.get('id')}
+              isHighlighted={tx.id === highlightId?.get('id')}
               isDownloading={isDownloading}
               openMenuId={openMenuId}
               onOpenMenuChange={(isOpen) => handleOpenMenuChange(isOpen, tx.id)}
               onCopyId={handleCopyId}
               onDownloadInvoice={handleDownloadInvoice}
+              onDownloadWaybill={handleDownloadWaybill}
               onOpenReconcile={handleOpenReconcile}
               onOpenPayment={handleOpenPayment}
-              onOpenDispatch={handleOpenDispatch} // Pass dispatch handler
+              onOpenDispatch={handleOpenDispatch} 
             />
           ))
         )}

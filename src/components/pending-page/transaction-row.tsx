@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { CheckCircle2, Download, Loader2, MoreHorizontal, Plus, Truck, Package } from "lucide-react";
+import { CheckCircle2, Download, Loader2, MoreHorizontal, Plus, Truck, Package, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Transaction } from "@/types";
 
@@ -18,6 +18,7 @@ interface TransactionRowProps {
   onOpenMenuChange: (isOpen: boolean) => void;
   onCopyId: (id: string) => void;
   onDownloadInvoice: (tx: Transaction) => void;
+  onDownloadWaybill: (tx: Transaction) => void; // Added prop
   onOpenReconcile: (id: string) => void;
   onOpenPayment: (id: string) => void;
   onOpenDispatch: (id: string) => void;
@@ -31,6 +32,7 @@ export function TransactionRow({
   onOpenMenuChange,
   onCopyId,
   onDownloadInvoice,
+  onDownloadWaybill, // Destructure new prop
   onOpenReconcile,
   onOpenPayment,
   onOpenDispatch,
@@ -96,6 +98,7 @@ export function TransactionRow({
               Copy ID
             </DropdownMenuItem>
             
+            {/* Invoice Download */}
             {tx.invoiceLink && (
               <DropdownMenuItem 
                 onClick={() => onDownloadInvoice(tx)}
@@ -108,6 +111,22 @@ export function TransactionRow({
                   <Download className="mr-2 h-4 w-4" /> 
                 )}
                 Download Invoice
+              </DropdownMenuItem>
+            )}
+
+            {/* Waybill Download - Only if fulfillment exists */}
+            {tx.fulfillmentId && (
+              <DropdownMenuItem 
+                onClick={() => onDownloadWaybill(tx)}
+                disabled={isDownloading}
+                className="cursor-pointer"
+              >
+                 {isDownloading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileText className="mr-2 h-4 w-4" /> 
+                )}
+                Download Waybill
               </DropdownMenuItem>
             )}
 

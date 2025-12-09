@@ -5,22 +5,27 @@ import { apiClient } from '@/lib/axios';
 import { useOfflineSaleStore } from '@/store/offline-sale';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput } from '@/lib/validation/transactions';
+import { useEffect } from 'react';
+
+// --- API Function ---
 
 export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
-  const response = await apiClient.post(`/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, {...data, locationId});
+  // Ensure we pass flags for detailed stock tracking if needed
+  const response = await apiClient.post(
+    `/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, 
+    { ...data, locationId }
+  );
   return response.data;
 };
 
-// Helper to determine if an error is specifically a connection issue
+// --- Types & Enums (Same as before) ---
+
 export const isNetworkError = (error: unknown): boolean => {
   if (isAxiosError(error)) {
-    // ERR_NETWORK is standard for Axios connection failures
-    // !error.response implies the request was made but no response received
     return error.code === 'ERR_NETWORK' || !error.response;
   }
   return false;
 };
-
 
 export enum PaymentMethod {
   CASH = 'CASH',
@@ -68,99 +73,152 @@ export enum TransactionType {
     QUOTE = "QUOTE"
 }
 
+// --- Hooks ---
+
 /**
  * Hook to process a new sale.
- * Automatically handles offline queuing.
- */
-/**
- * Hook to process a new sale.
- * NOW LOCAL-FIRST: Saves to local DB immediately, then syncs in background.
+ * ENTERPRISE LEVEL: 
+ * 1. Persists to file storage (Tauri Store) immediately.
+ * 2. Optimistic UI updates.
+ * 3. Background background sync.
  */
 export const useProcessSale = () => {
   const addToQueue = useOfflineSaleStore(state => state.addToQueue);
+  const initStore = useOfflineSaleStore(state => state.initStore);
+  const isStoreReady = useOfflineSaleStore(state => state.isStoreReady);
+  
   const { syncSales } = useSyncOfflineSales();
   const queryClient = useQueryClient();
 
+  // Ensure store is ready before we try to process anything
+  useEffect(() => {
+    if (!isStoreReady) {
+      initStore();
+    }
+  }, [isStoreReady, initStore]);
+
   return useMutation({
     mutationFn: async (data: ProcessSaleInput) => {
-      // 1. Local First: Save to store immediately
-      const queuedSale = addToQueue(data);
+      if (!isStoreReady) {
+        // Fallback: wait a moment or try init again if race condition
+        await initStore(); 
+      }
+
+      // 1. Local First: Save to file store immediately
+      // We await this to ensure data is safely on disk before confirming to user
+      const queuedSale = await addToQueue(data);
       
-      // 2. Trigger background sync (fire and forget)
-      // We don't await this because we want immediate UI feedback
-      syncSales();
+      // 2. Trigger background sync
+      // We intentionally do NOT await this. The user can start the next sale immediately.
+      syncSales(); 
 
       return queuedSale;
     },
 
     onSuccess: () => {
-      toast.success('Sale processed successfully');
-      // Invalidate queries to show the new sale in lists (if we pull from local state or if we want to refresh)
+      toast.success('Sale Processed', {
+        description: 'Transaction saved locally. Syncing in background...',
+        duration: 2000
+      });
+      
+      // Invalidate queries to update local stock counts or sales lists
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
     },
 
     onError: (error) => {
       console.error("Critical error saving sale locally:", error);
-      toast.error("Failed to save sale locally. Please try again.");
+      toast.error("System Error", {
+        description: "Failed to save sale to local database. Check storage permissions.",
+      });
     }
   });
 };
 
 /**
  * Hook to sync offline sales.
- * Call this inside a useEffect in your main layout or a "Sync" button.
+ * Robust sync engine that handles partial failures and retries.
  */
 export const useSyncOfflineSales = () => {
-  const { getPendingSales, updateQueueItem } = useOfflineSaleStore();
+  const { 
+    getPendingSales, 
+    updateQueueItem,
+    isStoreReady, 
+    initStore 
+  } = useOfflineSaleStore();
+  
   const queryClient = useQueryClient();
   const locationId = useAuthStore(state => state.currentLocation?.id);
+
+  // Auto-init store if needed when this hook is used
+  useEffect(() => {
+    if (!isStoreReady) initStore();
+  }, [isStoreReady, initStore]);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
       const pendingSales = getPendingSales();
-      if (pendingSales.length === 0) return;
+      if (pendingSales.length === 0) return [];
 
+      console.log(`[Sync] Starting sync for ${pendingSales.length} items...`);
       const results = [];
 
       for (const sale of pendingSales) {
-        try {
-          // Update status to SYNCING
-          updateQueueItem(sale.id, { status: 'SYNCING' });
+        // Double check it hasn't been synced by another process
+        if (sale.status === 'SYNCED') continue;
 
-          // Attempt API call
+        try {
+          // 1. Mark as SYNCING (optimistic lock)
+          await updateQueueItem(sale.id, { status: 'SYNCING' });
+
+          // 2. Attempt API call
           const result = await processSaleApi(sale.data, locationId);
 
-          // Success!
-          updateQueueItem(sale.id, { status: 'SYNCED' });
-          // Optional: Remove from queue after a delay or immediately if we don't want history
-          // removeFromQueue(sale.id); 
+          // 3. Success!
+          await updateQueueItem(sale.id, { status: 'SYNCED' });
           
-          results.push(result);
+          // Enterprise Choice: Do we keep history or clean up?
+          // Cleaning up keeps the file size small.
+          // Keeping it allows for "History" view even offline.
+          // await removeFromQueue(sale.id); 
+          
+          results.push({ id: sale.id, success: true, data: result });
+          
         } catch (error) {
-          console.error(`Failed to sync sale ${sale.id}:`, error);
+          console.error(`[Sync] Failed to sync sale ${sale.id}:`, error);
           
-          // const isNetwork = isNetworkError(error);
           const errorMessage = (error as any)?.response?.data?.error || (error as Error).message;
+          // const isNetwork = isNetworkError(error);
 
-          // Update status to FAILED but keep in queue
-          updateQueueItem(sale.id, { 
+          // 4. Handle Failure
+          await updateQueueItem(sale.id, { 
             status: 'FAILED', 
             retryCount: (sale.retryCount || 0) + 1,
             lastError: errorMessage
           });
 
-          // If it's a validation error (400), it might never succeed. 
-          // For now, we keep it as FAILED so the user can see it in a "Failed Sales" list.
+          // Logic: If it's a 400 (Validation) error, it will likely NEVER succeed.
+          // You might want to flag these differently so they don't block the queue forever.
+          // For now, we just leave them as FAILED.
+          
+          results.push({ id: sale.id, success: false, error: errorMessage });
         }
       }
       return results;
     },
-    onSuccess: data => {
-      if (data && data.length > 0) {
-        // toast.success(`${data.length} sales synced to server.`);
+    onSuccess: (results) => {
+      const successCount = results?.filter(r => r.success).length || 0;
+      const failCount = results?.filter(r => !r.success).length || 0;
+
+      if (successCount > 0) {
+        // toast.success(`Synced ${successCount} sales.`);
         queryClient.invalidateQueries({ queryKey: ['sales'] });
         queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      }
+      
+      if (failCount > 0) {
+        // Optional: Notify user if silent sync failed for some items
+        toast.warning(`${failCount} sales failed to sync. Check 'Pending Sales'.`);
       }
     },
   });
@@ -172,10 +230,8 @@ export const useSyncOfflineSales = () => {
   };
 };
 
-
-
+// --- Order Creation Hook (Unchanged) ---
 export interface OrderFormValues {
-  // Define your order form values interface
   [key: string]: any;
 }
 
@@ -186,9 +242,7 @@ export interface UseCreateOrderOptions {
 }
 
 export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
-  
   const { currentLocation } = useAuthStore();
-
   const locationId = currentLocation?.id;
 
   return useMutation({
