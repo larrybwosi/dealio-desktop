@@ -17,17 +17,26 @@ export const useScanner = () => {
 
   /**
    * Initialize the scanner: 
-   * 1. Sets up event listeners
-   * 2. Invokes the Rust command to open the HID device
+   * 1. Validates VID/PID presence
+   * 2. Sets up event listeners
+   * 3. Invokes the Rust command to open the HID device
    */
   const startScanner = async () => {
-    // Prevent starting if already scanning to avoid duplicate listeners
+    // 1. Prevent starting if already scanning
     if (store.isScanning) return;
+
+    // 2. Validation: Ensure Vendor ID and Product ID are set
+    if (!store.vid || !store.pid) {
+      const errorMsg = "Cannot start scanner: Vendor ID and Product ID are missing.";
+      console.warn(errorMsg);
+      store.setError(errorMsg);
+      return; 
+    }
 
     store.setError(null);
 
     try {
-      // 1. Setup Listeners
+      // 3. Setup Listeners
       unlistenDataRef.current = await listen<ScanPayload>('scanner-data', (event) => {
         console.log('Barcode Received:', event.payload.message);
         store.addScannedItem(event.payload.message);
@@ -44,8 +53,7 @@ export const useScanner = () => {
         store.setIsConnected(false);
       });
 
-      // 2. Call Rust Backend
-      // Matches the Rust function signature: fn start_scan(..., vid_hex, pid_hex)
+      // 4. Call Rust Backend
       const msg = await invoke<string>('start_scan', {
         vidHex: store.vid,
         pidHex: store.pid,
@@ -63,9 +71,6 @@ export const useScanner = () => {
 
   /**
    * Stop listening (Cleanup)
-   * Note: This stops the Frontend from listening. 
-   * To fully stop the Rust thread, you would need to implement a 'stop_scan' command in Rust,
-   * but usually, unlistening on the frontend is sufficient for UI purposes.
    */
   const stopScanner = () => {
     if (unlistenDataRef.current) unlistenDataRef.current();
@@ -86,7 +91,6 @@ export const useScanner = () => {
   return {
     startScanner,
     stopScanner,
-    // We expose these for convenience, though they are also in the store
     ...store
   };
 };
