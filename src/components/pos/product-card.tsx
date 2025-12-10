@@ -9,7 +9,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
-import { cn, useFormattedCurrency } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -43,6 +43,11 @@ interface ProductProps {
   onAddToCart: (item: any) => void;
   pricingMode: 'retail' | 'wholesale';
 }
+
+// Mock currency formatter for demo
+const useFormattedCurrency = () => {
+  return (amount: number) => `$${amount.toFixed(2)}`;
+};
 
 export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductProps) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
@@ -87,14 +92,10 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
     return Number(currentUnit.price);
   }, [currentUnit, pricingMode]);
 
-  // --- MODIFIED LOGIC START ---
   const handleAdd = () => {
     if (!currentVariant || !currentUnit) return;
     
-    // If user hasn't selected a number (qty is 0), default to 1
     const quantityToAdd = qty > 0 ? qty : 1;
-
-    // specific check to ensure we don't add 1 if stock is actually 0
     if (quantityToAdd > stock) return; 
 
     onAddToCart({
@@ -103,9 +104,8 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
       unit: { ...currentUnit, price },
       quantity: quantityToAdd,
     });
-    setQty(0); // Reset after adding
+    setQty(0);
   };
-  // --- MODIFIED LOGIC END ---
 
   const handleQtyChange = (val: number) => {
     if (val < 0) return;
@@ -134,13 +134,13 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
           />
         ) : (
           <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
-            <ImageOff className="w-10 h-10 mb-2" />
+            <ImageOff className="w-10 h-10 mb-1.5" />
             <span className="text-xs font-medium">No Image</span>
           </div>
         )}
         
         {/* Status Badges Overlay */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1.5 z-10">
+        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
           {isOutOfStock && (
             <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
               Sold Out
@@ -160,11 +160,10 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
       </div>
 
       {/* --- Content Section --- */}
-      {/* MODIFIED: Changed space-y-3 to space-y-2 to reduce distance between Name and Separator */}
-      <div className="flex flex-col flex-1 p-3 space-y-2">
+      <div className="flex flex-col flex-1 p-2.5 space-y-1.5">
         
         {/* Title & Category */}
-        <div className="space-y-1">
+        <div className="space-y-0.5">
             <div className="flex justify-between items-start gap-2">
                 <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
                     {product.category}
@@ -182,11 +181,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
         <Separator className="bg-border/50" />
 
         {/* Dynamic Controls (Variants/Units) and Price in one row */}
-        <div className="space-y-2">
+        <div className="space-y-1.5">
             {/* If we have multiple variants OR multiple units, we show selectors */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
                 {/* Variant and Unit Selectors */}
-                <div className="grid grid-cols-2 gap-2 flex-1">
+                <div className="grid grid-cols-2 gap-1.5 flex-1">
                     {product.variants.length > 1 ? (
                          <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
                             <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
@@ -200,7 +199,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
                                 ))}
                             </SelectContent>
                          </Select>
-                    ) : <div />} {/* Spacer if no variant selector */}
+                    ) : <div />}
 
                     {currentVariant?.sellableUnits?.length > 1 ? (
                         <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
@@ -215,18 +214,18 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
                                 ))}
                             </SelectContent>
                         </Select>
-                    ) : <div />} {/* Spacer if no unit selector */}
+                    ) : <div />}
                 </div>
 
-                {/* Price Display - Moved here to be in the same row */}
+                {/* Price Display */}
                 <div className="flex flex-col items-end min-w-[100px]">
-                    <span className="text-[10px] text-muted-foreground font-medium text-right">
+                    <span className="text-[10px] text-muted-foreground font-medium text-right leading-tight">
                         Price
                     </span>
-                    <span className={cn("text-xl font-bold tracking-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
+                    <span className={cn("text-xl font-bold tracking-tight leading-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
                         {formatCurrency(price)}
                     </span>
-                    <span className="text-[9px] text-muted-foreground text-right">
+                    <span className="text-[9px] text-muted-foreground text-right leading-tight">
                         per {currentUnit?.unitName}
                     </span>
                 </div>
@@ -236,7 +235,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
         {/* Footer: Actions Only */}
         <div className="mt-auto pt-1">
             {/* Action Bar */}
-            <div className="flex items-center gap-2 h-9">
+            <div className="flex items-center gap-1.5 h-9">
                 {/* Quantity Segmented Control */}
                 <div className={cn(
                     "flex items-center h-full rounded-md border bg-background shadow-sm",
@@ -277,13 +276,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
                         "flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide", 
                         qty > 0 ? "animate-in zoom-in-95 duration-200" : ""
                     )}
-                    /* MODIFIED: Removed 'qty <= 0' check so it's only disabled if out of stock */
                     disabled={isOutOfStock}
                     onClick={handleAdd}
                     variant={qty > 0 ? "default" : "secondary"}
                 >
                     <ShoppingCart className="w-3.5 h-3.5 mr-2" />
-                    {/* Optional: You could change text to "Add 1" if qty is 0, but "Add" works fine */}
                     Add
                 </Button>
             </div>

@@ -12,10 +12,7 @@ import {
   Loader2    
 } from 'lucide-react';
 import { toast } from 'sonner'; 
-
-import { isTauri } from '@tauri-apps/api/core';
-import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { documentDir } from '@tauri-apps/api/path';
+import { processFileDownload } from '@/lib/utils';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -139,7 +136,7 @@ export default function PendingTransactionsPage() {
     setIsDownloading(true);
     
     // Create a loading toast
-    const loadingToastId = toast.loading('Downloading receipt...', {
+    const loadingToastId = toast.loading('Downloading invoice...', {
       description: `Order: ${tx.number || tx.id}`
     });
 
@@ -147,12 +144,12 @@ export default function PendingTransactionsPage() {
       const response = await apiClient.get(tx.invoiceLink, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
-      const fileName = `Receipt_${safeOrderNum}.pdf`;
+      const fileName = `Invoice_${safeOrderNum}.pdf`;
 
       await processFileDownload(blob, fileName, loadingToastId);
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to save receipt', {
+      toast.error('Failed to save invoice', {
         description: 'Please try again',
         id: loadingToastId
       });
@@ -202,66 +199,6 @@ export default function PendingTransactionsPage() {
     }
   };
 
-  // Helper to handle Tauri vs Browser download logic to avoid code duplication
-  const processFileDownload = async (blob: Blob, fileName: string, loadingToastId: string | number) => {
-    try {
-      if (isTauri()) {
-        const arrayBuffer = await blob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        // Ensure directory exists
-        if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
-          await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
-        }
-        
-        const documentDirPath = await documentDir();
-        const filePath = `${documentDirPath}/Dealio/${fileName}`;
-        
-        await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
-        
-        // Update loading toast to success
-        toast.success(`Saved ${fileName} to Downloads`, {
-          description: 'File saved successfully',
-          id: loadingToastId,
-          action: {
-            label: 'Open',
-            onClick: async () => {
-              try {
-                const { openPath } = await import('@tauri-apps/plugin-opener');
-                await openPath(filePath);
-              } catch (e) {
-                console.error('Could not open file', e);
-              }
-            },
-          },
-          duration: 5000,
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        // Update loading toast to success
-        toast.success('Download started', {
-          description: `${fileName} is being downloaded`,
-          id: loadingToastId,
-          duration: 3000,
-        });
-      }
-    } catch (error) {
-      console.error('File processing error:', error);
-      toast.error('Failed to save file', {
-        description: 'An error occurred while saving the file',
-        id: loadingToastId
-      });
-      throw error;
-    }
-  }
 
   const handleOpenMenuChange = (isOpen: boolean, txId: string) => {
     setOpenMenuId(isOpen ? txId : null);

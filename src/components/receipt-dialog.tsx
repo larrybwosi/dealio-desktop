@@ -21,6 +21,7 @@ import { BaseDirectory, writeFile, mkdir, exists, remove } from '@tauri-apps/plu
 import { isTauri } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
 import { usePrinter } from '@/hooks/use-printer';
+import { processFileDownload } from '@/lib/utils';
 
 // --- Types ---
 interface ReceiptDialogProps {
@@ -252,53 +253,23 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
     if (isDownloading) return;
 
     setIsDownloading(true);
+    
+    const loadingToastId = toast.loading('Downloading receipt...', {
+      description: `Order: ${formattedOrder.orderNumber}`
+    });
 
     try {
       const blob = await pdf(DocumentInstance).toBlob();
       const safeOrderNum = formattedOrder.orderNumber.replace(/[^a-z0-9]/gi, '_');
       const fileName = `Receipt_${safeOrderNum}.pdf`;
 
-      if (isTauri()) {
-        const arrayBuffer = await blob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        const documentDirPath = await documentDir();
-        const dealioFolderPath = `${documentDirPath}/Dealio`;
-
-        if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
-          await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
-        }
-
-        const filePath = `${dealioFolderPath}/${fileName}`;
-        await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
-
-        toast.success('Saved to Downloads', {
-          action: {
-            label: 'Open',
-            onClick: async () => {
-              try {
-                const { openPath } = await import('@tauri-apps/plugin-opener');
-                await openPath(filePath);
-              } catch (e) {
-                console.error('Could not open file', e);
-              }
-            },
-          },
-        });
-      } else {
-        // Browser Download
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success('Download started');
-      }
+      await processFileDownload(blob, fileName, loadingToastId);
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('Failed to save receipt');
+      toast.error('Failed to save receipt', {
+        description: 'Please try again',
+        id: loadingToastId
+      });
     } finally {
       setIsDownloading(false);
     }
