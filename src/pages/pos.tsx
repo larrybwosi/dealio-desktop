@@ -14,7 +14,8 @@ import {
   PackageOpen,
   CheckCircle2,
   WifiOff,
-  Wifi
+  Wifi,
+  MonitorCheck // Added icon for screen status
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
@@ -27,10 +28,15 @@ import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
 
+// --- TAURI IMPORTS ---
+import { invoke } from '@tauri-apps/api/core';
+import { emitTo } from '@tauri-apps/api/event';
+
 export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [inputValue, setInputValue] = useState('');
   const [knownCategories, setKnownCategories] = useState<Set<string>>(new Set());
+  const currentOrder = usePosStore(state => state.currentOrder);
   
   // 1. Debounce Search
   const [debouncedSearch] = useDebounce(inputValue, 500);
@@ -50,8 +56,7 @@ export function POS() {
     error: scannerError 
   } = useScanner();
 
-  // 2. Fetching Logic (Updated for Sync Hook)
-  // The new hook returns the full filtered array and sync status
+  // 2. Fetching Logic
   const { 
     products, 
     isSyncing, 
@@ -61,12 +66,61 @@ export function POS() {
     category: activeCategory
   });
 
-  // 3. Store Actions
-  const addItemToOrder = usePosStore(state => state.addItemToOrder);
-  const businessConfig = usePosStore(state => state.getBusinessConfig());
+  // 3. Store Actions & State
+  // We need to access the cart items to send them to the customer screen
+  const { addItemToOrder, businessConfig, cartItems } = usePosStore(state => ({
+    addItemToOrder: state.addItemToOrder,
+    businessConfig: state.getBusinessConfig(),
+    cartItems: currentOrder?.items || [] 
+  }));
+
+  // --- NEW: DUAL SCREEN LOGIC ---
+  useEffect(() => {
+    // A. Launch the screen on mount
+    const initCustomerScreen = async () => {
+      try {
+        await invoke('open_customer_screen');
+        console.log("Customer screen signal sent");
+      } catch (e) {
+        console.error("Failed to open customer screen:", e);
+      }
+    };
+    initCustomerScreen();
+  }, []);
+
+  // B. Sync Data whenever cartItems changes
+  useEffect(() => {
+    const syncToCustomerScreen = async () => {
+      // Calculate total based on your specific item structure
+      const total = cartItems.reduce((acc: number, item: any) => {
+         // Adjust 'price' and 'quantity' keys to match your store object
+         return acc + (Number(item.price || item.unitPrice || 0) * Number(item.quantity || 1));
+      }, 0);
+
+      // Map your complex store objects to simple objects for the display
+      const simpleItems = cartItems.map((item: any) => ({
+        name: item.productName || item.name,
+        qty: item.quantity,
+        price: item.price || item.unitPrice
+      }));
+      // console.log("Syncing to customer screen:", simpleItems);
+
+      try {
+        // Emit to the window labeled 'customer' (defined in Rust)
+        await emitTo('customer', 'cart-update', {
+          items: simpleItems,
+          finalTotal: total
+        });
+      } catch (e) {
+        // Silent fail if window isn't open yet
+      }
+    };
+
+    syncToCustomerScreen();
+  }, [cartItems]);
+  // ------------------------------
 
   // 4. Extract Categories
-  // We only update categories when viewing "all" to ensure we capture the full list
   useEffect(() => {
     if (activeCategory === 'all' && products.length > 0) {
       const categories = new Set(knownCategories);
@@ -101,7 +155,7 @@ export function POS() {
       ...item.product,
       variantId: item.variant.variantId,
       variantName: item.variant.name,
-      productName: item.product.productName, // Updated property mapping based on new hook type
+      productName: item.product.productName,
       variants: item.product.variants?.map((v: any) => ({
         ...v,
         name: v.variantName || v.name || 'Default Variant'
@@ -141,11 +195,8 @@ export function POS() {
 
     lastProcessedBarcode.current = lastScanned;
 
-    // Search for product by barcode in currently loaded products
     const product = products.find((p: any) => {
-      // Check main product barcode
       if (p.barcode === lastScanned) return true;
-      // Check variant barcodes
       return p.variants?.some((v: any) => v.barcode === lastScanned);
     });
 
@@ -157,7 +208,6 @@ export function POS() {
       return;
     }
 
-    // Find the matching variant or use default
     const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
     
     if (!variant) {
@@ -168,7 +218,6 @@ export function POS() {
       return;
     }
 
-    // Check stock
     if (product.stock <= 0) {
       toast.warning('Out of Stock', {
         description: `${product.productName} is currently out of stock`,
@@ -177,7 +226,6 @@ export function POS() {
       return;
     }
 
-    // Find default unit
     const defaultUnit = product.sellableUnits?.find((u: any) => u.isBaseUnit) || product.sellableUnits?.[0];
     
     if (!defaultUnit) {
@@ -188,7 +236,6 @@ export function POS() {
       return;
     }
 
-    // Add to cart
     const storeProduct = {
       ...product,
       variantId: variant.variantId,
@@ -207,7 +254,6 @@ export function POS() {
       { isWholesale: pricingMode === 'wholesale' }
     );
 
-    // Success feedback
     toast.success('Added to Cart', {
       description: `${product.productName} (${variant.variantName || 'Default'})`,
       duration: 2000,
@@ -215,7 +261,6 @@ export function POS() {
     });
   }, [lastScanned, products, addItemToOrder, pricingMode]);
 
-  // Show scanner error toasts
   useEffect(() => {
     if (scannerError) {
       toast.error('Scanner Error', {
@@ -245,6 +290,7 @@ export function POS() {
                       {isSyncing && <span className="ml-2 italic text-primary">(Syncing...)</span>}
                   </p>
               </div>
+              
               {/* Scanner Status Indicator */}
               {isScanning && (
                 <div className={cn(
@@ -304,6 +350,17 @@ export function POS() {
                 title="Sync Products"
             >
                 <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+            </Button>
+            
+            {/* Optional: Add a button to manually relaunch customer screen if closed */}
+            <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => invoke('open_customer_screen')}
+                title="Relaunch Customer Display"
+                className="shrink-0"
+            >
+                <MonitorCheck className="w-4 h-4" />
             </Button>
           </div>
         </div>

@@ -15,6 +15,7 @@ import PendingTransactionsPage from '@/pages/pending-transactions';
 import CreateOrderPage from '@/pages/create-order';
 import { POS } from '@/pages/pos';
 import SettingsPage from '@/pages/settings-page';
+import CustomerDisplay from '@/pages/customer-display';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -57,6 +58,7 @@ const AppRoutes = () => {
       {/* Routes without AppLayout */}
       <Route path="/checkin" element={<CheckinPage />} />
       <Route path="/setup" element={<SetupPage />} />
+      <Route path="/customer" element={<CustomerDisplay />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

@@ -49,7 +49,7 @@ export function useAuth() {
     error: checkInError,
   } = useMutation<CheckInResponse, Error, CheckInVariables>({
     mutationFn: variables =>
-      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation?.id }).then(res => res.data),
+      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation?.id, pin: variables.password }).then(res => res.data),
 
     onSuccess: data => {
       // On success, update the global store with member, token, AND restoration status

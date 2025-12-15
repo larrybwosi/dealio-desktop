@@ -100,13 +100,10 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     enabled: isStoreReady && !!locationId && enabled,
     queryFn: async () => {
       // If we have a lastSync time, we use the delta endpoint (or pass the param)
-      // Note: We generally want to sync *ALL* categories to local DB, so we pass 'all' 
-      // and empty search to the backend during sync, then filter locally.
-      
       const params: any = {
         locationId: locationId!,
         page: '1',
-        limit: '1000', // Fetch large batches for sync
+        limit: '1000', 
         categoryId: 'all', 
         search: '', 
       };
@@ -118,15 +115,23 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
         console.log("Fetching FULL Product list...");
       }
 
-      // We call the generic endpoint. The backend logic determines if it's delta based on params.lastSync
       const { data } = await apiClient.get<ProductsSyncResponse>('/api/v1/pos/products', {
         params,
       });
       return data;
     },
-    // We don't want to refetch too often automatically if we are just searching locally
-    staleTime: 1000 * 60 * 10, 
+    // --- OPTIMIZATION START ---
+    // 1 hour in milliseconds
+    staleTime: 1000 * 60 * 60, 
+    // Auto-fetch in background every 1 hour
+    refetchInterval: 1000 * 60 * 60, 
+    // Prevent fetching on window focus (switching tabs)
     refetchOnWindowFocus: false,
+    // Prevent fetching when component mounts if data is fresh (within 1 hour)
+    refetchOnMount: false, 
+    // Prevent fetching on network reconnect
+    refetchOnReconnect: false,
+    // --- OPTIMIZATION END ---
   });
 
   // 3. Process Sync (Merge Logic)
@@ -144,15 +149,12 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
         let updatedList: PosProduct[] = [];
 
         if (!lastSync) {
-          // A. Full Sync (Overwrite or Append if paginating - assuming single batch for simplicity here)
-          // For a robust app, you would handle pagination loop here if total > limit.
+          // A. Full Sync 
           updatedList = syncData.products;
         } else {
           // B. Delta Sync (Merge)
-          // Create a map of existing products for O(1) lookup
           const productMap = new Map(currentProducts.map(p => [p.productId, p]));
 
-          // Upsert changed products
           syncData.products.forEach(p => {
             productMap.set(p.productId, p);
           });
@@ -183,17 +185,14 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     processProductSync();
   }, [syncData, store, locationId, lastSync]);
 
-  // 4. Local Filtering (Replacing the Server-Side Search)
-  // This gives the UI the "search" results from the local database
+  // 4. Local Filtering
   const filteredProducts = useMemo(() => {
     let result = localProducts;
 
-    // Filter by Category
     if (category && category !== 'all') {
-      result = result.filter(p => p.category === category); // Ensure casing matches your data
+      result = result.filter(p => p.category === category);
     }
 
-    // Filter by Search (Name, SKU, Barcode)
     if (search) {
       const lowerSearch = search.toLowerCase();
       result = result.filter(p => 
@@ -207,14 +206,12 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     return result;
   }, [localProducts, search, category]);
 
-  // Return structure compatible with your UI needs
   return {
     products: filteredProducts,
     isSyncing: isFetching || !isStoreReady,
-    triggerSync: refetch,
+    // This allows the user to manually trigger a sync via a UI button
+    triggerSync: refetch, 
     totalCount: filteredProducts.length,
-    // Maintaining compatibility with infinite query structure if needed, 
-    // though purely local now:
     fetchNextPage: () => {}, 
     hasNextPage: false,
     isFetchingNextPage: false,
