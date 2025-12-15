@@ -35,10 +35,10 @@ import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
 import { PaymentMethod, PaymentStatus, useProcessSale, processSaleApi } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { ably } from '@/lib/ably';
 import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
 import { emit } from '@tauri-apps/api/event';
+import { useAblyStore } from '@/store/ablyStore';
 
 // --- COMPONENT ---
 
@@ -153,8 +153,6 @@ const PaymentModal = ({
   const [notes, setNotes] = useState('');
   const [editableDiscount, setEditableDiscount] = useState<number>(discount);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-
-  const organizationId = 'org_1';
   
   const [mpesaMode, setMpesaMode] = useState<'STK' | 'PAYBILL' | 'BUY_GOODS' | 'QR'>('STK'); 
   const [mpesaPhone, setMpesaPhone] = useState(customer?.phone || '');
@@ -273,61 +271,74 @@ const PaymentModal = ({
     }
   }, [isOpen, selectedTab, mpesaMode, mpesaQrData, totalPayable, paybillNumber, tillNumber, paybillAccountNo, cashReceived, change, mpesaPhone]);
 
-
-  // --- ABLY LISTENER FOR C2B (PAYBILL/BUY GOODS/QR) ---
+  const paymentChannel = useAblyStore((state) => state.paymentChannel);
+  console.log('paymentChannel', paymentChannel);
+  const ably = useAblyStore((state) => state.client);
+    // --- ABLY LISTENER FOR C2B (PAYBILL/BUY GOODS/QR) ---
   useEffect(() => {
-    if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably) return;
-    
-    // Channel: organization:{orgId}:payments
-    const channelName = `organization:${organizationId}:payments`;
-    const channel = ably.channels.get(channelName);
+      // 1. GUARD: Wait until we have the dynamic channel name
+      if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably || !paymentChannel) return;
+      
+      // 2. USE: Use the fetched name directly
+      console.log(`Subscribing to dynamic channel: ${paymentChannel}`);
+      const channel = ably.channels.get(paymentChannel);
 
-    const handleUnclaimed = (message: any) => {
-        const data = message.data;
-        
-        // 1. Paybill / QR Match: Check BillRefNumber 
-        if ((mpesaMode === 'PAYBILL' || mpesaMode === 'QR') && data.accountRef) {
-          // Check if the received payment matches the current sale's account reference
-          if (data.accountRef.toUpperCase() === paybillAccountNo.toUpperCase()) {
-              setDetectedPayment(data);
-              setMpesaStatus('SUCCESS');
-              // Auto-trigger completion logic if exact match
-              if (Number(data.amount) >= totalPayable) {
-                  setTimeout(() => handleManualMatchCompletion(data), 1000);
-              }
+      const handleUnclaimed = (message: any) => {
+          const data = message.data;
+          
+          // --- 1. Paybill / QR Match ---
+          if ((mpesaMode === 'PAYBILL' || mpesaMode === 'QR') && data.accountRef) {
+            if (data.accountRef.toUpperCase() === paybillAccountNo.toUpperCase()) {
+                setDetectedPayment(data);
+                setMpesaStatus('SUCCESS');
+                if (Number(data.amount) >= totalPayable) {
+                    setTimeout(() => handleManualMatchCompletion(data), 1000);
+                }
+            }
           }
-        }
 
-        // 2. Buy Goods Match: Check Amount (since Buy Goods often has no unique ref)
-        if (mpesaMode === 'BUY_GOODS') {
-              // Allow a small margin of error or exact match
+          // --- 2. Buy Goods Match ---
+          if (mpesaMode === 'BUY_GOODS') {
+              // Allow slight float margin errors
               if (Math.abs(Number(data.amount) - totalPayable) < 1.0) {
                   setDetectedPayment(data);
-                  // Auto-complete if amount is exact
                   if (Number(data.amount) === totalPayable) {
-                     setTimeout(() => handleManualMatchCompletion(data), 1000);
+                        setTimeout(() => handleManualMatchCompletion(data), 1000);
                   }
               }
-        }
-    };
+          }
+      };
 
-    channel.subscribe('payment-unclaimed', handleUnclaimed);
-    
-    // Also listen for 'payment-update' if the webhook managed to match it automatically (e.g., STK push success)
-    channel.subscribe('payment-update', (msg) => {
-        // Note: The STK push 'transactionId' is the fullSaleNumber ('SALE-XXXXXX')
-        if(msg.data.transactionId === fullSaleNumber || msg.data.data?.accountRef === paybillAccountNo) {
-            setMpesaStatus('SUCCESS');
-            setDetectedPayment(msg.data.data);
-            setTimeout(() => handleManualMatchCompletion(msg.data.data), 1000);
-        }
-    });
+      // Subscribe
+      channel.subscribe('payment-unclaimed', handleUnclaimed);
+      
+      // Subscribe to specific updates (e.g., STK Push success)
+      channel.subscribe('payment-update', (msg) => {
+          const txData = msg.data; // Alias for clarity
+          // Check transaction ID or account ref
+          if(txData.transactionId === fullSaleNumber || txData.data?.accountRef === paybillAccountNo) {
+              setMpesaStatus('SUCCESS');
+              setDetectedPayment(txData.data);
+              setTimeout(() => handleManualMatchCompletion(txData.data), 1000);
+          }
+      });
 
-    return () => {
-        channel.unsubscribe();
-    };
-  }, [isOpen, selectedTab, mpesaMode, organizationId, totalPayable, paybillAccountNo, fullSaleNumber]); // Added fullSaleNumber to deps
-
+      // Cleanup: Unsubscribe when component unmounts or channel changes
+      return () => {
+          channel.unsubscribe();
+      };
+      
+      // 3. DEPENDENCY: Listen to paymentChannelName changes
+    }, [
+      isOpen, 
+      selectedTab, 
+      mpesaMode, 
+      ably, 
+      paymentChannel,
+      totalPayable, 
+      paybillAccountNo, 
+      fullSaleNumber
+  ]);
 
   const handleCopy = async (text: string) => {
     await writeText(text);
