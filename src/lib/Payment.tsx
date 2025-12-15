@@ -28,6 +28,7 @@ export function PaymentNotificationProvider({
     // 2. Handle Matched Payments (STK Success or C2B Matched)
     const onPaymentUpdate = (message: Ably.Message) => {
       const { transactionId, status, data } = message.data;
+      console.log('Payment Update:', { transactionId, status, data });
       
       if (status === 'COMPLETED' || status === 'PAID') {
         toast.success(`Payment Received: KES ${data.amount || ''}`, {

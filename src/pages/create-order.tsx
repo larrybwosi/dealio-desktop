@@ -108,25 +108,24 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
   const [debouncedSearch] = useDebounce(search, 500);
   
   const { 
-    data, 
+    products: data,
     fetchNextPage, 
     hasNextPage, 
     isFetchingNextPage, 
-    isLoading 
+    isSyncing
   } = usePosProducts({ 
     search: debouncedSearch, 
     category: "all", 
     enabled: open 
   });
 
-  const isSearching = search !== debouncedSearch || isLoading;
+  const isSearching = search !== debouncedSearch || isSyncing;
 
   const products: FlattenedProductVariant[] = useMemo(() => {
-    if (!data?.pages) return [];
     
-    return data.pages.flatMap(page => {
-      //@ts-expect-error
-      const pageProducts = (page.products || []) as ApiProduct[];
+    return data?.flatMap(page => {
+      //@ts-expect-error page is not assignable to ApiProduct[]
+      const pageProducts = (page || []) as ApiProduct[];
       
       return pageProducts.flatMap(product => 
         (product.variants || []).map(variant => ({
