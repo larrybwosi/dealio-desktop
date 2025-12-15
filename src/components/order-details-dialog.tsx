@@ -11,8 +11,8 @@ import { Download, Printer, ShoppingBag, Truck, UtensilsCrossed, ChefHat } from 
 import { cn } from "@/lib/utils"
 import { usePosStore } from "@/store/store"
 import { pdf } from "@react-pdf/renderer"
-import { PDFReceipt } from "./pdf-receipt"
-import { PDFKitchenTicket } from "./pdf-kitchen-ticket"
+import { PDFReceipt } from "@/components/pdf-receipt"
+import { PDFKitchenTicket } from "@/components/pdf-kitchen-ticket"
 import QRCode from "qrcode"
 import { format } from "date-fns"
 

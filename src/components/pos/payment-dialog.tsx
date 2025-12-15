@@ -148,7 +148,6 @@ const PaymentModal = ({
   tableNumber,
   onPaymentComplete,
 }: PaymentModalProps) => {
-  // UI State
   const [selectedTab, setSelectedTab] = useState<string>('CASH');
   const [cashReceived, setCashReceived] = useState<string>('');
   const [notes, setNotes] = useState('');
@@ -157,14 +156,11 @@ const PaymentModal = ({
 
   const organizationId = 'org_1';
   
-  // Mobile Payment State
-  // ADDED 'QR' to the possible M-Pesa Modes
   const [mpesaMode, setMpesaMode] = useState<'STK' | 'PAYBILL' | 'BUY_GOODS' | 'QR'>('STK'); 
   const [mpesaPhone, setMpesaPhone] = useState(customer?.phone || '');
   const [mpesaWaiting, setMpesaWaiting] = useState(false);
   const [mpesaStatus, setMpesaStatus] = useState<'IDLE' | 'WAITING' | 'SUCCESS' | 'FAILED'>('IDLE');
   
-  // Realtime C2B Matches
   const [detectedPayment, setDetectedPayment] = useState<any>(null);
   
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
@@ -172,7 +168,6 @@ const PaymentModal = ({
   const locationId = useAuthStore(state => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
 
-  // Organization Payment Settings (Fallback to placeholders if not in settings)
   const organizationName = settings?.businessName || 'My Business';
   const paybillNumber = settings?.paybillNumber || '';
   const tillNumber = settings?.tillNumber || '';
@@ -254,6 +249,19 @@ const PaymentModal = ({
         accountRef: paybillAccountNo,
         mode: mpesaMode,
       });
+    } else if (isOpen && selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK') {
+         emit('payment-update', {
+            type: 'MPESA_STK',
+            amount: totalPayable,
+            phoneNumber: mpesaPhone
+         });
+    } else if (isOpen && selectedTab === 'CASH') {
+       emit('payment-update', {
+          type: 'CASH_PAYMENT',
+          amount: totalPayable,
+          cashReceived: parseFloat(cashReceived) || 0,
+          change: change
+       });
     } else if (isOpen && selectedTab === 'CREDIT_CARD') {
          emit('payment-update', {
              type: 'CARD_PAYMENT',
@@ -263,7 +271,7 @@ const PaymentModal = ({
         // Clear payment details when tab changes or modal closes
         emit('payment-update', { type: 'CLEAR' });
     }
-  }, [isOpen, selectedTab, mpesaMode, mpesaQrData, totalPayable, paybillNumber, tillNumber, paybillAccountNo]);
+  }, [isOpen, selectedTab, mpesaMode, mpesaQrData, totalPayable, paybillNumber, tillNumber, paybillAccountNo, cashReceived, change, mpesaPhone]);
 
 
   // --- ABLY LISTENER FOR C2B (PAYBILL/BUY GOODS/QR) ---
@@ -483,6 +491,37 @@ const PaymentModal = ({
     onClose();
   };
 
+  // --- MPESA STK STATUS UI HELPER ---
+  const MpesaStkStatus = ({ status, phone }: { status: 'IDLE' | 'WAITING' | 'SUCCESS' | 'FAILED', phone: string }) => {
+    switch (status) {
+        case 'WAITING':
+            return (
+                <div className="flex items-center gap-3 text-sm text-amber-600 bg-amber-50 p-3 rounded-md dark:bg-amber-950 dark:text-amber-400 animate-pulse">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Waiting for PIN on {phone}...
+                </div>
+            );
+        case 'SUCCESS':
+            return (
+                <div className="flex items-center gap-3 text-sm text-green-700 bg-green-50 p-3 rounded-md border border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800 animate-in fade-in">
+                    <Check className="h-5 w-5" />
+                    <p className="font-bold">STK Payment Confirmed!</p>
+                </div>
+            );
+        case 'FAILED':
+            return (
+                <div className="flex items-center gap-3 text-sm text-red-600 bg-red-50 p-3 rounded-md border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800 animate-in fade-in">
+                    <AlertCircle className="h-5 w-5" />
+                    <p className="font-bold">STK Payment Failed or Cancelled.</p>
+                </div>
+            );
+        case 'IDLE':
+        default:
+            return <p className="text-xs text-muted-foreground">Prompts client to enter PIN automatically.</p>;
+    }
+  }
+
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <AnimatePresence>
@@ -618,12 +657,22 @@ const PaymentModal = ({
                                     <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                                     <Input 
                                         value={mpesaPhone} 
-                                        onChange={(e) => setMpesaPhone(e.target.value)} 
+                                        onChange={(e) => {
+                                            setMpesaPhone(e.target.value);
+                                            // Reset status if phone number changes while IDLE
+                                            if (mpesaStatus !== 'IDLE') setMpesaStatus('IDLE');
+                                        }} 
                                         className="pl-9" 
                                         placeholder="07..." 
+                                        disabled={mpesaStatus === 'WAITING' || mpesaStatus === 'SUCCESS'}
                                     />
                                 </div>
-                                <p className="text-xs text-muted-foreground">Prompts client to enter PIN automatically.</p>
+                                {/* STK Status Indicator */}
+                                {mpesaStatus !== 'IDLE' ? (
+                                    <MpesaStkStatus status={mpesaStatus} phone={mpesaPhone} />
+                                ) : (
+                                    <p className="text-xs text-muted-foreground">Prompts client to enter PIN automatically.</p>
+                                )}
                             </div>
                         )}
 
@@ -786,12 +835,14 @@ const PaymentModal = ({
                   disabled={
                       isProcessing || 
                       mpesaWaiting ||
+                      // Disable if STK failed and no payment was received/detected (must fix phone or re-try)
+                      (selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK' && mpesaStatus === 'FAILED') || 
                       (selectedTab === 'CASH' && (parseFloat(cashReceived) || 0) < totalPayable) ||
                       (selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK' && !mpesaPhone)
                   }
                 >
-                  {isProcessing ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
+                  {isProcessing || mpesaWaiting ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {mpesaMode === 'STK' && mpesaWaiting ? 'Waiting STK...' : 'Processing...'}</>
                   ) : (
                     <>
                       <Check className="mr-2 h-4 w-4" />

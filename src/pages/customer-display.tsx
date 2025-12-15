@@ -14,7 +14,9 @@ import {
   CreditCard,
   CheckCircle,
   Clock,
-  Wifi
+  Wifi,
+  DollarSign,
+  Smartphone
 } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -37,13 +39,16 @@ interface CartPayload {
 }
 
 interface PaymentPayload {
-  type: 'MPESA_QR' | 'CARD_PAYMENT' | 'CLEAR' | 'CLEAR_COMPLETED';
+  type: 'MPESA_QR' | 'CARD_PAYMENT' | 'CASH_PAYMENT' | 'MPESA_STK' | 'CLEAR' | 'CLEAR_COMPLETED';
   amount?: number;
   qrData?: string;
   paybill?: string;
   tillNo?: string;
   accountRef?: string;
   mode?: 'QR' | 'PAYBILL';
+  cashReceived?: number;
+  change?: number;
+  phoneNumber?: string;
 }
 
 // --- Configuration ---
@@ -223,6 +228,70 @@ export default function CustomerDisplay() {
                     <span className="text-4xl font-black text-slate-900 tabular-nums">
                       {formatCurrency(paymentDetails.amount || 0)}
                     </span>
+                  </div>
+                </div>
+              </motion.div>
+            ) : paymentDetails.type === 'CASH_PAYMENT' ? (
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full"
+              >
+                <div className="bg-emerald-600 p-6 text-white text-center">
+                  <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
+                    <DollarSign className="h-6 w-6" /> Cash Payment
+                  </h2>
+                </div>
+                <div className="p-8 space-y-6">
+                  <div className="text-center">
+                    <p className="text-sm text-slate-500 mb-1">Total Amount</p>
+                    <p className="text-5xl font-extrabold text-slate-900 tabular-nums">
+                      {formatCurrency(paymentDetails.amount || 0)}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <div className="flex justify-between items-center text-lg">
+                        <span className="text-slate-500 font-medium">Cash Given</span>
+                        <span className="font-bold text-slate-900 tabular-nums">{formatCurrency(paymentDetails.cashReceived || 0)}</span>
+                      </div>
+                      <div className="h-px bg-slate-200 my-2"></div>
+                      <div className="flex justify-between items-center text-2xl">
+                        <span className="text-emerald-600 font-bold">Change</span>
+                        <span className="font-black text-emerald-600 tabular-nums">{formatCurrency(paymentDetails.change || 0)}</span>
+                      </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : paymentDetails.type === 'MPESA_STK' ? (
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-md w-full"
+              >
+                <div className="bg-green-600 p-6 text-white text-center">
+                  <h2 className="text-2xl font-bold flex items-center justify-center gap-2">
+                    <Smartphone className="h-6 w-6" /> M-Pesa Request
+                  </h2>
+                </div>
+                <div className="p-10 text-center space-y-6">
+                  <div className="relative h-24 w-full flex items-center justify-center mb-4">
+                     <div className="absolute inset-0 animate-ping rounded-full bg-green-100 opacity-75 mx-auto w-24 h-24"></div>
+                     <Smartphone className="relative z-10 h-16 w-16 text-green-600" />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Check your phone</h3>
+                    <p className="text-slate-500 text-lg">
+                      We've sent a payment request to:
+                    </p>
+                    <p className="text-2xl font-mono font-bold text-slate-800 mt-2 tracking-wider">
+                      {paymentDetails.phoneNumber}
+                    </p>
+                  </div>
+
+                  <div className="bg-green-50 text-green-800 p-4 rounded-xl text-sm font-medium">
+                     Please enter your M-Pesa PIN to complete the payment of <strong>{formatCurrency(paymentDetails.amount || 0)}</strong>
                   </div>
                 </div>
               </motion.div>

@@ -160,7 +160,6 @@ export default function PendingOrdersList() {
           } : null}
           orderType={mapOrderType(orderToPay.orderType)}
           tableNumber={orderToPay.tableNumber}
-          onOpenCustomer={() => {}}
           onPaymentComplete={(order) => {
             console.log(order)
             usePosStore.getState().updateOrderStatus(orderToPay.id, 'completed')
