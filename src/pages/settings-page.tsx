@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
@@ -99,6 +99,7 @@ export default function SettingsPage() {
   const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
   const [paybillNumber, setPaybillNumber] = useState(settings?.paybillNumber || '');
   const [tillNumber, setTillNumber] = useState(settings?.tillNumber || '');
+  const [enableCustomerDisplay, setEnableCustomerDisplay] = useState(settings?.enableCustomerDisplay ?? true);
 
   const [syncing, setSyncing] = useState(false);
 
@@ -124,6 +125,7 @@ export default function SettingsPage() {
       enableEmailReceipts,
       paybillNumber,
       tillNumber,
+      enableCustomerDisplay,
     });
     alert('Settings saved successfully!');
   };
@@ -745,6 +747,30 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="hardware" className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-indigo-100 dark:bg-indigo-900/20">
+                      <Monitor className="h-5 w-5 text-indigo-700 dark:text-indigo-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold">Customer Display</h2>
+                      <p className="text-sm text-muted-foreground">Manage the secondary screen for customers</p>
+                    </div>
+                  </div>
+              </div>
+
+               <div className="flex items-center justify-between py-2">
+                <div className="flex-1">
+                  <div className="font-medium">Enable Customer Screen</div>
+                  <p className="text-sm text-muted-foreground">
+                    Automatically launch the customer facing window on application startup
+                  </p>
+                </div>
+                <Switch checked={enableCustomerDisplay} onCheckedChange={setEnableCustomerDisplay} />
+              </div>
+            </Card>
+
             <PrinterSettings/>
             {/* --- BARCODE SCANNER SECTION (Completely Revamped) --- */}
             <Card className="p-6">

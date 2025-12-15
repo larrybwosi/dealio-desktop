@@ -66,14 +66,18 @@ export function POS() {
   });
 
   // 3. Store Actions
-  const { addItemToOrder, businessConfig } = usePosStore(state => ({
+  const { addItemToOrder, businessConfig, settings } = usePosStore(state => ({
     addItemToOrder: state.addItemToOrder,
     businessConfig: state.getBusinessConfig(),
+    settings: state.settings
   }));
 
   // --- SCREEN LAUNCH LOGIC ---
   useEffect(() => {
     const initCustomerScreen = async () => {
+      // Only open if enabled in settings
+      if (!settings.enableCustomerDisplay) return;
+
       try {
         await invoke('open_customer_screen');
         console.log("Customer screen signal sent");
@@ -82,7 +86,7 @@ export function POS() {
       }
     };
     initCustomerScreen();
-  }, []);
+  }, [settings.enableCustomerDisplay]);
 
   // 4. Extract Categories
   useEffect(() => {
