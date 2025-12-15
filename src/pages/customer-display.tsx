@@ -63,11 +63,13 @@ export default function CustomerDisplay() {
     discount: 0.00,
     finalTotal: 0.00
   });
-console.log("Customer Display: ", cart);
+  
   const [currentTime, setCurrentTime] = useState(new Date());
   const [promoIndex, setPromoIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const formatMoney = useFormattedCurrency();
+  
+  // Safe fallback if utils not provided, though they likely are
+  const formatCurrency = useFormattedCurrency ? useFormattedCurrency() : (val: number) => `KSH. ${val.toLocaleString()}`;
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 60000);
@@ -76,7 +78,7 @@ console.log("Customer Display: ", cart);
     }, 10000);
 
     const unlisten = listen<CartPayload>('cart-update', (event) => {
-      console.log("Received cart update:", event.payload);
+      // payload matches structure sent from cart.tsx
       const { items, subtotal, tax, discount, finalTotal } = event.payload;
       setCart(items);
       setTotals({ subtotal, tax, discount, finalTotal });
@@ -98,12 +100,9 @@ console.log("Customer Display: ", cart);
   const currentSlide = PROMO_SLIDES[promoIndex];
 
   return (
-    // MAIN CONTAINER:
-    // flex-col on mobile (stack vertically), lg:flex-row on desktop (side-by-side)
     <div className="flex flex-col lg:flex-row h-screen w-screen bg-zinc-50 text-zinc-900 font-sans overflow-hidden select-none">
       
-      {/* ================= SECTION A: CART (Flex-1) ================= */}
-      {/* Takes full width on mobile, flexible width on desktop */}
+      {/* ================= SECTION A: CART ================= */}
       <div className="flex-1 flex flex-col h-full relative z-10 shadow-sm lg:shadow-[4px_0_24px_rgba(0,0,0,0.05)]">
         
         {/* Header */}
@@ -143,17 +142,16 @@ console.log("Customer Display: ", cart);
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-zinc-800 text-base md:text-lg truncate">{item.name}</h3>
                     <p className="text-xs md:text-sm text-zinc-500 truncate">
-                      {item.variant || 'Standard'} • {formatMoney(item.price)}
+                      {item.variant || 'Standard'} • {formatCurrency(item.price)}
                     </p>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="block text-lg md:text-xl font-bold text-zinc-900 tabular-nums tracking-tight">
-                      {formatMoney(item.price * item.qty)}
+                      {formatCurrency(item.price * item.qty)}
                     </span>
                   </div>
                 </div>
               ))}
-              {/* Spacer at bottom of list so last item isn't covered on mobile */}
               <div className="h-4"></div>
             </div>
           )}
@@ -161,10 +159,6 @@ console.log("Customer Display: ", cart);
       </div>
 
       {/* ================= SECTION B: SIDEBAR / BOTTOM BAR ================= */}
-      {/* - Mobile: Fixed at bottom, stacked vertically. 
-          - Tablet: Fixed at bottom, Row layout (Promo Left, Totals Right).
-          - Desktop: Fixed Right Sidebar, Column layout (Promo Top, Totals Bottom).
-      */}
       <div className="
         w-full lg:w-[400px] xl:w-[480px] 
         shrink-0 bg-zinc-900 text-white relative z-20 
@@ -174,7 +168,6 @@ console.log("Customer Display: ", cart);
       ">
         
         {/* --- PROMO SECTION --- */}
-        {/* Hidden on very small screens (portrait phone), Visible on Tablet/Desktop */}
         <div className="
           hidden md:flex lg:flex 
           flex-1 lg:flex-1 
@@ -182,29 +175,21 @@ console.log("Customer Display: ", cart);
           items-center justify-center
         ">
            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:16px_16px]"></div>
-           
-           {/* Inner Content - Flex row on tablet, Flex col on desktop */}
            <div className="relative z-10 p-4 lg:p-12 w-full h-full flex flex-row lg:flex-col items-center justify-center gap-4 lg:gap-6 text-center lg:text-center text-left">
-              
-              {/* QR / Icon Container */}
               <div className={`p-3 rounded-xl shadow-lg ring-2 ring-white/10 shrink-0 ${currentSlide.type === 'qr' ? 'bg-white' : currentSlide.bg}`}>
                 {currentSlide.type === 'qr' ? (
                   <div className="h-[80px] w-[80px] lg:h-[140px] lg:w-[140px] flex items-center justify-center">
                     <QRCodeCanvas 
                       value={currentSlide.payload || ""} 
                       style={{ height: "100%", width: "100%" }}
-                      // viewBox={`0 0 256 256`}
                     />
                   </div>
                 ) : (
                   <div className="h-[80px] w-[80px] lg:h-[140px] lg:w-[140px] flex items-center justify-center">
-                    {/* Cloning element to adjust size dynamically if needed, or relying on parent sizing */}
                     <div className="scale-75 lg:scale-100">{currentSlide.icon}</div>
                   </div>
                 )}
               </div>
-
-              {/* Text Content */}
               <div className="flex-1 lg:flex-none">
                 <h2 className="text-lg lg:text-2xl font-bold tracking-tight">{currentSlide.title}</h2>
                 <p className="text-xs lg:text-base text-zinc-400 leading-snug mt-1 lg:max-w-[80%] lg:mx-auto">
@@ -215,44 +200,38 @@ console.log("Customer Display: ", cart);
         </div>
 
         {/* --- FINANCIAL FOOTER --- */}
-        {/* Always visible. Takes full width on mobile. Half width on Tablet. Bottom half on Desktop. */}
         <div className="
           flex-1 lg:flex-none 
           bg-zinc-950 p-5 md:p-6 lg:p-8 
           flex flex-col justify-center lg:justify-end 
           shadow-[0_-4px_24px_rgba(0,0,0,0.3)]
         ">
-          
-          {/* Breakdown - Compact on Mobile */}
           <div className="space-y-1 md:space-y-3 mb-3 md:mb-8 text-xs md:text-sm font-medium">
             <div className="flex justify-between text-zinc-400">
               <span>Subtotal</span>
-              <span className="font-mono tabular-nums text-zinc-300">{formatMoney(totals.subtotal)}</span>
+              <span className="font-mono tabular-nums text-zinc-300">{formatCurrency(totals.subtotal)}</span>
             </div>
             {totals.discount > 0 && (
               <div className="flex justify-between text-emerald-400">
                 <span className="flex items-center gap-1"><Percent size={12}/> Savings</span>
-                <span className="font-mono tabular-nums">- {formatMoney(totals.discount)}</span>
+                <span className="font-mono tabular-nums">- {formatCurrency(totals.discount)}</span>
               </div>
             )}
             <div className="flex justify-between text-zinc-400">
               <span>Tax</span>
-              <span className="font-mono tabular-nums text-zinc-300">{formatMoney(totals.tax)}</span>
+              <span className="font-mono tabular-nums text-zinc-300">{formatCurrency(totals.tax)}</span>
             </div>
           </div>
 
-          {/* Grand Total */}
           <div className="pt-3 md:pt-6 border-t border-zinc-800/50">
             <div className="flex flex-col gap-0 md:gap-1 items-end">
               <span className="text-[10px] md:text-sm font-medium text-zinc-500 uppercase tracking-widest">Total Due</span>
-              {/* Responsive Text Size using Clamp logic via Tailwind */}
               <span className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tighter tabular-nums font-mono">
-                {formatMoney(totals.finalTotal)}
+                {formatCurrency(totals.finalTotal)}
               </span>
             </div>
           </div>
 
-          {/* Instructions - Hidden on small mobile to save vertical space */}
           <div className="hidden md:flex mt-4 md:mt-8 pt-4 items-center justify-between text-zinc-500 text-xs border-t border-zinc-800/30">
              <div className="flex items-center gap-2">
                <Receipt size={14} />
@@ -263,7 +242,6 @@ console.log("Customer Display: ", cart);
                <span>Insert / Swipe</span>
              </div>
           </div>
-
         </div>
       </div>
     </div>

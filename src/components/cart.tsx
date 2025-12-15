@@ -31,6 +31,7 @@ import { AgeVerificationDialog } from '@/components/age-verification-dialog';
 import type { Order, CartItem, Customer, OrderType } from '@/types';
 import { ReceiptDialog } from '@/components/receipt-dialog';
 import { cn } from '@/lib/utils';
+import { emitTo } from '@tauri-apps/api/event';
 
 export function Cart() {
   // --- Layout & Resize States ---
@@ -86,11 +87,7 @@ export function Cart() {
   const resize = useCallback(
     (mouseMoveEvent: MouseEvent) => {
       if (isResizing) {
-        // Calculate new width: Window Width - Mouse X Position
-        // We subtract because the sidebar is on the right
         const newWidth = document.body.clientWidth - mouseMoveEvent.clientX;
-        
-        // Limits: Min 300px, Max 800px
         if (newWidth > 300 && newWidth < 800) {
             setWidth(newWidth);
         }
@@ -127,9 +124,37 @@ export function Cart() {
     };
   }, [currentOrder.items, taxRate]);
 
+  // --- CUSTOMER DISPLAY SYNC ---
+  useEffect(() => {
+    const syncToCustomerScreen = async () => {
+      try {
+        // Map current items to a clean structure for the display
+        const displayItems = currentOrder.items.map(item => ({
+          name: item.productName,
+          variant: item.variantName || '',
+          qty: item.quantity,
+          price: item.selectedUnit?.price || 0
+        }));
+
+        await emitTo('customer', 'cart-update', {
+          items: displayItems,
+          subtotal: subTotal,
+          tax: taxAmount,
+          discount: 0, // Pass actual discount if you have it in store
+          finalTotal: total
+        });
+      } catch (e) {
+        // Ignore errors if window is closed
+        console.warn("Failed to emit to customer screen:", e);
+      }
+    };
+
+    syncToCustomerScreen();
+  }, [currentOrder.items, subTotal, taxAmount, total]);
+
+
   // --- Mappers ---
   const mappedCartItems: CartItem[] = useMemo(() => {
-    // console.log('Current Order Items:', currentOrder.items);
     return currentOrder.items.map(item => ({
       productId: item.productId,
       productName: item.productName,
@@ -225,15 +250,12 @@ export function Cart() {
         ref={sidebarRef}
         className="relative flex h-screen bg-card shadow-xl z-20 border-l border-border"
         style={{ 
-            // Apply width dynamically. If collapsed, width is 0.
             width: isCollapsed ? 0 : width,
-            // If dragging, we remove transition to make resizing instant/smooth. 
-            // If simply toggling collapse, we keep transition for effect.
             transition: isResizing ? 'none' : 'width 300ms ease-in-out' 
         }}
       >
         
-        {/* --- 1. Expand Button (Visible ONLY when collapsed) --- */}
+        {/* --- 1. Expand Button --- */}
         <Button
             variant="secondary"
             size="icon"
@@ -245,8 +267,6 @@ export function Cart() {
             title="Open Cart"
         >
             <PanelRightOpen className="h-4 w-4" />
-            
-            {/* Badge for item count when collapsed */}
             {currentOrder.items.length > 0 && (
                 <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in zoom-in">
                     {currentOrder.items.length}
@@ -254,7 +274,7 @@ export function Cart() {
             )}
         </Button>
 
-        {/* --- 2. Resize Handle (Visible ONLY when expanded) --- */}
+        {/* --- 2. Resize Handle --- */}
         <div 
             className={cn(
                 "absolute top-0 bottom-0 -left-1 w-2 cursor-col-resize hover:bg-primary/50 transition-colors z-50 flex items-center justify-center group",
@@ -262,7 +282,6 @@ export function Cart() {
             )}
             onMouseDown={startResizing}
         >
-            {/* Visual indicator for the handle */}
             <div className="h-8 w-1 rounded-full bg-border group-hover:bg-primary transition-colors" />
         </div>
 
@@ -270,7 +289,6 @@ export function Cart() {
         {/* --- 3. Inner Content Wrapper --- */}
         <div className={cn(
             "flex flex-col h-full w-full overflow-hidden",
-            // Fade out content when collapsing so it doesn't look squashed
             isCollapsed ? "opacity-0 invisible" : "opacity-100 visible transition-opacity duration-300 delay-100"
         )}>
           
@@ -283,7 +301,6 @@ export function Cart() {
                 </p>
             </div>
             
-            {/* Collapse Button (Inside Component) */}
             <Button 
                 variant="ghost" 
                 size="icon" 
@@ -296,7 +313,6 @@ export function Cart() {
           </div>
 
           <div className="px-4 md:px-6 py-2 border-b border-border bg-muted/10 space-y-3">
-             {/* Customer & Type Inputs - Compacted for resizable view */}
               <div className="flex gap-2">
                  <div className="flex-1 min-w-[120px]">
                     <CustomerSelector />
@@ -363,7 +379,6 @@ export function Cart() {
                 return (
                   <Card key={`${item.productId}-${unitId}-${index}`} className="p-2.5 bg-card hover:bg-accent/5 transition-colors border-border/60 group relative">
                     <div className="flex gap-3">
-                      {/* Item Image */}
                       <div className="relative w-14 h-14 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
                         <img
                           src={item.imageUrl || '/placeholder.svg?height=64&width=64'}
@@ -371,8 +386,6 @@ export function Cart() {
                           className="object-cover w-full h-full"
                         />
                       </div>
-
-                      {/* Item Details */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -384,8 +397,6 @@ export function Cart() {
                               <span>• {unitName}</span>
                             </div>
                           </div>
-                          
-                          {/* Action Buttons */}
                           <div className="flex gap-1 shrink-0">
                             <button 
                               onClick={() => handleOpenEdit(item)}
@@ -403,12 +414,9 @@ export function Cart() {
                         </div>
 
                         <div className="flex items-end justify-between mt-2">
-                          {/* Notes Indicator */}
                           <div className="text-xs text-muted-foreground italic truncate max-w-[100px]">
                               {item.notes && `"${item.notes}"`}
                           </div>
-
-                          {/* Price Calculation */}
                           <div className="text-right flex items-center gap-2">
                               <span className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">x{item.quantity}</span>
                               <span className="font-semibold text-sm">
@@ -480,7 +488,7 @@ export function Cart() {
         </div>
       </div>
 
-      {/* --- Dialogs (Unchanged) --- */}
+      {/* --- Dialogs --- */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -489,7 +497,6 @@ export function Cart() {
                Make changes to {editingItem?.productName}
             </DialogDescription>
           </DialogHeader>
-          
           <div className="grid gap-4 py-4">
              <div className="flex items-center justify-between">
                 <Label htmlFor="quantity" className="text-right">
@@ -529,7 +536,6 @@ export function Cart() {
                 />
              </div>
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveEdit}>Save Changes</Button>

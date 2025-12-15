@@ -27,7 +27,8 @@
         "resizable": true,
         "fullscreen": false,
         "maximized": false,
-        "label": "customer"
+        "label": "customer",
+        "url": "/customer"
       }
     ],
     "security": {

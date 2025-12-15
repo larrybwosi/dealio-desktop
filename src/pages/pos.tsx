@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   WifiOff,
   Wifi,
-  MonitorCheck // Added icon for screen status
+  MonitorCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
@@ -30,13 +30,12 @@ import { toast } from 'sonner';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
-import { emitTo } from '@tauri-apps/api/event';
+// Removed emitTo - now handled in Cart.tsx
 
 export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [inputValue, setInputValue] = useState('');
   const [knownCategories, setKnownCategories] = useState<Set<string>>(new Set());
-  const currentOrder = usePosStore(state => state.currentOrder);
   
   // 1. Debounce Search
   const [debouncedSearch] = useDebounce(inputValue, 500);
@@ -66,17 +65,14 @@ export function POS() {
     category: activeCategory
   });
 
-  // 3. Store Actions & State
-  // We need to access the cart items to send them to the customer screen
-  const { addItemToOrder, businessConfig, cartItems } = usePosStore(state => ({
+  // 3. Store Actions
+  const { addItemToOrder, businessConfig } = usePosStore(state => ({
     addItemToOrder: state.addItemToOrder,
     businessConfig: state.getBusinessConfig(),
-    cartItems: currentOrder?.items || [] 
   }));
 
-  // --- NEW: DUAL SCREEN LOGIC ---
+  // --- SCREEN LAUNCH LOGIC ---
   useEffect(() => {
-    // A. Launch the screen on mount
     const initCustomerScreen = async () => {
       try {
         await invoke('open_customer_screen');
@@ -87,38 +83,6 @@ export function POS() {
     };
     initCustomerScreen();
   }, []);
-
-  // B. Sync Data whenever cartItems changes
-  useEffect(() => {
-    const syncToCustomerScreen = async () => {
-      // Calculate total based on your specific item structure
-      const total = cartItems.reduce((acc: number, item: any) => {
-         // Adjust 'price' and 'quantity' keys to match your store object
-         return acc + (Number(item.price || item.unitPrice || 0) * Number(item.quantity || 1));
-      }, 0);
-
-      // Map your complex store objects to simple objects for the display
-      const simpleItems = cartItems.map((item: any) => ({
-        name: item.productName || item.name,
-        qty: item.quantity,
-        price: item.price || item.unitPrice
-      }));
-      // console.log("Syncing to customer screen:", simpleItems);
-
-      try {
-        // Emit to the window labeled 'customer' (defined in Rust)
-        await emitTo('customer', 'cart-update', {
-          items: simpleItems,
-          finalTotal: total
-        });
-      } catch (e) {
-        // Silent fail if window isn't open yet
-      }
-    };
-
-    syncToCustomerScreen();
-  }, [cartItems]);
-  // ------------------------------
 
   // 4. Extract Categories
   useEffect(() => {
@@ -179,7 +143,6 @@ export function POS() {
     await triggerSync();
   };
 
-  // Initialize scanner on mount
   useEffect(() => {
     startScanner();
     return () => {
@@ -291,7 +254,6 @@ export function POS() {
                   </p>
               </div>
               
-              {/* Scanner Status Indicator */}
               {isScanning && (
                 <div className={cn(
                   "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
@@ -315,7 +277,6 @@ export function POS() {
            </div>
           
           <div className="flex items-center gap-2 w-full md:w-auto">
-            {/* Mode Switcher */}
             <div className="bg-muted/50 p-1 rounded-lg flex items-center border border-border flex-1 md:flex-none">
               <button
                 onClick={() => setPricingMode('retail')}
@@ -352,7 +313,6 @@ export function POS() {
                 <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
             </Button>
             
-            {/* Optional: Add a button to manually relaunch customer screen if closed */}
             <Button 
                 variant="ghost" 
                 size="icon" 
@@ -367,7 +327,6 @@ export function POS() {
 
         {/* Second Bar: Search & Categories */}
         <div className="flex flex-col lg:flex-row gap-4 pb-4">
-            {/* Search Input Group */}
             <div className="flex gap-2 w-full lg:w-1/3 shrink-0">
                 <div className="relative w-full group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -393,7 +352,6 @@ export function POS() {
                 </Button>
             </div>
 
-            {/* Dynamic Categories - Horizontal Scroll */}
             <div className="flex-1 min-w-0 border-l border-border pl-0 lg:pl-4">
                 <ScrollArea className="w-full whitespace-nowrap">
                     <div className="flex w-max space-x-2 pb-2">
@@ -424,7 +382,6 @@ export function POS() {
 
       {/* --- Product Grid Content --- */}
       <div className="flex-1 overflow-y-auto min-h-0 p-4 bg-muted/10"> 
-        {/* Only show full skeleton if we have NO items and are syncing */}
         {isSyncing && products.length === 0 ? (
            <ProductGridSkeleton />
         ) : (
@@ -440,7 +397,6 @@ export function POS() {
               ))}
             </div>
             
-            {/* Empty State */}
             {!isSyncing && products.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                     <div className="bg-muted p-6 rounded-full mb-4">
@@ -468,7 +424,6 @@ export function POS() {
   );
 }
 
-// Sub-component for Cleaner Category Tabs
 function CategoryBadge({ label, isActive, onClick }: { label: string, isActive: boolean, onClick: () => void }) {
     return (
         <button
