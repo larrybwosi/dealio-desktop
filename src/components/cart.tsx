@@ -558,7 +558,6 @@ export function Cart() {
         customer={activeCustomer}
         orderType={getNormalizedOrderType(currentOrder.orderType)}
         tableNumber={currentOrder.tableNumber}
-        onOpenCustomer={() => console.log('Open Customer Selector')}
         onPaymentComplete={handlePaymentComplete}
       />
       

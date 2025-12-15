@@ -228,6 +228,8 @@ export interface BusinessSettings {
   apiSyncConfig: ApiSyncConfig;
   notificationSettings: NotificationSettings;
   autoPrintConfig: AutoPrintConfig; // Auto-print configuration
+  paybillNumber?: string;
+  tillNumber?: string;
 }
 
 export interface Customer {
@@ -562,6 +564,8 @@ export const usePosStore = create<PosStore>()(
         apiSyncConfig: getDefaultApiSyncConfig(),
         notificationSettings: getDefaultNotificationSettings(),
         autoPrintConfig: DEFAULT_AUTO_PRINT_CONFIG, // Auto-print configuration
+        paybillNumber: '',
+        tillNumber: '',
       },
       customers: [],
       employees: [],

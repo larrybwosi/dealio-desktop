@@ -174,8 +174,8 @@ const PaymentModal = ({
 
   // Organization Payment Settings (Fallback to placeholders if not in settings)
   const organizationName = settings?.businessName || 'My Business';
-  const paybillNumber = settings?.paybillNumber || '123456';
-  const tillNumber = settings?.tillNumber || '765432';
+  const paybillNumber = settings?.paybillNumber || '';
+  const tillNumber = settings?.tillNumber || '';
 
   const formatCurrency = useFormattedCurrency();
   const PHONE_CONFIG = getCurrentPhoneConfig();

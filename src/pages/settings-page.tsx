@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
@@ -97,6 +97,8 @@ export default function SettingsPage() {
   const [enableAutoPrint, setEnableAutoPrint] = useState(settings?.enableAutoPrint ?? false);
   const [printerName] = useState(settings?.printerName || '');
   const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
+  const [paybillNumber, setPaybillNumber] = useState(settings?.paybillNumber || '');
+  const [tillNumber, setTillNumber] = useState(settings?.tillNumber || '');
 
   const [syncing, setSyncing] = useState(false);
 
@@ -120,6 +122,8 @@ export default function SettingsPage() {
       enableAutoPrint,
       printerName,
       enableEmailReceipts,
+      paybillNumber,
+      tillNumber,
     });
     alert('Settings saved successfully!');
   };
@@ -163,6 +167,7 @@ export default function SettingsPage() {
             <TabsTrigger value="notifications">Notifications</TabsTrigger> {/* Added notifications tab */}
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="api">API Sync</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
           </TabsList>
@@ -896,6 +901,76 @@ export default function SettingsPage() {
                   </p>
                 </div>
                 <Switch checked={enableAutoPrint} onCheckedChange={setEnableAutoPrint} />
+              </div>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="payments" className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/20">
+                  <CreditCard className="h-5 w-5 text-blue-700 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Mobile Money Configuration</h2>
+                  <p className="text-sm text-muted-foreground">Configure M-Pesa Paybill and Till numbers for payments</p>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="paybillNumber">Paybill Number</Label>
+                    <Input
+                      id="paybillNumber"
+                      value={paybillNumber}
+                      onChange={e => setPaybillNumber(e.target.value)}
+                      placeholder="e.g. 123456"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Business number for Paybill payments
+                    </p>
+                  </div>
+
+                  <div className="grid gap-2">
+                    <Label htmlFor="tillNumber">Till Number (Buy Goods)</Label>
+                    <Input
+                      id="tillNumber"
+                      value={tillNumber}
+                      onChange={e => setTillNumber(e.target.value)}
+                      placeholder="e.g. 765432"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Store number for Buy Goods payments
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-muted p-4 h-fit">
+                  <h3 className="font-medium mb-2 flex items-center gap-2">
+                    <Smartphone className="h-4 w-4" />
+                    Preview
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between py-2 border-b border-white/10">
+                      <span className="text-muted-foreground">Paybill Mode:</span>
+                      <span className="font-mono">{paybillNumber || 'Not Configured'}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-white/10">
+                      <span className="text-muted-foreground">Buy Goods Mode:</span>
+                      <span className="font-mono">{tillNumber || 'Not Configured'}</span>
+                    </div>
+                    {(!paybillNumber && !tillNumber) && (
+                      <div className="pt-2 text-amber-600 dark:text-amber-400 text-xs">
+                        ⚠️ Please configure at least one payment method for mobile money payments to work correctly.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6 flex justify-end">
+                <Button onClick={handleSaveSettings}>Save Payment Settings</Button>
               </div>
             </Card>
           </TabsContent>
