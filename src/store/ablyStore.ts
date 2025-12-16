@@ -1,8 +1,8 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { z } from 'zod';
-import * as Ably from 'ably';
 import { apiClient } from '@/lib/axios';
 import { isAxiosError } from 'axios';
+import { AuthOptions, Realtime } from 'ably';
 
 const AblyConfigSchema = z.object({
   tokenRequest: z.object({
@@ -15,7 +15,7 @@ const AblyConfigSchema = z.object({
 });
 
 interface AblyState {
-  client: Ably.Realtime | null;
+  client: Realtime | null;
   paymentChannel: string | null;
   status: 'idle' | 'loading' | 'success' | 'error';
   connectionState: string; // Track actual Ably connection state
@@ -37,9 +37,9 @@ export const useAblyStore = create<AblyState>((set, get) => ({
     set({ status: 'loading' });
 
     // We define the authCallback logic here
-    const authCallback: Ably.AuthOptions['authCallback'] = async (tokenParams, callback) => {
+    const authCallback: AuthOptions['authCallback'] = async (tokenParams, callback) => {
       try {
-        const { data } = await apiClient.post('/api/v1/pos/ably-auth');
+        const { data } = await apiClient.post('/api/v1/pos/ably-auth',{ params: tokenParams });
         console.log(data)
         
         // Validate
@@ -67,7 +67,7 @@ export const useAblyStore = create<AblyState>((set, get) => ({
     };
 
     // Initialize Client with authCallback
-    const client = new Ably.Realtime({
+    const client = new Realtime({
       authCallback, // SDK handles the loop now
       // Optional: autoConnect: false (if you want more control)
     });
