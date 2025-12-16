@@ -1,279 +1,178 @@
 # Dealio Desktop
 
-A modern, cross-platform Point of Sale (POS) desktop application built with Tauri, React, and TypeScript. Dealio Desktop provides a comprehensive solution for managing sales, inventory, customers, and analytics across multiple business types.
-
-## 🚀 Features
-
-### Core Functionality
-- **Multi-Business Support**: Pre-configured templates for 12 business types including restaurants, cafes, retail stores, pharmacies, grocery stores, and more
-- **Point of Sale**: Fast and intuitive checkout process with product search, cart management, and multiple payment methods
-- **Inventory Management**: Track stock levels, manage product variants, batch tracking, and expiry dates
-- **Customer Management**: Maintain customer records, track purchase history, and manage loyalty programs
-- **Order Management**: Handle different order types (dine-in, takeaway, delivery, pickup, online)
-- **Sales Analytics**: Comprehensive reporting and analytics dashboard with charts and insights
-- **Receipt Customization**: Fully customizable receipt templates with PDF generation
-- **Cash Drawer Management**: Track cash flow, withdrawals, and till reconciliation
-
-### Business-Specific Features
-- **Table Management** (Restaurants, Cafes, Bars): Manage dining tables and orders
-- **Kitchen Display System** (Restaurants, Bars): Real-time order display for kitchen staff
-- **Prescription Management** (Pharmacies): Handle prescription orders and doctor information
-- **ISBN Tracking** (Bookshops): Track books by ISBN
-- **Warranty Tracking** (Electronics, Hardware): Manage product warranties
-- **Age Verification** (Bars): Built-in age verification for alcohol sales
-- **B2B Bulk Purchase** (Wholesale, Retail): Support for bulk orders and wholesale pricing
-- **Size Variants** (Cafes, Clothing): Manage product sizes and variants
-
-### Technical Features
-- **Offline-First**: Works without internet connection with local data storage
-- **Real-time Notifications**: Ably-powered notification system for order updates
-- **Auto-Updates**: Built-in update mechanism for seamless version upgrades
-- **Multi-Location Support**: Manage multiple business locations
-- **Member Check-in/Check-out**: Staff authentication and session management
-- **Printer Integration**: Direct thermal printer support for receipts
-- **HID Device Support**: Integration with barcode scanners and other HID devices
-- **Deep Linking**: Support for external app integration
-- **Secure Storage**: Encrypted local storage using Tauri Stronghold
-
-## 🛠️ Tech Stack
-
-### Frontend
-- **React 19** - UI framework
-- **TypeScript** - Type-safe development
-- **React Router 7** - Client-side routing
-- **Zustand** - State management
-- **TanStack Query** - Server state management
-- **Tailwind CSS 4** - Styling
-- **Radix UI** - Accessible component primitives
-- **Framer Motion** - Animations
-- **Recharts** - Data visualization
-- **React Hook Form + Zod** - Form validation
-
-### Backend/Desktop
-- **Tauri 2** - Cross-platform desktop framework
-- **Rust** - Native backend
-- **Vite** - Build tool and dev server
-
-### Key Libraries
-- **Axios** - HTTP client
-- **Ably** - Real-time notifications
-- **@react-pdf/renderer** - PDF generation
-- **date-fns** - Date manipulation
-- **Sonner** - Toast notifications
-- **QRCode** - QR code generation
-
-## 📋 Prerequisites
-
-- **Node.js** 18+ and pnpm
-- **Rust** 1.70+ (for Tauri)
-- **Windows**, **macOS**, or **Linux**
-
-## 🚀 Getting Started
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/larrybwosi/dealio-desktop.git
-   cd dealio-desktop
-   ```
-
-2. **Install dependencies**
-   ```bash
-   pnpm install
-   ```
-
-3. **Run in development mode**
-   ```bash
-   pnpm tauri dev
-   ```
-
-### Building for Production
-
-```bash
-# Build the application
-pnpm exe
-
-# Or use the Tauri CLI directly
-pnpm tauri build
-```
-
-The built application will be available in `src-tauri/target/release/`.
-
-## 📱 Usage
-
-### Initial Setup
-
-1. **Device Registration**: On first launch, register the device with your API key and select a business location
-2. **Business Type Selection**: Choose your business type from the available templates (restaurant, cafe, retail, etc.)
-3. **Member Check-in**: Staff members check in using their credentials to start a session
-
-### Daily Operations
-
-1. **Taking Orders**
-   - Browse products by category
-   - Add items to cart
-   - Apply discounts
-   - Select customer (optional)
-   - Process payment (cash, M-Pesa, card)
-   - Print receipt
-
-2. **Managing Inventory**
-   - Add/edit products
-   - Track stock levels
-   - Set low stock alerts
-   - Manage product variants
-
-3. **Viewing Analytics**
-   - Daily/weekly/monthly sales reports
-   - Top-selling products
-   - Revenue trends
-   - Customer insights
-
-4. **End of Day**
-   - Cash drawer reconciliation
-   - View pending transactions
-   - Generate reports
-   - Member check-out
-
-## 🔧 Configuration
-
-### Business Configuration
-
-Each business type comes with pre-configured settings that can be customized:
-
-- Order types (dine-in, takeaway, delivery, etc.)
-- Default product categories
-- Tax settings
-- Required customer fields
-- Feature toggles
-
-Edit configurations in `src/lib/business-configs.ts`.
-
-### Receipt Settings
-
-Customize receipt appearance:
-- Header/footer text
-- Logo
-- Business information
-- Template style
-- Border options
-
-Access via **Settings** → **Receipt Settings** in the app.
-
-### Printer Setup
-
-Configure thermal printers:
-1. Navigate to **Settings** → **Printer Settings**
-2. Select your printer from the detected devices
-3. Test print to verify configuration
-
-## 🏗️ Project Structure
-
-```
-dealio-desktop/
-├── src/
-│   ├── components/       # React components
-│   │   ├── pos/         # POS-specific components
-│   │   └── ui/          # Reusable UI components
-│   ├── hooks/           # Custom React hooks
-│   ├── lib/             # Utility functions and configs
-│   ├── pages/           # Page components
-│   ├── store/           # Zustand state stores
-│   ├── types/           # TypeScript type definitions
-│   └── App.tsx          # Main application component
-├── src-tauri/           # Tauri/Rust backend
-│   ├── src/             # Rust source code
-│   ├── icons/           # Application icons
-│   └── Cargo.toml       # Rust dependencies
-├── public/              # Static assets
-└── package.json         # Node dependencies
-```
-
-## 🔌 API Integration
-
-Dealio Desktop integrates with a backend API for:
-- Product synchronization
-- Customer data
-- Order processing
-- Analytics
-- M-Pesa payment processing
-
-Configure API endpoints in your environment settings.
-
-## 🧪 Development
-
-### Available Scripts
-
-```bash
-# Start development server
-pnpm dev
-
-# Start Tauri development mode
-pnpm tauri dev
-
-# Build for production
-pnpm build
-
-# Build executable
-pnpm exe
-
-# Preview production build
-pnpm preview
-```
-
-### Code Style
-
-The project uses:
-- **Prettier** for code formatting (`.prettierrc`)
-- **TypeScript** for type checking
-- **ESLint** (configured via Vite)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🐛 Known Issues
-
-- Pending transactions sync may require manual retry in offline mode
-- Some thermal printers may require specific driver configurations
-- M-Pesa integration requires valid API credentials
-
-## 🗺️ Roadmap
-
-- [ ] Multi-currency support
-- [ ] Advanced inventory forecasting
-- [ ] Employee performance tracking
-- [ ] Customer loyalty program enhancements
-- [ ] Mobile companion app
-- [ ] Cloud backup and sync
-- [ ] Advanced reporting and exports
-- [ ] Multi-language support
-
-## 📞 Support
-
-For issues, questions, or feature requests, please:
-- Open an issue on GitHub
-- Contact support at your-email@example.com
-
-## 🙏 Acknowledgments
-
-- Built with [Tauri](https://tauri.app/)
-- UI components from [Radix UI](https://www.radix-ui.com/)
-- Icons from [Lucide](https://lucide.dev/)
-- Inspired by modern POS systems
+![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+[![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-red.svg)](LICENSE)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/larrybwosi/dealio-desktop/actions)
+
+**Dealio Desktop** is a modern, cross-platform Point of Sale (POS) application designed to empower businesses with efficient sales management, inventory tracking, and customer engagement tools. Built with the robust Tauri framework, it leverages the performance of Rust and the flexibility of React to deliver a blazing-fast, offline-first experience.
 
 ---
 
-**Version**: 0.1.0  
-**Last Updated**: November 2025
+## 📋 Table of Contents
+
+- [Dealio Desktop](#dealio-desktop)
+  - [📋 Table of Contents](#-table-of-contents)
+  - [🚀 Features](#-features)
+    - [Core Capabilities](#core-capabilities)
+    - [Business-Specific Functionality](#business-specific-functionality)
+  - [🛠️ Tech Stack](#-tech-stack)
+  - [📦 Installation & Getting Started](#-installation--getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Setup Guide](#setup-guide)
+  - [📱 Usage Guide](#-usage-guide)
+  - [🔧 Configuration](#-configuration)
+  - [🔌 API Integration](#-api-integration)
+  - [🤝 Contributing](#-contributing)
+  - [📄 License](#-license)
+  - [📞 Support](#-support)
+
+---
+
+## 🚀 Features
+
+Dealio Desktop is versatile, adaptable to various business models through pre-configured templates.
+
+### Core Capabilities
+
+-   **Seamless Sales Processing**: Fast checkout with product search, cart management, and mixed payment methods (Cash, Card, M-Pesa).
+-   **Robust Inventory**: Real-time stock tracking, variant management (sizes, colors), batch tracking, and low-stock alerts.
+-   **Offline-First Architecture**: Continue operations without an internet connection; data syncs automatically when online.
+-   **Customer CRM**: Maintain detailed customer profiles, purchase history, and loyalty points.
+-   **Comprehensive Analytics**: Visual dashboards for sales trends, top products, and revenue analysis.
+-   **Receipt customization**: Professional PDF receipt generation with custom logos, headers, and footers.
+-   **Peripherals Support**: Integration with thermal printers, barcode scanners, and cash drawers.
+
+### Business-Specific Functionality
+
+-   **🍽️ Restaurants & Cafes**: Table management, Kitchen Display System (KDS), dine-in/takeaway splitting.
+-   **💊 Pharmacies**: Prescription management and doctor tracking.
+-   **🏬 Retail**: Barcode scanning, wholesale/B2B pricing, and bulk purchasing.
+-   **🔖 Specialized**: ISBN tracking for bookstores, warranty management for electronics.
+
+---
+
+## 🛠️ Tech Stack
+
+We use cutting-edge technologies to ensure stability, performance, and maintainability.
+
+| Category | Technology | Description |
+| :--- | :--- | :--- |
+| **Backend** | [Tauri v2](https://tauri.app/) | Secure, lightweight desktop app framework |
+| **Language** | [Rust](https://www.rust-lang.org/) | Performance-critical backend logic |
+| **Frontend** | [React 19](https://react.dev/) | UI library |
+| **Language** | [TypeScript](https://www.typescriptlang.org/) | Static typing for reliability |
+| **State** | [Zustand](https://github.com/pmndrs/zustand) | Lightweight state management |
+| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) | Utility-first CSS framework |
+| **Database** | Tauri Plug-in Store | Persistent local storage |
+| **Realtime** | [Ably](https://ably.com/) | Real-time notifications and updates |
+
+---
+
+## 📦 Installation & Getting Started
+
+### Prerequisites
+
+Ensure you have the following installed on your system:
+
+-   **Node.js** (v18 or later)
+-   **pnpm** (preferred package manager)
+-   **Rust** (v1.70+ for Tauri compilation)
+-   **Build Tools**:
+    -   *Windows*: Visual Studio C++ Build Tools
+    -   *macOS*: Xcode Command Line Tools
+    -   *Linux*: `build-essential`, `libwebkit2gtk-4.0-dev`, etc.
+
+### Setup Guide
+
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/larrybwosi/dealio-desktop.git
+    cd dealio-desktop
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    pnpm install
+    ```
+
+3.  **Run in Development Mode**
+    This starts the frontend server and the Tauri window.
+    ```bash
+    pnpm tauri dev
+    ```
+
+4.  **Build for Production**
+    To create an optimized executable/installer for your OS:
+    ```bash
+    pnpm tauri build
+    ```
+    The output will be located in `src-tauri/target/release/bundle/`.
+
+---
+
+## 📱 Usage Guide
+
+1.  **Onboarding**: Upon first launch, enter your API key to register the device and download your business configuration.
+2.  **Dashboard**: Overview of daily performance.
+3.  **Point of Sale**:
+    -   Select items from the catalog.
+    -   Scan barcodes for quick addition.
+    -   Click "Charge" to select payment methods.
+4.  **Settings**: Configure printers, receipt templates, and tax rates.
+
+---
+
+## 🔧 Configuration
+
+### Receipt Templates
+Customize your receipts via **Settings > Receipt Settings**. You can toggle:
+-   Business Logo
+-   Order ID / Cashier Name
+-   Promotional Footers
+
+### Hardware
+Dealio auto-detects connected USB thermal printers. Configure paper width (58mm/80mm) in printer settings.
+
+---
+
+## 🔌 API Integration
+
+Dealio Desktop is designed to work with the **Dealio API** for centralized management.
+-   **Sync**: Products and Categories are pulled from the cloud.
+-   **Upload**: Sales and Customers are pushed to the cloud.
+-   **Websockets**: Instant order notifications via Ably.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+1.  Fork the Project
+2.  Create your Feature Branch (`git checkout -b feat/AmazingFeature`)
+3.  Commit your Changes (`git commit -m 'feat: Add some AmazingFeature'`)
+4.  Push to the Branch (`git push origin feat/AmazingFeature`)
+5.  Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is distributed under the **PolyForm Noncommercial License 1.0.0**.
+
+> **Commercial Use Restricted**: You may not use this software for commercial purposes (generating revenue) without a separate commercial license.
+
+See [LICENSE](LICENSE) for more information.
+
+---
+
+## 📞 Support
+
+If you encounter issues or have questions:
+
+-   **Issues**: [GitHub Issues](https://github.com/larrybwosi/dealio-desktop/issues)
+-   **Email**: support@dealio.app
+
+---
+
+*Made with ❤️ by the Dealio Team.*
