@@ -42,6 +42,7 @@ interface ProductProps {
   product: Product;
   onAddToCart: (item: any) => void;
   pricingMode: 'retail' | 'wholesale';
+  customPriceCalculator?: (variantId: string, unitId: string) => number | null;
 }
 
 // Mock currency formatter for demo
@@ -49,7 +50,7 @@ const useFormattedCurrency = () => {
   return (amount: number) => `$${amount.toFixed(2)}`;
 };
 
-export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductProps) => {
+export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
     product.variants[0]?.variantId
   );
@@ -85,12 +86,20 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode }: ProductP
   // Calculate Price
   const price = useMemo(() => {
     if (!currentUnit) return 0;
+
+    // 1. Try Custom Pricing (Customer Specific)
+    if (customPriceCalculator) {
+        const customPrice = customPriceCalculator(currentVariant.variantId, currentUnit.unitId);
+        if (customPrice !== null) return customPrice;
+    }
+
+    // 2. Default Logic
     if (pricingMode === 'wholesale') {
       const wp = Number(currentUnit.wholesalePrice);
       return wp > 0 ? wp : Number(currentUnit.price);
     }
     return Number(currentUnit.price);
-  }, [currentUnit, pricingMode]);
+  }, [currentUnit, pricingMode, customPriceCalculator, currentVariant.variantId]);
 
   const handleAdd = () => {
     if (!currentVariant || !currentUnit) return;

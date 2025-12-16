@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePosStore } from '@/store/store';
+import { usePosPricingSync, resolveCustomerPrice } from '@/hooks/use-pricing-sync';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -75,6 +76,13 @@ export function POS() {
     currentOrder: state.currentOrder,
     setTableNumber: state.setTableNumber
   }));
+
+  // --- PRICING SYNC ---
+  const { data: pricingData } = usePosPricingSync();
+
+  const handleGetPrice = useCallback((variantId: string, unitId: string | null) => {
+    return resolveCustomerPrice(pricingData, currentOrder.customerId, variantId, unitId);
+  }, [pricingData, currentOrder.customerId]);
 
   // --- SCREEN LAUNCH LOGIC ---
   useEffect(() => {
@@ -218,9 +226,21 @@ export function POS() {
       }))
     };
 
+    // Calculate dynamic price for scanner adding
+    // Note: We use the helper directly here since we are inside POS and have data
+    const customPrice = resolveCustomerPrice(pricingData, currentOrder.customerId, variant.variantId, defaultUnit.unitId);
+    // If custom price, update unit price logic or pass it.
+    // Ideally, addItemToOrder should handle this, but currently it takes unit.price.
+    // We override the price if customPrice found.
+    const unitToAdd = {
+        ...defaultUnit,
+        price: customPrice !== null ? customPrice : defaultUnit.price,
+        originalRetailPrice: defaultUnit.price 
+    };
+
     addItemToOrder(
       storeProduct,
-      { ...defaultUnit, },
+      unitToAdd,
       1,
       { isWholesale: pricingMode === 'wholesale' }
     );
@@ -230,7 +250,7 @@ export function POS() {
       duration: 2000,
       icon: <CheckCircle2 className="w-5 h-5" />,
     });
-  }, [lastScanned, products, addItemToOrder, pricingMode]);
+  }, [lastScanned, products, addItemToOrder, pricingMode, pricingData, currentOrder.customerId]);
 
   useEffect(() => {
     if (scannerError) {
@@ -415,6 +435,7 @@ export function POS() {
                   product={product as any} 
                   onAddToCart={handleAddToCartWrapper}
                   pricingMode={pricingMode}
+                  customPriceCalculator={handleGetPrice}
                 />
               ))}
             </div>

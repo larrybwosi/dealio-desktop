@@ -1,147 +1,330 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { load, Store } from "@tauri-apps/plugin-store";
 import { apiClient } from "@/lib/axios";
 
-// Types
+// --- CONSTANTS ---
+const STORE_FILENAME = "pos_data.bin";
+const KEY_LAST_SYNC = "pos_pricing_last_sync";
+const KEY_PRICING_DATA = "pos_pricing_data";
+
+// --- TYPES (Simplified and Consolidated) ---
+
+/**
+ * Simplified PriceList object for client consumption.
+ */
+export interface ClientPriceList {
+  id: string; // PriceList ID
+  code: string;
+  priority: number;
+  isGlobal: boolean;
+  isActive: boolean;
+  validFrom: string | null; // ISO Date String
+  validTo: string | null; // ISO Date String
+  updatedAt: string; // ISO Date String
+}
+
+/**
+ * Simplified PriceListItem object for client consumption.
+ */
+export interface ClientPriceListItem {
+  id: string; // PriceListItem ID
+  priceListId: string;
+  variantId: string;
+  /** ID of the VariantSellingUnit, or null if it applies to the Base Unit. */
+  sellingUnitId: string | null;
+  /** The minimum quantity for this price tier. */
+  minQuantity: number;
+  /** The Final Calculated Price (Cached). Stored as a Decimal string. */
+  price: string;
+  updatedAt: string;
+}
+
+/**
+ * The full structure of the successful response from the Price Sync API.
+ */
 interface PricingSyncResponse {
   metadata: {
     syncedAt: string;
     isDelta: boolean;
   };
   data: {
-    lists: any[];
-    items: any[];
+    lists: ClientPriceList[];
+    items: ClientPriceListItem[];
     customerAllocations: Record<string, string[]>;
     deletedItemIds: string[];
   };
 }
 
-const STORE_FILENAME = "pos_data.bin";
-const KEY_LAST_SYNC = "pos_pricing_last_sync";
-const KEY_PRICING_DATA = "pos_pricing_data";
+// Interface for the data stored locally in Tauri Store
+interface PosPricingData {
+    lists: ClientPriceList[];
+    items: ClientPriceListItem[];
+    allocations: Record<string, string[]>;
+}
+
+// --- STORE UTILITY FUNCTIONS ---
+
+/**
+ * Initializes the Tauri Store and loads the initial sync time.
+ * @returns A promise that resolves to the store instance and the last sync time.
+ */
+const initTauriStore = async (): Promise<{ store: Store; lastSync: string | null }> => {
+  try {
+    // Using 'any' for Tauri Store load function due to complex generic type
+    const storeInstance = await load(STORE_FILENAME, { autoSave: true, defaults: {} });
+    const storedSyncTime = await storeInstance.get<string>(KEY_LAST_SYNC);
+    
+    return {
+      store: storeInstance,
+      lastSync: storedSyncTime || null,
+    };
+  } catch (err) {
+    console.error("Failed to load Tauri Store:", err);
+    // Re-throw or return a state indicating failure if necessary, but
+    // for cleanup, we just return null/error state via try-catch.
+    throw new Error("Failed to initialize local data store.");
+  }
+};
+
+
+/**
+ * Processes the sync data (Full or Delta) and updates the local Tauri Store.
+ * @param store The initialized Tauri Store instance.
+ * @param syncData The data fetched from the API.
+ * @param currentLastSync The current last sync time from state.
+ */
+const processAndSaveSyncData = async (
+  store: Store,
+  syncData: PricingSyncResponse,
+  currentLastSync: string | null
+): Promise<string | null> => {
+  
+  const { metadata, data } = syncData;
+
+  // Idempotency: If we already synced this specific timestamp, stop.
+  if (metadata.syncedAt === currentLastSync) {
+    console.log("Sync data is already processed (timestamp matched).");
+    return currentLastSync;
+  }
+  
+  console.log(`Processing ${metadata.isDelta ? 'Delta' : 'Full'} Sync...`);
+
+  try {
+    let newData: PosPricingData;
+
+    if (!metadata.isDelta) {
+      // --- FULL SYNC (Overwrite) ---
+      newData = {
+        lists: data.lists,
+        items: data.items,
+        allocations: data.customerAllocations
+      };
+    } else {
+      // --- DELTA SYNC (Merge) ---
+      const currentData = (await store.get<PosPricingData>(KEY_PRICING_DATA)) || { 
+        lists: [], items: [], allocations: {} 
+      };
+
+      // Use Maps for efficient O(1) merge operations
+      const listMap = new Map<string, ClientPriceList>(currentData.lists.map(l => [l.id, l]));
+      const itemMap = new Map<string, ClientPriceListItem>(currentData.items.map(i => [i.id, i]));
+      
+      // Merge customer allocations (new allocations overwrite old ones)
+      const allocations = {...currentData.allocations, ...data.customerAllocations};
+
+      // 1. Delete items
+      data.deletedItemIds.forEach(id => itemMap.delete(id));
+
+      // 2. Update/Add lists (New lists overwrite old ones by ID)
+      data.lists.forEach(list => listMap.set(list.id, list));
+
+      // 3. Update/Add items (New items overwrite old ones by ID)
+      data.items.forEach(item => itemMap.set(item.id, item));
+      
+      newData = {
+        lists: Array.from(listMap.values()),
+        items: Array.from(itemMap.values()),
+        allocations: allocations
+      };
+    }
+
+    // Save the new pricing data
+    await store.set(KEY_PRICING_DATA, newData);
+
+    // Save the new timestamp and persist to disk
+    const newTime = metadata.syncedAt;
+    await store.set(KEY_LAST_SYNC, newTime);
+    await store.save();
+
+    console.log("Sync complete. Updated time to:", newTime);
+    return newTime;
+
+  } catch (err) {
+    console.error("Failed to process and save to Tauri Store:", err);
+    throw new Error("Local data processing failed.");
+  }
+};
+
+// --- REACT HOOK ---
 
 export const usePosPricingSync = () => {
+  // State for Tauri Store management
   const [lastSync, setLastSync] = useState<string | null>(null);
   const [isStoreReady, setIsStoreReady] = useState(false);
   const [store, setStore] = useState<Store | null>(null);
 
-  // Ref to track processing status to prevent double-execution
+  // Ref to track processing status to prevent multiple concurrent sync processing
   const isProcessingRef = useRef(false);
 
-  // 1. Initialize Tauri Store
+  // 1. Initialize Tauri Store and load initial state
   useEffect(() => {
-    const initStore = async () => {
-      try {
-        const storeInstance = await load(STORE_FILENAME, { autoSave: true, defaults: {} });
-        const storedSyncTime = await storeInstance.get<string>(KEY_LAST_SYNC);
-        
+    initTauriStore()
+      .then(({ store: storeInstance, lastSync: storedSyncTime }) => {
         setStore(storeInstance);
-        setLastSync(storedSyncTime || null);
+        setLastSync(storedSyncTime);
         setIsStoreReady(true);
-      } catch (err) {
-        console.error("Failed to load Tauri Store:", err);
-      }
-    };
-    initStore();
+      })
+      .catch(() => {
+        // Handle initialization failure by still setting ready state but with null store/sync
+        setIsStoreReady(true); 
+      });
   }, []);
 
-  // 2. React Query
+  // Use useCallback to memoize the query function for React Query
+  const fetchPricingData = useCallback(async () => {
+    if (!lastSync) {
+      console.log("No local data found. Fetching FULL DATA dump...");
+      // 1. Full Dump Endpoint
+      const response = await apiClient.get<PricingSyncResponse>("/api/v1/pos/pricing");
+      return response.data;
+    } else {
+      console.log("Local data found. Fetching DELTA updates...");
+      // 2. Sync/Delta Endpoint
+      const params = { lastSync };
+      const response = await apiClient.get<PricingSyncResponse>(
+        "/api/v1/pos/pricing/sync",
+        { params }
+      );
+      return response.data;
+    }
+  }, [lastSync]); // Re-create if lastSync changes (forcing a potential FULL or DELTA run)
+
+  // 2. React Query: Fetching and Caching Logic
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["posPricingSync"], 
-    enabled: isStoreReady, // Only run once we know if we have a lastSync time or not
-    queryFn: async () => {
-      // --- ROUTE SWITCHING LOGIC ---
-      if (!lastSync) {
-        console.log("No local data found. Fetching FULL DATA dump...");
-        // 1. Full Dump Endpoint
-        const response = await apiClient.get<PricingSyncResponse>("/api/v1/pos/pricing");
-        return response.data;
-      } else {
-        console.log("Local data found. Fetching DELTA updates...");
-        // 2. Sync/Delta Endpoint
-        const params = { lastSync };
-        const response = await apiClient.get<PricingSyncResponse>(
-          "/api/v1/pos/pricing/sync",
-          { params }
-        );
-        return response.data;
-      }
-    },
+    queryKey: ["posPricingSync", lastSync], // lastSync as part of key helps manage dependent refetches
+    enabled: isStoreReady, // Only run once we know the initial sync time
+    queryFn: fetchPricingData,
     refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5,
+    staleTime: 1000 * 60 * 5, // 5 minutes stale time
   });
 
   // 3. Process Sync (Merge Logic)
   useEffect(() => {
     // Guard clauses
     if (!data || !store || isProcessingRef.current) return;
-
-    // Idempotency: If we already synced this specific timestamp, stop.
-    if (data.metadata.syncedAt === lastSync) return;
-
-    const processSync = async () => {
-      isProcessingRef.current = true;
-      console.log(`Processing ${data.metadata.isDelta ? 'Delta' : 'Full'} Sync...`);
-
-      try {
-        if (!data.metadata.isDelta) {
-          // --- FULL SYNC (Overwrite) ---
-          await store.set(KEY_PRICING_DATA, {
-            lists: data.data.lists,
-            items: data.data.items,
-            allocations: data.data.customerAllocations
-          });
-        } else {
-          // --- DELTA SYNC (Merge) ---
-          const currentData = (await store.get<any>(KEY_PRICING_DATA)) || { 
-            lists: [], items: [], allocations: {} 
-          };
-
-          // Remove deleted items
-          const activeItems = currentData.items.filter(
-            (item: any) => !data.data.deletedItemIds.includes(item.id)
-          );
-
-          // Merge new items (Append)
-          const mergedLists = [...currentData.lists, ...data.data.lists]; 
-          const mergedItems = [...activeItems, ...data.data.items];
-          
-          await store.set(KEY_PRICING_DATA, {
-            lists: mergedLists,
-            items: mergedItems,
-            allocations: { ...currentData.allocations, ...data.data.customerAllocations }
-          });
-        }
-
-        const newTime = data.metadata.syncedAt;
+    
+    const runProcessing = async () => {
+        // Double-check the ref before starting
+        if (isProcessingRef.current) return; 
         
-        // Save timestamp and persist
-        await store.set(KEY_LAST_SYNC, newTime);
-        await store.save();
-
-        // Update local state
-        setLastSync(newTime);
-        console.log("Sync complete. Updated time to:", newTime);
-
-      } catch (err) {
-        console.error("Failed to save to Tauri Store:", err);
-      } finally {
-        isProcessingRef.current = false;
-      }
+        isProcessingRef.current = true;
+        try {
+            const newSyncTime = await processAndSaveSyncData(store, data, lastSync);
+            if (newSyncTime) {
+              setLastSync(newSyncTime);
+            }
+        } catch (err) {
+            // Error is logged inside the utility function
+        } finally {
+            isProcessingRef.current = false;
+        }
     };
 
-    processSync();
+    runProcessing();
     
-  }, [data, store, lastSync]); 
+  }, [data, store, lastSync]); // Dependencies: fetched data, store instance, and current sync time
 
   // 4. Return Object
+  const isSyncing = isLoading || isFetching || !isStoreReady || isProcessingRef.current;
+
   return {
-    data: data?.data,
-    metadata: data?.metadata,
-    isSyncing: isLoading || isFetching || !isStoreReady,
+    data: data?.data, // The raw sync data (lists, items, etc.) from the API
+    metadata: data?.metadata, // Sync metadata (syncedAt, isDelta)
+    isSyncing, // Comprehensive syncing status
     syncError: error,
     triggerSync: refetch,
     lastSyncTime: lastSync,
   };
+};
+
+// --- PRICING RESOLUTION HELPER ---
+
+/**
+ * Resolves the price for a specific product/variant/unit for a given customer
+ * based on the cached pricing data.
+ * 
+ * @param pricingData The loaded PosPricingData
+ * @param customerId The ID of the customer (optional)
+ * @param variantId The ID of the product variant
+ * @param unitId The ID of the selling unit (optional)
+ * @returns The resolved price as a number, or null if no special price is found.
+ */
+export const resolveCustomerPrice = (
+  pricingData: { lists: ClientPriceList[]; items: ClientPriceListItem[]; customerAllocations: Record<string, string[]> } | undefined,
+  customerId: string | undefined,
+  variantId: string,
+  unitId: string | null
+): number | null => {
+  if (!pricingData) return null;
+
+  // 1. Identify applicable Price Lists
+  const applicableListIds = new Set<string>();
+
+  // a. Customer Specific Lists
+  if (customerId && pricingData.customerAllocations && pricingData.customerAllocations[customerId]) {
+    pricingData.customerAllocations[customerId].forEach(id => applicableListIds.add(id));
+  }
+
+  // b. Global Lists
+  pricingData.lists.forEach(list => {
+    if (list.isGlobal) {
+      applicableListIds.add(list.id);
+    }
+  });
+
+  if (applicableListIds.size === 0) return null;
+
+  // 2. Filter and Sort Lists
+  const now = new Date();
+  const sortedLists = pricingData.lists
+    .filter(list => {
+      // Must be in applicable set
+      if (!applicableListIds.has(list.id)) return false;
+      
+      // Must be active
+      if (!list.isActive) return false;
+
+      // Check validity dates
+      if (list.validFrom && new Date(list.validFrom) > now) return false;
+      if (list.validTo && new Date(list.validTo) < now) return false;
+
+      return true;
+    })
+    .sort((a, b) => b.priority - a.priority); // Higher priority first
+
+  // 3. Find the first matching price item
+  for (const list of sortedLists) {
+    const matchedItem = pricingData.items.find(item => 
+      item.priceListId === list.id &&
+      item.variantId === variantId &&
+      (item.sellingUnitId === unitId || (item.sellingUnitId === null && unitId === null)) // Exact unit match usually required, or both null
+    );
+
+    if (matchedItem) {
+        return parseFloat(matchedItem.price);
+    }
+  }
+
+  return null;
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useCallback, memo, useMemo, useEffect } from 'react';
 import { useForm, useFieldArray, Controller, useWatch, Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -46,6 +46,7 @@ import { usePosProducts } from '@/hooks/products';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useDebounce } from 'use-debounce';
 import OrderSuccessView from '@/components/order-success';
+import { usePosPricingSync, resolveCustomerPrice } from '@/hooks/use-pricing-sync';
 
 // --- TYPES ---
 
@@ -67,21 +68,6 @@ export interface FlattenedProductVariant {
   barcode?: string;
   stock: number;
   sellableUnits: SellableUnit[];
-}
-
-interface ApiProduct {
-  productId: string;
-  name: string;
-  imageUrl?: string;
-  totalStock: number;
-  variants: {
-    variantId: string;
-    name: string;
-    sku: string;
-    barcode?: string;
-    stock: number;
-    sellableUnits: SellableUnit[];
-  }[];
 }
 
 // --- UTILS ---
@@ -123,24 +109,19 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
 
   const products: FlattenedProductVariant[] = useMemo(() => {
     
-    return data?.flatMap(page => {
-      //@ts-expect-error page is not assignable to ApiProduct[]
-      const pageProducts = (page || []) as ApiProduct[];
-      
-      return pageProducts.flatMap(product => 
-        (product.variants || []).map(variant => ({
-          productId: product.productId,
-          productName: product.name,
-          imageUrl: product.imageUrl,
-          variantId: variant.variantId,
-          variantName: variant.name,
-          sku: variant.sku,
-          barcode: variant.barcode,
-          stock: variant.stock,
-          sellableUnits: variant.sellableUnits || []
-        }))
-      );
-    });
+    return data?.flatMap((product: any) => 
+      (product.variants || []).map((variant:any) => ({
+        productId: product.productId,
+        productName: product.name,
+        imageUrl: product.imageUrl,
+        variantId: variant.variantId,
+        variantName: variant.name,
+        sku: variant.sku,
+        barcode: variant.barcode,
+        stock: variant.stock,
+        sellableUnits: variant.sellableUnits || []
+      }))
+    )
   }, [data]);
   
   const selectedProduct = products.find(p => p.variantId === value);
@@ -276,7 +257,9 @@ const OrderItemRow = memo(({
   remove, 
   setValue, 
   errors,
-  formatCurrency 
+  formatCurrency,
+  customerId,
+  pricingData
 }: {
   index: number;
   control: Control<any>;
@@ -285,6 +268,8 @@ const OrderItemRow = memo(({
   setValue: any;
   errors: any;
   formatCurrency: (val: number) => string;
+  customerId?: string;
+  pricingData?: any; 
 }) => {
   const rowValues = useWatch({
     control,
@@ -293,6 +278,39 @@ const OrderItemRow = memo(({
 
   const availableUnits = rowValues?._availableUnits || [];
   const rowTotal = (rowValues?.quantity || 0) * (rowValues?.unitPrice || 0);
+
+  // --- AUTO-UPDATE PRICE LOIC ---
+  // Watches for changes in Product, Unit, or Customer and updates price accordingly
+  useEffect(() => {
+    if (!rowValues?.variantId || !rowValues?.sellingUnitId) return;
+
+    // 1. Find Standard Price from the available units on the row
+    const standardUnit = rowValues._availableUnits?.find((u: any) => u.unitId === rowValues.sellingUnitId);
+    if (!standardUnit) return; // Can't pricing without unit data
+
+    let finalPrice = standardUnit.price;
+
+    // 2. Check for Custom/Customer Price
+    const customPrice = resolveCustomerPrice(pricingData, customerId, rowValues.variantId, rowValues.sellingUnitId);
+    if (customPrice !== null) {
+      finalPrice = customPrice;
+    }
+
+    // 3. Update if different (prevent loops)
+    // We utilize a small epsilon for float comparison just in case, though usually exact match works for currency
+    if (Math.abs((rowValues.unitPrice || 0) - finalPrice) > 0.001) {
+       setValue(`items.${index}.unitPrice`, finalPrice);
+    }
+
+  }, [
+    rowValues?.variantId, 
+    rowValues?.sellingUnitId, 
+    customerId, 
+    pricingData, 
+    // We deliberately exclude unitPrice to avoid circular dependency, 
+    // but include _availableUnits to ensure we have base data
+    JSON.stringify(rowValues?._availableUnits) 
+  ]);
 
   return (
     <tr className="group hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
@@ -312,6 +330,7 @@ const OrderItemRow = memo(({
                 const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
                 
                 setValue(`items.${index}.sellingUnitId`, defaultUnit?.unitId || undefined);
+                // We set an initial price, but the useEffect will immediately verify/override it if a custom price applies
                 setValue(`items.${index}.unitPrice`, defaultUnit?.price || 0);
                 setValue(`items.${index}._availableUnits`, product.sellableUnits);
               }}
@@ -335,6 +354,7 @@ const OrderItemRow = memo(({
               disabled={!rowValues.variantId}
               onValueChange={(unitId, price) => {
                 field.onChange(unitId);
+                // Again, set standard price initially; useEffect handles overrides
                 setValue(`items.${index}.unitPrice`, price);
               }}
             />
@@ -362,6 +382,11 @@ const OrderItemRow = memo(({
       {/* TOTAL */}
       <td className="px-6 py-4 align-top text-right font-medium pt-6">
         {formatCurrency(rowTotal)}
+        {/* Optional: Indicator for custom pricing */}
+        {rowValues?.unitPrice !==  rowValues._availableUnits?.find((u: any) => u.unitId === rowValues.sellingUnitId)?.price 
+            && rowValues?.unitPrice > 0 
+            && ( customerId ? <div className="text-[10px] text-blue-600 font-semibold mt-1">Special Price</div> : null )
+        }
       </td>
 
       {/* DELETE */}
@@ -517,6 +542,10 @@ export default function CreateOrderPage() {
 
   const { fields: itemFields, append: appendItem, remove: removeItem } = useFieldArray({ control, name: 'items' });
   const { fields: paymentFields, append: appendPayment, remove: removePayment } = useFieldArray({ control, name: 'payments' });
+
+  // --- PRICING DATA FETCHING ---
+  const { data: pricingData } = usePosPricingSync();
+  const customerId = watch('customerId');
 
   // Only watch fields necessary for conditional logic
   const fulfillmentType = watch('fulfillment.type');
@@ -702,6 +731,8 @@ export default function CreateOrderPage() {
                         setValue={setValue}
                         errors={errors}
                         formatCurrency={formatCurrency}
+                        customerId={customerId}
+                        pricingData={pricingData}
                       />
                     ))}
                     {itemFields.length === 0 && (
