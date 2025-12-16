@@ -156,6 +156,18 @@ export interface ReceiptConfig {
   borderColor?: string;
 }
 
+export interface KitchenTicketConfig {
+  showTime: boolean;
+  showOrderType: boolean;
+  showCustomerName: boolean;
+  showTable: boolean;
+  showPrices: boolean; // Some kitchens don't need prices
+  showNotes: boolean;
+  fontSize: 'small' | 'medium' | 'large';
+  paperSize: '80mm' | '58mm' | 'A5';
+  autoPrintCompleted: boolean; // Print when order is completed?
+}
+
 export interface ThemeConfig {
   mode: 'light' | 'dark' | 'system';
   primaryColor: string;
@@ -231,6 +243,7 @@ export interface BusinessSettings {
   paybillNumber?: string;
   tillNumber?: string;
   enableCustomerDisplay: boolean;
+  kitchenTicketConfig: KitchenTicketConfig;
 }
 
 export interface Customer {
@@ -413,6 +426,7 @@ interface PosStore {
 
   setTableNumber: (tableNumber: string) => void;
   setInstructions: (instructions: string) => void;
+  updateKitchenTicketConfig: (config: Partial<KitchenTicketConfig>) => void;
 }
 
 export const getDefaultReceiptConfig = (): ReceiptConfig => ({
@@ -468,6 +482,18 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
   template: 'standard',
   showBorder: false,
   borderColor: '#000000',
+});
+
+export const getDefaultKitchenTicketConfig = (): KitchenTicketConfig => ({
+  showTime: true,
+  showOrderType: true,
+  showCustomerName: true,
+  showTable: true,
+  showPrices: false,
+  showNotes: true,
+  fontSize: 'medium',
+  paperSize: '80mm',
+  autoPrintCompleted: false,
 });
 
 const getDefaultThemeConfig = (): ThemeConfig => ({
@@ -568,6 +594,7 @@ export const usePosStore = create<PosStore>()(
         paybillNumber: '',
         tillNumber: '',
         enableCustomerDisplay: true,
+        kitchenTicketConfig: getDefaultKitchenTicketConfig(),
       },
       customers: [],
       employees: [],
@@ -752,9 +779,24 @@ export const usePosStore = create<PosStore>()(
             };
           }
 
+          // --- LOGIC: Clear Table if Associated ---
+          const tableToClear = state.tables.find(
+            t => t.number === state.currentOrder.tableNumber || t.currentOrderId === state.currentOrder.metadata?.orderId
+          );
+          
+          let updatedTables = state.tables;
+          if (tableToClear) {
+              updatedTables = state.tables.map(t => 
+                  t.id === tableToClear.id 
+                    ? { ...t, status: 'available', currentOrderId: undefined } 
+                    : t
+              );
+          }
+
           return {
             orders: [newOrder, ...state.orders],
             lastCompletedOrder: newOrder,
+            tables: updatedTables, // Apply table update
             currentOrder: {
               customerName: '',
               orderType: 'takeaway',
@@ -1451,6 +1493,14 @@ export const usePosStore = create<PosStore>()(
       setTableStatus: (id, status) =>
         set(state => ({
           tables: state.tables.map(t => (t.id === id ? { ...t, status } : t)),
+        })),
+
+      updateKitchenTicketConfig: config =>
+        set(state => ({
+          settings: {
+            ...state.settings,
+            kitchenTicketConfig: { ...state.settings.kitchenTicketConfig, ...config },
+          },
         })),
 
       assignOrderToTable: (tableId, orderId) =>

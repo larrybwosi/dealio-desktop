@@ -272,8 +272,9 @@ const PaymentModal = ({
   }, [isOpen, selectedTab, mpesaMode, mpesaQrData, totalPayable, paybillNumber, tillNumber, paybillAccountNo, cashReceived, change, mpesaPhone]);
 
   const paymentChannel = useAblyStore((state) => state.paymentChannel);
-  console.log('paymentChannel', paymentChannel);
+  // console.log('paymentChannel', paymentChannel);
   const ably = useAblyStore((state) => state.client);
+  
     // --- ABLY LISTENER FOR C2B (PAYBILL/BUY GOODS/QR) ---
   useEffect(() => {
       // 1. GUARD: Wait until we have the dynamic channel name
@@ -362,7 +363,7 @@ const PaymentModal = ({
       saleNumber: fullSaleNumber, // **ALWAYS use the full sale number for the backend record**
       accountRef: paybillAccountNo, // **Send the clean account ref for C2B matching**
       isWholesale: false,
-      customerId: customer?.id || null,
+      customerId: (customer?.id && customer.id !== 'temp-id') ? customer.id : null,
       paymentMethod: paymentMethod,
       paymentStatus: status,
       enableStockTracking: true,

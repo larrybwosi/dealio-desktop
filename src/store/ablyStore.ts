@@ -1,16 +1,13 @@
-// store/ablyStore.ts
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { z } from 'zod';
 import * as Ably from 'ably';
 import { apiClient } from '@/lib/axios';
 import { isAxiosError } from 'axios';
 
-// 1. Define Zod Schema for your API Response
 const AblyConfigSchema = z.object({
   tokenRequest: z.object({
     token: z.string(),
-    // Add other token fields if needed
-  }).passthrough(), // Allow other fields in tokenRequest
+  }).loose(),
   metadata: z.object({
     paymentChannel: z.string(),
     organizationId: z.string().optional(),
@@ -21,50 +18,68 @@ interface AblyState {
   client: Ably.Realtime | null;
   paymentChannel: string | null;
   status: 'idle' | 'loading' | 'success' | 'error';
+  connectionState: string; // Track actual Ably connection state
   error: string | null;
-  fetchAblyConfig: () => Promise<void>;
+  initializeAbly: () => void;
 }
 
 export const useAblyStore = create<AblyState>((set, get) => ({
   client: null,
   paymentChannel: null,
   status: 'idle',
+  connectionState: 'closed',
   error: null,
 
-  fetchAblyConfig: async () => {
-    // Prevent double-fetching if already loading or success
-    if (get().status === 'loading' || get().status === 'success') return;
+  initializeAbly: () => {
+    // Prevent multiple initializations
+    if (get().client) return; 
 
-    set({ status: 'loading', error: null });
+    set({ status: 'loading' });
 
-    try {
-      const { data } = await apiClient.post('/api/v1/pos/ably-auth');
-      console.log('Ably Config Data:', data);
+    // We define the authCallback logic here
+    const authCallback: Ably.AuthOptions['authCallback'] = async (tokenParams, callback) => {
+      try {
+        const { data } = await apiClient.post('/api/v1/pos/ably-auth');
+        console.log(data)
+        
+        // Validate
+        const parsedData = AblyConfigSchema.parse(data);
 
-      // 2. Validate response with Zod
-      // This ensures your app crashes early/safely if the API changes unexpectedly
-      const parsedData = AblyConfigSchema.parse(data);
+        // Update metadata in store (this runs on every token refresh)
+        set({ 
+          paymentChannel: parsedData.metadata.paymentChannel,
+          status: 'success', 
+          error: null 
+        });
 
-      const client = new Ably.Realtime({
-        token: parsedData.tokenRequest.token
-      });
+        // Pass the token details back to Ably SDK
+        // We pass the whole object (or just the token string if that's what you have)
+        callback(null, parsedData.tokenRequest.token);
+      } catch (error) {
+        const errorMessage = isAxiosError(error)
+          ? error.response?.data?.message || error.message
+          : 'Failed to fetch Ably config';
+        
+        console.error('Ably Auth Error:', error);
+        set({ status: 'error', error: errorMessage });
+        callback(errorMessage, null);
+      }
+    };
 
-      set({
-        client,
-        paymentChannel: parsedData.metadata.paymentChannel,
-        status: 'success',
-        error: null,
-      });
-    } catch (error) {
-      const errorMessage = isAxiosError(error)
-        ? error.response?.data?.message || error.message
-        : 'Failed to fetch Ably config';
-      
-      console.error('Ably Config Error:', error);
-      set({ 
-        status: 'error',
-        error: errorMessage,
-      });
-    }
+    // Initialize Client with authCallback
+    const client = new Ably.Realtime({
+      authCallback, // SDK handles the loop now
+      // Optional: autoConnect: false (if you want more control)
+    });
+
+    // Listen to connection state changes (Important for UI feedback)
+    client.connection.on((stateChange) => {
+      set({ connectionState: stateChange.current });
+      if (stateChange.current === 'failed') {
+          console.error("Ably connection failed");
+      }
+    });
+
+    set({ client });
   },
 }));

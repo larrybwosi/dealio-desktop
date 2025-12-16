@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePosStore, type ReceiptConfig } from '@/store/store';
+import { usePosStore, type ReceiptConfig, type KitchenTicketConfig, getDefaultKitchenTicketConfig } from '@/store/store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ReceiptPreview } from '@/components/receipt-preview';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+// import { PDFDownloadLink } from '@react-pdf/renderer'; 
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
+import { PDFKitchenTicket } from '@/components/receipts/pdf-kitchen-ticket';
+import { usePdfActions } from '@/hooks/use-pdf-actions';
 import {
   Download,
   Printer,
@@ -24,7 +26,8 @@ import {
   ZoomIn,
   ZoomOut,
   Palette,
-  Store
+  Store,
+  ChefHat
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { cn } from '@/lib/utils';
@@ -36,15 +39,91 @@ const PRESETS = {
   modern: { template: 'modern', fontFamily: 'sans', textAlignment: 'center', fontSize: 'medium', showBorder: false },
 };
 
+function KitchenTicketPreview({ order, config }: { order: any, config: KitchenTicketConfig }) {
+  const fontSizeClass = config.fontSize === 'small' ? 'text-[10px]' : config.fontSize === 'large' ? 'text-lg' : 'text-sm';
+  const widthClass = config.paperSize === '58mm' ? 'max-w-[180px]' : config.paperSize === '80mm' ? 'max-w-[300px]' : 'max-w-full';
+
+  return (
+    <div className={cn("bg-white text-black p-4 font-mono shadow-sm mx-auto", fontSizeClass, widthClass)} style={{ minHeight: 300 }}>
+       <div className="text-center border-b-2 border-black pb-2 mb-4">
+          <div className="font-bold text-xl">KITCHEN ORDER</div>
+          <div className="text-2xl font-black my-1">{order.orderNumber}</div>
+       </div>
+
+       <div className="space-y-1 mb-4">
+         {config.showOrderType && (
+           <div className="flex justify-between font-bold border-b border-dashed pb-1">
+             <span>TYPE:</span>
+             <span className="uppercase">{order.orderType}</span>
+           </div>
+         )}
+         {config.showTable && order.tableNumber && (
+            <div className="flex justify-between font-bold text-lg">
+              <span>TABLE:</span>
+              <span>{order.tableNumber || 'N/A'}</span>
+            </div>
+         )}
+         {config.showCustomerName && (
+           <div className="flex justify-between">
+              <span>Client:</span>
+              <span>{order.customerName}</span>
+           </div>
+         )}
+         {config.showTime && (
+            <div className="flex justify-between">
+              <span>Time:</span>
+              <span>{new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+           </div>
+         )}
+       </div>
+
+       <div className="space-y-4">
+          {order.items.map((item: any, i: number) => (
+             <div key={i} className="border-b border-dashed border-gray-300 pb-2">
+                <div className="flex gap-2">
+                   <div className="font-bold text-lg bg-black text-white w-8 h-8 flex items-center justify-center rounded-sm shrink-0">
+                     {item.quantity}
+                   </div>
+                   <div className="font-bold text-lg leading-tight">
+                     {item.productName}
+                   </div>
+                </div>
+                <div className="pl-10 text-gray-600 text-[0.9em] mt-1">
+                   {item.variantName !== 'Default Variant' && item.variantName} {item.selectedUnit?.unitName}
+                   {config.showPrices && ` - ${(item.selectedUnit?.price || 0) * item.quantity}`}
+                </div>
+             </div>
+          ))}
+       </div>
+
+       {config.showNotes && order.instructions && (
+         <div className="mt-6 bg-yellow-50 border-l-4 border-yellow-400 p-2">
+            <div className="font-bold text-sm mb-1">NOTES:</div>
+            <div className="text-sm">{order.instructions}</div>
+         </div>
+       )}
+
+       <div className="mt-8 pt-4 border-t-2 border-black text-center text-xs text-gray-500">
+          Printed: {(new Date()).toLocaleString()}
+       </div>
+    </div>
+  );
+}
+
 export default function ReceiptSettingsPage() {
   const settings = usePosStore(state => state.settings);
   const receiptConfig = usePosStore(state => state.settings.receiptConfig);
+  const kitchenTicketConfig = usePosStore(state => state.settings.kitchenTicketConfig);
   const updateReceiptConfig = usePosStore(state => state.updateReceiptConfig);
+  const updateKitchenTicketConfig = usePosStore(state => state.updateKitchenTicketConfig);
   const orders = usePosStore(state => state.orders);
 
+  const [mode, setMode] = useState<'receipt' | 'kitchen'>('receipt');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [previewScale, setPreviewScale] = useState([90]);
   const [previewBg, setPreviewBg] = useState<'light' | 'dark'>('dark');
+
+  const { handlePrint, handleDownload, isPrinting, isDownloading } = usePdfActions();
 
   // Default Fallback
   const defaultConfig: ReceiptConfig = {
@@ -88,16 +167,25 @@ export default function ReceiptSettingsPage() {
     borderColor: '#000000',
   };
 
+
   const [config, setConfig] = useState<ReceiptConfig>({ ...defaultConfig, ...receiptConfig });
+  const [kConfig, setKConfig] = useState<KitchenTicketConfig>({ ...getDefaultKitchenTicketConfig(), ...kitchenTicketConfig });
 
   useEffect(() => {
     if (receiptConfig) setConfig(prev => ({ ...prev, ...receiptConfig }));
-  }, [receiptConfig]);
+    if (kitchenTicketConfig) setKConfig(prev => ({ ...prev, ...kitchenTicketConfig }));
+  }, [receiptConfig, kitchenTicketConfig]);
 
   const updateConfig = (key: keyof ReceiptConfig, value: any) => {
     const newConfig = { ...config, [key]: value };
     setConfig(newConfig);
     updateReceiptConfig(newConfig);
+  };
+
+  const updateKConfig = (key: keyof KitchenTicketConfig, value: any) => {
+    const newConfig = { ...kConfig, [key]: value };
+    setKConfig(newConfig);
+    updateKitchenTicketConfig(newConfig);
   };
 
   const applyPreset = (presetName: keyof typeof PRESETS) => {
@@ -142,9 +230,26 @@ export default function ReceiptSettingsPage() {
         <div className="p-4 border-b flex items-center justify-between bg-background z-10">
           <div>
             <h2 className="font-bold text-lg flex items-center gap-2">
-              <Printer className="w-5 h-5 text-primary" /> Receipt Studio
+              <Printer className="w-5 h-5 text-primary" /> Print Settings
             </h2>
-            <p className="text-xs text-muted-foreground">Customize your thermal output</p>
+            <div className="flex gap-2 mt-2">
+               <Button 
+                 variant={mode === 'receipt' ? 'default' : 'outline'} 
+                 size="sm" 
+                 onClick={() => setMode('receipt')}
+                 className="h-7 text-xs"
+               >
+                 Receipt
+               </Button>
+               <Button 
+                 variant={mode === 'kitchen' ? 'default' : 'outline'} 
+                 size="sm" 
+                 onClick={() => setMode('kitchen')}
+                 className="h-7 text-xs flex items-center gap-1"
+               >
+                 <ChefHat className="w-3 h-3" /> Kitchen
+               </Button>
+            </div>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setConfig(defaultConfig)} title="Reset">
             <RotateCcw className="w-4 h-4" />
@@ -153,6 +258,7 @@ export default function ReceiptSettingsPage() {
 
         {/* Scrollable Settings */}
         <div className="flex-1 overflow-y-auto scrollbar-thin">
+          {mode === 'receipt' ? (
           <Tabs defaultValue="appearance" className="w-full">
             <div className="sticky top-0 z-10 bg-card border-b px-4 pt-2">
               <TabsList className="w-full grid grid-cols-4 mb-2">
@@ -410,6 +516,69 @@ export default function ReceiptSettingsPage() {
               </TabsContent>
             </div>
           </Tabs>
+          ) : (
+            // --- KITCHEN SETTINGS ---
+            <div className="p-4 space-y-6">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <Layout className="w-4 h-4" /> Ticket Layout
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                           <Label className="text-xs">Font Size</Label>
+                           <Select value={kConfig.fontSize} onValueChange={v => updateKConfig('fontSize', v)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value="small">Small</SelectItem>
+                                 <SelectItem value="medium">Medium</SelectItem>
+                                 <SelectItem value="large">Large</SelectItem>
+                              </SelectContent>
+                           </Select>
+                        </div>
+                        <div className="space-y-2">
+                           <Label className="text-xs">Paper Size</Label>
+                           <Select value={kConfig.paperSize} onValueChange={v => updateKConfig('paperSize', v)}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value="80mm">80mm</SelectItem>
+                                 <SelectItem value="58mm">58mm</SelectItem>
+                              </SelectContent>
+                           </Select>
+                        </div>
+                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {[
+                      { key: 'showTime', label: 'Show Timestamp' },
+                      { key: 'showOrderType', label: 'Show Order Type' },
+                      { key: 'showCustomerName', label: 'Show Customer Name' },
+                      { key: 'showTable', label: 'Show Table Number' },
+                      { key: 'showPrices', label: 'Show Item Prices' },
+                      { key: 'showNotes', label: 'Show Instructions/Notes' },
+                    ].map((item) => (
+                      <div key={item.key} className="flex items-center justify-between">
+                        <Label className="text-xs font-normal text-muted-foreground">{item.label}</Label>
+                        <Switch 
+                          checked={(kConfig as any)[item.key]} 
+                          onCheckedChange={c => updateKConfig(item.key as any, c)} 
+                        />
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+            </div>
+          )}
         </div>
       </div>
 
@@ -449,23 +618,74 @@ export default function ReceiptSettingsPage() {
         </div>
 
         {/* Action Button */}
-        <div className="absolute top-4 right-4 z-20">
-             <PDFDownloadLink
-                document={
-                  <ReceiptPdfDocument
-                    order={sampleOrder}
-                    settings={{ ...settings, receiptConfig: config }}
-                    qrCodeUrl={qrCodeDataUrl}
-                  />
-                }
-                fileName={`receipt-template.pdf`}
-              >
-                {({ loading }) => (
-                  <Button size="sm" disabled={loading} className="shadow-lg">
-                    {loading ? 'Processing...' : <><Download className="w-4 h-4 mr-2" /> Download Test PDF</>}
-                  </Button>
-                )}
-              </PDFDownloadLink>
+        <div className="absolute top-4 right-4 z-20 flex gap-2">
+             {mode === 'receipt' ? (
+                <>
+                <Button 
+                   size="sm" 
+                   disabled={isPrinting || isDownloading} 
+                   onClick={() => handlePrint(
+                      <ReceiptPdfDocument
+                        order={sampleOrder}
+                        settings={{ ...settings, receiptConfig: config }}
+                        qrCodeUrl={qrCodeDataUrl}
+                      />,
+                      'receipt-test'
+                   )}
+                   className="shadow-lg"
+                 >
+                   <Printer className="w-4 h-4 mr-2" /> {isPrinting ? 'Printing...' : 'Print'}
+                 </Button>
+                 <Button 
+                   size="sm" 
+                   variant="secondary"
+                   disabled={isPrinting || isDownloading} 
+                   onClick={() => handleDownload(
+                      <ReceiptPdfDocument
+                        order={sampleOrder}
+                        settings={{ ...settings, receiptConfig: config }}
+                        qrCodeUrl={qrCodeDataUrl}
+                      />,
+                      'receipt-test'
+                   )}
+                   className="shadow-lg"
+                 >
+                   <Download className="w-4 h-4 mr-2" /> {isDownloading ? 'Saving...' : 'PDF'}
+                 </Button>
+                 </>
+             ) : (
+                <>
+                 <Button 
+                   size="sm" 
+                   disabled={isPrinting || isDownloading} 
+                   onClick={() => handlePrint(
+                      <PDFKitchenTicket
+                        order={{...sampleOrder, tableNumber: 'TB-12', instructions: 'No nuts allergy.'}}
+                        kitchenTicketConfig={kConfig}
+                      />,
+                      'kitchen-ticket-test'
+                   )}
+                   className="shadow-lg"
+                 >
+                    <Printer className="w-4 h-4 mr-2" /> {isPrinting ? 'Printing...' : 'Print'}
+                 </Button>
+                 <Button 
+                   size="sm" 
+                   variant="secondary"
+                   disabled={isPrinting || isDownloading} 
+                   onClick={() => handleDownload(
+                      <PDFKitchenTicket
+                        order={{...sampleOrder, tableNumber: 'TB-12', instructions: 'No nuts allergy.'}}
+                        kitchenTicketConfig={kConfig}
+                      />,
+                      'kitchen-ticket-test'
+                   )}
+                   className="shadow-lg"
+                 >
+                   <Download className="w-4 h-4 mr-2" /> {isDownloading ? 'Saving...' : 'PDF'}
+                 </Button>
+                </>
+             )}
         </div>
 
         {/* Canvas Area */}
@@ -474,11 +694,20 @@ export default function ReceiptSettingsPage() {
             className="transition-all duration-200 ease-out origin-top shadow-2xl"
             style={{
                transform: `scale(${previewScale[0] / 100})`,
-               width: config.paperSize === '80mm' ? '370px' : '280px',
+               width: mode === 'receipt' 
+                 ? (config.paperSize === '80mm' ? '370px' : '280px') 
+                 : (kConfig.paperSize === '80mm' ? '300px' : '200px'),
                marginBottom: '100px'
             }}
           >
-            <ReceiptPreview order={sampleOrder} settings={{ ...settings, receiptConfig: config }} />
+            {mode === 'receipt' ? (
+              <ReceiptPreview order={sampleOrder} settings={{ ...settings, receiptConfig: config }} />
+            ) : (
+              <KitchenTicketPreview 
+                 order={{...sampleOrder, tableNumber: 'TB-12', instructions: 'No nuts allergy.'}} 
+                 config={kConfig} 
+              />
+            )}
           </div>
         </div>
       </div>

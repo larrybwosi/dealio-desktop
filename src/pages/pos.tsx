@@ -27,6 +27,7 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
+import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
@@ -42,6 +43,7 @@ export function POS() {
   
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [showTableSelector, setShowTableSelector] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
 
@@ -66,10 +68,12 @@ export function POS() {
   });
 
   // 3. Store Actions
-  const { addItemToOrder, businessConfig, settings } = usePosStore(state => ({
+  const { addItemToOrder, businessConfig, settings, currentOrder, setTableNumber } = usePosStore(state => ({
     addItemToOrder: state.addItemToOrder,
     businessConfig: state.getBusinessConfig(),
-    settings: state.settings
+    settings: state.settings,
+    currentOrder: state.currentOrder,
+    setTableNumber: state.setTableNumber
   }));
 
   // --- SCREEN LAUNCH LOGIC ---
@@ -279,8 +283,22 @@ export function POS() {
                 </div>
               )}
            </div>
-          
-          <div className="flex items-center gap-2 w-full md:w-auto">
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+             
+             {/* Table Selector (Restaurant Mode) */}
+             {businessConfig.features.tableManagement && (
+                <Button 
+                   variant={currentOrder.tableNumber ? "default" : "outline"}
+                   className={cn("gap-2", currentOrder.tableNumber && "bg-indigo-600 hover:bg-indigo-700 text-white")}
+                   onClick={() => setShowTableSelector(true)}
+                >
+                    <div className="flex flex-col items-start leading-none gap-0.5">
+                       <span className="text-[10px] uppercase opacity-80 font-semibold">Table</span>
+                       <span className="text-sm font-bold">{currentOrder.tableNumber || "None"}</span>
+                    </div>
+                </Button>
+             )}
+
             <div className="bg-muted/50 p-1 rounded-lg flex items-center border border-border flex-1 md:flex-none">
               <button
                 onClick={() => setPricingMode('retail')}
@@ -422,6 +440,12 @@ export function POS() {
           </div>
         )}
       </div>
+      
+      <TableSelectorDialog 
+         open={showTableSelector} 
+         onOpenChange={setShowTableSelector}
+         onSelectTable={(num) => setTableNumber(num)}
+      />
 
       <BarcodeScannerDialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner} />
     </div>

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
-  ShoppingBag,
   Store,
   Receipt,
   Percent,
@@ -17,11 +16,6 @@ import {
   Wifi,
   DollarSign,
   Smartphone,
-  Star,
-  Gift,
-  ArrowRight,
-  Info,
-  MapPin
 } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -56,140 +50,54 @@ interface PaymentPayload {
   phoneNumber?: string;
 }
 
-// --- Configuration & Content ---
-const STORE_INFO = {
-  name: "Dealio Enterprise",
-  id: "POS-042",
-  location: "Nairobi West Branch",
-  status: "Open • Closes 9:00 PM"
-};
-
-const NEWS_TICKER = [
-  "Welcome to Dealio. Join our loyalty program today!",
-  "Buy 2 Get 1 Free on all fresh juices.",
-  // "We now accept American Express.",
-  "Holiday hours: 8 AM - 10 PM starting Dec 20th."
-];
-
+// --- Configuration ---
 const PROMO_SLIDES = [
   {
-    id: 'loyalty',
-    template: 'stat-card',
-    title: "Dealio Gold",
-    subtitle: "Loyalty Program",
-    desc: "Earn 2x points on every purchase today.",
-    highlight: "5% Cash Back",
-    icon: <Gift className="h-full w-full" />,
-    color: "from-amber-400 to-orange-500",
-    textColor: "text-amber-950"
+    type: 'qr',
+    title: "Join & Save 5%",
+    desc: "Scan to register instantly",
+    payload: "https://example.com/register",
+    bg: "bg-gradient-to-br from-indigo-600 to-blue-700",
+    text: "text-white"
   },
   {
-    id: 'app-download',
-    template: 'qr-split',
-    title: "Skip the Line",
-    subtitle: "Download our App",
-    desc: "Order ahead and pick up in-store. Scan to install.",
-    payload: "https://dealio.app/download",
-    color: "from-blue-600 to-indigo-700",
-    textColor: "text-white"
+    type: 'icon',
+    title: "New Arrivals",
+    desc: "Ask about our seasonal catalog",
+    icon: <Store className="h-24 w-24 text-white/90" />,
+    bg: "bg-gradient-to-br from-emerald-600 to-teal-700",
+    text: "text-white"
   },
   {
-    id: 'feedback',
-    template: 'hero',
-    title: "We Value You",
-    subtitle: "Customer Feedback",
-    desc: "How was your experience? Rate us on Google Maps.",
-    icon: <Star className="h-full w-full" />,
-    color: "from-emerald-600 to-teal-700",
-    textColor: "text-white"
+    type: 'icon',
+    title: "Secure Payments",
+    desc: "We accept all major cards",
+    icon: <ShieldCheck className="h-24 w-24 text-white/90" />,
+    bg: "bg-gradient-to-br from-slate-700 to-gray-800",
+    text: "text-white"
   }
 ];
 
 // --- Sub-Components ---
 
-const Marquee = ({ items }: { items: string[] }) => (
-  <div className="overflow-hidden whitespace-nowrap flex bg-slate-900/50 backdrop-blur-md border-t border-white/10 py-3">
-    <motion.div 
-      className="flex gap-12 text-slate-300 font-medium text-sm md:text-base uppercase tracking-wider"
-      animate={{ x: ["0%", "-50%"] }}
-      transition={{ repeat: Infinity, ease: "linear", duration: 20 }}
-    >
-      {[...items, ...items, ...items].map((item, i) => (
-        <span key={i} className="flex items-center gap-2">
-          <Info size={14} className="text-emerald-400" /> {item}
-        </span>
-      ))}
-    </motion.div>
+const PromoSlide = ({ slide, isFullScreen = false }: { slide: any, isFullScreen?: boolean }) => (
+  <div className={`relative z-10 p-6 flex flex-col items-center text-center ${isFullScreen ? '' : 'rounded-2xl shadow-2xl mb-6'} ${isFullScreen ? '' : slide.bg}`}>
+    {slide.type === 'qr' ? (
+      <div className="bg-white p-3 rounded-xl shadow-lg mb-6">
+        <QRCodeCanvas value={slide.payload || ""} size={isFullScreen ? 280 : 140} />
+      </div>
+    ) : (
+      <div className="mb-6 scale-75 md:scale-100">{slide.icon}</div>
+    )}
+    
+    <h2 className={`${isFullScreen ? 'text-5xl md:text-7xl mb-6' : 'text-2xl lg:text-3xl mb-2'} font-bold tracking-tight ${isFullScreen ? 'text-white' : slide.text}`}>
+      {slide.title}
+    </h2>
+    <p className={`${isFullScreen ? 'text-2xl text-slate-200' : 'text-slate-400 text-lg'} max-w-md mx-auto`}>
+      {slide.desc}
+    </p>
   </div>
 );
-
-const PromoSlide = ({ slide, isFullScreen = false }: { slide: any, isFullScreen?: boolean }) => {
-  // Enterprise "Card" look
-  const containerClasses = isFullScreen 
-    ? "h-full w-full flex flex-col justify-center items-center p-12 max-w-5xl mx-auto" 
-    : `relative z-10 p-6 flex flex-col items-center text-center h-full justify-center`;
-
-  // Render based on template type
-  if (slide.template === 'qr-split') {
-    return (
-      <div className={`${containerClasses} ${isFullScreen ? 'flex-row gap-16 text-left' : ''}`}>
-        <div className={`bg-white p-3 rounded-2xl shadow-xl ${isFullScreen ? 'scale-125' : 'mb-6'}`}>
-          <QRCodeCanvas value={slide.payload || ""} size={isFullScreen ? 250 : 140} level="H" />
-        </div>
-        <div className={isFullScreen ? 'flex-1' : ''}>
-           <div className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest mb-3 bg-white/20 backdrop-blur-sm border border-white/20 ${slide.textColor}`}>
-             {slide.subtitle}
-           </div>
-           <h2 className={`${isFullScreen ? 'text-6xl mb-6' : 'text-3xl mb-2'} font-black tracking-tight ${slide.textColor}`}>
-            {slide.title}
-          </h2>
-          <p className={`${isFullScreen ? 'text-2xl opacity-90' : 'text-sm opacity-80'} max-w-md mx-auto ${slide.textColor}`}>
-            {slide.desc}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (slide.template === 'stat-card') {
-    return (
-       <div className={containerClasses}>
-         <div className={`relative ${isFullScreen ? 'mb-12' : 'mb-6'}`}>
-            <div className={`absolute inset-0 bg-white/30 blur-3xl rounded-full ${isFullScreen ? 'scale-150' : 'scale-110'}`}></div>
-            <div className={`${isFullScreen ? 'h-32 w-32' : 'h-16 w-16'} ${slide.textColor} relative z-10`}>
-              {slide.icon}
-            </div>
-         </div>
-         <h2 className={`${isFullScreen ? 'text-7xl' : 'text-3xl'} font-black mb-2 ${slide.textColor}`}>{slide.highlight}</h2>
-         <p className={`${isFullScreen ? 'text-3xl' : 'text-lg'} font-medium opacity-90 mb-6 ${slide.textColor}`}>{slide.title}</p>
-         <div className="h-1 w-24 bg-current opacity-20 rounded-full"></div>
-         <p className="mt-6 text-sm opacity-70 uppercase tracking-widest font-semibold">{slide.desc}</p>
-       </div>
-    );
-  }
-
-  // Default / Hero
-  return (
-    <div className={containerClasses}>
-      <div className={`mb-6 ${isFullScreen ? 'scale-125' : ''}`}>
-        <div className={`inline-flex items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 ${isFullScreen ? 'p-8' : 'p-4'} text-white`}>
-          {slide.icon || <Store className={isFullScreen ? 'h-24 w-24' : 'h-12 w-12'} />}
-        </div>
-      </div>
-      <h2 className={`${isFullScreen ? 'text-6xl mb-4' : 'text-3xl mb-2'} font-bold tracking-tight ${slide.textColor}`}>
-        {slide.title}
-      </h2>
-      <p className={`${isFullScreen ? 'text-2xl text-slate-100' : 'text-slate-200 text-lg'} max-w-lg mx-auto leading-relaxed`}>
-        {slide.desc}
-      </p>
-      {isFullScreen && (
-        <div className="mt-10 flex items-center gap-2 text-white/60 text-sm font-mono border border-white/20 px-4 py-2 rounded-lg bg-black/20">
-          <Info size={16} /> Terms and conditions apply. See store for details.
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default function CustomerDisplay() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -206,10 +114,11 @@ export default function CustomerDisplay() {
   const [paymentDetails, setPaymentDetails] = useState<PaymentPayload>({ type: 'CLEAR' });
   const [showCompletionMessage, setShowCompletionMessage] = useState(false);
 
+  // Fallback formatter
   const formatCurrency = useFormattedCurrency ? useFormattedCurrency() : (val: number) => `KSH ${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
 
   useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000); // 1s for accurate seconds
+    const timer = setInterval(() => setCurrentTime(new Date()), 10000);
     const promoTimer = setInterval(() => {
       setPromoIndex((prev) => (prev + 1) % PROMO_SLIDES.length);
     }, 8000);
@@ -247,21 +156,23 @@ export default function CustomerDisplay() {
 
   const currentSlide = PROMO_SLIDES[promoIndex];
   const isPaymentActive = paymentDetails.type !== 'CLEAR' && paymentDetails.type !== 'CLEAR_COMPLETED';
+  
+  // IDLE LOGIC: Empty cart AND no active payment
   const isIdle = cart.length === 0 && !isPaymentActive;
 
   return (
     <div className="h-[100dvh] w-screen bg-slate-50 text-slate-900 font-sans overflow-hidden select-none">
       
-      {/* ================= PAYMENT OVERLAY ================= */}
-      {/* (Kept identically functional, just slight style tweak for consistency) */}
+      {/* ================= PAYMENT OVERLAY (Global Modal) ================= */}
       <AnimatePresence>
         {(isPaymentActive || showCompletionMessage) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-xl flex items-center justify-center p-6"
+            className="fixed inset-0 z-[100] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6"
           >
+             {/* ... (Keep existing Payment Modal Content exactly as is) ... */}
              {showCompletionMessage ? (
               <motion.div
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
@@ -415,82 +326,55 @@ export default function CustomerDisplay() {
         )}
       </AnimatePresence>
 
-      {/* ================= CONTENT SWITCHER ================= */}
+      {/* ================= MAIN CONTENT SWITCHER ================= */}
       <AnimatePresence mode="wait">
         {isIdle ? (
-          // --- IDLE / SCREENSAVER MODE ---
+          // --- IDLE SCREENSAVER MODE ---
           <motion.div
             key="idle-screen"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.8 }}
-            className="absolute inset-0 flex flex-col bg-slate-900 text-white overflow-hidden"
+            transition={{ duration: 0.5 }}
+            className={`absolute inset-0 flex flex-col items-center justify-center ${currentSlide.bg}`}
           >
-             {/* Dynamic Background */}
-             <motion.div 
-               key={`bg-${promoIndex}`}
-               initial={{ opacity: 0 }}
-               animate={{ opacity: 1 }}
-               transition={{ duration: 1 }}
-               className={`absolute inset-0 bg-gradient-to-br ${currentSlide.color} opacity-20`}
-             />
-             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white/5 to-transparent opacity-50 blur-3xl"></div>
-             
-             {/* Enterprise Header */}
-             <div className="relative z-20 flex justify-between items-start p-8 md:p-12">
-                <div className="space-y-1">
-                   <div className="flex items-center gap-3">
-                      <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm border border-white/10">
-                        <Store className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h1 className="font-bold text-2xl tracking-tight leading-none">{STORE_INFO.name}</h1>
-                        <p className="text-white/60 text-sm font-medium flex items-center gap-2 mt-1">
-                          <MapPin size={12}/> {STORE_INFO.location}
-                        </p>
-                      </div>
-                   </div>
+             {/* Animated Background Pattern */}
+             <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:40px_40px]"></div>
+
+             {/* Header Info */}
+             <div className="absolute top-0 left-0 right-0 p-8 flex justify-between text-white/60">
+                <div className="flex items-center gap-3">
+                  <Store className="h-6 w-6" />
+                  <span className="font-bold uppercase tracking-widest">Dealio Enterprise</span>
                 </div>
-                
-                <div className="text-right space-y-1">
-                   <div className="text-5xl font-mono font-light tracking-tighter">
-                      {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                   </div>
-                   <div className="text-white/60 font-medium text-sm bg-emerald-500/10 text-emerald-400 px-3 py-1 rounded-full border border-emerald-500/20 inline-block">
-                      {STORE_INFO.status}
-                   </div>
+                <div className="font-mono text-xl">
+                  {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </div>
              </div>
 
-             {/* Main Stage */}
-             <div className="flex-1 relative z-10 flex items-center justify-center">
-               <AnimatePresence mode="wait">
-                 <motion.div
-                   key={`idle-slide-${promoIndex}`}
-                   initial={{ opacity: 0, y: 40, filter: "blur(10px)" }}
-                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                   exit={{ opacity: 0, y: -40, filter: "blur(10px)" }}
-                   transition={{ duration: 0.6, ease: "circOut" }}
-                   className="w-full h-full"
-                 >
-                   <PromoSlide slide={currentSlide} isFullScreen={true} />
-                 </motion.div>
-               </AnimatePresence>
-             </div>
+             {/* Main Slide Content */}
+             <AnimatePresence mode="wait">
+               <motion.div
+                 key={`idle-${promoIndex}`}
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 exit={{ opacity: 0, y: -20 }}
+                 transition={{ duration: 0.5 }}
+                 className="relative z-10"
+               >
+                 <PromoSlide slide={currentSlide} isFullScreen={true} />
+               </motion.div>
+             </AnimatePresence>
 
-             {/* Footer & Ticker */}
-             <div className="relative z-20 mt-auto">
-                <div className="flex justify-center gap-3 mb-8">
-                  {PROMO_SLIDES.map((_, idx) => (
-                    <div 
-                      key={idx} 
-                      className={`h-1.5 rounded-full transition-all duration-500 ${idx === promoIndex ? 'w-12 bg-white shadow-[0_0_10px_white]' : 'w-2 bg-white/20'}`} 
-                    />
-                  ))}
-                </div>
-                <Marquee items={NEWS_TICKER} />
-             </div>
+             {/* Footer Indicators */}
+             <div className="absolute bottom-12 flex gap-3 z-20">
+              {PROMO_SLIDES.map((_, idx) => (
+                <div 
+                  key={idx} 
+                  className={`h-2 rounded-full transition-all duration-500 ${idx === promoIndex ? 'w-16 bg-white' : 'w-2 bg-white/30'}`} 
+                />
+              ))}
+            </div>
           </motion.div>
         ) : (
           // --- ACTIVE CART MODE ---
@@ -503,42 +387,32 @@ export default function CustomerDisplay() {
           >
             {/* LEFT COLUMN: CART LIST */}
             <div className="flex flex-col h-full bg-white relative z-10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] w-full">
-              <header className="h-20 px-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
+              
+              <header className="h-16 md:h-20 px-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 bg-slate-900 rounded-xl flex items-center justify-center shadow-lg shadow-slate-900/20">
-                    <Store className="h-6 w-6 text-white" />
+                  <div className="h-10 w-10 bg-slate-900 rounded-lg flex items-center justify-center shadow-lg shadow-slate-900/20">
+                    <Store className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <h1 className="text-lg font-bold uppercase tracking-widest text-slate-900">{STORE_INFO.name}</h1>
-                    <div className="flex items-center gap-2 text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md w-fit">
-                      <span className="flex items-center gap-1 text-emerald-600"><Wifi size={10}/> Online</span>
-                      <span className="text-slate-300">|</span>
-                      <span>{STORE_INFO.id}</span>
+                    <h1 className="text-base md:text-lg font-bold uppercase tracking-widest text-slate-900">Dealio Enterprise</h1>
+                    <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
+                      <span className="flex items-center gap-1"><Wifi size={10}/> Online</span>
+                      <span>•</span>
+                      <span>POS #042</span>
                     </div>
                   </div>
                 </div>
                 <div className="text-right hidden sm:block">
-                  <span className="block font-mono text-xl font-bold text-slate-700 leading-none">
-                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                  <p className="text-xs font-medium text-slate-400 uppercase tracking-wide mt-1">
-                    {currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}
-                  </p>
+                  <div className="flex items-center justify-end gap-2 text-slate-500">
+                     <Clock size={14} />
+                     <span className="font-mono text-sm md:text-base">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <p className="text-xs text-slate-400">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
                 </div>
               </header>
 
-              <main ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth">
-                 {/* Empty State */}
-                 {cart.length === 0 && (
-                   <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
-                     <div className="p-6 bg-slate-50 rounded-full mb-2">
-                        <ShoppingBag className="h-12 w-12 text-slate-300" />
-                     </div>
-                     <p className="text-slate-400 font-medium">Ready for next customer</p>
-                   </div>
-                 )}
-                 
-                 <div className="divide-y divide-slate-50">
+              <main ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth p-0 md:p-2">
+                <div className="divide-y divide-slate-50">
                   <AnimatePresence initial={false}>
                     {cart.map((item, index) => (
                       <motion.div
@@ -546,16 +420,16 @@ export default function CustomerDisplay() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, height: 0 }}
-                        className="flex items-center gap-5 p-5 hover:bg-slate-50/80 transition-colors"
+                        className="flex items-center gap-4 p-4 md:p-6 hover:bg-slate-50/50 transition-colors"
                       >
-                        <div className="shrink-0 w-12 h-12 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-100 flex items-center justify-center shadow-sm">
-                          <span className="font-mono font-bold text-lg">{item.qty}</span>
+                        <div className="shrink-0 w-12 h-12 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center">
+                          <span className="font-mono font-bold text-lg text-slate-600">{item.qty}</span>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-bold text-slate-800 text-lg truncate leading-tight">{item.name}</h3>
-                          <p className="text-sm text-slate-500 font-medium mt-0.5">
-                            {item.variant && <span className="bg-slate-100 px-1.5 py-0.5 rounded text-xs mr-2 text-slate-600 border border-slate-200">{item.variant}</span>}
-                            @{formatCurrency(item.price)}
+                          <h3 className="font-semibold text-slate-800 text-lg truncate">{item.name}</h3>
+                          <p className="text-sm text-slate-500 font-medium">
+                            {item.variant ? <span className="bg-slate-100 px-1.5 py-0.5 rounded text-xs mr-2 text-slate-600">{item.variant}</span> : null}
+                            @{formatCurrency(item.price)}/ea
                           </p>
                         </div>
                         <div className="text-right shrink-0">
@@ -570,28 +444,25 @@ export default function CustomerDisplay() {
               </main>
             </div>
 
-            {/* RIGHT COLUMN: SIDEBAR */}
-            <aside className="hidden lg:flex flex-col bg-slate-900 text-white shrink-0 shadow-2xl z-20 overflow-hidden relative">
-              {/* Promo Background Gradient - tied to active slide */}
-              <motion.div 
-                 className={`absolute inset-0 bg-gradient-to-br opacity-20 transition-colors duration-1000 ${currentSlide.color}`}
-              />
+            {/* RIGHT COLUMN: SIDEBAR & TOTALS */}
+            <aside className="hidden lg:flex flex-col bg-slate-900 text-white shrink-0 shadow-2xl z-20 overflow-hidden">
               
-              <div className="flex-1 relative overflow-hidden flex items-center justify-center">
+              {/* Active Mode Promo Carousel */}
+              <div className="flex-1 relative overflow-hidden bg-slate-800 items-center justify-center flex">
                   <AnimatePresence mode="wait">
                     <motion.div 
                       key={promoIndex}
-                      initial={{ opacity: 0, x: 50 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: -50 }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                      className="absolute inset-0"
+                      initial={{ opacity: 0, scale: 1.05 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.5 }}
+                      className="absolute inset-0 flex flex-col items-center justify-center text-center p-8"
                     >
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:20px_20px]"></div>
                         <PromoSlide slide={currentSlide} isFullScreen={false} />
                     </motion.div>
                   </AnimatePresence>
                   
-                  {/* Indicators */}
                   <div className="absolute bottom-6 flex gap-2 z-20">
                     {PROMO_SLIDES.map((_, idx) => (
                       <div 
@@ -603,11 +474,11 @@ export default function CustomerDisplay() {
               </div>
 
               {/* Financial Footer */}
-              <div className="bg-slate-950/80 backdrop-blur-md p-8 border-t border-white/5 relative z-20">
-                <div className="space-y-4 mb-8 text-sm font-medium">
+              <div className="bg-slate-950 p-6 lg:p-10 border-t border-slate-800 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]">
+                <div className="space-y-3 mb-6 text-sm lg:text-base font-medium">
                   <div className="flex justify-between text-slate-400">
                     <span>Subtotal</span>
-                    <span className="font-mono text-slate-200 tabular-nums text-base">{formatCurrency(totals.subtotal)}</span>
+                    <span className="font-mono text-slate-200 tabular-nums">{formatCurrency(totals.subtotal)}</span>
                   </div>
                   
                   <AnimatePresence>
@@ -616,32 +487,37 @@ export default function CustomerDisplay() {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        className="flex justify-between text-amber-400 overflow-hidden"
+                        className="flex justify-between text-emerald-400 overflow-hidden"
                       >
-                        <span className="flex items-center gap-2"><Percent size={14}/> Promotions</span>
+                        <span className="flex items-center gap-1"><Percent size={14}/> Savings</span>
                         <span className="font-mono tabular-nums">- {formatCurrency(totals.discount)}</span>
                       </motion.div>
                     )}
                   </AnimatePresence>
                   
                   <div className="flex justify-between text-slate-400">
-                    <span>VAT (16%)</span>
-                    <span className="font-mono text-slate-200 tabular-nums text-base">{formatCurrency(totals.tax)}</span>
+                    <span>Tax (16%)</span>
+                    <span className="font-mono text-slate-200 tabular-nums">{formatCurrency(totals.tax)}</span>
                   </div>
                 </div>
 
                 <div className="pt-6 border-t border-dashed border-slate-800">
                   <div className="flex flex-col items-end gap-1">
-                    <span className="text-xs font-bold text-emerald-500 uppercase tracking-widest bg-emerald-500/10 px-2 py-1 rounded">Total Amount Due</span>
+                    <span className="text-xs lg:text-sm font-semibold text-slate-500 uppercase tracking-widest">Total Due</span>
                     <motion.span 
                       key={totals.finalTotal}
-                      initial={{ scale: 0.95 }}
-                      animate={{ scale: 1 }}
-                      className="text-6xl xl:text-7xl font-black tracking-tighter tabular-nums font-mono leading-none text-white mt-2"
+                      initial={{ scale: 0.95, color: '#94a3b8' }}
+                      animate={{ scale: 1, color: '#ffffff' }}
+                      className="text-5xl lg:text-7xl font-black tracking-tighter tabular-nums font-mono leading-none"
                     >
                       {formatCurrency(totals.finalTotal)}
                     </motion.span>
                   </div>
+                </div>
+
+                <div className="mt-8 flex items-center justify-between text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                  <span className="flex items-center gap-2"><Receipt size={16}/> Receipt Ready</span>
+                  <span className="flex items-center gap-2"><MonitorSmartphone size={16}/> Terminal Active</span>
                 </div>
               </div>
             </aside>

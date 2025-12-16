@@ -6,7 +6,7 @@ import { format } from "date-fns"
 
 const styles = StyleSheet.create({
   page: {
-    padding: 30,
+    padding: 10,
     fontSize: 10,
     fontFamily: "Helvetica",
   },
@@ -130,7 +130,7 @@ export const PDFReceipt = ({
   qrCodeDataUrl,
 }: PDFReceiptProps) => (
   <Document>
-    <Page size="A4" style={styles.page}>
+    <Page size={{ width: 205, height: 700 }} style={styles.page}>
       {/* Header */}
       <View style={styles.header}>
         {receiptConfig.showLogo && receiptConfig.logoUrl && (

@@ -10,11 +10,12 @@ import { Separator } from "@/components/ui/separator"
 import { Download, Printer, ShoppingBag, Truck, UtensilsCrossed, ChefHat } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePosStore } from "@/store/store"
-import { pdf } from "@react-pdf/renderer"
-import { PDFReceipt } from "@/components/pdf-receipt"
-import { PDFKitchenTicket } from "@/components/pdf-kitchen-ticket"
+
+import { PDFReceipt } from "@/components/receipts/pdf-receipt"
+import { PDFKitchenTicket } from "@/components/receipts/pdf-kitchen-ticket"
 import QRCode from "qrcode"
 import { format } from "date-fns"
+import { usePdfActions } from "@/hooks/use-pdf-actions"
 
 interface OrderDetailsDialogProps {
   order: Order | null
@@ -23,11 +24,13 @@ interface OrderDetailsDialogProps {
 }
 
 export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDialogProps) {
-  const [isGenerating, setIsGenerating] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
   const settings = usePosStore((state) => state.settings)
   const businessConfig = usePosStore((state) => state.getBusinessConfig())
   const showKitchenTicket = businessConfig.features.kitchenDisplay
+
+  const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions()
+  const isGenerating = isPrinting || isDownloading
 
   useEffect(() => {
     if (order && settings.receiptConfig?.showQrCode) {
@@ -73,81 +76,39 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
     }
   }
 
-  const handlePrintReceipt = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(
-        <PDFReceipt
-          order={order}
-          businessName={settings.businessName}
-          currency={settings.currency}
-          taxRate={settings.taxRate}
-          receiptConfig={settings.receiptConfig}
-          qrCodeDataUrl={qrCodeDataUrl}
-        />,
-      ).toBlob()
-
-      const url = URL.createObjectURL(blob)
-      const printWindow = window.open(url, "_blank")
-      if (printWindow) {
-        printWindow.onload = () => {
-          printWindow.print()
-        }
-      }
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-    } finally {
-      setIsGenerating(false)
-    }
+  const onPrintReceipt = () => {
+    handlePrint(
+      <PDFReceipt
+        order={order}
+        businessName={settings.businessName}
+        currency={settings.currency}
+        taxRate={settings.taxRate}
+        receiptConfig={settings.receiptConfig}
+        qrCodeDataUrl={qrCodeDataUrl}
+      />,
+      `receipt-${order.orderNumber}`
+    )
   }
 
-  const handleDownloadReceipt = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(
-        <PDFReceipt
-          order={order}
-          businessName={settings.businessName}
-          currency={settings.currency}
-          taxRate={settings.taxRate}
-          receiptConfig={settings.receiptConfig}
-          qrCodeDataUrl={qrCodeDataUrl}
-        />,
-      ).toBlob()
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `receipt-${order.orderNumber}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error generating PDF:", error)
-    } finally {
-      setIsGenerating(false)
-    }
+  const onDownloadReceipt = () => {
+    handleDownload(
+      <PDFReceipt
+        order={order}
+        businessName={settings.businessName}
+        currency={settings.currency}
+        taxRate={settings.taxRate}
+        receiptConfig={settings.receiptConfig}
+        qrCodeDataUrl={qrCodeDataUrl}
+      />,
+      `receipt-${order.orderNumber}`
+    )
   }
 
-  const handleDownloadKitchenTicket = async () => {
-    setIsGenerating(true)
-    try {
-      const blob = await pdf(<PDFKitchenTicket order={order} businessName={settings.businessName} />).toBlob()
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `ticket-${order.orderNumber}.pdf`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Error generating kitchen ticket:", error)
-    } finally {
-      setIsGenerating(false)
-    }
+  const onDownloadKitchenTicket = () => {
+    handleDownload(
+      <PDFKitchenTicket order={order} />,
+      `ticket-${order.orderNumber}`
+    )
   }
 
   return (
@@ -270,29 +231,29 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
           <div className="flex flex-col gap-3">
             <div className="flex gap-3">
               <Button
-                onClick={handlePrintReceipt}
+                onClick={onPrintReceipt}
                 variant="outline"
                 className="flex-1 bg-transparent"
                 disabled={isGenerating}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                {isGenerating ? "Generating..." : "Print Receipt"}
+                {isGenerating ? "Processing..." : "Print Receipt"}
               </Button>
-              <Button onClick={handleDownloadReceipt} disabled={isGenerating} className="flex-1">
+              <Button onClick={onDownloadReceipt} disabled={isGenerating} className="flex-1">
                 <Download className="w-4 h-4 mr-2" />
-                {isGenerating ? "Generating..." : "Download Receipt"}
+                {isGenerating ? "Processing..." : "Download Receipt"}
               </Button>
             </div>
 
             {showKitchenTicket && (
               <Button
-                onClick={handleDownloadKitchenTicket}
+                onClick={onDownloadKitchenTicket}
                 disabled={isGenerating}
                 variant="outline"
                 className="w-full bg-transparent"
               >
                 <ChefHat className="w-4 h-4 mr-2" />
-                {isGenerating ? "Generating..." : "Download Kitchen Ticket"}
+                {isGenerating ? "Processing..." : "Download Kitchen Ticket"}
               </Button>
             )}
           </div>
