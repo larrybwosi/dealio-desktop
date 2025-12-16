@@ -58,9 +58,9 @@ interface PricingSyncResponse {
 
 // Interface for the data stored locally in Tauri Store
 interface PosPricingData {
-    lists: ClientPriceList[];
-    items: ClientPriceListItem[];
-    allocations: Record<string, string[]>;
+  lists: ClientPriceList[];
+  items: ClientPriceListItem[];
+  allocations: Record<string, string[]>;
 }
 
 // --- STORE UTILITY FUNCTIONS ---
@@ -71,7 +71,6 @@ interface PosPricingData {
  */
 const initTauriStore = async (): Promise<{ store: Store; lastSync: string | null }> => {
   try {
-    // Using 'any' for Tauri Store load function due to complex generic type
     const storeInstance = await load(STORE_FILENAME, { autoSave: true, defaults: {} });
     const storedSyncTime = await storeInstance.get<string>(KEY_LAST_SYNC);
     
@@ -81,8 +80,6 @@ const initTauriStore = async (): Promise<{ store: Store; lastSync: string | null
     };
   } catch (err) {
     console.error("Failed to load Tauri Store:", err);
-    // Re-throw or return a state indicating failure if necessary, but
-    // for cleanup, we just return null/error state via try-catch.
     throw new Error("Failed to initialize local data store.");
   }
 };
@@ -174,8 +171,9 @@ export const usePosPricingSync = () => {
   const [isStoreReady, setIsStoreReady] = useState(false);
   const [store, setStore] = useState<Store | null>(null);
 
-  // Ref to track processing status to prevent multiple concurrent sync processing
+  // Refs prevent dependency loops in useEffects/Callbacks
   const isProcessingRef = useRef(false);
+  const lastSyncRef = useRef<string | null>(null);
 
   // 1. Initialize Tauri Store and load initial state
   useEffect(() => {
@@ -183,17 +181,19 @@ export const usePosPricingSync = () => {
       .then(({ store: storeInstance, lastSync: storedSyncTime }) => {
         setStore(storeInstance);
         setLastSync(storedSyncTime);
+        lastSyncRef.current = storedSyncTime; // Sync Ref immediately
         setIsStoreReady(true);
       })
       .catch(() => {
-        // Handle initialization failure by still setting ready state but with null store/sync
         setIsStoreReady(true); 
       });
   }, []);
 
-  // Use useCallback to memoize the query function for React Query
+  // Use useCallback with empty deps. It reads from REF, not State.
   const fetchPricingData = useCallback(async () => {
-    if (!lastSync) {
+    const currentSyncTime = lastSyncRef.current;
+
+    if (!currentSyncTime) {
       console.log("No local data found. Fetching FULL DATA dump...");
       // 1. Full Dump Endpoint
       const response = await apiClient.get<PricingSyncResponse>("/api/v1/pos/pricing");
@@ -201,22 +201,23 @@ export const usePosPricingSync = () => {
     } else {
       console.log("Local data found. Fetching DELTA updates...");
       // 2. Sync/Delta Endpoint
-      const params = { lastSync };
+      const params = { lastSync: currentSyncTime };
       const response = await apiClient.get<PricingSyncResponse>(
         "/api/v1/pos/pricing/sync",
         { params }
       );
       return response.data;
     }
-  }, [lastSync]); // Re-create if lastSync changes (forcing a potential FULL or DELTA run)
+  }, []); 
 
   // 2. React Query: Fetching and Caching Logic
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["posPricingSync", lastSync], // lastSync as part of key helps manage dependent refetches
-    enabled: isStoreReady, // Only run once we know the initial sync time
+    queryKey: ["posPricingSync"], // Fixed Key (Removed lastSync variable to prevent loop)
+    enabled: isStoreReady, 
     queryFn: fetchPricingData,
     refetchOnWindowFocus: false,
-    staleTime: 1000 * 60 * 5, // 5 minutes stale time
+    staleTime: 1000 * 60 * 5, // 5 minutes cache validity
+    refetchInterval: 1000 * 60 * 60 * 2, // Auto-refetch every 2 Hours
   });
 
   // 3. Process Sync (Merge Logic)
@@ -230,9 +231,11 @@ export const usePosPricingSync = () => {
         
         isProcessingRef.current = true;
         try {
-            const newSyncTime = await processAndSaveSyncData(store, data, lastSync);
+            // Pass the Ref's current value to the processor
+            const newSyncTime = await processAndSaveSyncData(store, data, lastSyncRef.current);
             if (newSyncTime) {
               setLastSync(newSyncTime);
+              lastSyncRef.current = newSyncTime; // Update ref for the next interval check
             }
         } catch (err) {
             // Error is logged inside the utility function
@@ -243,7 +246,7 @@ export const usePosPricingSync = () => {
 
     runProcessing();
     
-  }, [data, store, lastSync]); // Dependencies: fetched data, store instance, and current sync time
+  }, [data, store]); // removed lastSync to break cycle
 
   // 4. Return Object
   const isSyncing = isLoading || isFetching || !isStoreReady || isProcessingRef.current;
@@ -263,12 +266,6 @@ export const usePosPricingSync = () => {
 /**
  * Resolves the price for a specific product/variant/unit for a given customer
  * based on the cached pricing data.
- * 
- * @param pricingData The loaded PosPricingData
- * @param customerId The ID of the customer (optional)
- * @param variantId The ID of the product variant
- * @param unitId The ID of the selling unit (optional)
- * @returns The resolved price as a number, or null if no special price is found.
  */
 export const resolveCustomerPrice = (
   pricingData: { lists: ClientPriceList[]; items: ClientPriceListItem[]; customerAllocations: Record<string, string[]> } | undefined,
@@ -318,7 +315,7 @@ export const resolveCustomerPrice = (
     const matchedItem = pricingData.items.find(item => 
       item.priceListId === list.id &&
       item.variantId === variantId &&
-      (item.sellingUnitId === unitId || (item.sellingUnitId === null && unitId === null)) // Exact unit match usually required, or both null
+      (item.sellingUnitId === unitId || (item.sellingUnitId === null && unitId === null)) 
     );
 
     if (matchedItem) {

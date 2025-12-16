@@ -1,14 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronsUpDown, User, Building2, MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { usePosStore } from '@/store/store';
-import { apiClient } from '@/lib/axios';
+import { usePosCustomers } from '@/hooks/customers';
 
 // Define the shape based on your Prisma return type
 type SearchResultCustomer = {
@@ -60,27 +59,31 @@ export function CustomerSelector() {
   // -------------------------------------------------------
   // 1. React Query: Fetch customers from API
   // -------------------------------------------------------
-  const {
-    data: searchResults = [],
-    isLoading,
-    isFetching,
-  } = useQuery({
-    queryKey: ['pos-customer-search', debouncedSearchTerm],
-    queryFn: async () => {
-      // If empty, return empty list (or default list if you prefer)
-      if (!debouncedSearchTerm) return [];
-
-      const response = await apiClient.get<SearchResultCustomer[]>('/api/v1/pos/customers/search', {
-        params: {
-          q: debouncedSearchTerm,
-        },
-      });
-      return response.data;
-    },
-    // Only run query if we have a search term (or keep enabled to show recent)
-    enabled: open,
-    staleTime: 1000 * 60 * 60, // Cache results for 1 hour
+  // -------------------------------------------------------
+  // 1. Local Store Query (via usePosCustomers)
+  // -------------------------------------------------------
+  const { customers: localCustomers, isSyncing } = usePosCustomers({
+    search: debouncedSearchTerm,
+    enabled: open // Only filter/search when open
   });
+
+  const searchResults: SearchResultCustomer[] = localCustomers.map(c => ({
+    id: c.id,
+    name: c.name,
+    email: c.email || null,
+    phone: c.phone || null,
+    loyaltyPoints: c.loyaltyPoints || 0,
+    customerType: c.customerType || null,
+    businessAccountId: c.businessAccountId || null,
+    company: c.company || null,
+    // Derive type if not present. simplified logic:
+    type: (c.customerType === 'business' || c.businessAccountId) ? 'B2B' : 'B2C',
+    // Derive primary address
+    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null
+  }));
+
+  const isLoading = isSyncing && localCustomers.length === 0;
+  const isFetching = isSyncing;
 
   // -------------------------------------------------------
   // 2. Selection Logic

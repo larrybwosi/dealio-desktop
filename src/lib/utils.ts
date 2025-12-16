@@ -7,6 +7,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
 import { documentDir } from '@tauri-apps/api/path';
 import { toast } from "sonner";
+import { Store } from "@tauri-apps/plugin-store";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -128,3 +129,9 @@ export const processFileDownload = async (blob: Blob, fileName: string, loadingT
       throw error;
     }
   }
+  
+export async function safeStoreSet<T>(store: Store, key: string, value: T | undefined) {
+  // JSON supports null, but passing 'undefined' to Tauri's IPC bridge breaks the command
+  const safeValue = value === undefined ? null : value;
+  await store.set(key, safeValue);
+}

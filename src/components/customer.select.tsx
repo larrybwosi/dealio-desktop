@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect, useMemo } from 'react';
 import { Check, ChevronsUpDown, User, Building2, MapPin, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { apiClient } from '@/lib/axios';
+import { usePosCustomers } from '@/hooks/customers';
 
 // Define the shape based on your Prisma return type
 export type SearchResultCustomer = {
@@ -59,29 +58,31 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
   const debouncedSearchTerm = useDebounce(searchTerm, 500);
 
   // -------------------------------------------------------
-  // 1. React Query: Fetch customers from API
+  // 1. Local Store Query (via usePosCustomers)
   // -------------------------------------------------------
-  const {
-    data: searchResults = [],
-    isLoading,
-    isFetching,
-  } = useQuery({
-    queryKey: ['pos-customer-search', debouncedSearchTerm],
-    queryFn: async () => {
-      // If empty, return empty list (or default list if you prefer)
-      if (!debouncedSearchTerm) return [];
-
-      const response = await apiClient.get<SearchResultCustomer[]>('/api/v1/pos/customers/search', {
-        params: {
-          q: debouncedSearchTerm,
-        },
-      });
-      return response.data;
-    },
-    // Only run query if we have a search term or the dropdown is open
-    enabled: open && debouncedSearchTerm.length > 0,
-    staleTime: 1000 * 60 * 5, // Cache results for 5 minutes
+  const { customers: localCustomers, isSyncing } = usePosCustomers({
+    search: debouncedSearchTerm,
+    enabled: open // Only filter/search when open
   });
+
+  // console.log("localCustomers", localCustomers);
+  const searchResults: SearchResultCustomer[] = useMemo(() => localCustomers.map(c => ({
+    id: c.id,
+    name: c.name,
+    email: c.email || null,
+    phone: c.phone || null,
+    loyaltyPoints: c.loyaltyPoints || 0,
+    customerType: c.customerType || null,
+    businessAccountId: c.businessAccountId || null,
+    company: c.company || null,
+    // Derive type if not present. simplified logic:
+    type: (c.customerType === 'business' || c.businessAccountId) ? 'B2B' : 'B2C',
+    // Derive primary address
+    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null
+  })), [localCustomers]);
+
+  const isLoading = isSyncing && localCustomers.length === 0;
+  const isFetching = isSyncing;
 
   // -------------------------------------------------------
   // 2. Sync State Logic
@@ -92,11 +93,12 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
   useEffect(() => {
     if (value && searchResults.length > 0) {
       const found = searchResults.find(c => c.id === value);
-      if (found) {
+      // Only update if the found customer is different from the currently selected one (by ID)
+      if (found && found.id !== selectedCustomer?.id) {
         setSelectedCustomer(found);
       }
     }
-  }, [value, searchResults]);
+  }, [value, searchResults, selectedCustomer?.id]);
 
   // If the value is cleared externally, clear the local selection
   useEffect(() => {
