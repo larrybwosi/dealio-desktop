@@ -1,5 +1,7 @@
 use hidapi::HidApi;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton};
 use tauri_plugin_printer_v2::init;
 use std::thread;
 use std::time::Duration;
@@ -273,6 +275,64 @@ pub fn run() {
                 if let Err(e) = store::load_products_from_disk(app.handle(), &state) {
                     eprintln!("Failed to load initial data: {}", e);
                 }
+
+                // --- System Tray Configuration ---
+                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let show_i = MenuItem::with_id(app, "show", "Show Main Window", true, None::<&str>)?;
+                let hide_i = MenuItem::with_id(app, "hide", "Hide Main Window", true, None::<&str>)?;
+                let customer_i = MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
+                let sep = PredefinedMenuItem::separator(app)?;
+                
+                let menu = Menu::with_items(app, &[&show_i, &hide_i, &customer_i, &sep, &quit_i])?;
+
+                let _tray = TrayIconBuilder::new()
+                    .icon(app.default_window_icon().unwrap().clone())
+                    .menu(&menu)
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| {
+                        match event.id.as_ref() {
+                            "quit" => {
+                                app.exit(0);
+                            }
+                            "show" => {
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            "hide" => {
+                               if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.hide();
+                                }
+                            }
+                            "customer" => {
+                                let app_handle = app.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    let _ = open_customer_screen(app_handle).await;
+                                });
+                            }
+                            _ => {}
+                        }
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                         match event {
+                            TrayIconEvent::Click {
+                                button: MouseButton::Left,
+                                ..
+                            } => {
+                                let app = tray.app_handle();
+                                 if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.set_focus();
+                                }
+                            }
+                            _ => {
+                            }
+                         }
+
+                    })
+                    .build(app)?;
+
                 Ok(())
             })
         .plugin(tauri_plugin_window_state::Builder::new().build())

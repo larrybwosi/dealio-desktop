@@ -12,10 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
+import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 
@@ -50,6 +51,14 @@ export default function SettingsPage() {
     error: scannerError,
     clearHistory
   } = useScanner();
+
+  const {
+    openPhysicalDrawer,
+    getSerialPorts,
+    availablePorts,
+    isOpening: isOpeningDrawer,
+    isLoadingPorts,
+  } = useCashDrawer();
 
 
   // 2. Local state for device discovery
@@ -101,6 +110,7 @@ export default function SettingsPage() {
   const [paybillNumber, setPaybillNumber] = useState(settings?.paybillNumber || '');
   const [tillNumber, setTillNumber] = useState(settings?.tillNumber || '');
   const [enableCustomerDisplay, setEnableCustomerDisplay] = useState(settings?.enableCustomerDisplay ?? true);
+  const [cashDrawerPort, setCashDrawerPort] = useState(settings?.cashDrawerPort || '');
 
   const [syncing, setSyncing] = useState(false);
 
@@ -127,6 +137,7 @@ export default function SettingsPage() {
       paybillNumber,
       tillNumber,
       enableCustomerDisplay,
+      cashDrawerPort,
     });
     toast.success('Settings saved successfully!');
   };
@@ -929,6 +940,96 @@ export default function SettingsPage() {
                 </div>
                 <Switch checked={enableAutoPrint} onCheckedChange={setEnableAutoPrint} />
               </div>
+            </Card>
+
+            {/* --- CASH DRAWER SETTINGS --- */}
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg transition-colors ${
+                    enableCashDrawer && cashDrawerPort 
+                      ? 'bg-green-100 dark:bg-green-900/20' 
+                      : 'bg-orange-100 dark:bg-orange-900/20'
+                  }`}>
+                    <DoorOpen className={`h-5 w-5 ${
+                      enableCashDrawer && cashDrawerPort 
+                        ? 'text-green-700 dark:text-green-400' 
+                        : 'text-orange-700 dark:text-orange-400'
+                    }`} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Cash Drawer</h2>
+                    <p className="text-sm text-muted-foreground">
+                      {enableCashDrawer && cashDrawerPort ? 'Connected & Ready' : 'Configure serial port'}
+                    </p>
+                  </div>
+                </div>
+                <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
+              </div>
+
+              {enableCashDrawer && (
+                <div className="space-y-4">
+                  {/* Port Selection */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="cashDrawerPort">Serial Port</Label>
+                      <Select value={cashDrawerPort} onValueChange={setCashDrawerPort}>
+                        <SelectTrigger id="cashDrawerPort">
+                          <SelectValue placeholder="Select port..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePorts.length === 0 ? (
+                            <SelectItem value="none" disabled>No ports detected</SelectItem>
+                          ) : (
+                            availablePorts.map((port) => (
+                              <SelectItem key={port} value={port}>{port}</SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Actions</Label>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => getSerialPorts()}
+                          disabled={isLoadingPorts}
+                        >
+                          {isLoadingPorts ? (
+                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4 mr-2" />
+                          )}
+                          Detect Ports
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => openPhysicalDrawer(cashDrawerPort)}
+                          disabled={!cashDrawerPort || isOpeningDrawer}
+                        >
+                          {isOpeningDrawer ? (
+                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <DoorOpen className="h-4 w-4 mr-2" />
+                          )}
+                          Test Drawer
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info Box */}
+                  {!cashDrawerPort && availablePorts.length === 0 && (
+                    <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                      💡 Click "Detect Ports" to find connected serial devices. Cash drawers are typically connected via USB-to-Serial adapter.
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           </TabsContent>
 

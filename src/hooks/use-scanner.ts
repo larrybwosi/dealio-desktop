@@ -55,8 +55,8 @@ export const useScanner = () => {
 
       // 4. Call Rust Backend
       const msg = await invoke<string>('start_scan', {
-        vidHex: store.vid,
-        pidHex: store.pid,
+        vid_hex: store.vid,
+        pid_hex: store.pid,
       });
 
       console.log(msg);

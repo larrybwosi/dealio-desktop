@@ -11,6 +11,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { DollarSign, ArrowUp, ArrowDown, Lock, Unlock } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useCashDrawer } from "@/hooks/use-cash-drawer"
+import { DoorOpen, RefreshCcw } from "lucide-react"
 
 export default function CashDrawerPage() {
   const settings = usePosStore((state) => state.settings)
@@ -19,6 +21,8 @@ export default function CashDrawerPage() {
   const openCashDrawer = usePosStore((state) => state.openCashDrawer)
   const closeCashDrawer = usePosStore((state) => state.closeCashDrawer)
   const addCashTransaction = usePosStore((state) => state.addCashTransaction)
+
+  const { openPhysicalDrawer, isOpening } = useCashDrawer() // Hook usage
 
   const [isOpenDrawerDialogOpen, setIsOpenDrawerDialogOpen] = useState(false)
   const [isCloseDrawerDialogOpen, setIsCloseDrawerDialogOpen] = useState(false)
@@ -256,6 +260,15 @@ export default function CashDrawerPage() {
                       </CardDescription>
                     </div>
                     <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => openPhysicalDrawer()}
+                        disabled={isOpening}
+                      >
+                         {isOpening ? <RefreshCcw className="w-4 h-4 mr-2 animate-spin" /> : <DoorOpen className="w-4 h-4 mr-2" />}
+                         Open Drawer
+                      </Button>
                       <Dialog open={isCashInDialogOpen} onOpenChange={setIsCashInDialogOpen}>
                         <DialogTrigger asChild>
                           <Button variant="outline" size="sm">

@@ -39,6 +39,7 @@ import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/trans
 import { cn } from '@/lib/utils';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
+import { useCashDrawer } from '@/hooks/use-cash-drawer'; // Added hook
 
 // --- COMPONENT ---
 
@@ -162,7 +163,9 @@ const PaymentModal = ({
   const [detectedPayment, setDetectedPayment] = useState<any>(null);
   
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
+  const { openPhysicalDrawer } = useCashDrawer(); // Initialize Hook
   const settings = usePosStore((state) => state.settings);
+  const autoPrintConfig = settings.autoPrintConfig; // Get auto-print config
   const locationId = useAuthStore(state => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
 
@@ -497,6 +500,17 @@ const PaymentModal = ({
         amountPaid: payload.amountReceived || 0,
         change: payload.change || 0,
     }
+    
+    // --- CASH DRAWER AUTO-OPEN ---
+    // Check if: 
+    // 1. Payment method is CASH
+    // 2. Auto-open feature is enabled in AutoPrint Config
+    // 3. Cash drawer hardware is enabled in main settings (handled inside hook)
+    if (selectedTab === 'CASH' && autoPrintConfig.openCashDrawer) {
+      console.log('[Pos] Triggering Auto-Open Cash Drawer');
+      openPhysicalDrawer();
+    }
+
     // Clear the payment display on completion
     emit('payment-update', { type: 'CLEAR_COMPLETED' }); 
     onPaymentComplete(completedOrder);
