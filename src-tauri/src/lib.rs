@@ -7,7 +7,30 @@ struct ScanPayload {
     message: String,
 }
 
-// --- NEW: Command to open/manage the Customer Window ---
+#[tauri::command]
+async fn sync_products_command(
+    app: AppHandle,
+    state: State<'_, ProductState>,
+    token: String,
+    location_id: String,
+    base_url: String
+) -> Result<String, String> {
+    match store::run_sync(app, &state, token, location_id, base_url).await {
+        Ok(count) => Ok(format!("Synced {} products", count)),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn search_products_command(
+    state: State<'_, ProductState>,
+    query: String,
+    category: String
+) -> Vec<models::PosProduct> {
+    store::search_local(&state, query, category)
+}
+
+// --- Command to open/manage the Customer Window ---
 #[tauri::command]
 async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
     let window_label = "customer";
@@ -143,6 +166,15 @@ fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<String
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(ProductState::new()) // Initialize State
+            .setup(|app| {
+                // Load data from disk immediately on app launch
+                let state = app.state::<ProductState>();
+                if let Err(e) = store::load_products_from_disk(app.handle(), &state) {
+                    eprintln!("Failed to load initial data: {}", e);
+                }
+                Ok(())
+            })
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(init())
@@ -164,7 +196,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             start_scan, 
             list_hid_devices, 
-            open_customer_screen
+            open_customer_screen,
+            sync_products_command,
+            search_products_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
