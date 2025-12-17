@@ -9,7 +9,7 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
@@ -44,11 +44,6 @@ interface ProductProps {
   pricingMode: 'retail' | 'wholesale';
   customPriceCalculator?: (variantId: string, unitId: string) => number | null;
 }
-
-// Mock currency formatter for demo
-const useFormattedCurrency = () => {
-  return (amount: number) => `$${amount.toFixed(2)}`;
-};
 
 export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
@@ -231,7 +226,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
                     <span className="text-[10px] text-muted-foreground font-medium text-right leading-tight">
                         Price
                     </span>
-                    <span className={cn("text-xl font-bold tracking-tight leading-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
+                    <span className={cn("font-bold tracking-tight leading-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
                         {formatCurrency(price)}
                     </span>
                     <span className="text-[9px] text-muted-foreground text-right leading-tight">

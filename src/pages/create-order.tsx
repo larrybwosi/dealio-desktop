@@ -495,6 +495,8 @@ export default function CreateOrderPage() {
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
   const [createdInvoiceUrl, setCreatedInvoiceUrl] = useState<string | null>(null);
+  const [customerAddresses, setCustomerAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   const { mutate: createOrder, isPending: isSubmitting } = useCreateOrder({
     onSuccess: (data: any) => {
@@ -570,6 +572,8 @@ export default function CreateOrderPage() {
   const handleReset = () => {
     setSubmitStatus('idle');
     setCreatedOrderId(null);
+    setCustomerAddresses([]);
+    setSelectedAddressId('');
     reset({
       type: TransactionType.SALES_ORDER,
       locationId: locationId,
@@ -663,7 +667,24 @@ export default function CreateOrderPage() {
                   <Controller
                     control={control}
                     name="customerId"
-                    render={({ field }) => <CustomerSelect onValueChange={field.onChange} value={field.value} />}
+                    render={({ field }) => (
+                      <CustomerSelect 
+                        onValueChange={field.onChange} 
+                        value={field.value} 
+                        onSelect={(customer: any) => {
+                          const addrs = customer.addresses || [];
+                          setCustomerAddresses(addrs);
+                          const primary = addrs.find((a:any) => a.isDefault) || addrs[0];
+                          if (primary) {
+                              setSelectedAddressId(primary.id); 
+                              // If you have a form field for address, update it here too. 
+                              // setValue('shippingAddress', primary); 
+                          } else {
+                              setSelectedAddressId('');
+                          }
+                        }}
+                      />
+                    )}
                   />
                   {errors.customerId && <span className="text-xs text-red-500">{errors.customerId.message}</span>}
                 </div>
@@ -795,8 +816,23 @@ export default function CreateOrderPage() {
                       <MapPin className="w-3 h-3" /> Delivery Details
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-xs">Address ID (Mock)</Label>
-                      <Input disabled placeholder="Select Address..." className="h-8 text-xs bg-white dark:bg-zinc-900" />
+                      <Label className="text-xs">Address</Label>
+                      <Select 
+                        disabled={!customerAddresses.length} 
+                        value={selectedAddressId} 
+                        onValueChange={setSelectedAddressId}
+                      >
+                        <SelectTrigger className="h-8 text-xs bg-white dark:bg-zinc-900">
+                          <SelectValue placeholder={customerAddresses.length ? "Select Address..." : "No addresses found"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {customerAddresses.map((addr: any) => (
+                            <SelectItem key={addr.id} value={addr.id}>
+                              {addr.street1}{addr.city ? `, ${addr.city}` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}

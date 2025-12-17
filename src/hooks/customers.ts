@@ -28,6 +28,7 @@ export interface PosCustomer extends Customer {
 
     // Keep addresses if you still need the raw array
     addresses?: Array<{
+        id: string;
         street1: string;
         city: string;
         postalCode: string;

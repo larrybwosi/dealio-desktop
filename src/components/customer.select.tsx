@@ -20,6 +20,7 @@ export type SearchResultCustomer = {
   company?: string | null;
   type: 'B2B' | 'B2C'; // The computed field from backend
   primaryAddress: string | null; // The computed address
+  addresses: any[]; // The raw addresses array
 };
 
 // Custom debounce hook
@@ -78,7 +79,8 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
     // Derive type if not present. simplified logic:
     type: (c.customerType === 'business' || c.businessAccountId) ? 'B2B' : 'B2C',
     // Derive primary address
-    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null
+    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null,
+    addresses: c.addresses || []
   })), [localCustomers]);
 
   const isLoading = isSyncing && localCustomers.length === 0;
@@ -136,7 +138,8 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
           loyaltyPoints: customer.loyaltyPoints,
           customerType: customer.type === 'B2B' ? 'b2b' : 'retail',
           businessName: customer.company || undefined,
-          primaryAddress: customer.primaryAddress
+          primaryAddress: customer.primaryAddress,
+          addresses: customer.addresses
         };
         onSelect(mappedCustomer);
       }
