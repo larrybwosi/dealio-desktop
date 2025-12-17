@@ -1,6 +1,14 @@
 use hidapi::HidApi;
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_printer_v2::init;
+use std::thread;
+use std::time::Duration;
+use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION};
+use std::io::Write;
+
+mod models;
+mod store;
+use store::ProductState;
 
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
@@ -11,11 +19,12 @@ struct ScanPayload {
 async fn sync_products_command(
     app: AppHandle,
     state: State<'_, ProductState>,
-    token: String,
+    base_url: String,
     location_id: String,
-    base_url: String
+    device_key: Option<String>,
+    member_token: Option<String>
 ) -> Result<String, String> {
-    match store::run_sync(app, &state, token, location_id, base_url).await {
+    match store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
         Ok(count) => Ok(format!("Synced {} products", count)),
         Err(e) => Err(e.to_string()),
     }
@@ -163,6 +172,97 @@ fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<String
     Ok("Scanner listener started successfully".to_string())
 }
 
+#[tauri::command]
+fn start_nfc_listener(app: AppHandle) {
+    thread::spawn(move || {
+        // Establish the PC/SC Context
+        let ctx = match Context::establish(Scope::User) {
+            Ok(ctx) => ctx,
+            Err(_) => return, // Handle error appropriately
+        };
+
+        let mut readers_buf = [0; 2048];
+        let mut reader_states = vec![
+            // Listen for reader insertions/removals
+            ReaderState::new(PNP_NOTIFICATION(), PcscState::UNAWARE),
+        ];
+
+        loop {
+            // Wait for state changes (blocking to save CPU)
+            if ctx.get_status_change(Some(Duration::from_millis(1000)), &mut reader_states).is_ok() {
+                
+                // Get list of connected readers
+                if let Ok(readers) = ctx.list_readers(&mut readers_buf) {
+                    for reader in readers {
+                        // Connect to the card
+                        if let Ok(card) = ctx.connect(reader, ShareMode::Shared, Protocols::ANY) {
+                            // Get the Card UID (The "Member ID")
+                            // Standard command to get UID: 0xFF, 0xCA, 0x00, 0x00, 0x00
+                            let apdu = [0xFF, 0xCA, 0x00, 0x00, 0x00];
+                            let mut rapdu_buf = [0; 256];
+
+                            if let Ok(rapdu) = card.transmit(&apdu, &mut rapdu_buf) {
+                                // Convert bytes to hex string
+                                let uid: String = rapdu.iter()
+                                    .map(|b| format!("{:02X}", b))
+                                    .collect();
+                                
+                                // Clean up status bytes (usually last 2 bytes like 90 00)
+                                let clean_uid = &uid[0..uid.len()-4]; 
+
+                                // Emit to Frontend
+                                app.emit("nfc-read", clean_uid).unwrap();
+                                
+                                // Sleep briefly to prevent spamming the same read
+                                thread::sleep(Duration::from_secs(2));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+// 1. Command to list available ports (so user can select the printer)
+#[tauri::command]
+fn get_serial_ports() -> Result<Vec<String>, String> {
+    match serialport::available_ports() {
+        Ok(ports) => {
+            let port_names: Vec<String> = ports.iter().map(|p| p.port_name.clone()).collect();
+            Ok(port_names)
+        }
+        Err(e) => Err(format!("Error listing ports: {}", e)),
+    }
+}
+
+// 2. Command to Open the Drawer
+#[tauri::command]
+fn open_cash_drawer(port_name: String) -> Result<String, String> {
+    // ESC/POS Command to kick drawer
+    // Decimal: 27, 112, 0, 25, 250
+    // Hex: 1B 70 00 19 FA
+    // 1B 70: Command
+    // 00: Pin 2 (usually)
+    // 19: Pulse ON time (25 * 2ms = 50ms)
+    // FA: Pulse OFF time (250 * 2ms = 500ms)
+    let kick_code = [0x1B, 0x70, 0x00, 0x19, 0xFA];
+
+    match serialport::new(&port_name, 9600)
+        .timeout(Duration::from_millis(100))
+        .open() 
+    {
+        Ok(mut port) => {
+            // Write the kick code to the printer
+            match port.write(&kick_code) {
+                Ok(_) => Ok("Drawer signal sent".into()),
+                Err(e) => Err(format!("Failed to write to printer: {}", e)),
+            }
+        }
+        Err(e) => Err(format!("Failed to open port {}: {}", port_name, e)),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -198,7 +298,10 @@ pub fn run() {
             list_hid_devices, 
             open_customer_screen,
             sync_products_command,
-            search_products_command
+            search_products_command,
+            start_nfc_listener,
+            get_serial_ports, 
+            open_cash_drawer,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

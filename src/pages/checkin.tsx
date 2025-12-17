@@ -21,7 +21,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { useAuth } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
+
+// --- Tauri V2 Imports ---
 import { getVersion } from '@tauri-apps/api/app';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 // --- Typewriter Effect Component ---
 const TypewriterText = ({ texts }: { texts: string[] }) => {
@@ -75,12 +79,14 @@ export default function CheckinPage() {
   const cardInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
-  // --- Initial Setup & Version Fetch ---
+  // --- 1. Initialize Listener & Version ---
   useEffect(() => {
     cardInputRef.current?.focus();
 
-    // Async function to fetch version
-    const fetchAppVersion = async () => {
+    let unlisten: (() => void) | undefined;
+
+    const initSystem = async () => {
+      // Fetch Version
       try {
         const v = await getVersion();
         setAppVersion(v);
@@ -88,28 +94,52 @@ export default function CheckinPage() {
         console.error('Failed to get app version:', err);
         setAppVersion('Unknown');
       }
+
+      // Start NFC Listener Backend
+      try {
+        await invoke('start_nfc_listener');
+      } catch (err) {
+        console.error("Failed to start NFC background thread:", err);
+      }
+
+      // Listen for 'nfc-read' events from Rust
+      unlisten = await listen<string>('nfc-read', (event) => {
+        const scannedId = event.payload;
+        
+        // Update UI State on Scan
+        setCardId(scannedId);
+        setError('');
+        setIsScanning(false);
+        setScanSuccess(true);
+
+        // Visual feedback: Wait 1s showing green check, then focus password
+        setTimeout(() => {
+          passwordInputRef.current?.focus();
+          setScanSuccess(false);
+        }, 1000);
+      });
     };
 
-    fetchAppVersion();
+    initSystem();
+
+    // Cleanup listener on unmount
+    return () => {
+      if (unlisten) unlisten();
+    };
   }, []);
 
-  const handleScan = (): void => {
+  // --- Manual Scan Trigger (Visual Only now) ---
+  const handleScanClick = (): void => {
+    // If the user clicks manually, we just set the visual state to "Scanning..."
+    // The actual hardware listener is already running in the background.
     setIsScanning(true);
     setError('');
     setScanSuccess(false);
-
-    // Simulate card reader scanning
+    
+    // Optional: timeout to stop spinning if no card is tapped after 10s
     setTimeout(() => {
-      const mockCardId = `CARD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-      setCardId(mockCardId);
-      setIsScanning(false);
-      setScanSuccess(true);
-
-      setTimeout(() => {
-        passwordInputRef.current?.focus();
-        setScanSuccess(false);
-      }, 1000);
-    }, 1500);
+        if (!scanSuccess) setIsScanning(false);
+    }, 10000); 
   };
 
   const handleCardIdChange = (e: ChangeEvent<HTMLInputElement>): void => {
@@ -150,7 +180,6 @@ export default function CheckinPage() {
     }
   };
 
-  // --- New Handler for Setup Navigation ---
   const handleResetConfig = () => {
     navigate('/setup');
     resetAll();
@@ -160,7 +189,6 @@ export default function CheckinPage() {
     <div className="min-h-screen w-full flex bg-slate-950 text-white overflow-hidden">
       {/* --- LEFT SIDE: Visuals & Typewriter --- */}
       <div className="hidden lg:flex w-1/2 relative flex-col justify-between p-12 bg-slate-900 border-r border-slate-800">
-        {/* Background Image with Overlay */}
         <div className="absolute inset-0 z-0 opacity-40">
           <img
             src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop"
@@ -170,7 +198,6 @@ export default function CheckinPage() {
           <div className="absolute inset-0 bg-linear-to-b from-slate-900 via-slate-900/50 to-blue-950/80"></div>
         </div>
 
-        {/* Brand / Logo Area */}
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Terminal className="text-white w-6 h-6" />
@@ -178,7 +205,6 @@ export default function CheckinPage() {
           <span className="text-xl font-bold tracking-tight text-white">Dealio</span>
         </div>
 
-        {/* Typewriter Content */}
         <div className="relative z-10 max-w-md space-y-6">
           <h1 className="text-4xl md:text-5xl font-bold leading-tight">
             System Access <br />
@@ -200,20 +226,17 @@ export default function CheckinPage() {
           </div>
         </div>
 
-        {/* Footer Info */}
         <div className="relative z-10 text-xs text-slate-500">© 2025 Dealio Corporation. All rights reserved.</div>
       </div>
 
       {/* --- RIGHT SIDE: Login Form --- */}
       <div className="flex-1 flex items-center justify-center p-4 sm:p-8 relative">
-        {/* Mobile Background Elements (visible only on small screens) */}
         <div className="absolute inset-0 lg:hidden">
           <div className="absolute inset-0 bg-linear-to-br from-slate-950 via-blue-950 to-slate-950"></div>
         </div>
 
         <Card className="w-full max-w-md bg-transparent border-none shadow-none lg:bg-slate-900/50 lg:border lg:border-slate-800 lg:shadow-2xl relative z-20 backdrop-blur-sm">
           
-          {/* --- NEW: Config/Reset Button --- */}
           <Button
             variant="ghost"
             size="icon"
@@ -233,9 +256,9 @@ export default function CheckinPage() {
           </CardHeader>
 
           <CardContent className="space-y-6">
-            {/* Scan Button */}
+            {/* Scan Button - Now sets Visual State */}
             <Button
-              onClick={handleScan}
+              onClick={handleScanClick}
               disabled={isCheckingIn || isScanning}
               variant="outline"
               className={`w-full h-20 border-dashed transition-all duration-300 relative overflow-hidden group ${
@@ -246,7 +269,6 @@ export default function CheckinPage() {
                   : 'border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-blue-500/50'
               }`}
             >
-              {/* Scan Animation Line */}
               {isScanning && (
                 <div
                   className="absolute inset-0 bg-linear-to-b from-transparent via-blue-500/10 to-transparent animate-scan"
@@ -276,7 +298,7 @@ export default function CheckinPage() {
                     {isScanning ? 'Scanning...' : scanSuccess ? 'Card Verified' : 'Tap to Scan Badge'}
                   </span>
                   <span className="text-xs text-slate-500 hidden sm:inline-block">
-                    {isScanning ? 'Please wait' : scanSuccess ? 'Redirecting...' : 'Or use manual entry below'}
+                    {isScanning ? 'Waiting for card...' : scanSuccess ? 'Redirecting...' : 'Or use manual entry below'}
                   </span>
                 </div>
               </div>
@@ -368,7 +390,6 @@ export default function CheckinPage() {
           <CardFooter className="justify-center pb-0">
             <p className="text-xs text-slate-600 text-center">
               Terminal ID: <span className="text-slate-400 font-mono">{currentLocation?.name || 'Unknown'}</span>
-              {/* Displaying App Version Here */}
               <span className="mx-2">•</span>
               <span className="text-slate-500">v{appVersion}</span>
               <span className="mx-2">•</span>

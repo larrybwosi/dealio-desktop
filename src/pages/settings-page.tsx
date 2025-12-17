@@ -17,6 +17,7 @@ import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useScanner } from '@/hooks/use-scanner';
 import PrinterSettings from '@/components/printer.config';
+import { toast } from 'sonner';
 
 interface HidDevice {
   vid: number;
@@ -127,7 +128,7 @@ export default function SettingsPage() {
       tillNumber,
       enableCustomerDisplay,
     });
-    alert('Settings saved successfully!');
+    toast.success('Settings saved successfully!');
   };
 
   const handleBusinessTypeChange = (newType: BusinessType) => {
@@ -143,9 +144,9 @@ export default function SettingsPage() {
     setSyncing(false);
 
     if (result.success) {
-      alert('Data synced successfully!');
+      toast.success('Data synced successfully!');
     } else {
-      alert(`Sync failed: ${result.error}`);
+      toast.error(`Sync failed: ${result.error}`);
     }
   };
 
@@ -166,7 +167,7 @@ export default function SettingsPage() {
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="theme">Theme</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger> {/* Added notifications tab */}
+            <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
