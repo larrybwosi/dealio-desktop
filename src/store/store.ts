@@ -124,7 +124,7 @@ export interface ReceiptConfig {
 
   // Enterprise / Social
   showSocialMedia: boolean;
-  socialMediaHandle: string; // e.g., @dealio_pos
+  socialMediaHandle: string;
   showReturnPolicy: boolean;
   returnPolicyText: string;
 
@@ -137,35 +137,124 @@ export interface ReceiptConfig {
 
   // Content Granularity
   dateFormat: string;
-  showCashier: boolean; // "Served by..."
+  showCashier: boolean;
   showCustomerName: boolean;
-  showOrderType: boolean; // Dine-in / Takeaway
-  showPaymentMethod: boolean; // Card / Cash
+  showOrderType: boolean;
+  showPaymentMethod: boolean;
   showItemSku: boolean;
   showItemNotes: boolean;
 
   // Codes
   showBarcode: boolean;
   showQrCode: boolean;
-  qrCodeTarget: 'order-link' | 'review-link' | 'website'; // What the QR does
-  qrCodeCustomUrl?: string; // If target is review/website
+  qrCodeTarget: 'order-link' | 'review-link' | 'website' | 'survey';
+  qrCodeCustomUrl?: string;
 
   // Visuals
   template: 'standard' | 'minimal' | 'modern';
   showBorder: boolean;
   borderColor?: string;
+
+  // Advanced Branding (Enterprise)
+  accentColor: string;
+  showTagline: boolean;
+  tagline: string;
+
+  // Compliance & Legal (High-Traffic/Enterprise)
+  showVatNumber: boolean;
+  vatNumber: string;
+  showCompanyRegNumber: boolean;
+  companyRegNumber: string;
+  showLegalDisclaimer: boolean;
+  legalDisclaimerText: string;
+
+  // Localization
+  currency: string;
+  locale: string;
+  currencyPosition: 'before' | 'after';
+  thousandsSeparator: string;
+  decimalSeparator: string;
+
+  // Print Automation (High-Traffic)
+  printCopies: number;
+  autoPrintOnComplete: boolean;
+  printCustomerCopy: boolean;
+  printMerchantCopy: boolean;
+
+  // Totals & Breakdown Display
+  showSubtotal: boolean;
+  showTaxBreakdown: boolean;
+  showDiscountBreakdown: boolean;
+  showSavingsTotal: boolean;
+
+  // Customer Engagement
+  showLoyaltyPoints: boolean;
+  showLoyaltyBalance: boolean;
+  showNextVisitPromo: boolean;
+  nextVisitPromoText: string;
+  showSurveyQr: boolean;
+  surveyUrl: string;
+  showThankYouMessage: boolean;
+  thankYouMessage: string;
+
+  // Order Tracking
+  showOrderNumber: boolean;
+  showTransactionId: boolean;
+  orderNumberPrefix: string;
 }
 
 export interface KitchenTicketConfig {
+  // Basic Display Options
   showTime: boolean;
   showOrderType: boolean;
   showCustomerName: boolean;
   showTable: boolean;
-  showPrices: boolean; // Some kitchens don't need prices
+  showPrices: boolean;
   showNotes: boolean;
   fontSize: 'small' | 'medium' | 'large';
   paperSize: '80mm' | '58mm' | 'A5';
-  autoPrintCompleted: boolean; // Print when order is completed?
+  autoPrintCompleted: boolean;
+
+  // Station Routing (High-Traffic Feature)
+  enableStationRouting: boolean;
+  stations: string[]; // e.g., ['Grill', 'Bar', 'Prep', 'Dessert', 'Expo']
+  defaultStation: string;
+  printToAllStations: boolean;
+
+  // Priority & Urgency (Rush Hour Handling)
+  showPriority: boolean;
+  highlightRushOrders: boolean;
+  rushOrderColor: string;
+  rushOrderThresholdMinutes: number; // Orders older than this are marked rush
+
+  // Allergen & Dietary Alerts
+  showAllergens: boolean;
+  showDietaryIcons: boolean;
+  allergenHighlightColor: string;
+  dietaryLabels: string[]; // e.g., ['V', 'VG', 'GF', 'DF', 'H']
+
+  // Print Configuration
+  printCopies: number;
+  printDelaySeconds: number;
+  autoPrintNewOrders: boolean;
+  soundAlertOnNewOrder: boolean;
+
+  // Time Management
+  showEstimatedPrepTime: boolean;
+  showOrderAge: boolean;
+  showSequenceNumber: boolean;
+
+  // Visual Organization
+  compactMode: boolean;
+  showCategoryHeaders: boolean;
+  showModifiersSeparately: boolean;
+  largeQuantityDisplay: boolean;
+  showItemSeparators: boolean;
+
+  // Header/Footer Customization
+  headerText: string;
+  footerText: string;
+  showServerName: boolean;
 }
 
 export interface ThemeConfig {
@@ -433,8 +522,8 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
   // Branding
   showLogo: true,
   logoUrl: '',
-  logoWidth: 50, // Default to 50% width
-  logoPosition: 'center', // Center align logo by default
+  logoWidth: 50,
+  logoPosition: 'center',
 
   // Business Details
   headerText: 'Thank you for your purchase!',
@@ -452,7 +541,7 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
 
   // Enterprise / Social
   showSocialMedia: false,
-  socialMediaHandle: '', // e.g., @yourbusiness
+  socialMediaHandle: '',
   showReturnPolicy: false,
   returnPolicyText: 'Items may be returned within 7 days of purchase with original receipt.',
 
@@ -465,26 +554,74 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
 
   // Content Granularity
   dateFormat: 'yyyy-MM-dd HH:mm',
-  showCashier: true, // Useful for tracking who served the customer
-  showCustomerName: true, // Important for enterprise accounts
-  showOrderType: true, // Dine-in / Takeaway / Delivery
-  showPaymentMethod: true, // Card / Cash
+  showCashier: true,
+  showCustomerName: true,
+  showOrderType: true,
+  showPaymentMethod: true,
   showItemSku: false,
   showItemNotes: true,
 
   // Codes
   showBarcode: true,
   showQrCode: false,
-  qrCodeTarget: 'order-link', // Default to tracking link
+  qrCodeTarget: 'order-link',
   qrCodeCustomUrl: '',
 
   // Visuals
   template: 'standard',
   showBorder: false,
   borderColor: '#000000',
+
+  // Advanced Branding (Enterprise)
+  accentColor: '#2563eb',
+  showTagline: false,
+  tagline: '',
+
+  // Compliance & Legal
+  showVatNumber: false,
+  vatNumber: '',
+  showCompanyRegNumber: false,
+  companyRegNumber: '',
+  showLegalDisclaimer: false,
+  legalDisclaimerText: '',
+
+  // Localization
+  currency: 'USD',
+  locale: 'en-US',
+  currencyPosition: 'before',
+  thousandsSeparator: ',',
+  decimalSeparator: '.',
+
+  // Print Automation
+  printCopies: 1,
+  autoPrintOnComplete: false,
+  printCustomerCopy: true,
+  printMerchantCopy: false,
+
+  // Totals & Breakdown Display
+  showSubtotal: true,
+  showTaxBreakdown: true,
+  showDiscountBreakdown: true,
+  showSavingsTotal: false,
+
+  // Customer Engagement
+  showLoyaltyPoints: false,
+  showLoyaltyBalance: false,
+  showNextVisitPromo: false,
+  nextVisitPromoText: 'Visit again for 10% off!',
+  showSurveyQr: false,
+  surveyUrl: '',
+  showThankYouMessage: true,
+  thankYouMessage: 'Thank you for dining with us!',
+
+  // Order Tracking
+  showOrderNumber: true,
+  showTransactionId: false,
+  orderNumberPrefix: 'ORD-',
 });
 
 export const getDefaultKitchenTicketConfig = (): KitchenTicketConfig => ({
+  // Basic Display Options
   showTime: true,
   showOrderType: true,
   showCustomerName: true,
@@ -494,6 +631,47 @@ export const getDefaultKitchenTicketConfig = (): KitchenTicketConfig => ({
   fontSize: 'medium',
   paperSize: '80mm',
   autoPrintCompleted: false,
+
+  // Station Routing (High-Traffic)
+  enableStationRouting: false,
+  stations: ['Grill', 'Bar', 'Prep', 'Dessert', 'Expo'],
+  defaultStation: 'Expo',
+  printToAllStations: false,
+
+  // Priority & Urgency (Rush Hour)
+  showPriority: true,
+  highlightRushOrders: true,
+  rushOrderColor: '#ef4444',
+  rushOrderThresholdMinutes: 15,
+
+  // Allergen & Dietary Alerts
+  showAllergens: true,
+  showDietaryIcons: true,
+  allergenHighlightColor: '#f59e0b',
+  dietaryLabels: ['V', 'VG', 'GF', 'DF', 'H'],
+
+  // Print Configuration
+  printCopies: 1,
+  printDelaySeconds: 0,
+  autoPrintNewOrders: true,
+  soundAlertOnNewOrder: true,
+
+  // Time Management
+  showEstimatedPrepTime: false,
+  showOrderAge: true,
+  showSequenceNumber: true,
+
+  // Visual Organization
+  compactMode: false,
+  showCategoryHeaders: true,
+  showModifiersSeparately: true,
+  largeQuantityDisplay: true,
+  showItemSeparators: true,
+
+  // Header/Footer Customization
+  headerText: 'KITCHEN ORDER',
+  footerText: '',
+  showServerName: true,
 });
 
 const getDefaultThemeConfig = (): ThemeConfig => ({

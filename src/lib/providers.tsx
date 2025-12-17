@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { useState } from "react" // Added useState
 import { useEffect } from "react"
 import { usePosStore } from "@/store/store"
 import { NotificationToast } from "@/components/notification-toast"
@@ -10,11 +10,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { UpdaterProvider } from "./UpdateProvider"
 import { UpdateDialog } from "@/components/update.dialog"
 import AblyInitializer from "./AblyProvider"
+import { ServerNotificationProvider } from "./providers/ServerNotificationProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
   const checkLowStockAlerts = usePosStore((state) => state.checkLowStockAlerts)
-  const queryClient = new QueryClient();
+
+  const [queryClient] = useState(() => new QueryClient())
 
   useEffect(() => {
     const root = document.documentElement
@@ -33,9 +35,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         root.classList.remove("dark")
       }
     }
-
-    // Custom colors would require proper oklch conversion to work with Tailwind v4
-    // For now, using the default theme colors defined in globals.css
 
     // Apply font size
     if (themeConfig.fontSize === "small") {
@@ -71,15 +70,36 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
-    <AblyInitializer/>
+      <AblyInitializer/>
       <NotificationToast />
       <QueryClientProvider client={queryClient}>
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
-          {children}
-          <UpdateDialog />
+          <ServerNotificationProvider>
+            {children}
+            <UpdateDialog />
+          </ServerNotificationProvider>
         </UpdaterProvider>
       </QueryClientProvider>
-      <Toaster />
+      
+      {/* Custom Desktop POS Toaster Configuration */}
+      <Toaster 
+        position="top-right" 
+        richColors 
+        expand={true} 
+        closeButton={true}
+        duration={4000}
+        visibleToasts={6}
+        theme={themeConfig.mode === "dark" ? "dark" : "light"}
+        offset={16}
+        toastOptions={{
+          // Adds clearer borders and shadows for better visibility on busy screens
+          className: "border border-border shadow-lg font-medium",
+          style: {
+             // Ensures toasts are readable even if tailwind classes fail to load
+             minWidth: '300px',
+          }
+        }}
+      />
     </>
   );
 }
