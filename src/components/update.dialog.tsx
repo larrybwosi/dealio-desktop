@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { useUpdater } from '@/lib/UpdateProvider';
+import { useUpdater } from '@/lib/providers/UpdateProvider';
 import { X, Download, RotateCw, AlertCircle, ShieldAlert } from 'lucide-react';
 
 export const UpdateDialog = () => {

@@ -88,8 +88,8 @@ function KitchenTicketPreview({ order, config }: { order: any; config: KitchenTi
   return (
     <div className={cn("bg-white text-black p-4 font-mono shadow-lg mx-auto rounded", fontSize, width)} style={{ minHeight: 350 }}>
       <div className="text-center border-b-2 border-black pb-2 mb-3">
-        <div className="font-bold text-lg">{config.headerText || 'KITCHEN ORDER'}</div>
-        {config.showSequenceNumber && <div className="text-3xl font-black my-1">#{order.orderNumber?.slice(-3) || '001'}</div>}
+        <div className="font-bold text-sm uppercase">{config.headerText || 'KITCHEN ORDER'}</div>
+        {config.showSequenceNumber && <div className="text-xl font-bold my-1">{order.orderNumber || 'ORD-001'}</div>}
       </div>
 
       <div className="space-y-1 mb-3 text-xs">

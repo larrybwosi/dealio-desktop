@@ -252,6 +252,9 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
             <Image src={config.logoUrl} style={styles.logo} />
           )}
           <Text style={styles.businessName}>{settings.businessName || 'Cake Panier'}</Text>
+          {config.showTagline && config.tagline && (
+            <Text style={[styles.contactInfo, { fontStyle: 'italic' }]}>{config.tagline}</Text>
+          )}
           {settings.businessSlogan && (
              <Text style={styles.slogan}>{settings.businessSlogan}</Text>
           )}
@@ -268,6 +271,15 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
           {(settings.website) && (
             <Text style={styles.contactInfo}>{settings.website}</Text>
           )}
+          {config.showTaxNumber && config.taxNumber && (
+            <Text style={styles.contactInfo}>Tax ID: {config.taxNumber}</Text>
+          )}
+          {config.showVatNumber && config.vatNumber && (
+            <Text style={styles.contactInfo}>VAT: {config.vatNumber}</Text>
+          )}
+          {config.showCompanyRegNumber && config.companyRegNumber && (
+            <Text style={styles.contactInfo}>Reg: {config.companyRegNumber}</Text>
+          )}
         </View>
 
         {/* === RECEIPT TITLE === */}
@@ -277,10 +289,21 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
         {/* === META (Order & Date) === */}
         <View style={styles.metaContainer}>
-          <Text style={styles.metaText}>Order: {order.orderNumber}</Text>
+          {config.showOrderNumber !== false && (
+            <Text style={styles.metaText}>Order: {order.orderNumber}</Text>
+          )}
           <Text style={styles.metaText}>
             {order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm')}
           </Text>
+          {config.showOrderType && order.orderType && (
+            <Text style={styles.metaText}>Type: {order.orderType.toUpperCase()}</Text>
+          )}
+          {config.showCustomerName && order.customerName && (
+            <Text style={styles.metaText}>Customer: {order.customerName}</Text>
+          )}
+          {config.showCashier && order.cashierName && (
+            <Text style={styles.metaText}>Served by: {order.cashierName}</Text>
+          )}
         </View>
 
         {/* === ITEMS === */}
@@ -324,14 +347,16 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
         {/* === TOTALS === */}
         <View style={styles.totalsContainer}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal:</Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(order.subTotal || 0, currency)}
-            </Text>
-          </View>
+          {config.showSubtotal !== false && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Subtotal:</Text>
+              <Text style={styles.totalValue}>
+                {formatCurrency(order.subTotal || 0, currency)}
+              </Text>
+            </View>
+          )}
           
-          {order.discount > 0 && (
+          {config.showDiscountBreakdown !== false && order.discount > 0 && (
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Discount:</Text>
               <Text style={styles.totalValue}>
@@ -340,12 +365,23 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
             </View>
           )}
           
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Tax:</Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(order.taxes || 0, currency)}
-            </Text>
-          </View>
+          {config.showTaxBreakdown !== false && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Tax:</Text>
+              <Text style={styles.totalValue}>
+                {formatCurrency(order.taxes || 0, currency)}
+              </Text>
+            </View>
+          )}
+
+          {config.showSavingsTotal && order.discount > 0 && (
+            <View style={styles.totalRow}>
+              <Text style={[styles.totalLabel, { color: '#16a34a' }]}>You Saved:</Text>
+              <Text style={[styles.totalValue, { color: '#16a34a' }]}>
+                {formatCurrency(order.discount, currency)}
+              </Text>
+            </View>
+          )}
 
           <View style={styles.grandTotalRow}>
             <Text style={styles.grandTotalText}>TOTAL:</Text>
@@ -370,14 +406,55 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
         {/* === FOOTER === */}
         <View style={styles.footerContainer}>
-          <Text style={styles.footerMessage}>Thank you for your business!</Text>
+          {config.showThankYouMessage && config.thankYouMessage ? (
+            <Text style={styles.footerMessage}>{config.thankYouMessage}</Text>
+          ) : (
+            <Text style={styles.footerMessage}>Thank you for your business!</Text>
+          )}
+
+          {config.showNextVisitPromo && config.nextVisitPromoText && (
+            <Text style={[styles.footerContact, { marginTop: 4 }]}>
+              🎁 {config.nextVisitPromoText}
+            </Text>
+          )}
+
+          {(config.showLoyaltyPoints || config.showLoyaltyBalance) && (
+            <View style={{ marginTop: 4 }}>
+              {config.showLoyaltyPoints && (
+                <Text style={styles.footerContact}>Points Earned: +{Math.floor((order.total || 0) / 10)}</Text>
+              )}
+              {config.showLoyaltyBalance && (
+                <Text style={styles.footerContact}>Loyalty Balance: 150 pts</Text>
+              )}
+            </View>
+          )}
           
           {settings.email && (
             <Text style={styles.footerContact}>Questions? Email: {settings.email}</Text>
           )}
+
+          {config.showReturnPolicy && config.returnPolicyText && (
+            <Text style={[styles.footerContact, { marginTop: 4, fontSize: baseFontSize - 2 }]}>
+              Return Policy: {config.returnPolicyText}
+            </Text>
+          )}
+
+          {config.showLegalDisclaimer && config.legalDisclaimerText && (
+            <Text style={[styles.footerContact, { marginTop: 4, fontSize: baseFontSize - 2, color: '#888' }]}>
+              {config.legalDisclaimerText}
+            </Text>
+          )}
           
           {config.showQrCode && qrCodeUrl && (
              <Image src={qrCodeUrl} style={{ width: 50, height: 50, marginVertical: 5 }} />
+          )}
+
+          {config.showSurveyQr && config.surveyUrl && (
+            <Text style={[styles.footerContact, { marginTop: 4 }]}>Rate us: {config.surveyUrl}</Text>
+          )}
+
+          {config.showSocialMedia && config.socialMediaHandle && (
+            <Text style={[styles.footerContact, { fontWeight: 'bold' }]}>Connect: {config.socialMediaHandle}</Text>
           )}
 
           <Text style={styles.footerKeepRecord}>Keep this receipt for your records</Text>

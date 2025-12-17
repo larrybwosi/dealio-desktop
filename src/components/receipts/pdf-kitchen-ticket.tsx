@@ -16,13 +16,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   title: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: "bold",
     marginBottom: 2,
     textTransform: "uppercase",
   },
   orderNumber: {
-    fontSize: 30, // Large, high-priority
+    fontSize: 22,
     fontWeight: "bold",
     marginBottom: 5,
   },
@@ -177,7 +177,7 @@ export const PDFKitchenTicket = ({ order, kitchenTicketConfig }: PDFKitchenTicke
         {/* ----------------- Header ----------------- */}
         <View style={styles.ticketHeader}>
           <Text style={styles.title}>KITCHEN ORDER</Text>
-          <Text style={styles.orderNumber}># {order.orderNumber}</Text>
+          <Text style={styles.orderNumber}>{order.orderNumber}</Text>
         </View>
 
         {/* ----------------- Order Info ----------------- */}

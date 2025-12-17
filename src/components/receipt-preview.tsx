@@ -103,6 +103,10 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
               {activeSettings.businessName}
             </div>
 
+            {config.showTagline && config.tagline && (
+              <div className="text-gray-500 text-[0.85em] italic">{config.tagline}</div>
+            )}
+
             {config.headerText && (
               <div className="whitespace-pre-wrap text-gray-600 font-medium opacity-90">{config.headerText}</div>
             )}
@@ -113,6 +117,8 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
               {config.showEmail && <div>{config.email}</div>}
               {config.showWebsite && <div>{config.website}</div>}
               {config.showTaxNumber && <div>Tax ID: {config.taxNumber}</div>}
+              {config.showVatNumber && config.vatNumber && <div>VAT: {config.vatNumber}</div>}
+              {config.showCompanyRegNumber && config.companyRegNumber && <div>Reg: {config.companyRegNumber}</div>}
             </div>
           </div>
 
@@ -120,14 +126,22 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
 
           {/* --- METADATA --- */}
           <div className="mb-4 space-y-1 text-[0.9em]">
-            <div className="flex justify-between">
-              <span className="text-gray-500">Order</span>
-              <span className="font-bold">{order.orderNumber}</span>
-            </div>
+            {config.showOrderNumber !== false && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Order</span>
+                <span className="font-bold">{order.orderNumber}</span>
+              </div>
+            )}
             <div className="flex justify-between">
               <span className="text-gray-500">Date</span>
               <span>{getFormattedDate(order.createdAt)}</span>
             </div>
+            {config.showOrderType && order.orderType && (
+              <div className="flex justify-between">
+                <span className="text-gray-500">Type</span>
+                <span className="font-medium uppercase">{order.orderType}</span>
+              </div>
+            )}
             {config.showCustomerName && order.customerName && (
               <div className="flex justify-between">
                 <span className="text-gray-500">Client</span>
@@ -172,13 +186,15 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
 
           {/* --- TOTALS --- */}
           <div className={cn('space-y-1 pt-2', !isModern && 'border-t border-dashed border-gray-400')}>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Subtotal</span>
-              <span>
-                {activeSettings.currency} {order.subTotal.toLocaleString()}
-              </span>
-            </div>
-            {order.discount > 0 && (
+            {config.showSubtotal !== false && (
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span>
+                  {activeSettings.currency} {order.subTotal.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {config.showDiscountBreakdown !== false && order.discount > 0 && (
               <div className="flex justify-between text-gray-600">
                 <span>Discount</span>
                 <span>
@@ -186,12 +202,22 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-gray-600">
-              <span>Tax</span>
-              <span>
-                {activeSettings.currency} {order.taxes.toLocaleString()}
-              </span>
-            </div>
+            {config.showTaxBreakdown !== false && (
+              <div className="flex justify-between text-gray-600">
+                <span>Tax</span>
+                <span>
+                  {activeSettings.currency} {order.taxes.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {config.showSavingsTotal && order.discount > 0 && (
+              <div className="flex justify-between text-green-600 text-[0.9em]">
+                <span>You Saved</span>
+                <span>
+                  {activeSettings.currency} {order.discount.toLocaleString()}
+                </span>
+              </div>
+            )}
             <div className="flex justify-between font-bold text-lg pt-2 mt-1 border-t border-black">
               <span>TOTAL</span>
               <span>
@@ -208,12 +234,42 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
 
           {/* --- FOOTER --- */}
           <div className={cn('mt-6 space-y-4', alignClass)}>
+            {config.showThankYouMessage && config.thankYouMessage && (
+              <div className="font-bold text-center text-[1.1em]">{config.thankYouMessage}</div>
+            )}
+
             {config.footerText && <div className="font-medium opacity-80">{config.footerText}</div>}
+
+            {config.showNextVisitPromo && config.nextVisitPromoText && (
+              <div className="text-[0.9em] text-center bg-gray-100 border border-dashed border-gray-300 p-2 rounded">
+                <span className="font-bold">🎁</span> {config.nextVisitPromoText}
+              </div>
+            )}
+
+            {(config.showLoyaltyPoints || config.showLoyaltyBalance) && (
+              <div className="text-[0.85em] text-center bg-yellow-50 border border-yellow-200 p-2 rounded">
+                {config.showLoyaltyPoints && <div>Points Earned: <span className="font-bold">+{Math.floor(order.total / 10)}</span></div>}
+                {config.showLoyaltyBalance && <div>Loyalty Balance: <span className="font-bold">150 pts</span></div>}
+              </div>
+            )}
 
             {config.showReturnPolicy && config.returnPolicyText && (
               <div className="text-[0.85em] text-gray-500 border p-2 rounded bg-gray-50">
                 <span className="font-bold block text-[0.8em] uppercase mb-0.5">Policy</span>
                 {config.returnPolicyText}
+              </div>
+            )}
+
+            {config.showLegalDisclaimer && config.legalDisclaimerText && (
+              <div className="text-[0.75em] text-gray-400 border-t pt-2 mt-2">
+                {config.legalDisclaimerText}
+              </div>
+            )}
+
+            {config.showBarcode && (
+              <div className={cn('flex flex-col', alignClass === 'text-center' ? 'items-center' : 'items-start')}>
+                <div className="h-8 w-32 bg-gradient-to-r from-black via-white to-black bg-[length:4px_100%] bg-repeat" />
+                <span className="text-[8px] mt-1 text-gray-400 font-mono tracking-widest">{order.orderNumber}</span>
               </div>
             )}
 
@@ -224,7 +280,13 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
               </div>
             )}
 
-             {config.showSocialMedia && config.socialMediaHandle && (
+            {config.showSurveyQr && config.surveyUrl && (
+              <div className="text-[0.8em] text-center text-gray-500">
+                📝 Rate us: <span className="underline">{config.surveyUrl}</span>
+              </div>
+            )}
+
+            {config.showSocialMedia && config.socialMediaHandle && (
               <div className="flex items-center gap-1 justify-center text-sm font-bold">
                  <span>Connect:</span>
                  <span>{config.socialMediaHandle}</span>

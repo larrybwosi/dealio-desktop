@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { UpdaterProvider } from "./UpdateProvider"
 import { UpdateDialog } from "@/components/update.dialog"
 import AblyInitializer from "./AblyProvider"
-import { ServerNotificationProvider } from "./providers/ServerNotificationProvider"
+import { ServerNotificationProvider } from "./ServerNotificationProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)

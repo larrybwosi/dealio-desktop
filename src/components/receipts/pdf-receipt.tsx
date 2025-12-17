@@ -1,14 +1,31 @@
 "use client"
 
-import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
+import { Document, Page, Text, View, StyleSheet, Image, Font } from "@react-pdf/renderer"
 import type { Order } from "@/store/store"
 import { format } from "date-fns"
+
+Font.register({
+  family: 'Roboto',
+  fonts: [
+    { src: '/fonts/Roboto-Regular.ttf' },
+    { src: '/fonts/Roboto-Bold.ttf', fontWeight: 'bold' },
+    { src: '/fonts/Roboto-Italic.ttf', fontStyle: 'italic' }
+  ]
+});
+
+Font.register({
+  family: 'CourierPrime',
+  fonts: [
+    { src: '/fonts/CourierPrime-Regular.ttf' },
+    { src: '/fonts/CourierPrime-Bold.ttf', fontWeight: 'bold' }
+  ]
+});
 
 const styles = StyleSheet.create({
   page: {
     padding: 10,
     fontSize: 10,
-    fontFamily: "Helvetica",
+    fontFamily: "Roboto",
   },
   header: {
     textAlign: "center",
