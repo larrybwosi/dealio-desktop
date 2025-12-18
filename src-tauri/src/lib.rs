@@ -116,6 +116,17 @@ fn list_hid_devices() -> Result<Vec<(u16, u16, String)>, String> {
 
 // The Main Scanner Command ---
 #[tauri::command]
+fn close_splashscreen(app: AppHandle) {
+    if let Some(splashscreen) = app.get_webview_window("splashscreen") {
+        let _ = splashscreen.close();
+    }
+    if let Some(main) = app.get_webview_window("main") {
+        let _ = main.show();
+        let _ = main.set_focus();
+    }
+}
+
+#[tauri::command]
 fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<String, String> {
     let vid = u16::from_str_radix(vid_hex.trim_start_matches("0x"), 16)
         .map_err(|_| "Invalid Vendor ID format")?;
@@ -367,6 +378,7 @@ pub fn run() {
             start_nfc_listener,
             get_serial_ports, 
             open_cash_drawer,
+            close_splashscreen,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

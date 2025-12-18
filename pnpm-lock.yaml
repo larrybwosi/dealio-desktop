@@ -108,7 +108,7 @@ importers:
         specifier: ^2.9.0
         version: 2.9.0
       '@tauri-apps/plugin-autostart':
-        specifier: ~2.5.1
+        specifier: ~2
         version: 2.5.1
       '@tauri-apps/plugin-clipboard-manager':
         specifier: ~2.3.2

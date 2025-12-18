@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router';
+import { useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
@@ -66,6 +68,14 @@ const AppRoutes = () => {
 
 const DynamicRenderer = () => {
   useSessionActivityListener();
+
+  useEffect(() => {
+    // Small delay to ensure everything is rendered
+    const timer = setTimeout(() => {
+      invoke('close_splashscreen').catch(console.error);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <Router>
