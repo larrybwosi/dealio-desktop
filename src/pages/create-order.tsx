@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, memo, useMemo, useEffect } from 'react';
+import { useState, memo, useMemo, useEffect } from 'react';
 import { useForm, useFieldArray, Controller, useWatch, Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -95,9 +95,6 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
   
   const { 
     products: data,
-    fetchNextPage, 
-    hasNextPage, 
-    isFetchingNextPage, 
     isSyncing
   } = usePosProducts({ 
     search: debouncedSearch, 
@@ -128,18 +125,6 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
   const displayText = selectedProduct 
     ? `${selectedProduct.productName} - ${selectedProduct.variantName}` 
     : (value ? "Item Selected (Search to change)" : "Select product...");
-
-  const observer = useRef<IntersectionObserver>(null);
-  const lastElementRef = useCallback((node: HTMLDivElement) => {
-    if (isFetchingNextPage) return;
-    if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasNextPage) {
-        fetchNextPage();
-      }
-    });
-    if (node) observer.current.observe(node);
-  }, [isFetchingNextPage, hasNextPage, fetchNextPage]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -178,7 +163,7 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
 
             <CommandGroup>
               {products.map((product, index) => {
-                 const isLast = index === products.length - 1;
+                //  const isLast = index === products.length - 1;
                  return (
                   <CommandItem
                     key={`${product.variantId}-${index}`}
@@ -187,7 +172,6 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
                       onSelect(product);
                       setOpen(false);
                     }}
-                    ref={isLast ? lastElementRef : undefined}
                     className="cursor-pointer"
                   >
                     <Check
@@ -209,9 +193,6 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
                   </CommandItem>
                 );
               })}
-              {isFetchingNextPage && (
-                <div className="p-2 text-xs text-center text-muted-foreground">Loading more...</div>
-              )}
             </CommandGroup>
           </CommandList>
         </Command>
