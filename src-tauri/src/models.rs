@@ -1,43 +1,93 @@
 use serde::{Deserialize, Serialize};
 
+// --- Response Wrapper ---
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductsSyncResponse {
+    pub products: Vec<PosProduct>,
+    // The API returns 'pagination', but we might not use it yet. 
+    // We add it here so Serde doesn't get confused, but we can ignore it if we want.
+    pub pagination: Option<Pagination>,
+    // If your API sends the timestamp in the body, keep this. 
+    // If it's missing in the JSON you pasted, we make it Option to prevent crashes.
+    pub sync_timestamp: Option<String>, 
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Pagination {
+    pub total: i32,
+    pub pages: i32,
+    pub page: i32,
+    pub limit: i32,
+}
+
+// --- 1. Product ---
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PosProduct {
+    pub product_id: String,
+    
+    // MAP JSON "name" -> Rust "product_name"
+    #[serde(rename = "name")] 
+    pub product_name: String,
+
+    pub category: String,
+    
+    // Make optional as some products might not have images
+    pub image_url: Option<String>, 
+    
+    // New field seen in your JSON
+    pub total_stock: Option<i32>, 
+
+    pub variants: Vec<Variant>,
+}
+
+// --- 2. Variant ---
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Variant {
+    pub variant_id: String,
+
+    // MAP JSON "name" -> Rust "variant_name"
+    // THIS FIXES YOUR ERROR (missing field `variantName`)
+    #[serde(rename = "name")] 
+    pub variant_name: String,
+
+    pub sku: String,
+    pub barcode: Option<String>,
+    pub stock: i32,
+
+    pub sellable_units: Vec<SellableUnit>,
+}
+
+// --- 3. Sellable Unit ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SellableUnit {
     pub unit_id: String,
     pub unit_name: String,
     pub price: f64,
+    pub wholesale_price: Option<f64>, // Added based on your JSON
     pub conversion: f64,
     pub is_base_unit: bool,
+    
+    // Nested Pricing Rules
+    pub pricing: Option<Vec<PricingRule>>, 
 }
 
+// --- 4. Pricing Rules ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct Variant {
-    pub variant_id: String,
-    pub variant_name: String,
-    pub barcode: String,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PosProduct {
-    pub product_id: String,
-    pub product_name: String,
-    pub variant_id: String,
-    pub variant_name: String,
-    pub category: String,
-    pub sku: String,
-    pub barcode: Option<String>,
-    pub image_url: Option<String>,
-    pub stock: f64,
-    pub sellable_units: Vec<SellableUnit>,
-    pub variants: Vec<Variant>,
-    pub updated_at: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ProductsSyncResponse {
-    pub products: Vec<PosProduct>,
-    pub sync_timestamp: Option<String>,
+pub struct PricingRule {
+    pub price: f64,
+    pub min_qty: i32,
+    pub max_qty: Option<i32>, // Nullable in JSON
+    pub list_id: String,
+    pub list_name: String,
+    pub list_code: String,
+    pub priority: i32,
+    
+    // These dates can be null
+    pub valid_from: Option<String>, 
+    pub valid_to: Option<String>,   
 }

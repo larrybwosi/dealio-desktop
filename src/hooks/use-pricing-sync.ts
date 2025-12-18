@@ -105,7 +105,7 @@ const processAndSaveSyncData = async (
     return currentLastSync;
   }
   
-  console.log(`Processing ${metadata.isDelta ? 'Delta' : 'Full'} Sync...`);
+  // console.log(`Processing ${metadata.isDelta ? 'Delta' : 'Full'} Sync...`);
 
   try {
     let newData: PosPricingData;

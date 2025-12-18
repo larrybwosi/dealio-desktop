@@ -1,7 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
+import { useEffect } from 'react';
 
 // --- Types ---
 
@@ -41,74 +42,76 @@ interface UsePosProductsParams {
   enabled?: boolean;
 }
 
+// ... imports
+
 export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
-  const queryClient = useQueryClient();
-  
-  // 1. Get Auth Data from Store
   const { currentLocation, deviceKey, memberToken } = useAuthStore();
   const locationId = currentLocation?.id;
 
-  // 2. Query: Search Local Rust Memory (Fast)
-  const { data: products = [] } = useQuery({
-    queryKey: ['pos-products', search, category],
+  // 1. Search Query (Keep this as is, but ensure search is a string)
+  // Default search to "" to prevent Rust serialization errors if undefined
+  const safeSearch = search || ""; 
+  
+  const { data: products = [], isLoading: isSearching } = useQuery({
+    queryKey: ['pos-products', safeSearch, category],
     queryFn: async () => {
-      // Rust command matches 'search_products_command' in lib.rs
       return await invoke<PosProduct[]>('search_products_command', {
-        query: search,
+        query: safeSearch,
         category: category,
       });
     },
     staleTime: 0, 
-    placeholderData: (prev) => prev, // Keeps list stable while typing
+    placeholderData: (prev) => prev,
   });
 
-  // 3. Mutation: Trigger Sync
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (!locationId) throw new Error("No Location ID");
-
-      console.log("Creating Rust Sync Command...");
+      if (!locationId) {
+        console.error("STOPPING: No Location ID found");
+        throw new Error("No Location ID");
+      }
       
-      // Rust command matches 'sync_products_command' in lib.rs
-      // Note: We pass the raw API_ENDPOINT, Rust will append /api/v1...
-      return await invoke('sync_products_command', {
-        base_url: API_ENDPOINT, 
-        location_id: locationId,
-        device_key: deviceKey,    // Pass the Device Key
-        member_token: memberToken   // Pass the Member Token
-      });
+      const payload = {
+      baseUrl: API_ENDPOINT,
+      locationId: locationId,
+      deviceKey: deviceKey ?? null,     // MUST be null if missing
+      memberToken: memberToken ?? null  // MUST be null if missing
+    };
+
+    // console.log("Sending Payload to Rust:", payload);
+
+    // 2. Invoke with the clean payload
+    const res = await invoke('sync_products_command', payload);
+    // console.log("RUST RESPONSE:", res);
+    return res;
     },
-    onSuccess: (message) => {
-      console.log("Rust Sync Success:", message);
-      // Invalidate to refresh the local search results with new data
-      queryClient.invalidateQueries({ queryKey: ['pos-products'] });
-    },
-    onError: (err) => {
-      console.error("Rust Sync Failed:", err);
-    }
+    onError: (err) => console.error("INVOKE FAILED:", err)
   });
 
-  // 4. Background Sync (Every hour)
-  useQuery({
-    queryKey: ['auto-sync-trigger', locationId],
-    enabled: !!locationId && !!deviceKey && enabled,
-    queryFn: async () => {
-      await syncMutation.mutateAsync();
-      return true;
-    },
-    refetchInterval: 1000 * 60 * 60, // 1 Hour
-    refetchOnWindowFocus: false,
-    retry: false
-  });
+  useEffect(() => {
+    if (enabled && locationId && deviceKey) {
+      syncMutation.mutate();
+    } else {
+        console.log("SKIPPING SYNC: Missing requirements");
+    }
+  }, [locationId, deviceKey, enabled]);
+
+  // 4. OPTIONAL: Background Interval (If you still want hourly sync)
+  useEffect(() => {
+    if (!enabled || !locationId) return;
+    const interval = setInterval(() => {
+      syncMutation.mutate();
+    }, 1000 * 60 * 60); // 1 Hour
+    return () => clearInterval(interval);
+  }, [enabled, locationId]);
 
   return {
     products,
+    // Combine loading states so the UI knows if we are "initially loading"
+    // or just "syncing in background"
+    isLoading: isSearching && products.length === 0, 
     isSyncing: syncMutation.isPending,
     triggerSync: syncMutation.mutate,
     totalCount: products.length,
-    // Add pagination stubs if your UI expects them, 
-    // though searching usually negates traditional page numbers
-    fetchNextPage: () => {}, 
-    hasNextPage: false,
   };
 }

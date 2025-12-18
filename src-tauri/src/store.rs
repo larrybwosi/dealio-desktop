@@ -4,11 +4,11 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use crate::models::{PosProduct, ProductsSyncResponse};
-use anyhow::Result;
+use anyhow::{Result, Context};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
 const STORE_FILENAME: &str = "pos_products.json";
-const TIMEOUT_SECONDS: u64 = 10;
+const TIMEOUT_SECONDS: u64 = 15;
 
 // --- State Management ---
 pub struct ProductState {
@@ -26,52 +26,59 @@ impl ProductState {
 }
 
 // --- Helper: File Path ---
-fn get_store_path(app: &AppHandle) -> PathBuf {
-    let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
+fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
+    let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
+    
     if !app_dir.exists() {
-        let _ = fs::create_dir_all(&app_dir);
+        fs::create_dir_all(&app_dir).context("Failed to create App Data Directory")?;
     }
-    app_dir.join(STORE_FILENAME)
+    
+    Ok(app_dir.join(STORE_FILENAME))
 }
 
 // --- 1. Load Data on Startup ---
 pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<()> {
-    let path = get_store_path(app);
+    let path = get_store_path(app)?;
+    
     if path.exists() {
-        let content = fs::read_to_string(path)?;
-        // We expect JSON: [last_sync_string, [product_list]]
-        let data: (Option<String>, Vec<PosProduct>) = serde_json::from_str(&content)?;
-        
-        *state.last_sync.lock().unwrap() = data.0;
-        *state.products.lock().unwrap() = data.1;
-        println!("Loaded {} products from disk.", state.products.lock().unwrap().len());
+        let content = fs::read_to_string(path).context("Failed to read store file")?;
+        let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
+
+        if let Ok((last_sync, products)) = data {
+            *state.last_sync.lock().unwrap() = last_sync;
+            *state.products.lock().unwrap() = products;
+        }
     }
     Ok(())
 }
 
-// --- 2. Sync Engine (Replicating Axios Logic) ---
+// --- 2. Sync Engine ---
 pub async fn run_sync(
     app: AppHandle,
     state: &ProductState,
     base_url: String,
     location_id: String,
-    device_key: Option<String>, // Passed from Frontend
-    member_token: Option<String> // Passed from Frontend
+    device_key: Option<String>,
+    member_token: Option<String>
 ) -> Result<usize> {
     
+    if base_url.is_empty() {
+        return Err(anyhow::anyhow!("Base URL is empty"));
+    }
+
+    let clean_base_url = base_url.trim_end_matches('/');
+    let target_url = format!("{}/api/v1/pos/products", clean_base_url);
     let last_sync_time = state.last_sync.lock().unwrap().clone();
     
-    // --- BUILD HEADERS (Matches Axios Interceptor) ---
+    // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
     
-    // 1. X-Device-Api-Key
     if let Some(key) = device_key {
         let mut val = HeaderValue::from_str(&key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
         val.set_sensitive(true);
         headers.insert("X-Device-Api-Key", val);
     }
 
-    // 2. Authorization: Bearer <token>
     if let Some(token) = member_token {
         let auth_val = format!("Bearer {}", token);
         let mut val = HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
@@ -86,39 +93,42 @@ pub async fn run_sync(
 
     // --- PREPARE PARAMS ---
     let mut query_params = vec![
-        ("locationId", location_id),
+        ("locationId", location_id.clone()),
         ("page", "1".to_string()),
-        ("limit", "1000".to_string()), // Adjust limit as needed
+        ("limit", "2000".to_string()), 
         ("categoryId", "all".to_string()),
     ];
 
     if let Some(ts) = &last_sync_time {
-        println!("Fetching Delta since: {}", ts);
         query_params.push(("lastSync", ts.clone()));
-    } else {
-        println!("Fetching FULL Product list...");
     }
 
-    // --- FETCH ---
-    let res = client.get(format!("{}/api/v1/pos/products", base_url))
+    // --- EXECUTE REQUEST ---
+    let response = client.get(&target_url)
         .query(&query_params)
         .send()
-        .await?
-        .error_for_status()? // Throws error if 401/500
-        .json::<ProductsSyncResponse>()
-        .await?;
+        .await
+        .context("Failed to send request to server")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(anyhow::anyhow!("Server returned error: {} - {}", status, error_text));
+    }
+
+    let res_body = response.json::<ProductsSyncResponse>().await
+        .context("Failed to parse server response JSON")?;
 
     // --- MERGE LOGIC ---
     let mut products_guard = state.products.lock().unwrap();
     
-    // Convert Vec to Map for O(1) merging
     let mut product_map: HashMap<String, PosProduct> = products_guard
         .drain(..)
         .map(|p| (p.product_id.clone(), p))
         .collect();
 
-    // Upsert new/updated products
-    for product in res.products {
+    let incoming_count = res_body.products.len();
+    for product in res_body.products {
         product_map.insert(product.product_id.clone(), product);
     }
 
@@ -126,31 +136,52 @@ pub async fn run_sync(
     *products_guard = updated_list.clone();
 
     // --- SAVE TO DISK ---
-    let new_sync_time = res.sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let new_sync_time = res_body.sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     *state.last_sync.lock().unwrap() = Some(new_sync_time.clone());
 
     let file_data = (Some(new_sync_time), updated_list);
     let json = serde_json::to_string(&file_data)?;
-    fs::write(get_store_path(&app), json)?;
+    
+    let path = get_store_path(&app)?;
+    fs::write(path, json).context("Failed to write to disk")?;
 
-    Ok(products_guard.len())
+    Ok(incoming_count)
 }
 
 // --- 3. Search Logic ---
 pub fn search_local(state: &ProductState, query: String, category: String) -> Vec<PosProduct> {
     let products = state.products.lock().unwrap();
-    let query = query.to_lowercase();
-    let filter_category = category != "all";
+    let query = query.trim().to_lowercase();
+    let filter_category = category != "all" && !category.is_empty();
+
+    if query.is_empty() && !filter_category {
+        return products.iter().take(50).cloned().collect();
+    }
 
     products.iter().filter(|p| {
         let matches_category = !filter_category || p.category == category;
+        if !matches_category {
+            return false;
+        }
+
+        if query.is_empty() {
+            return true;
+        }
+
+        let matches_product_name = p.product_name.to_lowercase().contains(&query);
         
-        let matches_search = query.is_empty() || 
-            p.product_name.to_lowercase().contains(&query) ||
-            p.sku.to_lowercase().contains(&query) ||
-            p.barcode.as_ref().map_or(false, |b| b.to_lowercase().contains(&query)) ||
-            p.variants.iter().any(|v| v.barcode.to_lowercase().contains(&query));
-        
-        matches_category && matches_search
-    }).cloned().collect()
+        let matches_variant = p.variants.iter().any(|v| {
+            let sku_match = v.sku.to_lowercase().contains(&query);
+            let name_match = v.variant_name.to_lowercase().contains(&query);
+            let barcode_match = v.barcode.as_ref()
+                .map_or(false, |b| b.to_lowercase().contains(&query));
+
+            sku_match || name_match || barcode_match
+        });
+
+        matches_product_name || matches_variant
+    })
+    .take(100) 
+    .cloned()
+    .collect()
 }

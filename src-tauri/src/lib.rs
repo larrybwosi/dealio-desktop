@@ -27,8 +27,13 @@ async fn sync_products_command(
     member_token: Option<String>
 ) -> Result<String, String> {
     match store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
-        Ok(count) => Ok(format!("Synced {} products", count)),
-        Err(e) => Err(e.to_string()),
+        Ok(count) => {
+            Ok(format!("Synced {} products", count))
+        },
+        Err(e) => {
+            // We still convert the error to a string so the frontend can display it
+            Err(e.to_string())
+        }
     }
 }
 
