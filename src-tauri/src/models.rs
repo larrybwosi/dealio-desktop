@@ -91,3 +91,43 @@ pub struct PricingRule {
     pub valid_from: Option<String>, 
     pub valid_to: Option<String>,   
 }
+
+// --- CUSTOMERS ---
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomersSyncResponse {
+    pub data: Vec<PosCustomer>,
+    pub next_sync_token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PosCustomer {
+    pub id: String,
+    pub name: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    
+    // Backend fields
+    pub customer_type: Option<String>, // "B2B" or "B2C" usually
+    pub company: Option<String>,
+    pub business_account_id: Option<String>,
+    pub loyalty_points: Option<f64>,
+    
+    // Computed/Frontend helper fields
+    pub primary_address: Option<String>, 
+    
+    // Complex nested fields
+    pub addresses: Option<Vec<CustomerAddress>>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomerAddress {
+    pub id: String,
+    pub street1: String,
+    pub city: String,
+    pub postal_code: String,
+}

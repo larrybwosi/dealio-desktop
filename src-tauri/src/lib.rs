@@ -12,6 +12,9 @@ mod models;
 mod store;
 use store::ProductState;
 
+mod customer_store;
+use customer_store::CustomerState;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -44,6 +47,31 @@ fn search_products_command(
     category: String
 ) -> Vec<models::PosProduct> {
     store::search_local(&state, query, category)
+}
+
+// --- CUSTOMER COMMANDS ---
+
+#[tauri::command]
+async fn sync_customers_command(
+    app: AppHandle,
+    state: State<'_, CustomerState>,
+    base_url: String,
+    location_id: String,
+    device_key: Option<String>,
+    member_token: Option<String>
+) -> Result<String, String> {
+    match customer_store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
+        Ok(count) => Ok(format!("Synced {} customers", count)),
+        Err(e) => Err(e.to_string())
+    }
+}
+
+#[tauri::command]
+fn search_customers_command(
+    state: State<'_, CustomerState>,
+    query: String,
+) -> Vec<models::PosCustomer> {
+    customer_store::search_local(&state, query)
 }
 
 // --- Command to open/manage the Customer Window ---
@@ -274,11 +302,17 @@ fn open_cash_drawer(port_name: String) -> Result<String, String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(ProductState::new()) // Initialize State
+        .manage(CustomerState::new()) // Initialize Customer State
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
                 if let Err(e) = store::load_products_from_disk(app.handle(), &state) {
                     eprintln!("Failed to load initial data: {}", e);
+                }
+
+                let cust_state = app.state::<CustomerState>();
+                if let Err(e) = customer_store::load_customers_from_disk(app.handle(), &cust_state) {
+                    eprintln!("Failed to load initial customer data: {}", e);
                 }
 
                 // --- System Tray Configuration ---
@@ -367,6 +401,8 @@ pub fn run() {
             start_nfc_listener,
             get_serial_ports, 
             open_cash_drawer,
+            sync_customers_command,   
+            search_customers_command, 
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

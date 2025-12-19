@@ -29,6 +29,12 @@ chrono = { version = "0.4", features = ["serde"] }
 pcsc = "2.9.0" # Library to talk to Smart Card readers
 serialport = "4.8.1" # Library to talk to Serial ports
 tokio = { version = "1", features = ["full"] }
+
+aes-gcm = "0.10"
+base64 = "0.21"
+rand = "0.8"
+sha2 = "0.10" # To derive a key from a passphrase/ID
+
 tauri-plugin-os = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-http = "2"
