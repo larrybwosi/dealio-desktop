@@ -1,24 +1,12 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner'; 
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { isAxiosError } from 'axios';
-import { apiClient } from '@/lib/axios';
-import { useOfflineSaleStore } from '@/store/offline-sale';
+import { apiClient, API_ENDPOINT } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput } from '@/lib/validation/transactions';
-import { useEffect } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 
-// --- API Function ---
-
-export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
-  // Ensure we pass flags for detailed stock tracking if needed
-  const response = await apiClient.post(
-    `/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, 
-    { ...data, locationId }
-  );
-  return response.data;
-};
-
-// --- Types & Enums (Same as before) ---
+// --- Types & Enums ---
 
 export const isNetworkError = (error: unknown): boolean => {
   if (isAxiosError(error)) {
@@ -54,82 +42,97 @@ export enum PaymentStatus {
 }
 
 export const FulfillmentType = {
-    IMMEDIATE: "IMMEDIATE",
-    PICKUP: "PICKUP",
-    DELIVERY: "DELIVERY",
-    SHIPPING: "SHIPPING",
-    DIGITAL: "DIGITAL",
-    DINE_IN: "DINE_IN",
-    SERVICE: "SERVICE"
+  IMMEDIATE: "IMMEDIATE",
+  PICKUP: "PICKUP",
+  DELIVERY: "DELIVERY",
+  SHIPPING: "SHIPPING",
+  DIGITAL: "DIGITAL",
+  DINE_IN: "DINE_IN",
+  SERVICE: "SERVICE"
 } as const;
 
-
 export enum TransactionType {
-    POS_SALE = "POS_SALE",
-    ONLINE_ORDER = "ONLINE_ORDER",
-    SALES_ORDER = "SALES_ORDER",
-    SERVICE_BOOKING = "SERVICE_BOOKING",
-    SUBSCRIPTION = "SUBSCRIPTION",
-    QUOTE = "QUOTE"
+  POS_SALE = "POS_SALE",
+  ONLINE_ORDER = "ONLINE_ORDER",
+  SALES_ORDER = "SALES_ORDER",
+  SERVICE_BOOKING = "SERVICE_BOOKING",
+  SUBSCRIPTION = "SUBSCRIPTION",
+  QUOTE = "QUOTE"
+}
+
+// --- Rust Response Types ---
+interface RustSaleResponse {
+  success: boolean;
+  message: string;
+  server_response?: any;
+}
+
+interface RustQueuedSale {
+  id: string;
+  status: string;
+  retry_count: number;
 }
 
 // --- Hooks ---
 
 /**
- * Hook to process a new sale.
- * ENTERPRISE LEVEL: 
- * 1. Persists to file storage (Tauri Store) immediately.
- * 2. Optimistic UI updates.
- * 3. Background background sync.
+ * Hook to process a new sale via Rust Backend.
+ * 1. Generates UUID.
+ * 2. Sends to Rust (which encrypts & saves to disk).
+ * 3. Rust attempts immediate sync.
  */
 export const useProcessSale = () => {
-  const addToQueue = useOfflineSaleStore(state => state.addToQueue);
-  const initStore = useOfflineSaleStore(state => state.initStore);
-  const isStoreReady = useOfflineSaleStore(state => state.isStoreReady);
-  
-  const { syncSales } = useSyncOfflineSales();
+  // Assuming useAuthStore contains the deviceKey as well (it should based on store.rs context)
+  const { currentLocation, memberToken, deviceKey } = useAuthStore();
+  const locationId = currentLocation?.id;
   const queryClient = useQueryClient();
-
-  // Ensure store is ready before we try to process anything
-  useEffect(() => {
-    if (!isStoreReady) {
-      initStore();
-    }
-  }, [isStoreReady, initStore]);
 
   return useMutation({
     mutationFn: async (data: ProcessSaleInput) => {
-      if (!isStoreReady) {
-        // Fallback: wait a moment or try init again if race condition
-        await initStore(); 
-      }
+      if (!locationId) throw new Error("Location ID is missing");
 
-      // 1. Local First: Save to file store immediately
-      // We await this to ensure data is safely on disk before confirming to user
-      const queuedSale = await addToQueue(data);
-      
-      // 2. Trigger background sync
-      // We intentionally do NOT await this. The user can start the next sale immediately.
-      syncSales(); 
+      // Generate a UUID for the sale to track it locally and remotely
+      const saleId = crypto.randomUUID();
 
-      return queuedSale;
+      // Combine data for Rust
+      const payload = { ...data, locationId };
+
+      const response = await invoke<RustSaleResponse>('process_sale_command', {
+        saleId,
+        locationId,
+        payload,
+        baseUrl: API_ENDPOINT,
+        deviceKey: deviceKey || null, // <--- Added
+        memberToken: memberToken || null
+      });
+
+      return response;
     },
 
-    onSuccess: () => {
-      toast.success('Sale Processed', {
-        description: 'Transaction saved locally. Syncing in background...',
-        duration: 2000
-      });
-      
+    onSuccess: (data) => {
       // Invalidate queries to update local stock counts or sales lists
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
+
+      // Check the message from Rust to see if it was synced or queued
+      if (data.message.toLowerCase().includes('offline')) {
+        toast.warning('Saved Offline', {
+            description: 'Network unreachable. Sale queued securely.',
+            duration: 3000
+        });
+      } else {
+        toast.success('Sale Processed', {
+            description: 'Transaction completed successfully.',
+            duration: 2000
+        });
+      }
     },
 
     onError: (error) => {
-      console.error("Critical error saving sale locally:", error);
+      console.error("Critical error processing sale:", error);
       toast.error("System Error", {
-        description: "Failed to save sale to local database. Check storage permissions.",
+        description: "Failed to process sale. Please check logs.",
       });
     }
   });
@@ -137,100 +140,58 @@ export const useProcessSale = () => {
 
 /**
  * Hook to sync offline sales.
- * Robust sync engine that handles partial failures and retries.
+ * Triggers the background Rust worker.
  */
 export const useSyncOfflineSales = () => {
-  const { 
-    getPendingSales, 
-    updateQueueItem,
-    isStoreReady, 
-    initStore 
-  } = useOfflineSaleStore();
-  
+  const { memberToken, deviceKey } = useAuthStore(); // <--- Get deviceKey
   const queryClient = useQueryClient();
-  const locationId = useAuthStore(state => state.currentLocation?.id);
 
-  // Auto-init store if needed when this hook is used
-  useEffect(() => {
-    if (!isStoreReady) initStore();
-  }, [isStoreReady, initStore]);
+  // Helper query to get the count of pending items from Rust
+  const { data: pendingSales = [] } = useQuery({
+    queryKey: ['pos-sales-queue'],
+    queryFn: async () => {
+        return await invoke<RustQueuedSale[]>('get_pending_sales_command');
+    },
+    // Poll every 5 seconds to keep the badge updated
+    refetchInterval: 5000, 
+  });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const pendingSales = getPendingSales();
-      if (pendingSales.length === 0) return [];
-
-      console.log(`[Sync] Starting sync for ${pendingSales.length} items...`);
-      const results = [];
-
-      for (const sale of pendingSales) {
-        // Double check it hasn't been synced by another process
-        if (sale.status === 'SYNCED') continue;
-
-        try {
-          // 1. Mark as SYNCING (optimistic lock)
-          await updateQueueItem(sale.id, { status: 'SYNCING' });
-
-          // 2. Attempt API call
-          const result = await processSaleApi(sale.data, locationId);
-
-          // 3. Success!
-          await updateQueueItem(sale.id, { status: 'SYNCED' });
-          
-          // Enterprise Choice: Do we keep history or clean up?
-          // Cleaning up keeps the file size small.
-          // Keeping it allows for "History" view even offline.
-          // await removeFromQueue(sale.id); 
-          
-          results.push({ id: sale.id, success: true, data: result });
-          
-        } catch (error) {
-          console.error(`[Sync] Failed to sync sale ${sale.id}:`, error);
-          
-          const errorMessage = (error as any)?.response?.data?.error || (error as Error).message;
-          // const isNetwork = isNetworkError(error);
-
-          // 4. Handle Failure
-          await updateQueueItem(sale.id, { 
-            status: 'FAILED', 
-            retryCount: (sale.retryCount || 0) + 1,
-            lastError: errorMessage
-          });
-
-          // Logic: If it's a 400 (Validation) error, it will likely NEVER succeed.
-          // You might want to flag these differently so they don't block the queue forever.
-          // For now, we just leave them as FAILED.
-          
-          results.push({ id: sale.id, success: false, error: errorMessage });
-        }
-      }
-      return results;
+      console.log(`[Sync] Triggering background sync...`);
+      
+      const response = await invoke<string>('sync_sales_command', {
+        baseUrl: API_ENDPOINT,
+        deviceKey: deviceKey || null, // <--- Added
+        memberToken: memberToken || null
+      });
+      
+      return response;
     },
-    onSuccess: (results) => {
-      const successCount = results?.filter(r => r.success).length || 0;
-      const failCount = results?.filter(r => !r.success).length || 0;
-
-      if (successCount > 0) {
-        // toast.success(`Synced ${successCount} sales.`);
+    onSuccess: (message) => {
+      // Message format: "Synced X sales"
+      if (message !== "Synced 0 sales") {
+        toast.success(message);
         queryClient.invalidateQueries({ queryKey: ['sales'] });
         queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      }
-      
-      if (failCount > 0) {
-        // Optional: Notify user if silent sync failed for some items
-        toast.warning(`${failCount} sales failed to sync. Check 'Pending Sales'.`);
+        queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
       }
     },
+    onError: (err) => {
+      console.error("Sync failed:", err);
+    }
   });
 
   return {
     syncSales: syncMutation.mutate,
     isSyncing: syncMutation.isPending,
-    pendingCount: getPendingSales().length,
+    pendingCount: pendingSales.length,
+    pendingSales // Exposed if you need to list them in a UI drawer
   };
 };
 
-// --- Order Creation Hook (Unchanged) ---
+
+// --- Order Creation Hook (Online Only / Special Orders) ---
 export interface OrderFormValues {
   [key: string]: any;
 }
@@ -259,4 +220,14 @@ export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
     },
     onSettled: options.onSettled,
   });
+};
+
+//For manual sales using mpesa
+export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
+  // Ensure we pass flags for detailed stock tracking if needed
+  const response = await apiClient.post(
+    `/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, 
+    { ...data, locationId }
+  );
+  return response.data;
 };

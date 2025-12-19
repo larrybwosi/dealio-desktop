@@ -15,6 +15,9 @@ use store::ProductState;
 mod customer_store;
 use customer_store::CustomerState;
 
+mod sales_store;
+use sales_store::SalesState;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -73,6 +76,47 @@ fn search_customers_command(
 ) -> Vec<models::PosCustomer> {
     customer_store::search_local(&state, query)
 }
+
+// --- SALES COMMANDS ---
+
+#[tauri::command]
+async fn process_sale_command(
+    app: AppHandle,
+    state: State<'_, SalesState>,
+    sale_id: String,
+    location_id: String,
+    payload: serde_json::Value,
+    base_url: String,
+    device_key: Option<String>, // <--- Added Argument
+    member_token: Option<String>
+) -> Result<models::SaleResponse, String> {
+    // Pass device_key to the logic
+    sales_store::process_sale(app, &state, sale_id, location_id, payload, base_url, device_key, member_token)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn sync_sales_command(
+    app: AppHandle,
+    state: State<'_, SalesState>,
+    base_url: String,
+    device_key: Option<String>, // <--- Added Argument
+    member_token: Option<String>
+) -> Result<String, String> {
+    // Pass device_key to the logic
+    match sales_store::sync_pending_sales(app, &state, base_url, device_key, member_token).await {
+        Ok(count) => Ok(format!("Synced {} sales", count)),
+        Err(e) => Err(e.to_string())
+    }
+}
+
+#[tauri::command]
+fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::QueuedSale> {
+    sales_store::get_queue_status(&state)
+}
+
+
 
 // --- Command to open/manage the Customer Window ---
 #[tauri::command]
@@ -303,6 +347,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(ProductState::new()) // Initialize State
         .manage(CustomerState::new()) // Initialize Customer State
+        .manage(SalesState::new()) // Initialize Sales State
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
@@ -314,6 +359,9 @@ pub fn run() {
                 if let Err(e) = customer_store::load_customers_from_disk(app.handle(), &cust_state) {
                     eprintln!("Failed to load initial customer data: {}", e);
                 }
+
+                let sales_state = app.state::<SalesState>();
+                sales_store::init_state(app.handle(), &sales_state);
 
                 // --- System Tray Configuration ---
                 let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -403,6 +451,9 @@ pub fn run() {
             open_cash_drawer,
             sync_customers_command,   
             search_customers_command, 
+            process_sale_command,    
+            sync_sales_command,      
+            get_pending_sales_command 
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

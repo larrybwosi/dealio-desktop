@@ -87,7 +87,8 @@ export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParam
         customers,
         isSyncing: syncMutation.isPending,
         triggerSync: syncMutation.mutate,
-        totalCount: customers.length
+        totalCount: customers.length,
+        isSearching
     };
 };
 
