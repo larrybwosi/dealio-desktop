@@ -9,8 +9,8 @@ use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState
 use std::io::Write;
 
 mod models;
-mod store;
-use store::ProductState;
+mod product_store;
+use product_store::ProductState;
 
 mod customer_store;
 use customer_store::CustomerState;
@@ -32,7 +32,7 @@ async fn sync_products_command(
     device_key: Option<String>,
     member_token: Option<String>
 ) -> Result<String, String> {
-    match store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
+    match product_store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
         Ok(count) => {
             Ok(format!("Synced {} products", count))
         },
@@ -49,7 +49,7 @@ fn search_products_command(
     query: String,
     category: String
 ) -> Vec<models::PosProduct> {
-    store::search_local(&state, query, category)
+    product_store::search_local(&state, query, category)
 }
 
 // --- CUSTOMER COMMANDS ---
@@ -351,7 +351,7 @@ pub fn run() {
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
-                if let Err(e) = store::load_products_from_disk(app.handle(), &state) {
+                if let Err(e) = product_store::load_products_from_disk(app.handle(), &state) {
                     eprintln!("Failed to load initial data: {}", e);
                 }
 
