@@ -1,16 +1,14 @@
 "use client"
 
-import type React from "react"
-import { useState } from "react" // Added useState
+import { useState } from "react"
 import { useEffect } from "react"
 import { usePosStore } from "@/store/store"
 import { NotificationToast } from "@/components/notification-toast"
 import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { UpdaterProvider } from "./UpdateProvider"
-import { UpdateDialog } from "@/components/update.dialog"
-import AblyInitializer from "./AblyProvider"
-import { ServerNotificationProvider } from "./ServerNotificationProvider"
+import { UpdaterProvider } from "@/lib/providers/UpdateProvider"
+import AblyInitializer from "@/lib/providers/AblyProvider"
+import { ServerNotificationProvider } from "@/lib/providers/ServerNotificationProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
@@ -76,7 +74,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
           <ServerNotificationProvider>
             {children}
-            <UpdateDialog />
           </ServerNotificationProvider>
         </UpdaterProvider>
       </QueryClientProvider>

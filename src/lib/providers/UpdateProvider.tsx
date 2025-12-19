@@ -1,14 +1,16 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import { UpdateDialog } from '@/components/update.dialog';
 
+// --- Types ---
 type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | 'ERROR';
 
 interface UpdaterContextType {
   isUpdateAvailable: boolean;
-  isCritical: boolean; // <--- NEW: Tells UI to block closing
+  isCritical: boolean;
   releaseNotes: string | null;
   releaseDate: string | null;
   status: UpdateStatus;
@@ -23,16 +25,44 @@ interface UpdaterContextType {
 
 const UpdaterContext = createContext<UpdaterContextType | undefined>(undefined);
 
+// --- Internal Toast Component for Download Progress ---
+const ProgressToast = ({ progress }: { progress: number }) => {
+  return (
+    <div className="fixed bottom-5 right-5 z-50 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-800 dark:bg-gray-900">
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+          Downloading Update...
+        </h4>
+        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+          {progress}%
+        </span>
+      </div>
+      
+      {/* Progress Bar Track */}
+      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+        {/* Progress Bar Fill */}
+        <div 
+          className="h-full bg-blue-600 transition-all duration-300 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="mt-2 text-xs text-gray-500">
+        The application will restart automatically when finished.
+      </p>
+    </div>
+  );
+};
+
 interface UpdaterProviderProps {
   children: ReactNode;
   checkInterval?: number;
-  deprecatedAfterDays?: number; // How many days before an update becomes mandatory
+  deprecatedAfterDays?: number;
 }
 
 export const UpdaterProvider = ({ 
   children, 
-  checkInterval = 3600000, // Default 1 hour
-  deprecatedAfterDays = 14 // Default 2 weeks
+  checkInterval = 3600000, 
+  deprecatedAfterDays = 14 
 }: UpdaterProviderProps) => {
   const [update, setUpdate] = useState<Update | null>(null);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
@@ -45,6 +75,7 @@ export const UpdaterProvider = ({
   const [error, setError] = useState<string | null>(null);
 
   const openModal = useCallback(() => setIsModalOpen(true), []);
+  
   const closeModal = useCallback(() => {
     // Prevent closing if critical
     if (isCritical) return; 
@@ -53,6 +84,11 @@ export const UpdaterProvider = ({
 
   const processUpdate = useCallback(async (updateObj: Update) => {
     setStatus('DOWNLOADING');
+    // Close the dialog when download starts so the Toast takes over
+    // Unless it's critical, you might want to keep the blocker open.
+    // Here we close it to show the toast:
+    if (!isCritical) setIsModalOpen(false);
+    
     setError(null);
     
     try {
@@ -76,15 +112,16 @@ export const UpdaterProvider = ({
         }
       });
       
-      // Auto relaunch after successful install
       await relaunch();
       
     } catch (e: any) {
       console.error('Update failed:', e);
       setError(e.message || 'Failed to update');
       setStatus('ERROR');
+      // Re-open modal to show error
+      setIsModalOpen(true);
     }
-  }, []);
+  }, [isCritical]);
 
   const startInstall = useCallback(async () => {
     if (!update) return;
@@ -107,26 +144,21 @@ export const UpdaterProvider = ({
 
         // --- DEPRECATION LOGIC ---
         let critical = false;
-
-        // 1. Check for manual flag in release notes
         if (updateResult.body && updateResult.body.includes('[CRITICAL]')) {
             critical = true;
         }
-
-        // 2. Check for time-based deprecation
         if (updateResult.date) {
             const releaseDateObj = new Date(updateResult.date);
             const now = new Date();
             const diffTime = Math.abs(now.getTime() - releaseDateObj.getTime());
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
             if (diffDays > deprecatedAfterDays) {
                 critical = true;
             }
         }
 
         setIsCritical(critical);
-        setIsModalOpen(true); // Always open modal on update found
+        setIsModalOpen(true);
       }
     } catch (e: any) {
       console.error('Failed to check for updates:', e);
@@ -159,11 +191,25 @@ export const UpdaterProvider = ({
     startInstall,
   };
 
-  return <UpdaterContext.Provider value={value}>{children}</UpdaterContext.Provider>;
-};
+  return (
+    <UpdaterContext.Provider value={value}>
+      {children}
+      
+      {/* 1. The Update Dialog */}
+      <UpdateDialog 
+        open={isModalOpen}
+        onOpenChange={(open) => !open && closeModal()} 
+        onClose={closeModal} 
+        onConfirm={startInstall}
+        releaseNotes={releaseNotes}
+        isCritical={isCritical}
+      />
 
-export const useUpdater = (): UpdaterContextType => {
-  const context = useContext(UpdaterContext);
-  if (!context) throw new Error('useUpdater must be used within an UpdaterProvider');
-  return context;
+      {/* 2. The Download Toast */}
+      {status === 'DOWNLOADING' && (
+        <ProgressToast progress={downloadProgress} />
+      )}
+      
+    </UpdaterContext.Provider>
+  );
 };

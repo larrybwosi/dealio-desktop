@@ -1,175 +1,209 @@
-import { useEffect, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
-import { useUpdater } from '@/lib/providers/UpdateProvider';
-import { X, Download, RotateCw, AlertCircle, ShieldAlert } from 'lucide-react';
+'use client';
 
-export const UpdateDialog = () => {
-  const { 
-    isModalOpen, 
-    closeModal, 
-    startInstall, 
-    releaseNotes, 
-    releaseDate,
-    status, 
-    downloadProgress,
-    isCritical,
-    error 
-  } = useUpdater();
+import { useEffect, useState } from 'react';
+import Markdown from 'markdown-to-jsx';
+import { 
+  ShieldAlert, 
+  Sparkles, 
+  X, 
+  Download, 
+  ArrowRight,
+  FileText 
+} from 'lucide-react';
 
-  const notesRef = useRef<HTMLDivElement>(null);
+// --- Markdown Styling Overrides ---
+const markdownOptions = {
+  overrides: {
+    h1: {
+      component: ({ children, ...props }: any) => (
+        <h1 {...props} className="mb-2 mt-4 text-lg font-bold text-gray-900 dark:text-gray-100">{children}</h1>
+      ),
+    },
+    h2: {
+      component: ({ children, ...props }: any) => (
+        <h2 {...props} className="mb-2 mt-4 text-base font-bold text-gray-800 dark:text-gray-200">{children}</h2>
+      ),
+    },
+    h3: {
+      component: ({ children, ...props }: any) => (
+        <h3 {...props} className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-gray-700 dark:text-gray-300">{children}</h3>
+      ),
+    },
+    p: {
+      component: ({ children, ...props }: any) => (
+        <p {...props} className="mb-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{children}</p>
+      ),
+    },
+    ul: {
+      component: ({ children, ...props }: any) => (
+        <ul {...props} className="mb-3 ml-4 list-disc space-y-1 text-gray-600 dark:text-gray-300">{children}</ul>
+      ),
+    },
+    li: {
+      component: ({ children, ...props }: any) => (
+        <li {...props} className="text-sm">{children}</li>
+      ),
+    },
+    a: {
+      component: ({ children, ...props }: any) => (
+        <a {...props} className="font-medium text-blue-600 hover:underline dark:text-blue-400" target="_blank" rel="noopener noreferrer">{children}</a>
+      ),
+    },
+    code: {
+      component: ({ children, ...props }: any) => (
+        <code {...props} className="rounded bg-gray-200 px-1 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{children}</code>
+      ),
+    },
+    blockquote: {
+        component: ({ children, ...props }: any) => (
+          <blockquote {...props} className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-500 dark:border-gray-700">{children}</blockquote>
+        ),
+      },
+  },
+};
 
-  // Close on Escape key (unless critical)
+interface UpdateDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onClose: () => void;
+  onConfirm: () => Promise<void>;
+  releaseNotes: string | null;
+  isCritical: boolean;
+}
+
+export function UpdateDialog({
+  open,
+  onOpenChange,
+  onClose,
+  onConfirm,
+  releaseNotes,
+  isCritical,
+}: UpdateDialogProps) {
+  const [isMounting, setIsMounting] = useState(false);
+
+  // Handle animation mounting
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !isCritical && status !== 'DOWNLOADING') {
-        closeModal();
-      }
-    };
-    window.addEventListener('keydown', handleEsc);
-    return () => window.removeEventListener('keydown', handleEsc);
-  }, [closeModal, isCritical, status]);
+    if (open) setIsMounting(true);
+    else setTimeout(() => setIsMounting(false), 200);
+  }, [open]);
 
-  if (!isModalOpen) return null;
+  if (!open && !isMounting) return null;
 
-  const isDownloading = status === 'DOWNLOADING';
-  
-  // Format date nicely
-  const formattedDate = releaseDate 
-    ? new Date(releaseDate).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
-    : 'Just now';
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (isCritical) return;
+    if (e.target === e.currentTarget) {
+      onOpenChange(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      {/* Backdrop with blur */}
+    <div
+      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-200 ${
+        open ? 'opacity-100 backdrop-blur-sm' : 'opacity-0 backdrop-blur-none'
+      }`}
+    >
+      {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" 
-        onClick={!isCritical && !isDownloading ? closeModal : undefined}
+        className="absolute inset-0 bg-gray-900/40 dark:bg-black/60" 
+        onClick={handleBackdropClick} 
+        aria-hidden="true" 
       />
 
-      {/* Modal Card */}
-      <div className="relative w-full max-w-lg transform overflow-hidden rounded-xl bg-white text-left shadow-2xl transition-all sm:my-8 border border-slate-100 ring-1 ring-black/5">
-        
+      {/* Modal Content */}
+      <div
+        className={`relative w-full max-w-lg transform flex flex-col max-h-[85vh] overflow-hidden rounded-xl bg-white text-left shadow-2xl ring-1 ring-gray-900/5 transition-all duration-300 dark:bg-gray-900 dark:ring-white/10 ${
+          open ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'
+        }`}
+      >
         {/* Header */}
-        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold leading-6 text-slate-900">
-                {isCritical ? 'Critical Security Update' : 'New Version Available'}
-              </h3>
-              {isCritical && (
-                <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-600/10">
-                  Required
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-slate-500">
-              Released on {formattedDate}
-            </p>
-          </div>
-          
-          {/* Close Button (Hidden if critical or downloading) */}
-          {!isCritical && !isDownloading && (
+        <div className="flex-shrink-0 relative border-b border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+          {!isCritical && (
             <button
-              onClick={closeModal}
-              className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-500 transition-colors"
+              onClick={onClose}
+              className="absolute right-4 top-4 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800"
             >
               <X className="h-5 w-5" />
             </button>
           )}
-        </div>
 
-        {/* Content Body */}
-        <div className="px-6 py-6">
-          {/* Error State */}
-          {status === 'ERROR' && (
-            <div className="mb-4 rounded-md bg-red-50 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <AlertCircle className="h-5 w-5 text-red-400" aria-hidden="true" />
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Update Failed</h3>
-                  <div className="mt-2 text-sm text-red-700">
-                    <p>{error || 'An unknown error occurred during the update process.'}</p>
-                  </div>
-                </div>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${
+              isCritical 
+                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
+                : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+            }`}>
+              {isCritical ? <ShieldAlert className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
             </div>
-          )}
-
-          {/* Release Notes Scroller */}
-          <div className="mb-6">
-            <h4 className="text-sm font-medium text-slate-900 mb-2">Release Notes</h4>
-            <div 
-              ref={notesRef}
-              className="prose prose-sm prose-slate max-w-none h-64 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-4 text-slate-600 shadow-inner scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent"
-            >
-               <ReactMarkdown>{releaseNotes || 'No release notes provided.'}</ReactMarkdown>
-            </div>
-          </div>
-
-          {/* Progress Bar (Only visible when downloading) */}
-          {isDownloading && (
-            <div className="space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="flex justify-between text-sm font-medium text-slate-700">
-                <span>Downloading update...</span>
-                <span>{downloadProgress}%</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                <div 
-                  className="h-full bg-indigo-600 transition-all duration-300 ease-out" 
-                  style={{ width: `${downloadProgress}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-500 text-center pt-1">
-                The application will restart automatically when finished.
+            <div>
+              <h3 className="text-lg font-semibold leading-6 text-gray-900 dark:text-white">
+                {isCritical ? 'Critical Update Required' : 'New Version Available'}
+              </h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {isCritical 
+                  ? 'This update includes important security fixes.' 
+                  : 'A new version of the application is ready to install.'}
               </p>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Release Notes Scroll Area */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                <FileText className="h-3 w-3" />
+                Release Notes
+            </div>
+            
+            <div className="rounded-lg border border-gray-100 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950/50">
+                {releaseNotes ? (
+                    <div className="prose-sm">
+                        <Markdown options={markdownOptions}>
+                            {releaseNotes}
+                        </Markdown>
+                    </div>
+                ) : (
+                    <div className="flex h-20 items-center justify-center text-sm italic text-gray-400">
+                        No release notes provided.
+                    </div>
+                )}
+            </div>
         </div>
 
         {/* Footer Actions */}
-        <div className="bg-slate-50 px-6 py-4 flex items-center justify-end gap-3 border-t border-slate-100">
-          {!isDownloading && (
-            <>
-              {!isCritical && (
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="inline-flex justify-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-all"
-                >
-                  Remind Me Later
-                </button>
-              )}
-              
-              <button
-                type="button"
-                onClick={() => startInstall()}
-                className={`inline-flex items-center gap-2 justify-center rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 transition-all
-                  ${isCritical 
-                    ? 'bg-red-600 hover:bg-red-500 focus-visible:outline-red-600' 
-                    : 'bg-indigo-600 hover:bg-indigo-500 focus-visible:outline-indigo-600'
-                  }
-                `}
-              >
-                {isCritical ? <ShieldAlert className="h-4 w-4" /> : <Download className="h-4 w-4" />}
-                {isCritical ? 'Install Critical Update' : 'Update & Restart'}
-              </button>
-            </>
+        <div className="flex-shrink-0 flex flex-col-reverse gap-3 bg-gray-50 p-6 sm:flex-row sm:justify-end dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800">
+          {!isCritical && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              Remind Me Later
+            </button>
           )}
-
-          {/* If downloading, show a disabled state or spinner just to keep layout stable */}
-          {isDownloading && (
-             <button
-                disabled
-                className="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-400 cursor-not-allowed"
-             >
-               <RotateCw className="h-4 w-4 animate-spin" />
-               Processing...
-             </button>
-          )}
+          
+          <button
+            type="button"
+            onClick={onConfirm}
+            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              isCritical
+                ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
+                : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
+            }`}
+          >
+            {isCritical ? (
+              <>
+                Update Now
+                <ArrowRight className="h-4 w-4" />
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4" />
+                Download & Install
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
   );
-};
+}
