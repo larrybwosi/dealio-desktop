@@ -421,6 +421,8 @@ interface PosStore {
     instructions?: string;
     metadata?: Record<string, any>;
     customerId?: string;
+    customerPhone?: string;
+    loyaltyPoints?: number;
   };
 
   orders: Order[];
@@ -448,6 +450,8 @@ interface PosStore {
   getBusinessConfig: () => ReturnType<typeof getBusinessConfig>;
 
   setCustomerName: (name: string) => void;
+  setCustomerId: (id: string) => void;
+  setCustomer: (customer: Customer) => void;
   setOrderType: (type: OrderType) => void;
   addItemToOrder: (product: Product, unit: SellableUnit, quantity: number, options?: { isWholesale?: boolean }) => void;
   updateItemQuantity: (productId: string, unitId: string, quantity: number) => void;
@@ -739,6 +743,9 @@ export const usePosStore = create<PosStore>()(
         tableNumber: '',
         instructions: '',
         metadata: {},
+        customerId: '',
+        customerPhone: '',
+        loyaltyPoints: 0,
       },
       orders: [],
       products: [],
@@ -798,6 +805,22 @@ export const usePosStore = create<PosStore>()(
       setCustomerName: name =>
         set(state => ({
           currentOrder: { ...state.currentOrder, customerName: name },
+        })),
+
+      setCustomerId: id =>
+        set(state => ({
+          currentOrder: { ...state.currentOrder, customerId: id },
+        })),
+
+      setCustomer: customer =>
+        set(state => ({
+          currentOrder: {
+            ...state.currentOrder,
+            customerId: customer.id,
+            customerName: customer.name,
+            customerPhone: customer.phone,
+            loyaltyPoints: customer.loyaltyPoints,
+          },
         })),
 
       setOrderType: type =>
@@ -887,6 +910,9 @@ export const usePosStore = create<PosStore>()(
             tableNumber: '',
             instructions: '',
             metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
           },
         }),
 
@@ -952,6 +978,9 @@ export const usePosStore = create<PosStore>()(
                 tableNumber: '',
                 instructions: '',
                 metadata: {},
+                customerId: '',
+                customerPhone: '',
+                loyaltyPoints: 0,
               },
             };
           }
@@ -981,6 +1010,9 @@ export const usePosStore = create<PosStore>()(
               tableNumber: '',
               instructions: '',
               metadata: {},
+              customerId: '',
+              customerPhone: '',
+              loyaltyPoints: 0,
             },
           };
         }),
@@ -1067,6 +1099,9 @@ export const usePosStore = create<PosStore>()(
               tableNumber: '',
               instructions: '',
               metadata: {},
+              customerId: '',
+              customerPhone: '',
+              loyaltyPoints: 0,
             },
           };
         }),

@@ -5,8 +5,8 @@ import { apiClient } from "@/lib/axios";
 
 // --- CONSTANTS ---
 const STORE_FILENAME = "pos_data.bin";
-const KEY_LAST_SYNC = "pos_pricing_last_sync";
-const KEY_PRICING_DATA = "pos_pricing_data";
+const KEY_LAST_SYNC = "pos_pricing_last_sync_v2";
+const KEY_PRICING_DATA = "pos_pricing_data_v2";
 
 // --- TYPES (Simplified and Consolidated) ---
 

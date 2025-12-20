@@ -48,17 +48,9 @@ export function CustomerSelector() {
 
   // Store access
   const currentOrder = usePosStore(state => state.currentOrder);
-  const selectCustomer = usePosStore(state => state.selectCustomer);
-  const setCustomerName = usePosStore(state => state.setCustomerName);
+  const setCustomer = usePosStore(state => state.setCustomer);
   // const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
 
-  // We still access the local store to get the *currently selected* customer object
-  // just in case they aren't in the current search results.
-  const storedCustomers = usePosStore(state => state.customers);
-
-  // -------------------------------------------------------
-  // 1. React Query: Fetch customers from API
-  // -------------------------------------------------------
   // -------------------------------------------------------
   // 1. Local Store Query (via usePosCustomers)
   // -------------------------------------------------------
@@ -90,13 +82,20 @@ export function CustomerSelector() {
   // -------------------------------------------------------
   // Find the selected customer object. Check search results first, then fallback to store.
   const selectedCustomer =
-    searchResults.find(c => c.id === currentOrder.customerId) ||
-    storedCustomers.find(c => c.id === currentOrder.customerId);
+    searchResults.find(c => c.id === currentOrder.customerId);
 
   const handleSelectCustomer = (customer: SearchResultCustomer | 'walk-in') => {
     if (customer === 'walk-in') {
-      setCustomerName('');
-      selectCustomer('walk-in'); // Assuming store handles ID assignment or null
+      setCustomer({
+        id: '',
+        name: '',
+        email: '',
+        phone: '',
+        totalPurchases: 0,
+        lastVisit: new Date(),
+        loyaltyPoints: 0,
+        customerType: 'retail'
+      });
     } else {
       // Map SearchResultCustomer to Customer interface
       const mappedCustomer: any = {
@@ -109,10 +108,8 @@ export function CustomerSelector() {
         loyaltyPoints: customer.loyaltyPoints,
         customerType: customer.type === 'B2B' ? 'b2b' : 'retail',
         businessName: customer.company || undefined,
-        // Add other fields if necessary
       };
-      
-      selectCustomer(mappedCustomer);
+      setCustomer(mappedCustomer);
     }
     setOpen(false);
   };
