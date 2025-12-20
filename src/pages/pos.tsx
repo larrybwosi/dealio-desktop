@@ -160,11 +160,13 @@ export function POS() {
   };
 
   useEffect(() => {
-    startScanner();
+    if (settings.enableBarcodeScanner) {
+      startScanner();
+    }
     return () => {
       stopScanner();
     };
-  }, []);
+  }, [settings.enableBarcodeScanner]);
 
   // Handle barcode scans
   useEffect(() => {
@@ -388,10 +390,12 @@ export function POS() {
                         </button>
                     )}
                 </div>
-                <Button variant="secondary" onClick={() => setShowBarcodeScanner(true)} className="gap-2 shrink-0">
-                    <Scan className="w-4 h-4" /> 
-                    <span className="hidden sm:inline">Scanner</span>
-                </Button>
+                {settings.enableBarcodeScanner && (
+                  <Button variant="secondary" onClick={() => setShowBarcodeScanner(true)} className="gap-2 shrink-0">
+                      <Scan className="w-4 h-4" /> 
+                      <span className="hidden sm:inline">Scanner</span>
+                  </Button>
+                )}
             </div>
 
             <div className="flex-1 min-w-0 border-l border-border pl-0 lg:pl-4">

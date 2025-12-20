@@ -1,5 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { tauriStorage } from './storage-adapter';
 
 interface ScannedItem {
   code: string;
@@ -64,10 +65,8 @@ export const useScannerStore = create<ScannerState>()(
       
       clearLastScanned: () => set({ lastScanned: null }),
     }),
-    {
-      name: 'scanner-config-storage', // name of the item in localStorage
-      storage: createJSONStorage(() => localStorage),
-      // Only persist VID and PID, don't persist session history
+    {name: 'scanner-config', // Key name inside the JSON file
+      storage: createJSONStorage(() => tauriStorage), 
       partialize: (state) => ({ vid: state.vid, pid: state.pid }),
     }
   )

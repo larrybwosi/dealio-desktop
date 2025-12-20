@@ -10,87 +10,76 @@ interface ScanPayload {
 export const useScanner = () => {
   const store = useScannerStore();
   
-  // Refs to track listeners so we can clean them up easily
-  const unlistenDataRef = useRef<UnlistenFn | null>(null);
-  const unlistenStatusRef = useRef<UnlistenFn | null>(null);
-  const unlistenErrorRef = useRef<UnlistenFn | null>(null);
+  // Track if the component is mounted to prevent state updates on unmount
+  const isMounted = useRef(false);
+  // Store unlisten functions in a generic array for easier cleanup
+  const unlisteners = useRef<UnlistenFn[]>([]);
 
-  /**
-   * Initialize the scanner: 
-   * 1. Validates VID/PID presence
-   * 2. Sets up event listeners
-   * 3. Invokes the Rust command to open the HID device
-   */
   const startScanner = async () => {
-    // 1. Prevent starting if already scanning
     if (store.isScanning) return;
-
-    // 2. Validation: Ensure Vendor ID and Product ID are set
+    
+    // Validation
     if (!store.vid || !store.pid) {
-      const errorMsg = "Cannot start scanner: Vendor ID and Product ID are missing.";
-      console.warn(errorMsg);
-      store.setError(errorMsg);
+      store.setError("Vendor ID and Product ID are missing.");
       return; 
     }
 
     store.setError(null);
 
     try {
-      // 3. Setup Listeners
-      unlistenDataRef.current = await listen<ScanPayload>('scanner-data', (event) => {
+      // 1. Setup Listeners
+      const unlistenData = await listen<ScanPayload>('scanner-data', (event) => {
         console.log('Barcode Received:', event.payload.message);
         store.addScannedItem(event.payload.message);
       });
+      unlisteners.current.push(unlistenData);
 
-      unlistenStatusRef.current = await listen<string>('scanner-status', (event) => {
+      const unlistenStatus = await listen<string>('scanner-status', (event) => {
         const status = event.payload;
         if (status === 'Connected') store.setIsConnected(true);
         if (status === 'Disconnected') store.setIsConnected(false);
       });
+      unlisteners.current.push(unlistenStatus);
 
-      unlistenErrorRef.current = await listen<string>('scanner-error', (event) => {
+      const unlistenError = await listen<string>('scanner-error', (event) => {
         store.setError(event.payload);
         store.setIsConnected(false);
       });
+      unlisteners.current.push(unlistenError);
 
-      // 4. Call Rust Backend
-      const msg = await invoke<string>('start_scan', {
+      // 2. Call Rust Backend
+      await invoke('start_scan', {
         vid_hex: store.vid,
         pid_hex: store.pid,
       });
 
-      console.log(msg);
       store.setIsScanning(true);
 
     } catch (err: any) {
       console.error('Failed to start scanner:', err);
-      store.setError(typeof err === 'string' ? err : 'Unknown error starting scanner');
+      store.setError(typeof err === 'string' ? err : 'Unknown error');
       store.setIsScanning(false);
+      // Clean up listeners if start fails
+      stopScanner();
     }
   };
 
-  /**
-   * Stop listening (Cleanup)
-   */
   const stopScanner = () => {
-    if (unlistenDataRef.current) unlistenDataRef.current();
-    if (unlistenStatusRef.current) unlistenStatusRef.current();
-    if (unlistenErrorRef.current) unlistenErrorRef.current();
+    // Run all unlisten functions
+    unlisteners.current.forEach(fn => fn());
+    unlisteners.current = []; // Clear the array
 
     store.setIsScanning(false);
     store.setIsConnected(false);
   };
 
-  // Cleanup on unmount
   useEffect(() => {
+    isMounted.current = true;
     return () => {
+      isMounted.current = false;
       stopScanner();
     };
   }, []);
 
-  return {
-    startScanner,
-    stopScanner,
-    ...store
-  };
+  return { startScanner, stopScanner, ...store };
 };

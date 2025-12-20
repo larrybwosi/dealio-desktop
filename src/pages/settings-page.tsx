@@ -113,6 +113,7 @@ export default function SettingsPage() {
   const [enableCustomerDisplay, setEnableCustomerDisplay] = useState(settings?.enableCustomerDisplay ?? true);
   const [cashDrawerPort, setCashDrawerPort] = useState(settings?.cashDrawerPort || '');
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
+  const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
 
   const [syncing, setSyncing] = useState(false);
 
@@ -148,6 +149,7 @@ export default function SettingsPage() {
       enableCustomerDisplay,
       cashDrawerPort,
       enableAutoStart,
+      enableBarcodeScanner,
     });
 
     // Update Auto-start OS setting
@@ -816,148 +818,174 @@ export default function SettingsPage() {
             </Card>
 
             <PrinterSettings/>
-            {/* --- BARCODE SCANNER SECTION (Completely Revamped) --- */}
             <Card className="p-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg transition-colors ${
-                    isConnected 
-                      ? 'bg-green-100 dark:bg-green-900/20' 
-                      : 'bg-orange-100 dark:bg-orange-900/20'
+                    enableBarcodeScanner 
+                      ? 'bg-indigo-100 dark:bg-indigo-900/20' 
+                      : 'bg-gray-100 dark:bg-gray-800'
                   }`}>
                     <ScanBarcode className={`h-5 w-5 ${
-                      isConnected 
-                        ? 'text-green-700 dark:text-green-400' 
-                        : 'text-orange-700 dark:text-orange-400'
+                      enableBarcodeScanner 
+                        ? 'text-indigo-700 dark:text-indigo-400' 
+                        : 'text-gray-500'
                     }`} />
                   </div>
                   <div>
-                    <h2 className="text-xl font-semibold">Barcode Scanner</h2>
-                    <div className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${
-                        isConnected 
-                          ? 'bg-green-500' 
-                          : 'bg-gray-300 dark:bg-gray-600'
-                      }`} />
-                      <p className="text-sm text-muted-foreground">
-                        {isConnected ? 'Device Active & Ready' : 'Not Connected'}
-                      </p>
-                    </div>
+                    <h2 className="text-xl font-semibold">Barcode Scanning Feature</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Enable or disable systemic support for barcode scanning
+                    </p>
                   </div>
                 </div>
-                
-                {/* Start/Stop Controls */}
-                <div className="flex gap-2">
-                  {!isScanning ? (
-                    <Button onClick={startScanner} disabled={!vid || !pid} className="bg-green-600 hover:bg-green-700">
-                      <Play className="h-4 w-4 mr-2" /> Start Listener
-                    </Button>
-                  ) : (
-                    <Button onClick={stopScanner} variant="destructive">
-                      <Square className="h-4 w-4 mr-2" /> Stop Listener
-                    </Button>
-                  )}
-                </div>
+                <Switch checked={enableBarcodeScanner} onCheckedChange={setEnableBarcodeScanner} />
               </div>
 
-              {/* Scanner Error Alert */}
-              {scannerError && (
-                <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-md text-sm">
-                  ⚠️ {scannerError}
+              {enableBarcodeScanner && (
+                <div className="space-y-6 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg transition-colors ${
+                        isConnected 
+                          ? 'bg-green-100 dark:bg-green-900/20' 
+                          : 'bg-orange-100 dark:bg-orange-900/20'
+                      }`}>
+                        <ScanBarcode className={`h-5 w-5 ${
+                          isConnected 
+                            ? 'text-green-700 dark:text-green-400' 
+                            : 'text-orange-700 dark:text-orange-400'
+                        }`} />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-medium">Hardware Scanner</h3>
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${
+                            isConnected 
+                              ? 'bg-green-500' 
+                              : 'bg-gray-300 dark:bg-gray-600'
+                          }`} />
+                          <p className="text-sm text-muted-foreground">
+                            {isConnected ? 'Device Active & Ready' : 'Not Connected'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Start/Stop Controls */}
+                    <div className="flex gap-2">
+                      {!isScanning ? (
+                        <Button onClick={startScanner} disabled={!vid || !pid} className="bg-green-600 hover:bg-green-700">
+                          <Play className="h-4 w-4 mr-2" /> Start Listener
+                        </Button>
+                      ) : (
+                        <Button onClick={stopScanner} variant="destructive">
+                          <Square className="h-4 w-4 mr-2" /> Stop Listener
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Scanner Error Alert */}
+                  {scannerError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 rounded-md text-sm">
+                      ⚠️ {scannerError}
+                    </div>
+                  )}
+
+                  {/* Configuration Inputs */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Left Column: Settings */}
+                    <div className="space-y-4">
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1 space-y-2">
+                          <label className="text-sm font-medium">Vendor ID (Hex)</label>
+                          <Input 
+                            value={vid} 
+                            onChange={(e) => setVid(e.target.value)} 
+                            placeholder="0xE851" 
+                            disabled={isScanning}
+                            className="font-mono"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <label className="text-sm font-medium">Product ID (Hex)</label>
+                          <Input 
+                            value={pid} 
+                            onChange={(e) => setPid(e.target.value)} 
+                            placeholder="0x2100" 
+                            disabled={isScanning}
+                            className="font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Auto-detect Helper */}
+                      <div className="pt-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="w-full border-dashed"
+                          onClick={handleDetectDevices}
+                          disabled={isScanning || isSearching}
+                        >
+                          {isSearching ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
+                          {isSearching ? 'Scanning USB Ports...' : 'Detect Connected Devices'}
+                        </Button>
+
+                        {/* Detected Devices List */}
+                        {detectedDevices.length > 0 && (
+                          <div className="mt-2 border rounded-md divide-y max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+                            {detectedDevices.map((device, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => selectDevice(device)}
+                                className="w-full text-left p-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 flex justify-between items-center group"
+                              >
+                                <span className="truncate max-w-[200px]">{device.name || "Unknown Device"}</span>
+                                <span className="text-muted-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 font-mono">
+                                  0x{device.vid.toString(16).toUpperCase()}:0x{device.pid.toString(16).toUpperCase()}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right Column: Live Test */}
+                    <div className="bg-muted/50 rounded-lg p-4 flex flex-col h-full min-h-[160px]">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm font-medium">Live Feed</span>
+                        {scanHistory.length > 0 && (
+                          <button onClick={clearHistory} className="text-xs text-muted-foreground hover:text-destructive">
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 bg-background rounded-md border p-2 overflow-y-auto h-[120px] shadow-inner">
+                        {scanHistory.length === 0 ? (
+                          <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs text-center">
+                            <ScanBarcode className="h-8 w-8 mb-2 opacity-20" />
+                            Scan a barcode to test
+                          </div>
+                        ) : (
+                          <div className="space-y-1">
+                            {scanHistory.map((scan, i) => (
+                              <div key={i} className="flex justify-between text-sm py-1 border-b dark:border-gray-700 last:border-0 animate-in fade-in slide-in-from-top-1">
+                                <span className="font-mono font-medium">{scan.code}</span>
+                                <span className="text-xs text-muted-foreground">{scan.timestamp}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
-
-              {/* Configuration Inputs */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                {/* Left Column: Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-2">
-                      <label className="text-sm font-medium">Vendor ID (Hex)</label>
-                      <Input 
-                        value={vid} 
-                        onChange={(e) => setVid(e.target.value)} 
-                        placeholder="0xE851" 
-                        disabled={isScanning}
-                        className="font-mono"
-                      />
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <label className="text-sm font-medium">Product ID (Hex)</label>
-                      <Input 
-                        value={pid} 
-                        onChange={(e) => setPid(e.target.value)} 
-                        placeholder="0x2100" 
-                        disabled={isScanning}
-                        className="font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Auto-detect Helper */}
-                  <div className="pt-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="w-full border-dashed"
-                      onClick={handleDetectDevices}
-                      disabled={isScanning || isSearching}
-                    >
-                      {isSearching ? <RefreshCcw className="h-4 w-4 mr-2 animate-spin" /> : <Search className="h-4 w-4 mr-2" />}
-                      {isSearching ? 'Scanning USB Ports...' : 'Detect Connected Devices'}
-                    </Button>
-
-                    {/* Detected Devices List */}
-                    {detectedDevices.length > 0 && (
-                      <div className="mt-2 border rounded-md divide-y max-h-40 overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
-                        {detectedDevices.map((device, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => selectDevice(device)}
-                            className="w-full text-left p-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/20 flex justify-between items-center group"
-                          >
-                            <span className="truncate max-w-[200px]">{device.name || "Unknown Device"}</span>
-                            <span className="text-muted-foreground group-hover:text-blue-600 dark:group-hover:text-blue-400 font-mono">
-                              0x{device.vid.toString(16).toUpperCase()}:0x{device.pid.toString(16).toUpperCase()}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Right Column: Live Test */}
-                <div className="bg-muted/50 rounded-lg p-4 flex flex-col h-full min-h-[160px]">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm font-medium">Live Feed</span>
-                    {scanHistory.length > 0 && (
-                      <button onClick={clearHistory} className="text-xs text-muted-foreground hover:text-destructive">
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  
-                  <div className="flex-1 bg-background rounded-md border p-2 overflow-y-auto h-[120px] shadow-inner">
-                    {scanHistory.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-muted-foreground text-xs text-center">
-                        <ScanBarcode className="h-8 w-8 mb-2 opacity-20" />
-                        Scan a barcode to test
-                      </div>
-                    ) : (
-                      <div className="space-y-1">
-                        {scanHistory.map((scan, i) => (
-                          <div key={i} className="flex justify-between text-sm py-1 border-b dark:border-gray-700 last:border-0 animate-in fade-in slide-in-from-top-1">
-                            <span className="font-mono font-medium">{scan.code}</span>
-                            <span className="text-xs text-muted-foreground">{scan.timestamp}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
             </Card>
 
             {/* --- AUTO PRINT SETTINGS (Kept the same) --- */}

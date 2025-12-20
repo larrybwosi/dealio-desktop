@@ -335,6 +335,7 @@ export interface BusinessSettings {
   kitchenTicketConfig: KitchenTicketConfig;
   cashDrawerPort?: string; // Serial port for cash drawer hardware (e.g., "COM3")
   enableAutoStart: boolean;
+  enableBarcodeScanner: boolean;
 }
 
 export interface Customer {
@@ -771,6 +772,7 @@ export const usePosStore = create<PosStore>()(
         kitchenTicketConfig: getDefaultKitchenTicketConfig(),
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
+        enableBarcodeScanner: true,
       },
       employees: [],
       notifications: [],
