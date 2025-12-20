@@ -18,6 +18,9 @@ use customer_store::CustomerState;
 mod sales_store;
 use sales_store::SalesState;
 
+mod pricing_store;
+use pricing_store::PricingState;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -117,6 +120,49 @@ fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::Queued
 }
 
 
+
+// --- PRICING COMMANDS ---
+
+#[tauri::command]
+async fn sync_pricing_command(
+    app: AppHandle,
+    state: State<'_, PricingState>,
+    base_url: String,
+    device_key: Option<String>,
+    member_token: Option<String>
+) -> Result<String, String> {
+    match pricing_store::run_sync(app, &state, base_url, device_key, member_token).await {
+        Ok(timestamp) => Ok(timestamp),
+        Err(e) => Err(e.to_string())
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct BatchPricingRequest {
+    variant_id: String,
+    unit_id: Option<String>,
+    is_base_unit: bool,
+}
+
+#[tauri::command]
+fn resolve_price_batch_command(
+    state: State<'_, PricingState>,
+    customer_id: Option<String>,
+    requests: Vec<BatchPricingRequest>
+) -> Vec<Option<f64>> {
+    let mut results = Vec::new();
+    for req in requests {
+        let price = pricing_store::resolve_price(
+            &state, 
+            customer_id.clone(), 
+            req.variant_id, 
+            req.unit_id, 
+            req.is_base_unit
+        );
+        results.push(price);
+    }
+    results
+}
 
 // --- Command to open/manage the Customer Window ---
 #[tauri::command]
@@ -348,6 +394,7 @@ pub fn run() {
         .manage(ProductState::new()) // Initialize State
         .manage(CustomerState::new()) // Initialize Customer State
         .manage(SalesState::new()) // Initialize Sales State
+        .manage(PricingState::new()) // Initialize Pricing State
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
@@ -362,6 +409,11 @@ pub fn run() {
 
                 let sales_state = app.state::<SalesState>();
                 sales_store::init_state(app.handle(), &sales_state);
+
+                let pricing_state = app.state::<PricingState>();
+                if let Err(e) = pricing_store::load_pricing_from_disk(app.handle(), &pricing_state) {
+                    eprintln!("Failed to load initial pricing data: {}", e);
+                }
 
                 // --- System Tray Configuration ---
                 let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -453,7 +505,9 @@ pub fn run() {
             search_customers_command, 
             process_sale_command,    
             sync_sales_command,      
-            get_pending_sales_command 
+            get_pending_sales_command,
+            sync_pricing_command,
+            resolve_price_batch_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

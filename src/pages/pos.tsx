@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { usePosStore } from '@/store/store';
-import { usePosPricingSync, resolveCustomerPrice } from '@/hooks/use-pricing-sync';
+import { usePosPricingSync, useBatchPricing } from '@/hooks/use-pricing-sync';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -32,7 +32,6 @@ import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
-// Removed emitTo - now handled in Cart.tsx
 
 export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -77,12 +76,38 @@ export function POS() {
     setTableNumber: state.setTableNumber
   }));
 
-  // --- PRICING SYNC ---
-  const { data: pricingData } = usePosPricingSync();
+  // --- PRICING SYNC & BATCH RESOLUTION ---
+  // A. Trigger Sync in Background
+  usePosPricingSync();
 
-  const handleGetPrice = useCallback((variantId: string, unitId: string | null) => {
-    return resolveCustomerPrice(pricingData, currentOrder.customerId, variantId, unitId);
-  }, [pricingData, currentOrder.customerId]);
+  // B. Prepare Items for Batch Pricing
+  const pricingItems = useMemo(() => {
+    const items: { variantId: string; unitId: string | null; isBaseUnit: boolean }[] = [];
+    products.forEach((p: any) => {
+        if (!p.variants) return;
+        p.variants.forEach((v: any) => {
+            if (!v.sellableUnits) return;
+            v.sellableUnits.forEach((u: any) => {
+                items.push({ 
+                    variantId: v.variantId, 
+                    unitId: u.unitId || null, 
+                    isBaseUnit: !!u.isBaseUnit 
+                });
+            });
+        });
+    });
+    return items;
+  }, [products]);
+
+  // C. Fetch Prices from Rust
+  const { priceMap } = useBatchPricing(pricingItems, currentOrder.customerId);
+
+  const handleGetPrice = useCallback((variantId: string, unitId: string | null, _isBaseUnit: boolean = false) => {
+      // Create lookup key matching useBatchPricing logic
+      const key = `${variantId}:${unitId ?? 'null'}`;
+      const price = priceMap[key];
+      return typeof price === 'number' ? price : null;
+  }, [priceMap]);
 
   // --- SCREEN LAUNCH LOGIC ---
   useEffect(() => {
@@ -174,85 +199,105 @@ export function POS() {
       return;
     }
 
-    lastProcessedBarcode.current = lastScanned;
+    const processScan = async () => {
+        lastProcessedBarcode.current = lastScanned;
 
-    const product = products.find((p: any) => {
-      if (p.barcode === lastScanned) return true;
-      return p.variants?.some((v: any) => v.barcode === lastScanned);
-    });
+        const product = products.find((p: any) => {
+        if (p.barcode === lastScanned) return true;
+        return p.variants?.some((v: any) => v.barcode === lastScanned);
+        });
 
-    if (!product) {
-      toast.error('Product Not Found', {
-        description: `No product found with barcode: ${lastScanned}. Try clearing filters if applied.`,
-        duration: 3000,
-      });
-      return;
-    }
+        if (!product) {
+        toast.error('Product Not Found', {
+            description: `No product found with barcode: ${lastScanned}. Try clearing filters if applied.`,
+            duration: 3000,
+        });
+        return;
+        }
 
-    const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
-    
-    if (!variant) {
-      toast.error('Invalid Product', {
-        description: `Product ${product.productName} has no valid variants`,
-        duration: 3000,
-      });
-      return;
-    }
+        const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
+        
+        if (!variant) {
+        toast.error('Invalid Product', {
+            description: `Product ${product.productName} has no valid variants`,
+            duration: 3000,
+        });
+        return;
+        }
 
-    if (product.stock <= 0) {
-      toast.warning('Out of Stock', {
-        description: `${product.productName} is currently out of stock`,
-        duration: 3000,
-      });
-      return;
-    }
+        if (product.stock <= 0) {
+        toast.warning('Out of Stock', {
+            description: `${product.productName} is currently out of stock`,
+            duration: 3000,
+        });
+        return;
+        }
 
-    const defaultUnit = product.sellableUnits?.find((u: any) => u.isBaseUnit) || product.sellableUnits?.[0];
-    
-    if (!defaultUnit) {
-      toast.error('Invalid Product', {
-        description: `Product ${product.productName} has no sellable units`,
-        duration: 3000,
-      });
-      return;
-    }
+        const defaultUnit = product.sellableUnits?.find((u: any) => u.isBaseUnit) || product.sellableUnits?.[0];
+        
+        if (!defaultUnit) {
+        toast.error('Invalid Product', {
+            description: `Product ${product.productName} has no sellable units`,
+            duration: 3000,
+        });
+        return;
+        }
 
-    const storeProduct = {
-      ...product,
-      variantId: variant.variantId,
-      variantName: variant.variantName, 
-      name: product.productName, 
-      variants: product.variants?.map((v: any) => ({
-        ...v,
-        name: v.variantName || v.name || 'Default Variant'
-      }))
+        const storeProduct = {
+        ...product,
+        variantId: variant.variantId,
+        variantName: variant.variantName, 
+        name: product.productName, 
+        variants: product.variants?.map((v: any) => ({
+            ...v,
+            name: v.variantName || v.name || 'Default Variant'
+        }))
+        };
+
+        // Calculate dynamic price for scanner adding
+        // Note: We use the Rust Command directly here for instantaneous resolution
+        let customPrice: number | null = null;
+        try {
+            const prices = await invoke<Array<number | null>>("resolve_price_batch_command", {
+                customerId: currentOrder.customerId,
+                requests: [{
+                    variant_id: variant.variantId,
+                    unit_id: defaultUnit.unitId || null,
+                    is_base_unit: !!defaultUnit.isBaseUnit
+                }]
+            });
+            if (prices && prices.length > 0) {
+                customPrice = prices[0];
+            }
+        } catch (err) {
+            console.error("Failed to resolve price for scanned item:", err);
+        }
+
+        // If custom price, update unit price logic or pass it.
+        // Ideally, addItemToOrder should handle this, but currently it takes unit.price.
+        // We override the price if customPrice found.
+        const unitToAdd = {
+            ...defaultUnit,
+            price: customPrice !== null ? customPrice : defaultUnit.price,
+            originalRetailPrice: defaultUnit.price 
+        };
+
+        addItemToOrder(
+        storeProduct,
+        unitToAdd,
+        1,
+        { isWholesale: pricingMode === 'wholesale' }
+        );
+
+        toast.success('Added to Cart', {
+        description: `${product.productName} (${variant.variantName || 'Default'})`,
+        duration: 2000,
+        icon: <CheckCircle2 className="w-5 h-5" />,
+        });
     };
 
-    // Calculate dynamic price for scanner adding
-    // Note: We use the helper directly here since we are inside POS and have data
-    const customPrice = resolveCustomerPrice(pricingData, currentOrder.customerId, variant.variantId, defaultUnit.unitId);
-    // If custom price, update unit price logic or pass it.
-    // Ideally, addItemToOrder should handle this, but currently it takes unit.price.
-    // We override the price if customPrice found.
-    const unitToAdd = {
-        ...defaultUnit,
-        price: customPrice !== null ? customPrice : defaultUnit.price,
-        originalRetailPrice: defaultUnit.price 
-    };
-
-    addItemToOrder(
-      storeProduct,
-      unitToAdd,
-      1,
-      { isWholesale: pricingMode === 'wholesale' }
-    );
-
-    toast.success('Added to Cart', {
-      description: `${product.productName} (${variant.variantName || 'Default'})`,
-      duration: 2000,
-      icon: <CheckCircle2 className="w-5 h-5" />,
-    });
-  }, [lastScanned, products, addItemToOrder, pricingMode, pricingData, currentOrder.customerId]);
+    processScan();
+  }, [lastScanned, products, addItemToOrder, pricingMode, currentOrder.customerId]);
 
   useEffect(() => {
     if (scannerError) {

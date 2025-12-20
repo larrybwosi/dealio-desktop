@@ -46,7 +46,7 @@ import { usePosProducts } from '@/hooks/products';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useDebounce } from 'use-debounce';
 import OrderSuccessView from '@/components/order-success';
-import { usePosPricingSync, resolveCustomerPrice } from '@/hooks/use-pricing-sync';
+import { usePosPricingSync, useBatchPricing } from '@/hooks/use-pricing-sync';
 
 // --- TYPES ---
 
@@ -240,7 +240,7 @@ const OrderItemRow = memo(({
   errors,
   formatCurrency,
   customerId,
-  pricingData
+  priceMap
 }: {
   index: number;
   control: Control<any>;
@@ -250,7 +250,7 @@ const OrderItemRow = memo(({
   errors: any;
   formatCurrency: (val: number) => string;
   customerId?: string;
-  pricingData?: any; 
+  priceMap: Record<string, number>; 
 }) => {
   const rowValues = useWatch({
     control,
@@ -272,8 +272,11 @@ const OrderItemRow = memo(({
     let finalPrice = standardUnit.price;
 
     // 2. Check for Custom/Customer Price
-    const customPrice = resolveCustomerPrice(pricingData, customerId, rowValues.variantId, rowValues.sellingUnitId);
-    if (customPrice !== null) {
+    const key = `${rowValues.variantId}:${rowValues.sellingUnitId}`;
+    const customPrice = priceMap[key];
+    
+    // const customPrice = resolveCustomerPrice(pricingData, customerId, rowValues.variantId, rowValues.sellingUnitId);
+    if (typeof customPrice === 'number') {
       finalPrice = customPrice;
     }
 
@@ -287,7 +290,7 @@ const OrderItemRow = memo(({
     rowValues?.variantId, 
     rowValues?.sellingUnitId, 
     customerId, 
-    pricingData, 
+    priceMap, 
     // We deliberately exclude unitPrice to avoid circular dependency, 
     // but include _availableUnits to ensure we have base data
     JSON.stringify(rowValues?._availableUnits) 
@@ -527,8 +530,30 @@ export default function CreateOrderPage() {
   const { fields: paymentFields, append: appendPayment, remove: removePayment } = useFieldArray({ control, name: 'payments' });
 
   // --- PRICING DATA FETCHING ---
-  const { data: pricingData } = usePosPricingSync();
+  // A. Trigger Sync
+  usePosPricingSync();
   const customerId = watch('customerId');
+  const items = watch('items');
+
+  // B. Construct Batch Request
+  const batchPricingItems = useMemo(() => {
+     return items.map((item: any) => {
+         // Need variantId and sellingUnitId to calculate
+         if (!item.variantId || !item.sellingUnitId) return null;
+         
+         // Find if it is a base unit
+         const unit = item._availableUnits?.find((u: any) => u.unitId === item.sellingUnitId);
+         
+         return {
+             variantId: item.variantId,
+             unitId: item.sellingUnitId,
+             isBaseUnit: !!(unit?.isBaseUnit)
+         }
+     }).filter((i): i is { variantId: string; unitId: string; isBaseUnit: boolean } => i !== null);
+  }, [items]);
+
+  // C. Fetch Price Map (Rust)
+  const { priceMap } = useBatchPricing(batchPricingItems, customerId);
 
   // Only watch fields necessary for conditional logic
   const fulfillmentType = watch('fulfillment.type');
@@ -734,7 +759,7 @@ export default function CreateOrderPage() {
                         errors={errors}
                         formatCurrency={formatCurrency}
                         customerId={customerId}
-                        pricingData={pricingData}
+                        priceMap={priceMap}
                       />
                     ))}
                     {itemFields.length === 0 && (

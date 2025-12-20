@@ -162,3 +162,61 @@ pub struct SaleResponse {
     pub message: String,
     pub server_response: Option<serde_json::Value>,
 }
+
+// --- PRICING ---
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientPriceList {
+    pub id: String,
+    pub code: String,
+    pub priority: i32,
+    pub is_global: bool,
+    pub is_active: bool,
+    pub valid_from: Option<String>,
+    pub valid_to: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClientPriceListItem {
+    pub id: String,
+    pub price_list_id: String,
+    pub variant_id: String,
+    pub selling_unit_id: Option<String>,
+    pub min_quantity: i32,
+    pub price: String, // Keep as string to match API/Frontend precision if needed
+    pub updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PricingSyncResponse {
+    pub metadata: PricingMetadata,
+    pub data: PricingData,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PricingMetadata {
+    pub synced_at: String,
+    pub is_delta: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PricingData {
+    pub lists: Vec<ClientPriceList>,
+    pub items: Vec<ClientPriceListItem>,
+    pub customer_allocations: std::collections::HashMap<String, Vec<String>>,
+    pub deleted_item_ids: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PosPricingData {
+    pub lists: Vec<ClientPriceList>,
+    pub items: Vec<ClientPriceListItem>,
+    pub allocations: std::collections::HashMap<String, Vec<String>>,
+}

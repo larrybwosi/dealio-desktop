@@ -19,6 +19,7 @@ interface Unit {
   unitName: string;
   price: string | number;
   wholesalePrice?: string | number;
+  isBaseUnit?: boolean;
 }
 
 interface Variant {
@@ -42,7 +43,7 @@ interface ProductProps {
   product: Product;
   onAddToCart: (item: any) => void;
   pricingMode: 'retail' | 'wholesale';
-  customPriceCalculator?: (variantId: string, unitId: string) => number | null;
+  customPriceCalculator?: (variantId: string, unitId: string, isBaseUnit?: boolean) => number | null;
 }
 
 export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
@@ -84,7 +85,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
 
     // 1. Try Custom Pricing (Customer Specific)
     if (customPriceCalculator) {
-        const customPrice = customPriceCalculator(currentVariant.variantId, currentUnit.unitId);
+        const customPrice = customPriceCalculator(currentVariant.variantId, currentUnit.unitId, currentUnit.isBaseUnit);
         if (customPrice !== null) return customPrice;
     }
 
