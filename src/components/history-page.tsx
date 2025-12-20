@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useOfflineSaleStore } from "@/store/offline-sale"
 import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -10,15 +9,66 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Search, Download, Eye, Printer, AlertCircle, CheckCircle2, Cloud, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { usePendingSales } from "@/hooks/sales"
 
 export function HistoryPage() {
-  const queue = useOfflineSaleStore((state) => state.queue)
+  const { pendingSales: queue, isLoading, error } = usePendingSales()
   const settings = usePosStore((state) => state.settings)
   
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="flex justify-center">
+            <RefreshCw className="w-10 h-10 animate-spin text-muted-foreground" />
+          </div>
+          <div>
+            <h3 className="text-lg font-medium">Loading Transactions</h3>
+            <p className="text-sm text-muted-foreground">Please wait while we fetch your transaction history</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="text-center space-y-4 max-w-md">
+          <div className="flex justify-center">
+            <AlertCircle className="w-12 h-12 text-destructive" />
+          </div>
+          <div>
+            <h3 className="text-lg font-medium text-destructive">Failed to Load Transactions</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              {error.message || "An error occurred while fetching transaction history"}
+            </p>
+          </div>
+          <div className="space-x-3 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => window.location.reload()}
+              className="gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Retry
+            </Button>
+            <Button onClick={() => {}} className="gap-2">
+              <Cloud className="w-4 h-4" />
+              Check Connection
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const filteredOrders = useMemo(() => {
     const now = new Date()
@@ -44,18 +94,15 @@ export function HistoryPage() {
     }
 
     return queue.filter((item) => {
-      // CHANGED: Access data via item.data
-      const customerId = item.data.customerId || ""
-      const saleNumber = item.data.saleNumber || ""
+      // FIXED: Access data via item.transactionData
+      const customerId = item.transactionData.customerId || ""
+      const saleNumber = item.transactionData.saleNumber || ""
       
       const matchesSearch =
         customerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
         saleNumber.toLowerCase().includes(searchQuery.toLowerCase())
       
-      // CHANGED: Filter by Queue Status
       const matchesStatus = statusFilter === "all" || item.status === statusFilter
-      
-      // CHANGED: Use item.timestamp
       const matchesDate = !startDate || new Date(item.timestamp) >= startDate
 
       return matchesSearch && matchesStatus && matchesDate
@@ -64,7 +111,7 @@ export function HistoryPage() {
 
   const selectedOrderData = selectedOrderId ? queue.find((o) => o.id === selectedOrderId) : null
 
-  // CHANGED: Calculate totals based on Payment Data (Amount Received - Change)
+  // FIXED: Calculate totals based on transactionData
   const calculateTotal = (data: any) => {
     const received = data.amountReceived || 0
     const change = data.change || 0
@@ -73,7 +120,7 @@ export function HistoryPage() {
 
   const totalSales = filteredOrders
     .filter((o) => o.status === "SYNCED")
-    .reduce((sum, order) => sum + calculateTotal(order.data), 0)
+    .reduce((sum, order) => sum + calculateTotal(order.transactionData), 0)
     
   const completedOrders = filteredOrders.filter((o) => o.status === "SYNCED").length
   const avgOrderValue = completedOrders > 0 ? totalSales / completedOrders : 0
@@ -159,92 +206,112 @@ export function HistoryPage() {
             </div>
           </Card>
 
-          {/* Orders List */}
-          <Card>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b border-border">
-                  <tr className="text-sm text-muted-foreground">
-                    <th className="text-left p-4 font-medium">Sale #</th>
-                    <th className="text-left p-4 font-medium">Customer ID</th>
-                    <th className="text-left p-4 font-medium">Payment</th>
-                    <th className="text-left p-4 font-medium">Date & Time</th>
-                    <th className="text-left p-4 font-medium">Items</th>
-                    <th className="text-left p-4 font-medium">Total</th>
-                    <th className="text-left p-4 font-medium">Sync Status</th>
-                    <th className="text-left p-4 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={cn(
-                        "border-b border-border hover:bg-muted/50 transition-colors cursor-pointer",
-                        selectedOrderId === item.id && "bg-muted",
-                      )}
-                      onClick={() => setSelectedOrderId(item.id)}
-                    >
-                      <td className="p-4">
-                        <span className="font-medium">
-                            {item.data.saleNumber || <span className="text-muted-foreground text-xs italic">Pending Gen</span>}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <span className="text-sm">
-                            {item.data.customerId ? 
-                                item.data.customerId.slice(0, 8) + '...' : 
-                                <span className="text-muted-foreground">Guest</span>}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="outline" className="text-xs">
-                          {item.data.paymentMethod}
-                        </Badge>
-                      </td>
-                      <td className="p-4 text-sm text-muted-foreground">
-                        {new Date(item.timestamp).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })}{" "}
-                        <span className="text-xs">
-                            {new Date(item.timestamp).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            })}
-                        </span>
-                      </td>
-                      <td className="p-4 text-sm">{item.data.cartItems.length} items</td>
-                      <td className="p-4">
-                        <span className="font-semibold">
-                          {settings.currency} {calculateTotal(item.data).toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <Badge variant="secondary" className={getQueueStatusColor(item.status)}>
-                          {getQueueStatusIcon(item.status)}
-                          <span className="ml-1">{item.status}</span>
-                        </Badge>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {filteredOrders.length === 0 && (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p>No transactions found matching your criteria</p>
+          {/* Empty state when no orders exist */}
+          {queue.length === 0 ? (
+            <Card className="p-12">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <Cloud className="w-12 h-12 text-muted-foreground" />
                 </div>
-              )}
-            </div>
-          </Card>
+                <div>
+                  <h3 className="text-lg font-medium">No Transactions Yet</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Your transaction history will appear here once you make sales
+                  </p>
+                </div>
+                <Button variant="outline" onClick={() => {}} className="mt-4">
+                  Create New Sale
+                </Button>
+              </div>
+            </Card>
+          ) : (
+            /* Orders List */
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-border">
+                    <tr className="text-sm text-muted-foreground">
+                      <th className="text-left p-4 font-medium">Sale #</th>
+                      <th className="text-left p-4 font-medium">Customer ID</th>
+                      <th className="text-left p-4 font-medium">Payment</th>
+                      <th className="text-left p-4 font-medium">Date & Time</th>
+                      <th className="text-left p-4 font-medium">Items</th>
+                      <th className="text-left p-4 font-medium">Total</th>
+                      <th className="text-left p-4 font-medium">Sync Status</th>
+                      <th className="text-left p-4 font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((item) => (
+                      <tr
+                        key={item.id}
+                        className={cn(
+                          "border-b border-border hover:bg-muted/50 transition-colors cursor-pointer",
+                          selectedOrderId === item.id && "bg-muted",
+                        )}
+                        onClick={() => setSelectedOrderId(item.id)}
+                      >
+                        <td className="p-4">
+                          <span className="font-medium">
+                              {item.transactionData.saleNumber || <span className="text-muted-foreground text-xs italic">Pending Gen</span>}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <span className="text-sm">
+                              {item.transactionData.customerId ? 
+                                  item.transactionData.customerId.slice(0, 8) + '...' : 
+                                  <span className="text-muted-foreground">Guest</span>}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <Badge variant="outline" className="text-xs">
+                            {item.transactionData.paymentMethod}
+                          </Badge>
+                        </td>
+                        <td className="p-4 text-sm text-muted-foreground">
+                          {new Date(item.timestamp).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}{" "}
+                          <span className="text-xs">
+                              {new Date(item.timestamp).toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              })}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm">{item.transactionData.cartItems.length} items</td>
+                        <td className="p-4">
+                          <span className="font-semibold">
+                            {settings.currency} {calculateTotal(item.transactionData).toLocaleString()}
+                          </span>
+                        </td>
+                        <td className="p-4">
+                          <Badge variant="secondary" className={getQueueStatusColor(item.status)}>
+                            {getQueueStatusIcon(item.status)}
+                            <span className="ml-1">{item.status}</span>
+                          </Badge>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {filteredOrders.length === 0 && (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p>No transactions found matching your criteria</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -269,10 +336,21 @@ export function HistoryPage() {
                  <Badge variant="secondary" className={getQueueStatusColor(selectedOrderData.status)}>
                     {selectedOrderData.status}
                 </Badge>
-                {selectedOrderData.data.isWholesale && (
+                {selectedOrderData.transactionData.isWholesale && (
                     <Badge variant="outline" className="bg-purple-500/10 text-purple-700">Wholesale</Badge>
                 )}
               </div>
+              
+              {/* Show retry count and last error for failed transactions */}
+              {selectedOrderData.status === 'FAILED' && selectedOrderData.lastError && (
+                <div className="bg-red-50 p-3 rounded-md text-red-900 text-sm mt-3">
+                  <span className="font-semibold block mb-1">Error:</span>
+                  {selectedOrderData.lastError}
+                  <div className="text-xs mt-1 text-red-700">
+                    Retry attempts: {selectedOrderData.retryCount || 0}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -282,34 +360,36 @@ export function HistoryPage() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Customer ID</span>
-                  <span className="font-mono text-xs">{selectedOrderData.data.customerId || "N/A"}</span>
+                  <span className="font-mono text-xs">{selectedOrderData.transactionData.customerId || "Guest"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Method</span>
-                  <span className="font-medium">{selectedOrderData.data.paymentMethod}</span>
+                  <span className="font-medium">{selectedOrderData.transactionData.paymentMethod}</span>
                 </div>
-                {selectedOrderData.data.paymentMethod === 'MPESA' && (
+                {selectedOrderData.transactionData.paymentMethod === 'MPESA' && selectedOrderData.transactionData.mpesaPhoneNumber && (
                     <div className="flex justify-between">
                     <span className="text-muted-foreground">M-Pesa Phone</span>
-                    <span className="font-medium">{selectedOrderData.data.mpesaPhoneNumber || "N/A"}</span>
+                    <span className="font-medium">{selectedOrderData.transactionData.mpesaPhoneNumber}</span>
                     </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Payment Status</span>
-                  <span className="font-medium">{selectedOrderData.data.paymentStatus}</span>
+                  <span className="font-medium">{selectedOrderData.transactionData.paymentStatus}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="font-semibold mb-3">Items (IDs)</h3>
+              <h3 className="font-semibold mb-3">Items</h3>
               <div className="space-y-3 bg-muted/30 p-3 rounded-lg">
-                {selectedOrderData.data.cartItems.map((item, index) => (
+                {selectedOrderData.transactionData.cartItems.map((item, index) => (
                   <div key={index} className="flex justify-between text-sm border-b border-border/50 pb-2 last:border-0">
                     <div className="flex-1 pr-4">
-                      {/* Note: We only have IDs in the offline store data, not names */}
                       <div className="font-mono text-xs text-muted-foreground truncate w-48">Prod: {item.productId}</div>
                       <div className="font-mono text-[10px] text-muted-foreground truncate w-48">Var: {item.variantId}</div>
+                      {item.sellingUnitId && (
+                        <div className="font-mono text-[10px] text-muted-foreground truncate w-48">Unit: {item.sellingUnitId}</div>
+                      )}
                     </div>
                     <div className="text-right">
                       <div className="font-medium">Qty: {item.quantity}</div>
@@ -323,34 +403,34 @@ export function HistoryPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Amount Received</span>
                 <span>
-                  {settings.currency} {(selectedOrderData.data.amountReceived || 0).toLocaleString()}
+                  {settings.currency} {(selectedOrderData.transactionData.amountReceived || 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Change</span>
                 <span>
-                  {settings.currency} {(selectedOrderData.data.change || 0).toLocaleString()}
+                  {settings.currency} {(selectedOrderData.transactionData.change || 0).toLocaleString()}
                 </span>
               </div>
                <div className="flex justify-between">
                 <span className="text-muted-foreground">Discount</span>
                 <span className="text-emerald-600">
-                  -{settings.currency} {(selectedOrderData.data.discountAmount || 0).toLocaleString()}
+                  -{settings.currency} {(selectedOrderData.transactionData.discountAmount || 0).toLocaleString()}
                 </span>
               </div>
               
               <div className="flex justify-between pt-2 border-t border-border">
                 <span className="font-semibold">Calculated Total</span>
                 <span className="font-bold text-lg">
-                  {settings.currency} {calculateTotal(selectedOrderData.data).toLocaleString()}
+                  {settings.currency} {calculateTotal(selectedOrderData.transactionData).toLocaleString()}
                 </span>
               </div>
             </div>
 
-            {selectedOrderData.data.notes && (
+            {selectedOrderData.transactionData.notes && (
                 <div className="bg-amber-50 p-3 rounded-md text-amber-900 text-sm">
                     <span className="font-semibold block mb-1">Notes:</span>
-                    {selectedOrderData.data.notes}
+                    {selectedOrderData.transactionData.notes}
                 </div>
             )}
 

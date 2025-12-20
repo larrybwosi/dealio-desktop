@@ -69,9 +69,34 @@ interface RustSaleResponse {
 
 interface RustQueuedSale {
   id: string;
-  status: string;
-  retry_count: number;
+  status: "PENDING" | "SYNCING" | "SYNCED" | "FAILED";
+  retryCount: number;
+  timestamp: number;
+  locationId: string;
+  lastError?: string;
+  transactionData: {
+    saleNumber: string;
+    customerId: string | null;
+    paymentMethod: "CASH" | "MPESA" | "CARD";
+    paymentStatus: "COMPLETED" | "PENDING" | "FAILED";
+    mpesaPhoneNumber?: string;
+    amountReceived: number;
+    change: number;
+    discountAmount: number;
+    isWholesale: boolean;
+    enableStockTracking: boolean;
+    locationId: string;
+    notes: string;
+    cartItems: Array<{
+      productId: string;
+      variantId: string;
+      quantity: number;
+      sellingUnitId: string;
+    }>;
+  };
 }
+
+export type { RustQueuedSale };
 
 // --- Hooks ---
 
@@ -102,7 +127,7 @@ export const useProcessSale = () => {
         locationId,
         payload,
         baseUrl: API_ENDPOINT,
-        deviceKey: deviceKey || null, // <--- Added
+        deviceKey: deviceKey || null,
         memberToken: memberToken || null
       });
 
@@ -138,12 +163,29 @@ export const useProcessSale = () => {
   });
 };
 
+export const usePendingSales = () => {
+  const { data: pendingSales = [], isLoading, error } = useQuery({
+    queryKey: ['pos-sales-queue'],
+    queryFn: async () => {
+      return await invoke<RustQueuedSale[]>('get_pending_sales_command');
+    },
+    refetchInterval: 5000,
+  });
+
+  return {
+    pendingSales,
+    pendingCount: pendingSales.length,
+    isLoading,
+    error
+  };
+};
+
 /**
  * Hook to sync offline sales.
  * Triggers the background Rust worker.
  */
 export const useSyncOfflineSales = () => {
-  const { memberToken, deviceKey } = useAuthStore(); // <--- Get deviceKey
+  const { memberToken, deviceKey } = useAuthStore();
   const queryClient = useQueryClient();
 
   // Helper query to get the count of pending items from Rust

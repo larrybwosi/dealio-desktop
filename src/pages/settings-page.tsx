@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePosStore } from '@/store/store';
 import { businessConfigs, type BusinessType } from '@/lib/business-configs';
 import { Card } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
+import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useScanner } from '@/hooks/use-scanner';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
@@ -111,10 +112,18 @@ export default function SettingsPage() {
   const [tillNumber, setTillNumber] = useState(settings?.tillNumber || '');
   const [enableCustomerDisplay, setEnableCustomerDisplay] = useState(settings?.enableCustomerDisplay ?? true);
   const [cashDrawerPort, setCashDrawerPort] = useState(settings?.cashDrawerPort || '');
+  const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
 
   const [syncing, setSyncing] = useState(false);
 
   const currentConfig = getBusinessConfig();
+
+  // Sync auto-start local state with OS setting on mount
+  useEffect(() => {
+    isEnabled().then(enabled => {
+      setEnableAutoStart(enabled);
+    }).catch(err => console.error("Failed to check auto-start status", err));
+  }, []);
 
   const handleSaveSettings = () => {
     const newTaxRate = Number.parseFloat(taxRate) || 0;
@@ -138,7 +147,20 @@ export default function SettingsPage() {
       tillNumber,
       enableCustomerDisplay,
       cashDrawerPort,
+      enableAutoStart,
     });
+
+    // Update Auto-start OS setting
+    try {
+      if (enableAutoStart) {
+        enable();
+      } else {
+        disable();
+      }
+    } catch (err) {
+      console.error("Failed to update auto-start setting", err);
+    }
+
     toast.success('Settings saved successfully!');
   };
 
@@ -265,6 +287,16 @@ export default function SettingsPage() {
                     </p>
                   </div>
                   <Switch checked={allowSaveUnpaidOrders} onCheckedChange={setAllowSaveUnpaidOrders} />
+                </div>
+
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Auto Start on Boot</div>
+                    <p className="text-sm text-muted-foreground">
+                      Automatically start the application when the computer boots up
+                    </p>
+                  </div>
+                  <Switch checked={enableAutoStart} onCheckedChange={setEnableAutoStart} />
                 </div>
               </div>
             </Card>
