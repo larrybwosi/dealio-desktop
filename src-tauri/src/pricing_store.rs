@@ -326,3 +326,8 @@ pub fn resolve_price(
 
     None
 }
+
+// --- 4. Data Access ---
+pub fn get_all_pricing(state: &PricingState) -> PosPricingData {
+    state.data.lock().unwrap().clone()
+}

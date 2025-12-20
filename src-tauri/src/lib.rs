@@ -164,6 +164,11 @@ fn resolve_price_batch_command(
     results
 }
 
+#[tauri::command]
+fn get_pos_pricing_command(state: State<'_, PricingState>) -> models::PosPricingData {
+    pricing_store::get_all_pricing(&state)
+}
+
 // --- Command to open/manage the Customer Window ---
 #[tauri::command]
 async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
@@ -507,7 +512,8 @@ pub fn run() {
             sync_sales_command,      
             get_pending_sales_command,
             sync_pricing_command,
-            resolve_price_batch_command
+            resolve_price_batch_command,
+            get_pos_pricing_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

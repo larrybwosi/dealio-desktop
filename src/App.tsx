@@ -17,6 +17,7 @@ import CreateOrderPage from '@/pages/create-order';
 import { POS } from '@/pages/pos';
 import SettingsPage from '@/pages/settings-page';
 import CustomerDisplay from '@/pages/customer-display';
+import PricingViewPage from '@/pages/pricing-view-page';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -54,6 +55,7 @@ const AppRoutes = () => {
         <Route path="/receipt-settings" element={<ReceiptSettingsPage />} />
         <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
         <Route path="/create-order" element={<CreateOrderPage />} />
+        <Route path="/pricing" element={<PricingViewPage />} />
       </Route>
       
       {/* Routes without AppLayout */}
