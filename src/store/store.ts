@@ -427,7 +427,6 @@ interface PosStore {
   settings: BusinessSettings;
   lastCompletedOrder: Order | null;
 
-  customers: Customer[];
   employees: Employee[];
   cashDrawers: CashDrawer[];
   currentEmployeeId: string | null;
@@ -462,11 +461,6 @@ interface PosStore {
   changeBusinessType: (type: BusinessType) => void;
   updateReceiptConfig: (config: Partial<ReceiptConfig>) => void;
   saveUnpaidOrder: (discountAmount: number) => void;
-
-  addCustomer: (customer: Omit<Customer, 'id' | 'totalPurchases' | 'lastVisit' | 'loyaltyPoints'>) => void;
-  updateCustomer: (id: string, customer: Partial<Customer>) => void;
-  deleteCustomer: (id: string) => void;
-  selectCustomer: (customer: Customer | string) => void;
 
   addEmployee: (employee: Omit<Employee, 'id'>) => void;
   updateEmployee: (id: string, employee: Partial<Employee>) => void;
@@ -778,7 +772,6 @@ export const usePosStore = create<PosStore>()(
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
       },
-      customers: [],
       employees: [],
       notifications: [],
       cashDrawers: [],
@@ -1072,67 +1065,6 @@ export const usePosStore = create<PosStore>()(
               tableNumber: '',
               instructions: '',
               metadata: {},
-            },
-          };
-        }),
-
-      addCustomer: customer =>
-        set(state => ({
-          customers: [
-            ...state.customers,
-            {
-              ...customer,
-              id: `cust_${Date.now()}`,
-              totalPurchases: 0,
-              lastVisit: new Date(),
-              loyaltyPoints: 0,
-            },
-          ],
-        })),
-
-      updateCustomer: (id, customer) =>
-        set(state => ({
-          customers: state.customers.map(c => (c.id === id ? { ...c, ...customer } : c)),
-        })),
-
-      deleteCustomer: id =>
-        set(state => ({
-          customers: state.customers.filter(c => c.id !== id),
-        })),
-
-      selectCustomer: customerOrId =>
-        set(state => {
-          let customer: Customer | undefined;
-
-          if (typeof customerOrId === 'string') {
-            // If ID provided, look up in store
-            customer = state.customers.find(c => c.id === customerOrId);
-          } else {
-            // If object provided, use it
-            customer = customerOrId;
-            
-            // Optional: Check if we need to add it to the store if it doesn't exist
-            // This depends on if we want to persist search results that are selected
-            const exists = state.customers.some(c => c.id === customerOrId.id);
-            if (!exists) {
-              return {
-                customers: [...state.customers, customer],
-                currentOrder: {
-                  ...state.currentOrder,
-                  customerName: customer.name,
-                  customerId: customer.id,
-                },
-              };
-            }
-          }
-
-          if (!customer) return state;
-
-          return {
-            currentOrder: {
-              ...state.currentOrder,
-              customerName: customer.name,
-              customerId: customer.id,
             },
           };
         }),
@@ -1598,9 +1530,6 @@ export const usePosStore = create<PosStore>()(
           if (apiSyncConfig.syncInventory) {
             dataToSync.products = state.products;
           }
-          if (apiSyncConfig.syncCustomers) {
-            dataToSync.customers = state.customers;
-          }
           if (apiSyncConfig.syncEmployees) {
             dataToSync.employees = state.employees;
           }
@@ -1709,7 +1638,6 @@ export const usePosStore = create<PosStore>()(
         products: state.products,
         settings: state.settings,
         lastCompletedOrder: state.lastCompletedOrder,
-        customers: state.customers,
         employees: state.employees,
         cashDrawers: state.cashDrawers,
         currentEmployeeId: state.currentEmployeeId,

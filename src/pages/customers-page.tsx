@@ -1,18 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { usePosStore } from "@/store/store"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Mail, Phone, Edit, Trash2, User, Plus } from "lucide-react"
+import { Search, Mail, Phone, Edit, User, Plus } from "lucide-react"
 import AddCustomerSheet from "@/components/customers/add-customer"
 import { useFormattedCurrency } from "@/lib/utils"
+import { usePosCustomers } from "@/hooks/customers"
 
 export default function CustomersPage() {
-  const customers = usePosStore((state) => state.customers)
-  const deleteCustomer = usePosStore((state) => state.deleteCustomer)
+  const {customers} = usePosCustomers()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -20,16 +19,10 @@ export default function CustomersPage() {
   const filteredCustomers = customers.filter(
     (customer) =>
       customer.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone.includes(searchQuery),
+      customer?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      customer?.phone?.includes(searchQuery),
   )
 
-  const handleDelete = (customerId: string) => {
-    if (confirm("Are you sure you want to delete this customer?")) {
-      deleteCustomer(customerId)
-    }
-  }
-  
   const formatCurrency = useFormattedCurrency()
 
   return (
@@ -85,9 +78,9 @@ export default function CustomersPage() {
                   <div>
                     <CardTitle className="text-lg">{customer.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      {customer.loyaltyPoints > 0 && (
+                      {!!customer?.loyaltyPoints && (
                         <Badge variant="secondary" className="mt-1">
-                          {customer.loyaltyPoints} points
+                          {customer?.loyaltyPoints} points
                         </Badge>
                       )}
                     </CardDescription>
@@ -95,9 +88,6 @@ export default function CustomersPage() {
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" onClick={() => {}}>
                       <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(customer.id)}>
-                      <Trash2 className="w-4 h-4 text-destructive" />
                     </Button>
                   </div>
                 </div>
@@ -120,11 +110,11 @@ export default function CustomersPage() {
                 <div className="pt-3 border-t space-y-1">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Total Purchases</span>
-                    <span className="font-medium">{formatCurrency(customer.totalPurchases)}</span>
+                    <span className="font-medium">{formatCurrency(customer?.totalPurchases|| 0)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Last Visit</span>
-                    <span className="font-medium">{new Date(customer.lastVisit).toLocaleDateString()}</span>
+                    <span className="font-medium">{new Date(customer?.lastVisit|| "").toLocaleDateString()}</span>
                   </div>
                 </div>
 

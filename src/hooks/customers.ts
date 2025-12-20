@@ -16,6 +16,12 @@ export interface PosCustomer extends Customer {
     company?: string;
     primaryAddress?: string;
     updatedAt: string;
+    addresses?: any[];
+    businessAccountId?: string;
+    loyaltyPoints?: number;
+    totalPurchases?: number;
+    lastVisit?: Date;
+    notes?: string;
 }
 
 interface UsePosCustomersParams {
