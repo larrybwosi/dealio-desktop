@@ -1,3 +1,4 @@
+// use escpos_rs::{Printer, PrinterProfile};
 use hidapi::HidApi;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -8,6 +9,12 @@ use std::time::Duration;
 use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION};
 use std::io::Write;
 
+use std::process::Command;
+use tempfile::NamedTempFile;
+use tokio::net::TcpStream;
+use tokio::io::AsyncWriteExt;
+
+use models::PrinterError;
 mod models;
 mod product_store;
 use product_store::ProductState;
@@ -20,6 +27,8 @@ use sales_store::SalesState;
 
 mod pricing_store;
 use pricing_store::PricingState;
+
+
 
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
@@ -393,6 +402,105 @@ fn open_cash_drawer(port_name: String) -> Result<String, String> {
     }
 }
 
+// --- Method 1: Network (TCP) ---
+// #[tauri::command]
+// pub async fn print_network_receipt(ip: String, port: Option<u16>, text: String) -> Result<String, PrinterError> {
+//     let port = port.unwrap_or(9100);
+//     let address = format!("{}:{}", ip, port);
+
+//     // 1. Enforce a connection timeout
+//     let stream_result = tokio::time::timeout(
+//         Duration::from_secs(5), 
+//         TcpStream::connect(&address)
+//     ).await;
+
+//     let mut stream = match stream_result {
+//         Ok(Ok(s)) => s,
+//         Ok(Err(e)) => return Err(PrinterError::ConnectionFailed(e.to_string())),
+//         Err(_) => return Err(PrinterError::Timeout),
+//     };
+
+//     // 2. Write with async
+//     stream.write_all(text.as_bytes()).await?;
+//     stream.flush().await?;
+
+//     Ok("Network print job sent successfully".into())
+// }
+
+// // // --- Method 2: OS Driver (Shell) ---
+// #[tauri::command]
+// pub async fn print_system_receipt(printer_name: String, text: String) -> Result<String, PrinterError> {
+//     let mut temp_file = NamedTempFile::new()?;
+//     temp_file.write_all(text.as_bytes())?;
+//     let file_path = temp_file.path().to_string_lossy().to_string();
+
+//     #[cfg(target_os = "windows")]
+//     {
+//         let output = Command::new("powershell")
+//             .args(&[
+//                 "-Command",
+//                 "Out-Printer",
+//                 "-Name", &printer_name,
+//                 "-InputObject", &format!("(Get-Content '{}' -Raw)", file_path)
+//             ])
+//             .output()
+//             .map_err(PrinterError::Io)?;
+
+//         if output.status.success() {
+//             Ok("Sent to Windows spooler".into())
+//         } else {
+//             let err_msg = String::from_utf8_lossy(&output.stderr);
+//             Err(PrinterError::SystemError(format!("Windows Spooler failed: {}", err_msg)))
+//         }
+//     }
+
+//     #[cfg(not(target_os = "windows"))]
+//     {
+//         let output = Command::new("lp")
+//             .arg("-d")
+//             .arg(&printer_name)
+//             .arg(&file_path)
+//             .output()
+//             .map_err(PrinterError::Io)?;
+
+//         if output.status.success() {
+//             Ok("Sent to CUPS spooler".into())
+//         } else {
+//             let err_msg = String::from_utf8_lossy(&output.stderr);
+//             Err(PrinterError::SystemError(format!("CUPS failed: {}", err_msg)))
+//         }
+//     }
+// }
+
+// // // --- Method 3: Direct USB (Raw) ---
+// #[tauri::command]
+// pub async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, PrinterError> {
+//     tokio::task::spawn_blocking(move || {
+//         // Explicitly use imports here to fix E0433
+//         use escpos_rs::{Printer, PrinterProfile};
+        
+//         let profile = PrinterProfile::usb_builder(vid, pid).build();
+        
+//         match Printer::new(profile) {
+//             Ok(maybe_printer) => {
+//                 // FIX E0599: Compiler says this is Option<Printer>, so we unwrap it
+//                 let printer = maybe_printer.expect("Failed to initialize printer instance");
+                
+//                 match printer.print(&text) {
+//                     Ok(_) => {
+//                          // Attempt cut
+//                         let _ = printer.cut(); 
+//                         Ok("USB print sent successfully".into())
+//                     },
+//                     Err(e) => Err(PrinterError::SystemError(format!("USB Write Error: {}", e))),
+//                 }
+//             },
+//             Err(e) => Err(PrinterError::UsbDeviceNotFound(vid, pid)),
+//         }
+//     }).await.map_err(|_| PrinterError::SystemError("Task Join Error".into()))?
+// }
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -496,6 +604,7 @@ pub fn run() {
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
+        // .plugin(tauri_plugin_shell::init())
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             start_scan, 
@@ -513,7 +622,10 @@ pub fn run() {
             get_pending_sales_command,
             sync_pricing_command,
             resolve_price_batch_command,
-            get_pos_pricing_command
+            get_pos_pricing_command, 
+            // print_network_receipt, 
+            // print_system_receipt,
+            // print_usb
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

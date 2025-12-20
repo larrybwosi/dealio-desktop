@@ -269,3 +269,28 @@ pub struct PosPricingData {
     pub items: Vec<ClientPriceListItem>,
     pub allocations: std::collections::HashMap<String, Vec<String>>,
 }
+
+// A robust error type for the frontend to consume
+#[derive(Debug, thiserror::Error)]
+pub enum PrinterError {
+    #[error("Network connection timed out")]
+    Timeout,
+    #[error("Connection refused: {0}")]
+    ConnectionFailed(String),
+    #[error("IO Error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Printer system error: {0}")]
+    SystemError(String),
+    #[error("USB Device not found (VID: {0}, PID: {1})")]
+    UsbDeviceNotFound(u16, u16),
+}
+
+// Helper to convert our typed error to the String format Tauri expects
+impl serde::Serialize for PrinterError {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::ser::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}

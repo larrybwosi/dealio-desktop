@@ -35,6 +35,13 @@ base64 = "0.21"
 rand = "0.8"
 sha2 = "0.10" # To derive a key from a passphrase/ID
 
+tauri-plugin-shell = "2.0.0"
+escpos-rs = "0.3.0"
+
+tempfile = "3"       # For safe file handling (Security)
+thiserror = "1"      # For typed errors
+log = "0.4"          # For standard logging
+
 tauri-plugin-os = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-http = "2"

@@ -18,7 +18,7 @@ export const usePosPricingSync = () => {
           console.warn("API Endpoint is missing, sending empty string to Rust for debugging.");
       }
       
-      const result = await invoke<string>("sync_pricing_command", {
+      const result = await invoke("sync_pricing_command", {
         baseUrl: API_ENDPOINT,
         deviceKey,
         memberToken

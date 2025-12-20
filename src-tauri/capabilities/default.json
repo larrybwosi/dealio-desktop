@@ -88,6 +88,14 @@
         { "url": "https://dealioerp.vercel.app" },
         { "url": "http://localhost:3000" }
       ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "lp", "cmd": "lp", "args": true },
+        { "name": "print", "cmd": "print", "args": true },
+        { "name": "powershell", "cmd": "powershell", "args": true }
+      ]
     }
   ]
 }

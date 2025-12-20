@@ -1,10 +1,8 @@
-"use client"
-
 import { createContext, useContext, useCallback, useState, useEffect } from "react"
 import { notify } from "@/lib/notify"
 import { ServerNotification } from "@/types/notifications"
 import { useAuthStore } from "@/store/pos-auth-store"
-import { useAblyStore } from "@/store/ablyStore"
+import { ably } from "../ably"
 
 // Audio files for different alerts
 const SOUNDS = {
@@ -25,8 +23,7 @@ export function ServerNotificationProvider({ children }: { children: React.React
   const [history, setHistory] = useState<ServerNotification[]>([])
   const [lastNotification, setLastNotification] = useState<ServerNotification | null>(null)
   
-  // Get the client instance directly
-  const client = useAblyStore((state) => state.client)
+  // Get the ably instance directly
   const { currentLocation } = useAuthStore();
   const storeId = currentLocation?.id;
 
@@ -84,12 +81,12 @@ export function ServerNotificationProvider({ children }: { children: React.React
 
   // --- CHANGED SECTION: Manual Subscription via useEffect ---
   useEffect(() => {
-    // 1. Guard clauses: Ensure client and storeId exist before subscribing
-    if (!client || !storeId) return;
+    // 1. Guard clauses: Ensure ably and storeId exist before subscribing
+    if (!ably || !storeId) return;
 
     // 2. Get Channel instances
-    const storeChannel = client.channels.get(`store:${storeId}`);
-    const systemChannel = client.channels.get(`system:global`);
+    const storeChannel = ably.channels.get(`store:${storeId}`);
+    const systemChannel = ably.channels.get(`system:global`);
 
     // 3. Subscribe
     // We pass the handleIncomingMessage callback directly
@@ -105,7 +102,7 @@ export function ServerNotificationProvider({ children }: { children: React.React
       systemChannel.unsubscribe(handleIncomingMessage);
       console.log(`Unsubscribed from Ably channels`);
     };
-  }, [client, storeId, handleIncomingMessage]);
+  }, [ably, storeId, handleIncomingMessage]);
 
   return (
     <ServerNotificationContext.Provider value={{ lastNotification, history, clearHistory: () => setHistory([]) }}>

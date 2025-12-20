@@ -72,9 +72,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <NotificationToast />
       <QueryClientProvider client={queryClient}>
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
-          {/* <ServerNotificationProvider> */}
+          <ServerNotificationProvider>
             {children}
-          {/* </ServerNotificationProvider> */}
+          </ServerNotificationProvider>
         </UpdaterProvider>
       </QueryClientProvider>
       

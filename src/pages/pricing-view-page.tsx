@@ -49,8 +49,7 @@ export default function PricingViewPage() {
         setLoading(true);
         try {
             const result = await invoke<PosPricingData>('get_pos_pricing_command');
-            console.log("Pricing Data:", result);
-            console.log("Raw Pricing Data:", JSON.stringify(result, null, 2));
+            // console.log("Raw Pricing Data:", JSON.stringify(result, null, 2));
             setData(result);
         } catch (error) {
             console.error("Failed to fetch pricing:", error);

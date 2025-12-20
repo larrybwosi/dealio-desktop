@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use crate::models::{
-    ClientPriceList, ClientPriceListItem, PosPricingData, PricingSyncResponse
+    ClientPriceList, ClientPriceListItem, PosPricingData
 };
 use anyhow::{Result, Context};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
@@ -132,10 +132,7 @@ pub async fn run_sync(
     member_token: Option<String>
 ) -> Result<String> { // Returns new sync timestamp
     
-    println!("[PricingSync] run_sync called. BaseURL: '{}'", base_url);
-
     if base_url.is_empty() { 
-        println!("[PricingSync] Error: Base URL is empty");
         return Err(anyhow::anyhow!("Base URL is empty")); 
     }
 
@@ -149,7 +146,6 @@ pub async fn run_sync(
     } else {
         format!("{}/api/v1/pos/pricing", clean_base_url)
     };
-    println!("[PricingSync] Target URL: {}", target_url);
 
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
@@ -170,8 +166,6 @@ pub async fn run_sync(
         .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
         .build()?;
 
-    println!("[PricingSync] HTTP Client built. Sending request...");
-
     // --- PREPARE PARAMS ---
     let mut query_params = vec![];
     if let Some(token) = &last_sync {
@@ -185,12 +179,9 @@ pub async fn run_sync(
         .await
         .context("Failed to send request to server")?;
 
-    println!("[PricingSync] Response received. Status: {}", response.status());
-
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        println!("[PricingSync] Request failed. Body: {}", body);
         return Err(anyhow::anyhow!("Server returned error: {} - {}", status, body));
     }
 
