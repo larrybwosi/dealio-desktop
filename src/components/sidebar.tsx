@@ -173,6 +173,20 @@ export function Sidebar() {
             {!isCollapsed && <span className="truncate">Create Order</span>}
           </Link>
         </Button>
+        <Button
+          asChild
+          variant={activeTab === 'create-order' ? "secondary" : "ghost"}
+          className={cn(
+            'w-full justify-start gap-3 mb-1',
+            isCollapsed && 'justify-center px-0'
+          )}
+          title={isCollapsed ? 'Create Order' : undefined}
+        >
+          <Link to="/pricing">
+            <Plus className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="truncate">Create Order</span>}
+          </Link>
+        </Button>
       </nav>
 
       <div className="p-4 border-t border-border space-y-2">

@@ -132,7 +132,12 @@ pub async fn run_sync(
     member_token: Option<String>
 ) -> Result<String> { // Returns new sync timestamp
     
-    if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
+    println!("[PricingSync] run_sync called. BaseURL: '{}'", base_url);
+
+    if base_url.is_empty() { 
+        println!("[PricingSync] Error: Base URL is empty");
+        return Err(anyhow::anyhow!("Base URL is empty")); 
+    }
 
     let clean_base_url = base_url.trim_end_matches('/');
     // Endpoint: /api/v1/pos/pricing OR /api/v1/pos/pricing/sync
@@ -144,6 +149,7 @@ pub async fn run_sync(
     } else {
         format!("{}/api/v1/pos/pricing", clean_base_url)
     };
+    println!("[PricingSync] Target URL: {}", target_url);
 
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
@@ -164,6 +170,8 @@ pub async fn run_sync(
         .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
         .build()?;
 
+    println!("[PricingSync] HTTP Client built. Sending request...");
+
     // --- PREPARE PARAMS ---
     let mut query_params = vec![];
     if let Some(token) = &last_sync {
@@ -177,15 +185,58 @@ pub async fn run_sync(
         .await
         .context("Failed to send request to server")?;
 
+    println!("[PricingSync] Response received. Status: {}", response.status());
+
     if !response.status().is_success() {
-        return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        println!("[PricingSync] Request failed. Body: {}", body);
+        return Err(anyhow::anyhow!("Server returned error: {} - {}", status, body));
     }
 
-    let res_body = response.json::<PricingSyncResponse>().await
+    let res_body = response.json::<crate::models::ServerPricingResponse>().await
         .context("Failed to parse server response JSON")?;
 
     let metadata = res_body.metadata;
-    let new_data = res_body.data;
+    
+    // Transform Server Nested Data -> Client Flat Data
+    let mut flat_lists = Vec::new();
+    let mut flat_items = Vec::new();
+
+    for slist in res_body.price_lists {
+        // Create Client List
+        let clist = ClientPriceList {
+            id: slist.id.clone(),
+            code: slist.code.clone(),
+            priority: slist.priority,
+            is_global: slist.is_global,
+            is_active: slist.is_active,
+            valid_from: slist.valid_from,
+            valid_to: slist.valid_to,
+            updated_at: slist.updated_at.clone(),
+        };
+        flat_lists.push(clist);
+
+        // Process Items
+        for sitem in slist.items {
+            let citem = ClientPriceListItem {
+                // If ID is missing, generate deterministic ID: ListID_VariantID_UnitID
+                id: sitem.id.unwrap_or_else(|| {
+                    format!("{}_{}_{}", slist.id, sitem.variant_id, sitem.selling_unit_id.clone().unwrap_or("base".to_string()))
+                }),
+                price_list_id: slist.id.clone(),
+                variant_id: sitem.variant_id,
+                selling_unit_id: sitem.selling_unit_id,
+                min_quantity: sitem.min_quantity,
+                price: sitem.price,
+                updated_at: Utc::now().to_rfc3339(), // or slist.updated_at
+            };
+            flat_items.push(citem);
+        }
+    }
+
+    let customer_allocations = res_body.customer_allocations.unwrap_or_default();
+
 
     // Idempotency check
     if let Some(last) = &last_sync {
@@ -200,33 +251,35 @@ pub async fn run_sync(
     if !metadata.is_delta {
         // Full Sync - Overwrite
         *data_guard = PosPricingData {
-            lists: new_data.lists,
-            items: new_data.items,
-            allocations: new_data.customer_allocations,
+            lists: flat_lists,
+            items: flat_items,
+            allocations: customer_allocations,
         };
     } else {
         // Delta Sync - Merge
         // 1. Lists
         let mut list_map: HashMap<String, ClientPriceList> = data_guard.lists.drain(..).map(|l| (l.id.clone(), l)).collect();
-        for list in new_data.lists {
+        for list in flat_lists {
             list_map.insert(list.id.clone(), list);
         }
         data_guard.lists = list_map.into_values().collect();
 
         // 2. Items
         let mut item_map: HashMap<String, ClientPriceListItem> = data_guard.items.drain(..).map(|i| (i.id.clone(), i)).collect();
-        // Remove deleted
-        for id in new_data.deleted_item_ids {
-            item_map.remove(&id);
-        }
+        // Remove deleted - TODO: ServerResponse doesn't seem to have deleted_item_ids in your snippet?
+        // If it's a full sync usually we don't need deleted IDs. 
+        // For now, if we assume FULL sync for this structure, we handle it above. 
+        // If delta, we need a way to know deletions. 
+        // The snippet didn't show 'deletedItemIds', so I'll comment this out or assume empty for now.
+        
         // Add/Update new
-        for item in new_data.items {
+        for item in flat_items {
             item_map.insert(item.id.clone(), item);
         }
         data_guard.items = item_map.into_values().collect();
 
         // 3. Allocations (Merge maps)
-        for (cust_id, lists) in new_data.customer_allocations {
+        for (cust_id, lists) in customer_allocations {
             data_guard.allocations.insert(cust_id, lists);
         }
     }

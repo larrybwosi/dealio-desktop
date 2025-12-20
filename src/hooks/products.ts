@@ -42,8 +42,6 @@ interface UsePosProductsParams {
   enabled?: boolean;
 }
 
-// ... imports
-
 export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
   const { currentLocation, deviceKey, memberToken } = useAuthStore();
   const locationId = currentLocation?.id;
@@ -82,7 +80,7 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
 
     // 2. Invoke with the clean payload
     const res = await invoke('sync_products_command', payload);
-    // console.log("RUST RESPONSE:", res);
+    console.log("RUST RESPONSE:", res);
     return res;
     },
     onError: (err) => console.error("INVOKE FAILED:", err)
@@ -96,14 +94,6 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     }
   }, [locationId, deviceKey, enabled]);
 
-  // 4. OPTIONAL: Background Interval (If you still want hourly sync)
-  useEffect(() => {
-    if (!enabled || !locationId) return;
-    const interval = setInterval(() => {
-      syncMutation.mutate();
-    }, 1000 * 60 * 60); // 1 Hour
-    return () => clearInterval(interval);
-  }, [enabled, locationId]);
 
   return {
     products,

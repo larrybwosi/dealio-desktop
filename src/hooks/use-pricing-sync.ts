@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { usePosStore } from "@/store/store";
 import { useAuthStore } from "@/store/pos-auth-store";
+import { API_ENDPOINT } from "@/lib/axios";
 
 // --- HOOKS ---
 
@@ -10,14 +10,16 @@ export const usePosPricingSync = () => {
   
   // Get Auth & Config Data
   const { deviceKey, memberToken } = useAuthStore();
-  const apiEndpoint = usePosStore(state => state.settings.apiSyncConfig.apiEndpoint);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (!apiEndpoint) throw new Error("API Endpoint not configured");
+      // if (!apiEndpoint) throw new Error("API Endpoint not configured");
+      if (!API_ENDPOINT) {
+          console.warn("API Endpoint is missing, sending empty string to Rust for debugging.");
+      }
       
       const result = await invoke<string>("sync_pricing_command", {
-        baseUrl: apiEndpoint,
+        baseUrl: API_ENDPOINT,
         deviceKey,
         memberToken
       });

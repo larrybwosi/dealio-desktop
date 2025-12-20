@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, RefreshCw, Search, Tag, Users, List } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
+import { usePosPricingSync } from '@/hooks/use-pricing-sync';
 
 interface ClientPriceList {
     id: string;
@@ -42,12 +43,14 @@ export default function PricingViewPage() {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const formatCurrency = useFormattedCurrency();
+    const { triggerSync, isSyncing } = usePosPricingSync();
 
     const fetchData = async () => {
         setLoading(true);
         try {
             const result = await invoke<PosPricingData>('get_pos_pricing_command');
             console.log("Pricing Data:", result);
+            console.log("Raw Pricing Data:", JSON.stringify(result, null, 2));
             setData(result);
         } catch (error) {
             console.error("Failed to fetch pricing:", error);
@@ -55,6 +58,15 @@ export default function PricingViewPage() {
             setLoading(false);
         }
     };
+
+    const handleRefresh = async () => {
+        try {
+             await triggerSync();
+             await fetchData();
+        } catch (error) {
+            console.error("Failed to refresh:", error); 
+        }
+    }
 
     useEffect(() => {
         fetchData();
@@ -86,8 +98,9 @@ export default function PricingViewPage() {
                         <h1 className="text-2xl font-bold tracking-tight">Pricing Engine</h1>
                         <p className="text-zinc-500">View active price lists, items, and customer rules.</p>
                     </div>
-                    <Button onClick={fetchData} variant="outline" size="sm">
-                        <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+                    <Button onClick={handleRefresh} disabled={loading || isSyncing} variant="outline" size="sm">
+                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                        {isSyncing ? 'Syncing...' : 'Refresh'}
                     </Button>
                 </div>
 
