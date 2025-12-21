@@ -258,7 +258,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
                     
                     <Input
                         type="number"
-                        className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none"
+                        className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={qty > 0 ? qty : ''}
                         placeholder="0"
                         onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}

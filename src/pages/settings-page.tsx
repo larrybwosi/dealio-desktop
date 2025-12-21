@@ -21,6 +21,8 @@ import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 import { UpdateTestingPanel } from '@/components/update-testing-panel';
+import { useTheme } from 'next-themes';
+
 
 interface HidDevice {
   vid: number;
@@ -63,6 +65,7 @@ export default function SettingsPage() {
     isLoadingPorts,
   } = useCashDrawer();
 
+  const { setTheme } = useTheme()
 
   // 2. Local state for device discovery
   const [detectedDevices, setDetectedDevices] = useState<HidDevice[]>([]);
@@ -413,7 +416,10 @@ export default function SettingsPage() {
                   <Label htmlFor="themeMode">Theme Mode</Label>
                   <Select
                     value={settings.themeConfig?.mode || 'light'}
-                    onValueChange={value => updateThemeConfig({ mode: value as any })}
+                    onValueChange={value =>{
+                      updateThemeConfig({ mode: value as any })
+                      setTheme(value)
+                    }}
                   >
                     <SelectTrigger id="themeMode">
                       <SelectValue />

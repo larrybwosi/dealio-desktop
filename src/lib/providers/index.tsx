@@ -8,6 +8,7 @@ import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { UpdaterProvider } from "@/lib/providers/UpdateProvider"
 import AblyInitializer from "@/lib/providers/AblyProvider"
+import { ThemeProvider } from "./theme-providers"
 // import { ServerNotificationProvider } from "@/lib/providers/ServerNotificationProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -73,7 +74,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <QueryClientProvider client={queryClient}>
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
           {/* <ServerNotificationProvider> */}
+          <ThemeProvider>
             {children}
+          </ThemeProvider>
           {/* </ServerNotificationProvider> */}
         </UpdaterProvider>
       </QueryClientProvider>
