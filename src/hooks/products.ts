@@ -2,10 +2,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { API_ENDPOINT } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
-// --- Types ---
-
+// --- Types (Kept the same) ---
 export interface SellableUnit {
   unitId: string;
   unitName: string;
@@ -42,63 +41,90 @@ interface UsePosProductsParams {
   enabled?: boolean;
 }
 
-export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
-  const { currentLocation, deviceKey, memberToken } = useAuthStore();
-  const locationId = currentLocation?.id;
+// --- Helper Hook: useDebounce ---
+// Prevents value from updating until 'delay' ms has passed without changes
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState(value);
 
-  // 1. Search Query (Keep this as is, but ensure search is a string)
-  // Default search to "" to prevent Rust serialization errors if undefined
-  const safeSearch = search || ""; 
-  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
+  // 1. Optimization: Use Selectors
+  // Using destructuring like `const { currentLocation } = useAuthStore()` subscribes 
+  // to the WHOLE store. If *anything* in the store changes, this hook rerenders.
+  // Using selectors ensures we only rerender when these specific values change.
+  const locationId = useAuthStore((state) => state.currentLocation?.id);
+  const deviceKey = useAuthStore((state) => state.deviceKey);
+  const memberToken = useAuthStore((state) => state.memberToken);
+
+  // 2. Fix: Debounce the search input
+  // We delay updating the query key by 500ms to allow typing to finish
+  const safeSearch = search || "";
+  const debouncedSearch = useDebounce(safeSearch, 500);
+
   const { data: products = [], isLoading: isSearching } = useQuery({
-    queryKey: ['pos-products', safeSearch, category],
+    // 3. Fix: Use debouncedSearch in the key
+    // The query will only refetch when the *debounced* value changes
+    queryKey: ['pos-products', debouncedSearch, category],
     queryFn: async () => {
+      // Note: We still use debouncedSearch here to ensure consistency
       return await invoke<PosProduct[]>('search_products_command', {
-        query: safeSearch,
+        query: debouncedSearch,
         category: category,
       });
     },
-    staleTime: 0, 
+    // 4. Fix: Increase staleTime
+    // Prevents refetching immediately on window focus or casual interaction.
+    // Set to 1 minute (or appropriate time for your POS needs)
+    staleTime: 1000 * 60, 
     placeholderData: (prev) => prev,
+    // Only run query if hook is enabled
+    enabled: enabled,
   });
 
   const syncMutation = useMutation({
     mutationFn: async () => {
       if (!locationId) {
-        console.error("STOPPING: No Location ID found");
         throw new Error("No Location ID");
       }
       
       const payload = {
-      baseUrl: API_ENDPOINT,
-      locationId: locationId,
-      deviceKey: deviceKey ?? null,     // MUST be null if missing
-      memberToken: memberToken ?? null  // MUST be null if missing
-    };
+        baseUrl: API_ENDPOINT,
+        locationId: locationId,
+        deviceKey: deviceKey ?? null,
+        memberToken: memberToken ?? null
+      };
 
-    // console.log("Sending Payload to Rust:", payload);
-
-    // 2. Invoke with the clean payload
-    const res = await invoke('sync_products_command', payload);
-    console.log("RUST RESPONSE:", res);
-    return res;
+      const res = await invoke('sync_products_command', payload);
+      console.log("RUST RESPONSE:", res);
+      return res;
     },
     onError: (err) => console.error("INVOKE FAILED:", err)
   });
 
   useEffect(() => {
+    // Check strict requirements before syncing
     if (enabled && locationId && deviceKey) {
       syncMutation.mutate();
-    } else {
-        console.log("SKIPPING SYNC: Missing requirements");
     }
+    // Note: We exclude 'syncMutation' from deps to prevent loops if the mutation object identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locationId, deviceKey, enabled]);
-
 
   return {
     products,
-    // Combine loading states so the UI knows if we are "initially loading"
-    // or just "syncing in background"
+    // Show loading only if we are searching and have no data yet
     isLoading: isSearching && products.length === 0, 
     isSyncing: syncMutation.isPending,
     triggerSync: syncMutation.mutate,

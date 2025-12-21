@@ -19,6 +19,8 @@ import {
   SidebarOpen,
   Clock,
   Plus,
+  Banknote,
+  Wallet,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -58,6 +60,7 @@ const iconMap: Record<string, any> = {
   Plus: Plus,
   Receipt: Receipt,
   Settings: Settings,
+  BankNote: Banknote
 };
 
 export function Sidebar() {
@@ -81,11 +84,11 @@ export function Sidebar() {
   return (
     <div
       className={cn(
-        'border-r border-border bg-sidebar h-screen flex flex-col transition-all duration-300',
+        'border-r bg-card h-screen flex flex-col transition-all duration-300',
         isCollapsed ? 'w-16' : 'w-64'
       )}
     >
-      <div className="p-6 border-b border-border flex items-center gap-3 relative">
+      <div className="p-6 border-b flex items-center gap-3 relative">
         {!isCollapsed && (
           <Link to="/" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
@@ -93,7 +96,7 @@ export function Sidebar() {
                 {businessName.substring(0, 2).toUpperCase()}
               </span>
             </div>
-            <span className="font-semibold text-lg truncate">{businessName}</span>
+            <span className="font-semibold text-lg truncate text-foreground">{businessName}</span>
           </Link>
         )}
         {isCollapsed && (
@@ -108,7 +111,7 @@ export function Sidebar() {
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
           className={cn(
-            'absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border border-border bg-background flex items-center justify-center hover:bg-accent transition-colors z-10',
+            'absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full border bg-background flex items-center justify-center hover:bg-accent transition-colors z-10 shadow-sm',
             isCollapsed && 'right-1/2 translate-x-1/2'
           )}
           aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
@@ -173,23 +176,24 @@ export function Sidebar() {
             {!isCollapsed && <span className="truncate">Create Order</span>}
           </Link>
         </Button>
+
         <Button
           asChild
-          variant={activeTab === 'create-order' ? "secondary" : "ghost"}
+          variant={activeTab === 'cash-drawer' ? "secondary" : "ghost"}
           className={cn(
             'w-full justify-start gap-3 mb-1',
             isCollapsed && 'justify-center px-0'
           )}
-          title={isCollapsed ? 'Create Order' : undefined}
+          title={isCollapsed ? 'Cash Drawer' : undefined}
         >
-          <Link to="/pricing">
-            <Plus className="w-4 h-4 shrink-0" />
-            {!isCollapsed && <span className="truncate">Create Order</span>}
+          <Link to="/cash-drawer">
+            <Wallet className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="truncate">Cash Drawer</span>}
           </Link>
         </Button>
       </nav>
 
-      <div className="p-4 border-t border-border space-y-2">
+      <div className="p-4 border-t space-y-2">
         <Button
           asChild
           variant={activeTab === 'receipt-settings' ? "secondary" : "ghost"}
@@ -234,7 +238,7 @@ export function Sidebar() {
 
         {/* User profile section */}
         {!isCollapsed && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-sidebar-accent mt-4">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted mt-4">
             <Avatar className="w-8 h-8 shrink-0">
               <AvatarImage src={currentMember?.image} />
               <AvatarFallback>{currentMember?.name?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
@@ -247,7 +251,7 @@ export function Sidebar() {
         )}
         
         {isCollapsed && (
-          <div className="flex justify-center p-3 rounded-lg bg-sidebar-accent mt-4">
+          <div className="flex justify-center p-3 rounded-lg bg-muted mt-4">
             <Avatar className="w-8 h-8">
               <AvatarImage src={currentMember?.image} />
               <AvatarFallback>{currentMember?.name?.substring(0, 1).toUpperCase() || 'U'}</AvatarFallback>

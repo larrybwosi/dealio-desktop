@@ -5,7 +5,7 @@ import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
 import AppLayout from '@/components/app.layout';
-import { HistoryPage } from '@/components/history-page';
+import { HistoryPage } from '@/pages/history-page';
 import AnalyticsPage from '@/pages/analytics-page';
 import CustomersPage from '@/pages/customers-page';
 import ManageTablesPage from '@/pages/manage-tables-page';

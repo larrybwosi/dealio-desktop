@@ -20,6 +20,46 @@ export function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
 
+  const filteredOrders = useMemo(() => {
+    const now = new Date()
+    let startDate: Date | null = null
+
+    switch (dateFilter) {
+      case "today":
+        startDate = new Date()
+        startDate.setHours(0, 0, 0, 0)
+        break
+      case "week":
+        startDate = new Date()
+        startDate.setDate(now.getDate() - 7)
+        break
+      case "month":
+        startDate = new Date()
+        startDate.setMonth(now.getMonth() - 1)
+        break
+      case "all":
+      default:
+        startDate = null
+        break
+    }
+
+    return queue.filter((item) => {
+      const customerId = item.transactionData.customerId || ""
+      const saleNumber = item.transactionData.saleNumber || ""
+      
+      const matchesSearch =
+        customerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        saleNumber.toLowerCase().includes(searchQuery.toLowerCase())
+      
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter
+      const matchesDate = !startDate || new Date(item.timestamp) >= startDate
+
+      return matchesSearch && matchesStatus && matchesDate
+    })
+  }, [queue, searchQuery, statusFilter, dateFilter, isLoading])
+
+  const selectedOrderData = selectedOrderId ? queue.find((o) => o.id === selectedOrderId) : null
+
   // Loading state
   if (isLoading) {
     return (
@@ -70,48 +110,6 @@ export function HistoryPage() {
     )
   }
 
-  const filteredOrders = useMemo(() => {
-    const now = new Date()
-    let startDate: Date | null = null
-
-    switch (dateFilter) {
-      case "today":
-        startDate = new Date()
-        startDate.setHours(0, 0, 0, 0)
-        break
-      case "week":
-        startDate = new Date()
-        startDate.setDate(now.getDate() - 7)
-        break
-      case "month":
-        startDate = new Date()
-        startDate.setMonth(now.getMonth() - 1)
-        break
-      case "all":
-      default:
-        startDate = null
-        break
-    }
-
-    return queue.filter((item) => {
-      // FIXED: Access data via item.transactionData
-      const customerId = item.transactionData.customerId || ""
-      const saleNumber = item.transactionData.saleNumber || ""
-      
-      const matchesSearch =
-        customerId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        saleNumber.toLowerCase().includes(searchQuery.toLowerCase())
-      
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter
-      const matchesDate = !startDate || new Date(item.timestamp) >= startDate
-
-      return matchesSearch && matchesStatus && matchesDate
-    })
-  }, [queue, searchQuery, statusFilter, dateFilter])
-
-  const selectedOrderData = selectedOrderId ? queue.find((o) => o.id === selectedOrderId) : null
-
-  // FIXED: Calculate totals based on transactionData
   const calculateTotal = (data: any) => {
     const received = data.amountReceived || 0
     const change = data.change || 0

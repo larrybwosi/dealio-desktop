@@ -2,7 +2,6 @@ import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
-import { tauriStorage } from './storage-adapter';
 
 export type OrderType = 'takeaway' | 'delivery' | 'dine-in' | 'pickup' | 'online';
 export type OrderStatus = 'waiting' | 'ready' | 'canceled' | 'completed';
@@ -1739,8 +1738,8 @@ export const usePosStore = create<PosStore>()(
         })),
     }),
     {
-      name: 'dealio-pos-storage',
-      storage: createJSONStorage(() => tauriStorage),
+      name: 'dealio-pos-storage-v1',
+      storage: createJSONStorage(() => localStorage),
       skipHydration: false,
       partialize: state => ({
         currentOrder: state.currentOrder,

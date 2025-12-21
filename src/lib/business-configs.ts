@@ -474,7 +474,6 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
 
   const items: SidebarItem[] = [
     { id: "order", label: "Order", icon: "ShoppingBag", enabled: true },
-    { id: "inventory", label: "Inventory", icon: "Package", enabled: true },
     { id: "history", label: "History", icon: "History", enabled: true },
   ]
 
@@ -492,17 +491,13 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: "prescriptions", label: "Prescriptions", icon: "FileText", enabled: true })
   }
 
-  if (config.features.warrantyTracking) {
-    items.push({ id: "warranty", label: "Warranty", icon: "Shield", enabled: true })
-  }
-
   if (businessType === "retail" || businessType === "wholesale") {
     items.push({ id: "till-management", label: "Till Management", icon: "Calculator", enabled: true })
   }
 
-  if (config.features.loyaltyProgram) {
-    items.push({ id: "loyalty", label: "Loyalty Program", icon: "Gift", enabled: true })
-  }
+  // if (config.features.loyaltyProgram) {
+  //   items.push({ id: "loyalty", label: "Loyalty Program", icon: "Gift", enabled: true })
+  // }
 
   return items
 }
