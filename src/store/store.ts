@@ -95,6 +95,35 @@ export interface Order {
   customerId?: string;
 }
 
+export type HeldOrderPriority = 'normal' | 'high' | 'urgent';
+
+export interface HeldOrder {
+  id: string;
+  orderNumber: string;
+  customerName: string;
+  customerId?: string;
+  customerPhone?: string;
+  loyaltyPoints?: number;
+  orderType: OrderType;
+  items: OrderItem[];
+  tableNumber?: string;
+  instructions?: string;
+  metadata?: Record<string, any>;
+
+  // Hold-specific metadata
+  heldAt: Date;
+  heldBy?: string;         // Cashier/Employee ID
+  heldByName?: string;     // Cashier/Employee Name
+  reason?: string;         // Reason for holding
+  priority: HeldOrderPriority;
+  expiresAt?: Date;        // Optional auto-expiry
+
+  // Calculated totals at hold time
+  subTotal: number;
+  estimatedTax: number;
+  estimatedTotal: number;
+}
+
 export interface SidebarItem {
   id: string;
   label: string;
@@ -359,6 +388,12 @@ export interface BusinessSettings {
   cashDrawerPort?: string; // Serial port for cash drawer hardware (e.g., "COM3")
   enableAutoStart: boolean;
   enableBarcodeScanner: boolean;
+
+  // Hold Sale Settings (Enterprise)
+  enableHoldSale: boolean;
+  maxHeldOrders: number;
+  heldOrderExpiryHours?: number;
+  requireHoldReason: boolean;
 }
 
 export interface Customer {
@@ -541,6 +576,14 @@ interface PosStore {
   setInstructions: (instructions: string) => void;
   updateKitchenTicketConfig: (config: Partial<KitchenTicketConfig>) => void;
   updateCustomerDisplayConfig: (config: Partial<CustomerDisplayConfig>) => void;
+
+  // Held Orders (Enterprise Hold Sale Feature)
+  heldOrders: HeldOrder[];
+  holdCurrentOrder: (reason?: string, priority?: HeldOrderPriority) => void;
+  retrieveHeldOrder: (id: string) => void;
+  deleteHeldOrder: (id: string) => void;
+  clearAllHeldOrders: () => void;
+  updateHeldOrderPriority: (id: string, priority: HeldOrderPriority) => void;
 }
 
 export const getDefaultReceiptConfig = (): ReceiptConfig => ({
@@ -844,6 +887,11 @@ export const usePosStore = create<PosStore>()(
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
         enableBarcodeScanner: true,
+        // Hold Sale Settings (Enterprise)
+        enableHoldSale: true,
+        maxHeldOrders: 20,
+        heldOrderExpiryHours: 24,
+        requireHoldReason: false,
       },
       employees: [],
       notifications: [],
@@ -852,6 +900,9 @@ export const usePosStore = create<PosStore>()(
       activeCashDrawerId: null,
       isCheckedIn: false,
       unreadNotificationCount: 0,
+
+      // Held Orders (Enterprise)
+      heldOrders: [],
 
       // Initialize tables with default values
       tables: [
@@ -1736,6 +1787,108 @@ export const usePosStore = create<PosStore>()(
             t.id === tableId ? { ...t, status: 'available' as const, currentOrderId: undefined } : t
           ),
         })),
+
+      // ==========================================
+      // HELD ORDERS (Enterprise Hold Sale Feature)
+      // ==========================================
+
+      holdCurrentOrder: (reason, priority = 'normal') =>
+        set(state => {
+          if (state.currentOrder.items.length === 0) return state;
+
+          // Check max held orders limit
+          if (state.heldOrders.length >= state.settings.maxHeldOrders) {
+            console.warn('Maximum held orders limit reached');
+            return state;
+          }
+
+          const totalWithTax = state.currentOrder.items.reduce((sum, item) => {
+            const itemPrice = item.selectedUnit?.price ?? 0;
+            return sum + itemPrice * item.quantity;
+          }, 0);
+
+          const taxes = (totalWithTax * state.settings.taxRate) / (100 + state.settings.taxRate);
+          const subTotal = totalWithTax - taxes;
+
+          const employee = state.employees.find(e => e.id === state.currentEmployeeId);
+
+          const heldOrder: HeldOrder = {
+            id: `held_${Date.now()}`,
+            orderNumber: `H-${Math.floor(100000 + Math.random() * 900000)}`,
+            customerName: state.currentOrder.customerName || 'Walk-in Customer',
+            customerId: state.currentOrder.customerId,
+            customerPhone: state.currentOrder.customerPhone,
+            loyaltyPoints: state.currentOrder.loyaltyPoints,
+            orderType: state.currentOrder.orderType,
+            items: [...state.currentOrder.items],
+            tableNumber: state.currentOrder.tableNumber,
+            instructions: state.currentOrder.instructions,
+            metadata: state.currentOrder.metadata,
+            heldAt: new Date(),
+            heldBy: state.currentEmployeeId || undefined,
+            heldByName: employee?.name,
+            reason,
+            priority,
+            expiresAt: state.settings.heldOrderExpiryHours
+              ? new Date(Date.now() + state.settings.heldOrderExpiryHours * 60 * 60 * 1000)
+              : undefined,
+            subTotal,
+            estimatedTax: taxes,
+            estimatedTotal: totalWithTax,
+          };
+
+          return {
+            heldOrders: [heldOrder, ...state.heldOrders],
+            currentOrder: {
+              customerName: '',
+              orderType: 'takeaway',
+              items: [],
+              tableNumber: '',
+              instructions: '',
+              metadata: {},
+              customerId: '',
+              customerPhone: '',
+              loyaltyPoints: 0,
+            },
+          };
+        }),
+
+      retrieveHeldOrder: (id) =>
+        set(state => {
+          const heldOrder = state.heldOrders.find(o => o.id === id);
+          if (!heldOrder) return state;
+
+          // Replace current order with held order
+          return {
+            heldOrders: state.heldOrders.filter(o => o.id !== id),
+            currentOrder: {
+              customerName: heldOrder.customerName,
+              orderType: heldOrder.orderType,
+              items: [...heldOrder.items],
+              tableNumber: heldOrder.tableNumber,
+              instructions: heldOrder.instructions,
+              metadata: heldOrder.metadata,
+              customerId: heldOrder.customerId,
+              customerPhone: heldOrder.customerPhone,
+              loyaltyPoints: heldOrder.loyaltyPoints,
+            },
+          };
+        }),
+
+      deleteHeldOrder: (id) =>
+        set(state => ({
+          heldOrders: state.heldOrders.filter(o => o.id !== id),
+        })),
+
+      clearAllHeldOrders: () =>
+        set({ heldOrders: [] }),
+
+      updateHeldOrderPriority: (id, priority) =>
+        set(state => ({
+          heldOrders: state.heldOrders.map(o =>
+            o.id === id ? { ...o, priority } : o
+          ),
+        })),
     }),
     {
       name: 'dealio-pos-storage-v1',
@@ -1755,6 +1908,8 @@ export const usePosStore = create<PosStore>()(
         unreadNotificationCount: state.unreadNotificationCount,
         // Add tables to persistence
         tables: state.tables,
+        // Add held orders to persistence (Enterprise)
+        heldOrders: state.heldOrders,
       }),
     }
   )

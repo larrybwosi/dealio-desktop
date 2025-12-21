@@ -214,7 +214,14 @@ function sleep(ms: number): Promise<void> {
  * Check if we're in test mode
  */
 export function isTestMode(): boolean {
-  return true;
+  return (
+    import.meta.env.VITE_UPDATE_TEST_MODE === 'true' ||
+    localStorage.getItem('update_test_mode') === 'true'
+  );
+  // return (
+  //   import.meta.env.VITE_UPDATE_TEST_MODE === 'true' ||
+  //   localStorage.getItem('update_test_mode') === 'true'
+  // );
 }
 
 /**

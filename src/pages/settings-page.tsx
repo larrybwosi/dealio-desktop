@@ -116,6 +116,12 @@ export default function SettingsPage() {
   const [cashDrawerPort, setCashDrawerPort] = useState(settings?.cashDrawerPort || '');
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
+  
+  // Hold Sale Settings
+  const [enableHoldSale, setEnableHoldSale] = useState(settings?.enableHoldSale ?? true);
+  const [maxHeldOrders, setMaxHeldOrders] = useState((settings?.maxHeldOrders ?? 20).toString());
+  const [heldOrderExpiryHours, setHeldOrderExpiryHours] = useState((settings?.heldOrderExpiryHours ?? 24).toString());
+  const [requireHoldReason, setRequireHoldReason] = useState(settings?.requireHoldReason ?? false);
 
   const [syncing, setSyncing] = useState(false);
 
@@ -131,6 +137,8 @@ export default function SettingsPage() {
   const handleSaveSettings = () => {
     const newTaxRate = Number.parseFloat(taxRate) || 0;
     const newLowStockThreshold = Number.parseInt(lowStockThreshold, 10) || 10;
+    const newMaxHeldOrders = Number.parseInt(maxHeldOrders, 10) || 20;
+    const newHeldOrderExpiryHours = heldOrderExpiryHours ? Number.parseInt(heldOrderExpiryHours, 10) : undefined;
 
     updateBusinessSettings({
       businessName,
@@ -152,6 +160,10 @@ export default function SettingsPage() {
       cashDrawerPort,
       enableAutoStart,
       enableBarcodeScanner,
+      enableHoldSale,
+      maxHeldOrders: newMaxHeldOrders,
+      heldOrderExpiryHours: newHeldOrderExpiryHours,
+      requireHoldReason,
     });
 
     // Update Auto-start OS setting
@@ -302,6 +314,62 @@ export default function SettingsPage() {
                   </div>
                   <Switch checked={enableAutoStart} onCheckedChange={setEnableAutoStart} />
                 </div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Hold Sale (Enterprise)</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Enable Hold Sale</div>
+                    <p className="text-sm text-muted-foreground">
+                      Allow cashiers to temporarily hold transactions
+                    </p>
+                  </div>
+                  <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
+                </div>
+
+                {enableHoldSale && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 pl-6">
+                      <div className="grid gap-2">
+                        <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
+                        <Input
+                          id="maxHeldOrders"
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={maxHeldOrders}
+                          onChange={e => setMaxHeldOrders(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
+                        <Input
+                          id="heldOrderExpiryHours"
+                          type="number"
+                          min="1"
+                          value={heldOrderExpiryHours}
+                          onChange={e => setHeldOrderExpiryHours(e.target.value)}
+                          placeholder="Never"
+                        />
+                        <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-2 pl-6">
+                      <div className="flex-1">
+                        <div className="font-medium">Require Hold Reason</div>
+                        <p className="text-sm text-muted-foreground">
+                          Force cashiers to enter a reason when holding an order
+                        </p>
+                      </div>
+                      <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                    </div>
+                  </>
+                )}
               </div>
             </Card>
 

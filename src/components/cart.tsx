@@ -23,7 +23,9 @@ import {
   Plus, 
   PanelRightClose, 
   PanelRightOpen, 
-  ShoppingCart, 
+  ShoppingCart,
+  Pause,
+  Clock, 
 } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
@@ -32,6 +34,8 @@ import type { Order, CartItem, Customer, OrderType } from '@/types';
 import { ReceiptDialog } from '@/components/receipt-dialog';
 import { cn } from '@/lib/utils';
 import { emitTo } from '@tauri-apps/api/event';
+import { HeldOrdersDialog } from '@/components/held-orders-dialog';
+import { HoldOrderDialog } from '@/components/hold-order-dialog';
 
 export function Cart() {
   // --- Layout & Resize States ---
@@ -53,6 +57,10 @@ export function Cart() {
   const [editQuantity, setEditQuantity] = useState(1);
   const [editNotes, setEditNotes] = useState('');
 
+  // --- Hold Sale States ---
+  const [showHoldDialog, setShowHoldDialog] = useState(false);
+  const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
+
   // --- Store Hooks ---
   const currentOrder = usePosStore(state => state.currentOrder);
   const taxRate = usePosStore(state => state.settings.taxRate) || 0;
@@ -66,6 +74,10 @@ export function Cart() {
   const resetOrder = usePosStore(state => state.resetOrder);
   const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
   const allowSaveUnpaidOrders = usePosStore(state => state.settings.allowSaveUnpaidOrders);
+
+  // --- Hold Sale Store Hooks ---
+  const heldOrders = usePosStore(state => state.heldOrders);
+  const enableHoldSale = usePosStore(state => state.settings.enableHoldSale);
 
   // --- Config ---
   const businessConfig = getBusinessConfig();
@@ -483,6 +495,35 @@ export function Cart() {
                   Save as Unpaid
                 </Button>
               )}
+
+              {/* Hold Sale Buttons (Enterprise) */}
+              {enableHoldSale && (
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-xs md:text-sm h-9 border-dashed gap-2"
+                    onClick={() => setShowHoldDialog(true)}
+                    disabled={currentOrder.items.length === 0}
+                  >
+                    <Pause className="w-4 h-4" />
+                    Hold Order
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-9 w-9 relative"
+                    onClick={() => setShowHeldOrdersDialog(true)}
+                    title={`View ${heldOrders.length} held order${heldOrders.length !== 1 ? 's' : ''}`}
+                  >
+                    <Clock className="w-4 h-4" />
+                    {heldOrders.length > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                        {heldOrders.length}
+                      </span>
+                    )}
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -566,6 +607,17 @@ export function Cart() {
         onOpenChange={setReceiptDialogOpen}
         completedOrder={lastCompletedOrder}
         onClose={handleCloseReceipt}
+      />
+
+      {/* Hold Sale Dialogs (Enterprise) */}
+      <HoldOrderDialog
+        open={showHoldDialog}
+        onOpenChange={setShowHoldDialog}
+      />
+      
+      <HeldOrdersDialog
+        open={showHeldOrdersDialog}
+        onOpenChange={setShowHeldOrdersDialog}
       />
     </>
   );
