@@ -21,7 +21,7 @@ import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 import { UpdateTestingPanel } from '@/components/update-testing-panel';
-import { useTheme } from 'next-themes';
+// import { useTheme } from 'next-themes';
 
 
 interface HidDevice {
@@ -65,7 +65,25 @@ export default function SettingsPage() {
     isLoadingPorts,
   } = useCashDrawer();
 
-  const { setTheme } = useTheme()
+  // const { setTheme } = useTheme()
+
+  const THEME_PRESETS = [
+    { name: 'Default', primary: 'oklch(0.623 0.188 259.815)', accent: 'oklch(0.951 0.025 236.824)' }, // Default Purple
+    { name: 'Ocean', primary: '#0ea5e9', accent: '#38bdf8' }, // Sky Blue
+    { name: 'Forest', primary: '#22c55e', accent: '#86efac' }, // Green
+    { name: 'Rose', primary: '#f43f5e', accent: '#fda4af' }, // Rose
+    { name: 'Orange', primary: '#f97316', accent: '#fdba74' }, // Orange
+    { name: 'Slate', primary: '#64748b', accent: '#cbd5e1' }, // Slate
+  ];
+
+  const applyPreset = (preset: typeof THEME_PRESETS[0]) => {
+    updateThemeConfig({
+      primaryColor: preset.primary,
+      accentColor: preset.accent,
+    });
+    // Optional: Reset to light/dark if needed, but let's keep user preference
+  };
+
 
   // 2. Local state for device discovery
   const [detectedDevices, setDetectedDevices] = useState<HidDevice[]>([]);
@@ -320,61 +338,7 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Hold Sale (Enterprise)</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Hold Sale</div>
-                    <p className="text-sm text-muted-foreground">
-                      Allow cashiers to temporarily hold transactions
-                    </p>
-                  </div>
-                  <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
-                </div>
 
-                {enableHoldSale && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 pl-6">
-                      <div className="grid gap-2">
-                        <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
-                        <Input
-                          id="maxHeldOrders"
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={maxHeldOrders}
-                          onChange={e => setMaxHeldOrders(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
-                        <Input
-                          id="heldOrderExpiryHours"
-                          type="number"
-                          min="1"
-                          value={heldOrderExpiryHours}
-                          onChange={e => setHeldOrderExpiryHours(e.target.value)}
-                          placeholder="Never"
-                        />
-                        <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between py-2 pl-6">
-                      <div className="flex-1">
-                        <div className="font-medium">Require Hold Reason</div>
-                        <p className="text-sm text-muted-foreground">
-                          Force cashiers to enter a reason when holding an order
-                        </p>
-                      </div>
-                      <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
-                    </div>
-                  </>
-                )}
-              </div>
-            </Card>
 
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-2">Business Features</h2>
@@ -418,7 +382,7 @@ export default function SettingsPage() {
                     value={settings.themeConfig?.mode || 'light'}
                     onValueChange={value =>{
                       updateThemeConfig({ mode: value as any })
-                      setTheme(value)
+                      // setTheme(value)
                     }}
                   >
                     <SelectTrigger id="themeMode">
@@ -462,49 +426,74 @@ export default function SettingsPage() {
               </div>
             </Card>
 
+
             <Card className="p-6">
               <h2 className="text-xl font-semibold mb-4">Color Customization</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Custom colors require oklch format conversion and are currently managed in globals.css
-              </p>
+              
+              {/* Presets */}
+              <div className="mb-6">
+                 <Label className="block mb-2">Theme Presets</Label>
+                 <div className="flex flex-wrap gap-2">
+                    {THEME_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.name}
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => applyPreset(preset)}
+                      >
+                         <div 
+                           className="w-4 h-4 rounded-full border border-border" 
+                           style={{ backgroundColor: preset.primary }} 
+                         />
+                         {preset.name}
+                      </Button>
+                    ))}
+                 </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="primaryColor">Primary Color</Label>
                   <div className="flex gap-2">
+                    <div className="relative">
+                      <Input
+                        id="primaryColor"
+                        type="color"
+                        value={settings.themeConfig?.primaryColor?.startsWith('#') ? settings.themeConfig.primaryColor : "#6366f1"}
+                        onChange={(e) => updateThemeConfig({ primaryColor: e.target.value })}
+                        className="w-16 h-10 p-1 cursor-pointer"
+                      />
+                    </div>
                     <Input
-                      id="primaryColor"
-                      type="color"
-                      value="#4f46e5"
-                      disabled
-                      className="w-16 h-10 p-1 opacity-50"
-                    />
-                    <Input
-                      value={settings.themeConfig?.primaryColor || 'oklch(0.42 0.145 265)'}
-                      readOnly
+                      value={settings.themeConfig?.primaryColor || 'Default'}
+                      onChange={(e) => updateThemeConfig({ primaryColor: e.target.value })}
                       className="flex-1"
-                      placeholder="Defined in CSS theme"
+                      placeholder="#000000 or oklch(...)"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Edit colors in app/globals.css for custom themes</p>
+                  <p className="text-xs text-muted-foreground">Select a brand color</p>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="accentColor">Accent Color</Label>
                   <div className="flex gap-2">
+                    <div className="relative">
+                      <Input
+                        id="accentColor"
+                        type="color"
+                        value={settings.themeConfig?.accentColor?.startsWith('#') ? settings.themeConfig.accentColor : "#f4f4f5"}
+                        onChange={(e) => updateThemeConfig({ accentColor: e.target.value })}
+                        className="w-16 h-10 p-1 cursor-pointer"
+                      />
+                    </div>
                     <Input
-                      id="accentColor"
-                      type="color"
-                      value="#f5f5f5"
-                      disabled
-                      className="w-16 h-10 p-1 opacity-50"
-                    />
-                    <Input
-                      value={settings.themeConfig?.accentColor || 'oklch(0.96 0.005 240)'}
-                      readOnly
+                      value={settings.themeConfig?.accentColor || 'Default'}
+                      onChange={(e) => updateThemeConfig({ accentColor: e.target.value })}
                       className="flex-1"
-                      placeholder="Defined in CSS theme"
+                      placeholder="#000000 or oklch(...)"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">Edit colors in app/globals.css for custom themes</p>
+                  <p className="text-xs text-muted-foreground">Select a secondary/highlight color</p>
                 </div>
               </div>
             </Card>
@@ -593,6 +582,62 @@ export default function SettingsPage() {
                   </div>
                   <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
                 </div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Hold Sale</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Enable Hold Sale</div>
+                    <p className="text-sm text-muted-foreground">
+                      Allow cashiers to temporarily hold transactions
+                    </p>
+                  </div>
+                  <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
+                </div>
+
+                {enableHoldSale && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 pl-6">
+                      <div className="grid gap-2">
+                        <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
+                        <Input
+                          id="maxHeldOrders"
+                          type="number"
+                          min="1"
+                          max="100"
+                          value={maxHeldOrders}
+                          onChange={e => setMaxHeldOrders(e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
+                        <Input
+                          id="heldOrderExpiryHours"
+                          type="number"
+                          min="1"
+                          value={heldOrderExpiryHours}
+                          onChange={e => setHeldOrderExpiryHours(e.target.value)}
+                          placeholder="Never"
+                        />
+                        <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between py-2 pl-6">
+                      <div className="flex-1">
+                        <div className="font-medium">Require Hold Reason</div>
+                        <p className="text-sm text-muted-foreground">
+                          Force cashiers to enter a reason when holding an order
+                        </p>
+                      </div>
+                      <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                    </div>
+                  </>
+                )}
               </div>
             </Card>
           </TabsContent>

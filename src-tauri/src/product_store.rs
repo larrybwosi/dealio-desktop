@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-use std::fs;
+use std::fs; // Keep std::fs for synchronous startup logic
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
 use crate::models::{PosProduct, ProductsSyncResponse};
 use anyhow::{Result, Context};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use tokio::fs as async_fs; // Import Tokio FS for async operations
 
 const STORE_FILENAME: &str = "pos_products.json";
 const TIMEOUT_SECONDS: u64 = 15;
@@ -36,11 +37,12 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
     Ok(app_dir.join(STORE_FILENAME))
 }
 
-// --- 1. Load Data on Startup ---
+// --- 1. Load Data on Startup (Synchronous is fine here) ---
 pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<()> {
     let path = get_store_path(app)?;
     
     if path.exists() {
+        // std::fs is fine here because this runs once during app boot
         let content = fs::read_to_string(path).context("Failed to read store file")?;
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
@@ -52,7 +54,7 @@ pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<
     Ok(())
 }
 
-// --- 2. Sync Engine ---
+// --- 2. Sync Engine (Fixed) ---
 pub async fn run_sync(
     app: AppHandle,
     state: &ProductState,
@@ -68,6 +70,8 @@ pub async fn run_sync(
 
     let clean_base_url = base_url.trim_end_matches('/');
     let target_url = format!("{}/api/v1/pos/products", clean_base_url);
+    
+    // Quick lock just to read the timestamp
     let last_sync_time = state.last_sync.lock().unwrap().clone();
     
     // --- BUILD HEADERS ---
@@ -120,35 +124,48 @@ pub async fn run_sync(
         .context("Failed to parse server response JSON")?;
 
     // --- MERGE LOGIC ---
-    let mut products_guard = state.products.lock().unwrap();
-    
-    let mut product_map: HashMap<String, PosProduct> = products_guard
-        .drain(..)
-        .map(|p| (p.product_id.clone(), p))
-        .collect();
-
+    // Capture the count BEFORE moving 'res_body.products'
     let incoming_count = res_body.products.len();
-    for product in res_body.products {
-        product_map.insert(product.product_id.clone(), product);
-    }
+    let sync_timestamp = res_body.sync_timestamp.clone();
 
-    let updated_list: Vec<PosProduct> = product_map.into_values().collect();
-    *products_guard = updated_list.clone();
+    // We block momentarily to update memory (fast)
+    let updated_list = {
+        let mut products_guard = state.products.lock().unwrap();
+        
+        let mut product_map: HashMap<String, PosProduct> = products_guard
+            .drain(..)
+            .map(|p| (p.product_id.clone(), p))
+            .collect();
 
-    // --- SAVE TO DISK ---
-    let new_sync_time = res_body.sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+        // Consume res_body.products here
+        for product in res_body.products {
+            product_map.insert(product.product_id.clone(), product);
+        }
+
+        let list: Vec<PosProduct> = product_map.into_values().collect();
+        *products_guard = list.clone(); // Update memory state
+        list
+    };
+
+    // --- ASYNC SAVE TO DISK ---
+    let new_sync_time = sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     *state.last_sync.lock().unwrap() = Some(new_sync_time.clone());
 
     let file_data = (Some(new_sync_time), updated_list);
-    let json = serde_json::to_string(&file_data)?;
     
+    // CPU INTENSIVE: Serialization (Run in blocking thread)
+    let json = tokio::task::spawn_blocking(move || {
+        serde_json::to_string(&file_data)
+    }).await??;
+    
+    // I/O INTENSIVE: File Write (Async)
     let path = get_store_path(&app)?;
-    fs::write(path, json).context("Failed to write to disk")?;
+    async_fs::write(path, json).await.context("Failed to write to disk")?;
 
     Ok(incoming_count)
 }
 
-// --- 3. Search Logic ---
+// --- 3. Search Logic (Kept the same) ---
 pub fn search_local(state: &ProductState, query: String, category: String) -> Vec<PosProduct> {
     let products = state.products.lock().unwrap();
     let query = query.trim().to_lowercase();
@@ -160,23 +177,14 @@ pub fn search_local(state: &ProductState, query: String, category: String) -> Ve
 
     products.iter().filter(|p| {
         let matches_category = !filter_category || p.category == category;
-        if !matches_category {
-            return false;
-        }
-
-        if query.is_empty() {
-            return true;
-        }
+        if !matches_category { return false; }
+        if query.is_empty() { return true; }
 
         let matches_product_name = p.product_name.to_lowercase().contains(&query);
-        
         let matches_variant = p.variants.iter().any(|v| {
-            let sku_match = v.sku.to_lowercase().contains(&query);
-            let name_match = v.variant_name.to_lowercase().contains(&query);
-            let barcode_match = v.barcode.as_ref()
-                .map_or(false, |b| b.to_lowercase().contains(&query));
-
-            sku_match || name_match || barcode_match
+            v.sku.to_lowercase().contains(&query) || 
+            v.variant_name.to_lowercase().contains(&query) ||
+            v.barcode.as_ref().map_or(false, |b| b.to_lowercase().contains(&query))
         });
 
         matches_product_name || matches_variant
