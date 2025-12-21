@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { useAuthStore } from "@/store/pos-auth-store";
 import { API_ENDPOINT } from "@/lib/axios";
+import { useMemo, useDeferredValue, useRef } from "react";
 
 // --- HOOKS ---
 
@@ -47,15 +48,42 @@ export const useBatchPricing = (
     items: { variantId: string; unitId: string | null; isBaseUnit: boolean }[],
     customerId?: string
 ) => {
-    // Generate a consistent key for the request items to prevent unnecessary re-fetches
-    const requestKey = JSON.stringify(items.map(i => `${i.variantId}:${i.unitId}:${i.isBaseUnit}`).sort());
+    // Stabilize items reference to prevent unnecessary re-renders
+    // Use a ref to cache the previous stable value
+    const stableItemsRef = useRef<typeof items>([]);
+    
+    // Create a stable key for comparison
+    const currentKey = useMemo(() => {
+        if (items.length === 0) return '';
+        return items.map(i => `${i.variantId}:${i.unitId}:${i.isBaseUnit}`).sort().join('|');
+    }, [items]);
+    
+    // Only update the ref if the key actually changed
+    const stableItems = useMemo(() => {
+        const prevKey = stableItemsRef.current.length === 0 ? '' : 
+            stableItemsRef.current.map(i => `${i.variantId}:${i.unitId}:${i.isBaseUnit}`).sort().join('|');
+        
+        if (prevKey !== currentKey) {
+            stableItemsRef.current = items;
+        }
+        return stableItemsRef.current;
+    }, [currentKey, items]);
+
+    // Defer the items to prevent blocking the main thread during syncing
+    const deferredItems = useDeferredValue(stableItems);
+    
+    // Use deferred key for the query
+    const requestKey = useMemo(() => {
+        if (deferredItems.length === 0) return '';
+        return deferredItems.map(i => `${i.variantId}:${i.unitId}:${i.isBaseUnit}`).sort().join('|');
+    }, [deferredItems]);
 
     const { data: priceMap, isLoading } = useQuery({
         queryKey: ["pricing-batch", customerId, requestKey],
         queryFn: async () => {
-            if (items.length === 0) return {};
+            if (deferredItems.length === 0) return {};
 
-            const requests = items.map(item => ({
+            const requests = deferredItems.map(item => ({
                 variant_id: item.variantId,
                 unit_id: item.unitId,
                 is_base_unit: item.isBaseUnit
@@ -71,7 +99,7 @@ export const useBatchPricing = (
             const map: Record<string, number> = {};
             results.forEach((price, index) => {
                 if (price !== null) {
-                    const item = items[index];
+                    const item = deferredItems[index];
                     // Key: "variantId:unitId" (unitId string or 'null')
                     // We need a stable key for lookup
                     const key = `${item.variantId}:${item.unitId ?? 'null'}`;
@@ -80,8 +108,10 @@ export const useBatchPricing = (
             });
             return map;
         },
-        enabled: items.length > 0,
+        enabled: deferredItems.length > 0,
         staleTime: 1000 * 60 * 5, // 5 minutes
+        // Keep previous data while loading new prices - prevents flicker
+        placeholderData: (previousData) => previousData,
     });
 
     return {

@@ -10,6 +10,8 @@ import { Loader2, RefreshCw, Search, Tag, Users, List } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
+import { usePosProducts } from '@/hooks/products';
+import { usePosCustomers } from '@/hooks/customers';
 
 interface ClientPriceList {
     id: string;
@@ -45,6 +47,10 @@ export default function PricingViewPage() {
     const formatCurrency = useFormattedCurrency();
     const { triggerSync, isSyncing } = usePosPricingSync();
 
+    // Fetch products and customers for name resolution
+    const { products } = usePosProducts({ search: '', category: '' });
+    const { customers } = usePosCustomers({ search: '' });
+
     const fetchData = async () => {
         setLoading(true);
         try {
@@ -79,6 +85,22 @@ export default function PricingViewPage() {
     const getItemsForList = (listId: string) => {
         return data?.items.filter(i => i.priceListId === listId) || [];
     };
+
+    const getProductName = (variantId: string) => {
+        // Flatten variants from all products to find the match
+        for (const product of products) {
+            const variant = product.variants.find(v => v.variantId === variantId);
+            if (variant) {
+                return `${product.productName} - ${variant.variantName}`;
+            }
+        }
+        return variantId; // Fallback to ID
+    };
+
+    const getCustomerName = (customerId: string) => {
+        const customer = customers.find(c => c.id === customerId);
+        return customer ? (customer.name || customer.phone || customerId) : customerId;
+    }
 
     if (loading && !data) {
         return (
@@ -175,21 +197,29 @@ export default function PricingViewPage() {
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead className="w-[300px]">Variant ID</TableHead>
+                                                    <TableHead className="w-[400px]">Product / Variant</TableHead>
                                                     <TableHead>Unit ID (Base if Empty)</TableHead>
                                                     <TableHead>Min Qty</TableHead>
                                                     <TableHead className="text-right">Price</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
-                                                {getItemsForList(list.id).map(item => (
-                                                    <TableRow key={item.id}>
-                                                        <TableCell className="font-mono text-xs text-zinc-600">{item.variantId}</TableCell>
-                                                        <TableCell className="font-mono text-xs text-zinc-600">{item.sellingUnitId || <span className="text-zinc-400 italic">Base Unit</span>}</TableCell>
-                                                        <TableCell>{item.minQuantity}</TableCell>
-                                                        <TableCell className="text-right font-medium">{formatCurrency(parseFloat(item.price))}</TableCell>
-                                                    </TableRow>
-                                                ))}
+                                                {getItemsForList(list.id).map(item => {
+                                                    const productName = getProductName(item.variantId);
+                                                    return (
+                                                        <TableRow key={item.id}>
+                                                            <TableCell>
+                                                                <div className="flex flex-col">
+                                                                    <span className="font-medium text-sm">{productName}</span>
+                                                                    <span className="text-[10px] text-zinc-400 font-mono">{item.variantId}</span>
+                                                                </div>
+                                                            </TableCell>
+                                                            <TableCell className="font-mono text-xs text-zinc-600">{item.sellingUnitId || <span className="text-zinc-400 italic">Base Unit</span>}</TableCell>
+                                                            <TableCell>{item.minQuantity}</TableCell>
+                                                            <TableCell className="text-right font-medium">{formatCurrency(parseFloat(item.price))}</TableCell>
+                                                        </TableRow>
+                                                    );
+                                                })}
                                                 {getItemsForList(list.id).length === 0 && (
                                                     <TableRow>
                                                         <TableCell colSpan={4} className="text-center text-zinc-500 py-4">No items defined in this list</TableCell>
@@ -212,14 +242,19 @@ export default function PricingViewPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Customer ID</TableHead>
+                                            <TableHead>Customer</TableHead>
                                             <TableHead>Assigned Price Lists</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {Object.entries(data?.allocations || {}).map(([custId, lists]) => (
                                             <TableRow key={custId}>
-                                                <TableCell className="font-mono text-xs">{custId}</TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-col">
+                                                         <span className="font-medium text-sm">{getCustomerName(custId)}</span>
+                                                         <span className="text-[10px] text-zinc-400 font-mono">{custId}</span>
+                                                    </div>
+                                                </TableCell>
                                                 <TableCell>
                                                     <div className="flex flex-wrap gap-1">
                                                         {lists.map(lid => {
@@ -248,7 +283,7 @@ export default function PricingViewPage() {
                             </CardHeader>
                              <CardContent>
                                 <pre className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded text-xs overflow-auto max-h-[500px]">
-                                    {JSON.stringify(data, null, 2)}
+                                    {JSON.stringify({ pricing: data, products: products.slice(0, 3), customers: customers.slice(0, 3) }, null, 2)}
                                 </pre>
                             </CardContent>
                         </Card>

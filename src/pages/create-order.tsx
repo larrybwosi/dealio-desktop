@@ -272,7 +272,7 @@ const OrderItemRow = memo(({
     let finalPrice = standardUnit.price;
 
     // 2. Check for Custom/Customer Price
-    const key = `${rowValues.variantId}:${rowValues.sellingUnitId}`;
+    const key = `${rowValues.variantId}:${rowValues.sellingUnitId ?? 'null'}`;
     const customPrice = priceMap[key];
     
     // const customPrice = resolveCustomerPrice(pricingData, customerId, rowValues.variantId, rowValues.sellingUnitId);
@@ -537,19 +537,19 @@ export default function CreateOrderPage() {
 
   // B. Construct Batch Request
   const batchPricingItems = useMemo(() => {
-     return items.map((item: any) => {
-         // Need variantId and sellingUnitId to calculate
-         if (!item.variantId || !item.sellingUnitId) return null;
-         
-         // Find if it is a base unit
-         const unit = item._availableUnits?.find((u: any) => u.unitId === item.sellingUnitId);
-         
-         return {
-             variantId: item.variantId,
-             unitId: item.sellingUnitId,
-             isBaseUnit: !!(unit?.isBaseUnit)
-         }
-     }).filter((i): i is { variantId: string; unitId: string; isBaseUnit: boolean } => i !== null);
+      return items.map((item: any) => {
+          // Need variantId. unitId can be optional
+          if (!item.variantId) return null;
+          
+          // Find if it is a base unit
+          const unit = item._availableUnits?.find((u: any) => u.unitId === item.sellingUnitId);
+          
+          return {
+              variantId: item.variantId,
+              unitId: item.sellingUnitId || null,
+              isBaseUnit: !!(unit?.isBaseUnit)
+          }
+      }).filter((i): i is { variantId: string; unitId: string | null; isBaseUnit: boolean } => i !== null);
   }, [items]);
 
   // C. Fetch Price Map (Rust)
