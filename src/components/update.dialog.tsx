@@ -8,55 +8,72 @@ import {
   X, 
   Download, 
   ArrowRight,
-  FileText 
+  ScrollText,
+  AlertTriangle
 } from 'lucide-react';
 
-// --- Markdown Styling Overrides ---
+// --- Markdown Styling Overrides (Shadcn Typography Compatible) ---
 const markdownOptions = {
   overrides: {
     h1: {
       component: ({ children, ...props }: any) => (
-        <h1 {...props} className="mb-2 mt-4 text-lg font-bold text-gray-900 dark:text-gray-100">{children}</h1>
+        <h1 {...props} className="mt-6 scroll-m-20 text-2xl font-semibold tracking-tight first:mt-0 dark:text-zinc-50 text-zinc-900">
+          {children}
+        </h1>
       ),
     },
     h2: {
       component: ({ children, ...props }: any) => (
-        <h2 {...props} className="mb-2 mt-4 text-base font-bold text-gray-800 dark:text-gray-200">{children}</h2>
+        <h2 {...props} className="mt-6 scroll-m-20 pb-2 text-xl font-semibold tracking-tight first:mt-0 dark:text-zinc-100 text-zinc-800">
+          {children}
+        </h2>
       ),
     },
     h3: {
       component: ({ children, ...props }: any) => (
-        <h3 {...props} className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-gray-700 dark:text-gray-300">{children}</h3>
+        <h3 {...props} className="mt-4 scroll-m-20 text-base font-semibold tracking-tight dark:text-zinc-100 text-zinc-800">
+          {children}
+        </h3>
       ),
     },
     p: {
       component: ({ children, ...props }: any) => (
-        <p {...props} className="mb-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{children}</p>
+        <p {...props} className="leading-7 [&:not(:first-child)]:mt-3 text-sm dark:text-zinc-400 text-zinc-600">
+          {children}
+        </p>
       ),
     },
     ul: {
       component: ({ children, ...props }: any) => (
-        <ul {...props} className="mb-3 ml-4 list-disc space-y-1 text-gray-600 dark:text-gray-300">{children}</ul>
+        <ul {...props} className="my-3 ml-6 list-disc [&>li]:mt-2 text-sm dark:text-zinc-400 text-zinc-600">
+          {children}
+        </ul>
       ),
     },
     li: {
       component: ({ children, ...props }: any) => (
-        <li {...props} className="text-sm">{children}</li>
+        <li {...props}>{children}</li>
       ),
     },
     a: {
       component: ({ children, ...props }: any) => (
-        <a {...props} className="font-medium text-blue-600 hover:underline dark:text-blue-400" target="_blank" rel="noopener noreferrer">{children}</a>
+        <a {...props} className="font-medium text-primary underline underline-offset-4 dark:text-blue-400 text-blue-600 hover:text-blue-500" target="_blank" rel="noopener noreferrer">
+          {children}
+        </a>
       ),
     },
     code: {
       component: ({ children, ...props }: any) => (
-        <code {...props} className="rounded bg-gray-200 px-1 py-0.5 font-mono text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-200">{children}</code>
+        <code {...props} className="relative rounded bg-zinc-100 px-[0.3rem] py-[0.2rem] font-mono text-xs font-semibold text-zinc-900 dark:bg-zinc-800 dark:text-zinc-200">
+          {children}
+        </code>
       ),
     },
     blockquote: {
         component: ({ children, ...props }: any) => (
-          <blockquote {...props} className="my-2 border-l-4 border-gray-300 pl-4 italic text-gray-500 dark:border-gray-700">{children}</blockquote>
+          <blockquote {...props} className="mt-4 border-l-2 border-zinc-300 pl-6 italic text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+            {children}
+          </blockquote>
         ),
       },
   },
@@ -79,15 +96,18 @@ export function UpdateDialog({
   releaseNotes,
   isCritical,
 }: UpdateDialogProps) {
-  const [isMounting, setIsMounting] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
 
   // Handle animation mounting
   useEffect(() => {
-    if (open) setIsMounting(true);
-    else setTimeout(() => setIsMounting(false), 200);
+    if (open) setIsVisible(true);
+    else {
+        const timer = setTimeout(() => setIsVisible(false), 200);
+        return () => clearTimeout(timer);
+    }
   }, [open]);
 
-  if (!open && !isMounting) return null;
+  if (!isVisible) return null;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (isCritical) return;
@@ -97,111 +117,124 @@ export function UpdateDialog({
   };
 
   return (
-    <div
-      className={`fixed inset-0 z-[100] flex items-center justify-center p-4 transition-all duration-200 ${
-        open ? 'opacity-100 backdrop-blur-sm' : 'opacity-0 backdrop-blur-none'
-      }`}
-    >
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center isolate">
+      {/* Backdrop - Standard Shadcn Overlay */}
       <div 
-        className="absolute inset-0 bg-gray-900/40 dark:bg-black/60" 
+        className={`fixed inset-0 bg-black/80 transition-opacity duration-200 ease-out ${
+            open ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={handleBackdropClick} 
         aria-hidden="true" 
       />
 
       {/* Modal Content */}
       <div
-        className={`relative w-full max-w-lg transform flex flex-col max-h-[85vh] overflow-hidden rounded-xl bg-white text-left shadow-2xl ring-1 ring-gray-900/5 transition-all duration-300 dark:bg-gray-900 dark:ring-white/10 ${
-          open ? 'scale-100 translate-y-0' : 'scale-95 translate-y-4'
-        }`}
+        className={`
+            relative z-50 grid w-full max-w-3xl gap-4 border bg-white p-0 shadow-lg duration-200 sm:rounded-xl 
+            dark:bg-zinc-950 dark:border-zinc-800 
+            ${open 
+                ? 'animate-in fade-in-0 zoom-in-95 slide-in-from-left-1/2 slide-in-from-top-[48%]' 
+                : 'animate-out fade-out-0 zoom-out-95 slide-out-to-left-1/2 slide-out-to-top-[48%]'
+            }
+        `}
       >
         {/* Header */}
-        <div className="flex-shrink-0 relative border-b border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
-          {!isCritical && (
-            <button
-              onClick={onClose}
-              className="absolute right-4 top-4 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-500 dark:hover:bg-gray-800"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          )}
-
-          <div className="flex items-center gap-3">
-            <div className={`flex h-12 w-12 items-center justify-center rounded-full ${
-              isCritical 
-                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' 
-                : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
-            }`}>
-              {isCritical ? <ShieldAlert className="h-6 w-6" /> : <Sparkles className="h-6 w-6" />}
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold leading-6 text-gray-900 dark:text-white">
-                {isCritical ? 'Critical Update Required' : 'New Version Available'}
-              </h3>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {isCritical 
-                  ? 'This update includes important security fixes.' 
-                  : 'A new version of the application is ready to install.'}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Release Notes Scroll Area */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-            <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-                <FileText className="h-3 w-3" />
-                Release Notes
-            </div>
-            
-            <div className="rounded-lg border border-gray-100 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-950/50">
-                {releaseNotes ? (
-                    <div className="prose-sm">
-                        <Markdown options={markdownOptions}>
-                            {releaseNotes}
-                        </Markdown>
+        <div className="flex flex-col space-y-1.5 p-6 pb-4">
+            <div className="flex items-start justify-between">
+                <div className="flex gap-4">
+                    {/* Icon Box */}
+                    <div className={`mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border ${
+                        isCritical 
+                        ? 'border-red-200 bg-red-50 text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-500' 
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-50'
+                    }`}>
+                        {isCritical ? <ShieldAlert className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                     </div>
-                ) : (
-                    <div className="flex h-20 items-center justify-center text-sm italic text-gray-400">
-                        No release notes provided.
+                    
+                    <div>
+                        <h2 className="text-lg font-semibold leading-none tracking-tight text-zinc-900 dark:text-zinc-50">
+                            {isCritical ? 'Critical Update Required' : 'Update Available'}
+                        </h2>
+                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                            {isCritical 
+                                ? 'Security patches and critical performance improvements are included in this version.' 
+                                : 'A new version has been released with the following improvements and fixes.'}
+                        </p>
                     </div>
+                </div>
+
+                {/* Close Button (Hidden if critical) */}
+                {!isCritical && (
+                    <button
+                        onClick={onClose}
+                        className="rounded-md p-2 text-zinc-400 opacity-70 ring-offset-white hover:bg-zinc-100 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-zinc-950 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-zinc-100 data-[state=open]:text-zinc-500 dark:ring-offset-zinc-950 dark:hover:bg-zinc-800 dark:focus:ring-zinc-300 dark:data-[state=open]:bg-zinc-800"
+                    >
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Close</span>
+                    </button>
                 )}
             </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex-shrink-0 flex flex-col-reverse gap-3 bg-gray-50 p-6 sm:flex-row sm:justify-end dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-800">
-          {!isCritical && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-            >
-              Remind Me Later
-            </button>
-          )}
-          
-          <button
-            type="button"
-            onClick={onConfirm}
-            className={`inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-              isCritical
-                ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500'
-                : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'
-            }`}
-          >
-            {isCritical ? (
-              <>
-                Update Now
-                <ArrowRight className="h-4 w-4" />
-              </>
-            ) : (
-              <>
-                <Download className="h-4 w-4" />
-                Download & Install
-              </>
+        {/* Separator */}
+        <div className="h-px w-full bg-zinc-200 dark:bg-zinc-800" />
+
+        {/* Body / Scroll Area */}
+        <div className="px-6 py-2">
+            <div className="flex items-center gap-2 pb-3 text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                <ScrollText className="h-3.5 w-3.5" />
+                Release Notes
+            </div>
+            
+            <div className="relative h-[300px] w-full overflow-hidden rounded-md border border-zinc-200 bg-zinc-50/50 dark:border-zinc-800 dark:bg-zinc-900/50">
+                <div className="h-full w-full overflow-y-auto p-4 custom-scrollbar">
+                    {releaseNotes ? (
+                        <div className="prose-sm dark:prose-invert">
+                            <Markdown options={markdownOptions}>
+                                {releaseNotes}
+                            </Markdown>
+                        </div>
+                    ) : (
+                        <div className="flex h-full flex-col items-center justify-center gap-2 text-zinc-400">
+                            <AlertTriangle className="h-8 w-8 opacity-20" />
+                            <p className="text-sm">No release notes available for this version.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 p-6 pt-4">
+             {!isCritical && (
+                <button
+                    onClick={onClose}
+                    className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-zinc-200 bg-white hover:bg-zinc-100 hover:text-zinc-900 h-10 px-4 py-2 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:bg-zinc-800 dark:hover:text-zinc-50 dark:ring-offset-zinc-950"
+                >
+                    Remind me later
+                </button>
             )}
-          </button>
+            
+            <button
+                onClick={onConfirm}
+                className={`
+                    inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 dark:ring-offset-zinc-950
+                    ${isCritical 
+                        ? 'bg-red-600 text-zinc-50 hover:bg-red-600/90 dark:bg-red-900 dark:text-zinc-50 dark:hover:bg-red-900/90' 
+                        : 'bg-zinc-900 text-zinc-50 hover:bg-zinc-900/90 dark:bg-zinc-50 dark:text-zinc-900 dark:hover:bg-zinc-50/90'
+                    }
+                `}
+            >
+                {isCritical ? (
+                    <>
+                        Update Now <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                ) : (
+                    <>
+                        <Download className="mr-2 h-4 w-4" /> Download Update
+                    </>
+                )}
+            </button>
         </div>
       </div>
     </div>

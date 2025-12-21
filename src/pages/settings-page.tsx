@@ -20,6 +20,7 @@ import { useScanner } from '@/hooks/use-scanner';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
+import { UpdateTestingPanel } from '@/components/update-testing-panel';
 
 interface HidDevice {
   vid: number;
@@ -197,9 +198,7 @@ export default function SettingsPage() {
         <Separator />
 
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
-            {' '}
-            {/* Changed from 7 to 8 columns */}
+          <TabsList className="grid w-full grid-cols-11">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="theme">Theme</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise</TabsTrigger>
@@ -210,6 +209,7 @@ export default function SettingsPage() {
             <TabsTrigger value="customer-display">Display</TabsTrigger>
             <TabsTrigger value="api">API Sync</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
+            <TabsTrigger value="developer">Developer</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -1544,6 +1544,10 @@ export default function SettingsPage() {
                 ))}
               </div>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="developer" className="space-y-6">
+            <UpdateTestingPanel />
           </TabsContent>
         </Tabs>
 

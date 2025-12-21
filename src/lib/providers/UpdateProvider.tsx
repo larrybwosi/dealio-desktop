@@ -4,6 +4,13 @@ import { createContext, useState, useEffect, useCallback, ReactNode } from 'reac
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { UpdateDialog } from '@/components/update.dialog';
+import { 
+  isTestMode, 
+  getCurrentTestScenario, 
+  mockCheck, 
+  mockRelaunch,
+  TEST_SCENARIOS 
+} from '@/lib/updater/mock-update';
 
 // --- Types ---
 type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | 'ERROR';
@@ -112,7 +119,13 @@ export const UpdaterProvider = ({
         }
       });
       
-      await relaunch();
+      // Use mock relaunch in test mode
+      if (isTestMode()) {
+        console.log('🧪 [TEST MODE] Using mock relaunch');
+        await mockRelaunch();
+      } else {
+        await relaunch();
+      }
       
     } catch (e: any) {
       console.error('Update failed:', e);
@@ -133,7 +146,17 @@ export const UpdaterProvider = ({
     setError(null);
 
     try {
-      const updateResult = await check();
+      let updateResult: Update | null;
+      
+      // Use mock updater in test mode
+      if (isTestMode()) {
+        const scenario = getCurrentTestScenario();
+        const config = TEST_SCENARIOS[scenario];
+        console.log('🧪 [TEST MODE] Using mock update scenario:', scenario);
+        updateResult = await mockCheck(config);
+      } else {
+        updateResult = await check();
+      }
 
       if (updateResult) {
         setUpdate(updateResult);
@@ -159,6 +182,11 @@ export const UpdaterProvider = ({
 
         setIsCritical(critical);
         setIsModalOpen(true);
+      } else {
+        setStatus('IDLE');
+        if (isTestMode()) {
+          console.log('🧪 [TEST MODE] No update available');
+        }
       }
     } catch (e: any) {
       console.error('Failed to check for updates:', e);
