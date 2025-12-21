@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const updateApiSyncConfig = usePosStore(state => state.updateApiSyncConfig);
   const syncDataToApi = usePosStore(state => state.syncDataToApi);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
+  const updateCustomerDisplayConfig = usePosStore(state => state.updateCustomerDisplayConfig);
   const { setDeviceKey } = useAuthStore(state => state);
 
   const {
@@ -206,6 +207,7 @@ export default function SettingsPage() {
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
+            <TabsTrigger value="customer-display">Display</TabsTrigger>
             <TabsTrigger value="api">API Sync</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
           </TabsList>
@@ -1161,6 +1163,215 @@ export default function SettingsPage() {
                 <Button onClick={handleSaveSettings}>Save Payment Settings</Button>
               </div>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="customer-display" className="space-y-6">
+            <Card className="p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/20">
+                  <Monitor className="h-5 w-5 text-purple-700 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Customer Facing Display</h2>
+                  <p className="text-sm text-muted-foreground">Customize the experience on the secondary screen</p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Enable Customer Display</div>
+                    <p className="text-sm text-muted-foreground">Activate the secondary screen output</p>
+                  </div>
+                  <Switch
+                    checked={settings.customerDisplayConfig?.enabled ?? true}
+                    onCheckedChange={val => updateCustomerDisplayConfig({ enabled: val })}
+                  />
+                </div>
+
+                {settings.customerDisplayConfig?.enabled !== false && (
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid gap-2">
+                        <Label>Welcome Message</Label>
+                        <Input
+                          value={settings.customerDisplayConfig?.welcomeMessage || ''}
+                          onChange={e => updateCustomerDisplayConfig({ welcomeMessage: e.target.value })}
+                          placeholder="e.g. Dealio Enterprise"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label>Sub-Message</Label>
+                        <Input
+                          value={settings.customerDisplayConfig?.subMessage || ''}
+                          onChange={e => updateCustomerDisplayConfig({ subMessage: e.target.value })}
+                          placeholder="e.g. Welcome to our store"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="flex items-center justify-between py-2 border rounded-lg p-3">
+                        <div>
+                          <div className="font-medium text-sm">Show Clock</div>
+                        </div>
+                        <Switch
+                          checked={settings.customerDisplayConfig?.showTime ?? true}
+                          onCheckedChange={val => updateCustomerDisplayConfig({ showTime: val })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between py-2 border rounded-lg p-3">
+                        <div>
+                          <div className="font-medium text-sm">Show Company Logo</div>
+                        </div>
+                        <Switch
+                          checked={settings.customerDisplayConfig?.showCompanyLogo ?? true}
+                          onCheckedChange={val => updateCustomerDisplayConfig({ showCompanyLogo: val })}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label>Slide Interval (Seconds)</Label>
+                      <Input
+                        type="number"
+                        min="3"
+                        max="60"
+                        value={settings.customerDisplayConfig?.slideIntervalSeconds || 8}
+                        onChange={e =>
+                          updateCustomerDisplayConfig({ slideIntervalSeconds: Number.parseInt(e.target.value) || 8 })
+                        }
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+            </Card>
+
+            {settings.customerDisplayConfig?.enabled !== false && (
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-pink-100 dark:bg-pink-900/20">
+                      <Image className="h-5 w-5 text-pink-700 dark:text-pink-400" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold">Promotional Slides</h2>
+                      <p className="text-sm text-muted-foreground">Manage the rotating content shown when idle</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid gap-4">
+                    {settings.customerDisplayConfig?.promoSlides?.map((slide, idx) => (
+                      <div
+                        key={slide.id || idx}
+                        className="grid grid-cols-[auto_1fr_auto] gap-4 p-4 border rounded-lg items-start"
+                      >
+                        <div
+                          className={`h-10 w-10 mt-1 rounded flex items-center justify-center text-white text-xs ${
+                            slide.background.startsWith('bg-') ? slide.background : 'bg-gray-500'
+                          }`}
+                        >
+                          {slide.type === 'qr' ? (
+                            <ScanBarcode className="h-5 w-5" />
+                          ) : (
+                            <Type className="h-5 w-5" />
+                          )}
+                        </div>
+                        <div className="grid gap-2">
+                          <Input
+                            value={slide.title}
+                            onChange={e => {
+                              const newSlides = [...(settings.customerDisplayConfig?.promoSlides || [])];
+                              newSlides[idx] = { ...newSlides[idx], title: e.target.value };
+                              updateCustomerDisplayConfig({ promoSlides: newSlides });
+                            }}
+                            placeholder="Title"
+                            className="h-8 font-semibold"
+                          />
+                          <Input
+                            value={slide.subtitle}
+                            onChange={e => {
+                              const newSlides = [...(settings.customerDisplayConfig?.promoSlides || [])];
+                              newSlides[idx] = { ...newSlides[idx], subtitle: e.target.value };
+                              updateCustomerDisplayConfig({ promoSlides: newSlides });
+                            }}
+                            placeholder="Subtitle"
+                            className="h-8 text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <Select
+                              value={slide.type}
+                              onValueChange={(val: any) => {
+                                const newSlides = [...(settings.customerDisplayConfig?.promoSlides || [])];
+                                newSlides[idx] = { ...newSlides[idx], type: val };
+                                updateCustomerDisplayConfig({ promoSlides: newSlides });
+                              }}
+                            >
+                              <SelectTrigger className="h-8 w-24">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="icon">Icon</SelectItem>
+                                <SelectItem value="qr">QR Code</SelectItem>
+                              </SelectContent>
+                            </Select>
+
+                            {slide.type === 'qr' && (
+                              <Input
+                                value={slide.payload || ''}
+                                onChange={e => {
+                                  const newSlides = [...(settings.customerDisplayConfig?.promoSlides || [])];
+                                  newSlides[idx] = { ...newSlides[idx], payload: e.target.value };
+                                  updateCustomerDisplayConfig({ promoSlides: newSlides });
+                                }}
+                                placeholder="https://..."
+                                className="h-8 flex-1"
+                              />
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const newSlides = settings.customerDisplayConfig!.promoSlides.filter((_, i) => i !== idx);
+                            updateCustomerDisplayConfig({ promoSlides: newSlides });
+                          }}
+                        >
+                          <Trash className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      className="w-full border-dashed"
+                      onClick={() => {
+                        const newSlide: any = {
+                          id: `slide_${Date.now()}`,
+                          type: 'icon',
+                          title: 'New Promotion',
+                          subtitle: 'Edit this details',
+                          iconName: 'Store',
+                          background: 'bg-gradient-to-br from-indigo-600 to-purple-600',
+                          textColor: 'text-white',
+                          enabled: true,
+                        };
+                        const currentSlides = settings.customerDisplayConfig?.promoSlides || [];
+                        updateCustomerDisplayConfig({ promoSlides: [...currentSlides, newSlide] });
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" /> Add New Slide
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="api" className="space-y-6">

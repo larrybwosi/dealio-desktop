@@ -2,6 +2,7 @@ import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
+import { tauriStorage } from './storage-adapter';
 
 export type OrderType = 'takeaway' | 'delivery' | 'dine-in' | 'pickup' | 'online';
 export type OrderStatus = 'waiting' | 'ready' | 'canceled' | 'completed';
@@ -257,6 +258,28 @@ export interface KitchenTicketConfig {
   showServerName: boolean;
 }
 
+export interface PromoSlideConfig {
+  id: string;
+  type: 'qr' | 'icon';
+  title: string;
+  subtitle: string;
+  payload?: string;
+  iconName?: string;
+  background: string;
+  textColor: string;
+  enabled: boolean;
+}
+
+export interface CustomerDisplayConfig {
+  enabled: boolean;
+  welcomeMessage: string;
+  subMessage: string;
+  showTime: boolean;
+  promoSlides: PromoSlideConfig[];
+  slideIntervalSeconds: number;
+  showCompanyLogo: boolean;
+}
+
 export interface ThemeConfig {
   mode: 'light' | 'dark' | 'system';
   primaryColor: string;
@@ -332,6 +355,7 @@ export interface BusinessSettings {
   paybillNumber?: string;
   tillNumber?: string;
   enableCustomerDisplay: boolean;
+  customerDisplayConfig: CustomerDisplayConfig;
   kitchenTicketConfig: KitchenTicketConfig;
   cashDrawerPort?: string; // Serial port for cash drawer hardware (e.g., "COM3")
   enableAutoStart: boolean;
@@ -517,6 +541,7 @@ interface PosStore {
   setTableNumber: (tableNumber: string) => void;
   setInstructions: (instructions: string) => void;
   updateKitchenTicketConfig: (config: Partial<KitchenTicketConfig>) => void;
+  updateCustomerDisplayConfig: (config: Partial<CustomerDisplayConfig>) => void;
 }
 
 export const getDefaultReceiptConfig = (): ReceiptConfig => ({
@@ -776,6 +801,46 @@ export const usePosStore = create<PosStore>()(
         paybillNumber: '',
         tillNumber: '',
         enableCustomerDisplay: true,
+        customerDisplayConfig: {
+          enabled: true,
+          welcomeMessage: 'Dealio Enterprise',
+          subMessage: 'Welcome to our store',
+          showTime: true,
+          slideIntervalSeconds: 8,
+          showCompanyLogo: true,
+          promoSlides: [
+            {
+              id: 'slide_1',
+              type: 'qr',
+              title: "Join & Save 5%",
+              subtitle: "Scan to register instantly",
+              payload: "https://example.com/register",
+              background: "bg-gradient-to-br from-indigo-600 to-blue-700",
+              textColor: "text-white",
+              enabled: true
+            },
+            {
+              id: 'slide_2',
+              type: 'icon',
+              title: "New Arrivals",
+              subtitle: "Ask about our seasonal catalog",
+              iconName: 'Store',
+              background: "bg-gradient-to-br from-emerald-600 to-teal-700",
+              textColor: "text-white",
+              enabled: true
+            },
+            {
+              id: 'slide_3',
+              type: 'icon',
+              title: "Secure Payments",
+              subtitle: "We accept all major cards",
+              iconName: 'ShieldCheck',
+              background: "bg-gradient-to-br from-slate-700 to-gray-800",
+              textColor: "text-white",
+              enabled: true
+            }
+          ]
+        },
         kitchenTicketConfig: getDefaultKitchenTicketConfig(),
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
@@ -1651,6 +1716,14 @@ export const usePosStore = create<PosStore>()(
           },
         })),
 
+      updateCustomerDisplayConfig: config =>
+        set(state => ({
+          settings: {
+            ...state.settings,
+            customerDisplayConfig: { ...state.settings.customerDisplayConfig, ...config },
+          },
+        })),
+
       assignOrderToTable: (tableId, orderId) =>
         set(state => ({
           tables: state.tables.map(t =>
@@ -1667,7 +1740,7 @@ export const usePosStore = create<PosStore>()(
     }),
     {
       name: 'dealio-pos-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => tauriStorage),
       skipHydration: false,
       partialize: state => ({
         currentOrder: state.currentOrder,

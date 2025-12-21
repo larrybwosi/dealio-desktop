@@ -3,17 +3,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { QRCodeCanvas } from 'qrcode.react';
+import { usePosStore } from '@/store/store';
+import * as LucideIcons from 'lucide-react';
 import {
-  Store,
-  Receipt,
-  Percent,
-  ShieldCheck,
   MonitorSmartphone,
   QrCode,
   CreditCard,
   CheckCircle,
-  Clock,
-  Wifi,
   DollarSign,
   Smartphone,
 } from 'lucide-react';
@@ -51,55 +47,55 @@ interface PaymentPayload {
 }
 
 // --- Configuration ---
-const PROMO_SLIDES = [
-  {
-    type: 'qr',
-    title: "Join & Save 5%",
-    desc: "Scan to register instantly",
-    payload: "https://example.com/register",
-    bg: "bg-gradient-to-br from-indigo-600 to-blue-700",
-    text: "text-white"
-  },
-  {
-    type: 'icon',
-    title: "New Arrivals",
-    desc: "Ask about our seasonal catalog",
-    icon: <Store className="h-24 w-24 text-white/90" />,
-    bg: "bg-gradient-to-br from-emerald-600 to-teal-700",
-    text: "text-white"
-  },
-  {
-    type: 'icon',
-    title: "Secure Payments",
-    desc: "We accept all major cards",
-    icon: <ShieldCheck className="h-24 w-24 text-white/90" />,
-    bg: "bg-gradient-to-br from-slate-700 to-gray-800",
-    text: "text-white"
-  }
-];
+// --- Configuration ---
+// Removed hardcoded PROMO_SLIDES in favor of store configuration
 
 // --- Sub-Components ---
 
+const DynamicIcon = ({ name, className }: { name?: string; className?: string }) => {
+  const Icon = (LucideIcons as any)[name || 'Store'] || LucideIcons.Store;
+  return <Icon className={className} />;
+};
+
 const PromoSlide = ({ slide, isFullScreen = false }: { slide: any, isFullScreen?: boolean }) => (
-  <div className={`relative z-10 p-6 flex flex-col items-center text-center ${isFullScreen ? '' : 'rounded-2xl shadow-2xl mb-6'} ${isFullScreen ? '' : slide.bg}`}>
+  <div className={`relative z-10 p-6 flex flex-col items-center text-center ${isFullScreen ? '' : 'rounded-2xl shadow-2xl mb-6'} ${isFullScreen ? '' : slide.background}`}>
     {slide.type === 'qr' ? (
       <div className="bg-white p-3 rounded-xl shadow-lg mb-6">
         <QRCodeCanvas value={slide.payload || ""} size={isFullScreen ? 280 : 140} />
       </div>
     ) : (
-      <div className="mb-6 scale-75 md:scale-100">{slide.icon}</div>
+      <div className="mb-6 scale-75 md:scale-100">
+          <DynamicIcon name={slide.iconName} className="h-24 w-24 text-white/90" />
+      </div>
     )}
     
-    <h2 className={`${isFullScreen ? 'text-5xl md:text-7xl mb-6' : 'text-2xl lg:text-3xl mb-2'} font-bold tracking-tight ${isFullScreen ? 'text-white' : slide.text}`}>
+    <h2 className={`${isFullScreen ? 'text-5xl md:text-7xl mb-6' : 'text-2xl lg:text-3xl mb-2'} font-bold tracking-tight ${isFullScreen ? 'text-white' : slide.textColor || 'text-white'}`}>
       {slide.title}
     </h2>
     <p className={`${isFullScreen ? 'text-2xl text-slate-200' : 'text-slate-400 text-lg'} max-w-md mx-auto`}>
-      {slide.desc}
+      {slide.subtitle || slide.desc}
     </p>
   </div>
 );
 
 export default function CustomerDisplay() {
+  const settings = usePosStore(state => state.settings);
+  const config = settings.customerDisplayConfig || {
+      enabled: true,
+      welcomeMessage: "Dealio Enterprise",
+      subMessage: "Welcome to our store",
+      showTime: true,
+      slideIntervalSeconds: 8,
+      showCompanyLogo: true,
+      promoSlides: []
+  };
+  
+  // Use config slides or fallback to empty array (should prevent crashing if empty)
+  // But logic needs slides to rotate. If empty, show welcome message static?
+  const slides = config.promoSlides && config.promoSlides.length > 0 ? config.promoSlides : [{
+      id: 'default', type: 'icon', title: config.welcomeMessage, subtitle: config.subMessage, background: 'bg-slate-800', textColor: 'text-white', iconName: 'Store'
+  }];
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [totals, setTotals] = useState({
     subtotal: 0.00,
@@ -120,8 +116,8 @@ export default function CustomerDisplay() {
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 10000);
     const promoTimer = setInterval(() => {
-      setPromoIndex((prev) => (prev + 1) % PROMO_SLIDES.length);
-    }, 8000);
+      setPromoIndex((prev) => (prev + 1) % slides.length);
+    }, (config.slideIntervalSeconds || 8) * 1000);
 
     const unlistenCart = listen<CartPayload>('cart-update', (event) => {
       const { items, subtotal, tax, discount, finalTotal } = event.payload;
@@ -146,7 +142,7 @@ export default function CustomerDisplay() {
       unlistenCart.then(f => f());
       unlistenPayment.then(f => f());
     };
-  }, []);
+  }, [slides.length, config.slideIntervalSeconds]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -154,11 +150,22 @@ export default function CustomerDisplay() {
     }
   }, [cart]);
 
-  const currentSlide = PROMO_SLIDES[promoIndex];
+  const currentSlide = slides[promoIndex] || slides[0];
   const isPaymentActive = paymentDetails.type !== 'CLEAR' && paymentDetails.type !== 'CLEAR_COMPLETED';
   
   // IDLE LOGIC: Empty cart AND no active payment
   const isIdle = cart.length === 0 && !isPaymentActive;
+
+  if (config.enabled === false) {
+      return (
+          <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-500">
+              <div className="text-center">
+                  <MonitorSmartphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>Customer Display is Disabled</p>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="h-[100dvh] w-screen bg-slate-50 text-slate-900 font-sans overflow-hidden select-none">
@@ -336,7 +343,7 @@ export default function CustomerDisplay() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.5 }}
-            className={`absolute inset-0 flex flex-col items-center justify-center ${currentSlide.bg}`}
+            className={`absolute inset-0 flex flex-col items-center justify-center ${currentSlide.background}`}
           >
              {/* Animated Background Pattern */}
              <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:40px_40px]"></div>
@@ -344,12 +351,14 @@ export default function CustomerDisplay() {
              {/* Header Info */}
              <div className="absolute top-0 left-0 right-0 p-8 flex justify-between text-white/60">
                 <div className="flex items-center gap-3">
-                  <Store className="h-6 w-6" />
-                  <span className="font-bold uppercase tracking-widest">Dealio Enterprise</span>
+                   {config.showCompanyLogo && <LucideIcons.Store className="h-6 w-6" />}
+                  <span className="font-bold uppercase tracking-widest">{config.welcomeMessage}</span>
                 </div>
-                <div className="font-mono text-xl">
-                  {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </div>
+                {config.showTime && (
+                    <div className="font-mono text-xl">
+                    {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                )}
              </div>
 
              {/* Main Slide Content */}
@@ -368,7 +377,7 @@ export default function CustomerDisplay() {
 
              {/* Footer Indicators */}
              <div className="absolute bottom-12 flex gap-3 z-20">
-              {PROMO_SLIDES.map((_, idx) => (
+              {slides.map((_, idx) => (
                 <div 
                   key={idx} 
                   className={`h-2 rounded-full transition-all duration-500 ${idx === promoIndex ? 'w-16 bg-white' : 'w-2 bg-white/30'}`} 
@@ -390,25 +399,29 @@ export default function CustomerDisplay() {
               
               <header className="h-16 md:h-20 px-6 border-b border-slate-100 flex items-center justify-between shrink-0 bg-white">
                 <div className="flex items-center gap-4">
-                  <div className="h-10 w-10 bg-slate-900 rounded-lg flex items-center justify-center shadow-lg shadow-slate-900/20">
-                    <Store className="h-5 w-5 text-white" />
-                  </div>
+                  {config.showCompanyLogo && (
+                      <div className="h-10 w-10 bg-slate-900 rounded-lg flex items-center justify-center shadow-lg shadow-slate-900/20">
+                        <LucideIcons.Store className="h-5 w-5 text-white" />
+                      </div>
+                  )}
                   <div>
-                    <h1 className="text-base md:text-lg font-bold uppercase tracking-widest text-slate-900">Dealio Enterprise</h1>
+                    <h1 className="text-base md:text-lg font-bold uppercase tracking-widest text-slate-900">{config.welcomeMessage}</h1>
                     <div className="flex items-center gap-2 text-xs font-medium text-slate-400">
-                      <span className="flex items-center gap-1"><Wifi size={10}/> Online</span>
+                      <span className="flex items-center gap-1"><LucideIcons.Wifi size={10}/> Online</span>
                       <span>•</span>
-                      <span>POS #042</span>
+                      <span>{config.subMessage}</span>
                     </div>
                   </div>
                 </div>
-                <div className="text-right hidden sm:block">
-                  <div className="flex items-center justify-end gap-2 text-slate-500">
-                     <Clock size={14} />
-                     <span className="font-mono text-sm md:text-base">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  <p className="text-xs text-slate-400">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
-                </div>
+                {config.showTime && (
+                    <div className="text-right hidden sm:block">
+                    <div className="flex items-center justify-end gap-2 text-slate-500">
+                        <LucideIcons.Clock size={14} />
+                        <span className="font-mono text-sm md:text-base">{currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                    <p className="text-xs text-slate-400">{currentTime.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+                    </div>
+                )}
               </header>
 
               <main ref={scrollRef} className="flex-1 overflow-y-auto scroll-smooth p-0 md:p-2">
@@ -464,7 +477,7 @@ export default function CustomerDisplay() {
                   </AnimatePresence>
                   
                   <div className="absolute bottom-6 flex gap-2 z-20">
-                    {PROMO_SLIDES.map((_, idx) => (
+                    {slides.map((_, idx) => (
                       <div 
                         key={idx} 
                         className={`h-1.5 rounded-full transition-all duration-300 ${idx === promoIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/30'}`} 
@@ -489,7 +502,7 @@ export default function CustomerDisplay() {
                         exit={{ height: 0, opacity: 0 }}
                         className="flex justify-between text-emerald-400 overflow-hidden"
                       >
-                        <span className="flex items-center gap-1"><Percent size={14}/> Savings</span>
+                        <span className="flex items-center gap-1"><LucideIcons.Percent size={14}/> Savings</span>
                         <span className="font-mono tabular-nums">- {formatCurrency(totals.discount)}</span>
                       </motion.div>
                     )}
@@ -516,7 +529,7 @@ export default function CustomerDisplay() {
                 </div>
 
                 <div className="mt-8 flex items-center justify-between text-slate-600 text-xs font-semibold uppercase tracking-wider">
-                  <span className="flex items-center gap-2"><Receipt size={16}/> Receipt Ready</span>
+                  <span className="flex items-center gap-2"><LucideIcons.Receipt size={16}/> Receipt Ready</span>
                   <span className="flex items-center gap-2"><MonitorSmartphone size={16}/> Terminal Active</span>
                 </div>
               </div>
