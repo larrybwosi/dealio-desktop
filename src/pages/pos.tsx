@@ -322,7 +322,7 @@ export function POS() {
                  <PackageOpen className="w-5 h-5 text-primary" />
               </div>
               <div>
-                  <h2 className="text-xl font-bold tracking-tight">Product List</h2>
+                  <h2 className="text-xl font-bold tracking-tight font-serif">Product List</h2>
                   <p className="text-xs text-muted-foreground hidden sm:block">
                       {products.length} items • {pricingMode} mode
                       {isSyncing && <span className="ml-2 italic text-primary">(Syncing...)</span>}

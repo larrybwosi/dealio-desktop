@@ -1,16 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from '@tauri-apps/api/core';
-import { useEffect } from 'react';
+import { useCallback } from 'react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { API_ENDPOINT } from '@/lib/axios';
 import { apiClient } from "@/lib/axios";
 import { Customer } from "@/types";
+import { useDebounce } from "use-debounce";
 
 // Types match the Rust JSON output (camelCase)
 export interface PosCustomer extends Customer {
     id: string;
     name: string;
-    email?: string; // rust Option -> string | null/undefined
+    email?: string;
     phone?: string;
     customerType?: string;
     company?: string;
@@ -30,26 +31,28 @@ interface UsePosCustomersParams {
 }
 
 export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParams = {}) => {
-    const { currentLocation, deviceKey, memberToken } = useAuthStore();
-    const locationId = currentLocation?.id;
     const queryClient = useQueryClient();
+    
+    // 1. Optimization: Use Selectors to prevent unnecessary re-renders
+    const locationId = useAuthStore((state) => state.currentLocation?.id);
+    const deviceKey = useAuthStore((state) => state.deviceKey);
+    const memberToken = useAuthStore((state) => state.memberToken);
 
-    // 1. Search Query - Fetches from Rust Memory (Fast)
     const safeSearch = search || "";
+    const [debouncedSearch] = useDebounce(safeSearch, 500);
 
     const { data: customers = [], isLoading: isSearching } = useQuery({
-        queryKey: ['pos-customers', safeSearch],
+        queryKey: ['pos-customers', debouncedSearch],
         queryFn: async () => {
             return await invoke<PosCustomer[]>('search_customers_command', {
-                query: safeSearch,
+                query: debouncedSearch,
             });
         },
-        // Keep data while searching to avoid flickering
         placeholderData: (prev) => prev,
         staleTime: 1000 * 60 * 5, // Consider local data fresh for 5 mins
+        enabled: enabled,
     });
 
-    // 2. Sync Mutation - Triggers Rust Background Sync
     const syncMutation = useMutation({
         mutationFn: async () => {
             if (!locationId) throw new Error("No Location ID");
@@ -73,28 +76,19 @@ export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParam
         onError: (err) => console.error("Customer Sync Failed:", err)
     });
 
-    // 3. Auto-Sync on Mount / Auth Change
-    useEffect(() => {
-        if (enabled && locationId && deviceKey) {
+    const handleSync = useCallback(() => {
+        if (enabled && locationId && !syncMutation.isPending) {
             syncMutation.mutate();
         }
-    }, [locationId, deviceKey, enabled]);
-
-    // 4. Background Sync Interval (e.g., every 30 mins)
-    useEffect(() => {
-        if (!enabled || !locationId) return;
-        const interval = setInterval(() => {
-            syncMutation.mutate();
-        }, 1000 * 60 * 30); 
-        return () => clearInterval(interval);
-    }, [enabled, locationId]);
+    }, [enabled, locationId, syncMutation]);
 
     return {
         customers,
+        // Loading is true only if we are searching and have no data yet (initial load)
+        isLoading: isSearching && customers.length === 0,
         isSyncing: syncMutation.isPending,
-        triggerSync: syncMutation.mutate,
+        triggerSync: handleSync, 
         totalCount: customers.length,
-        isSearching
     };
 };
 
@@ -102,12 +96,13 @@ export const useCreateCustomer = () => {
   const queryClient = useQueryClient();
 
   return useMutation<Customer, Error, any>({
-    mutationFn: data => apiClient.post('/api/v1/pos/customers', data),
+    mutationFn: async (data) => {
+        const res = await apiClient.post('/api/v1/pos/customers', data);
+        return res.data;
+    },
     onSuccess: () => {
-      // After creating online, trigger a local sync immediately
+      // After creating online, we invalidate the query.
       queryClient.invalidateQueries({ queryKey: ['pos-customers'] });
-      // Note: You might want to manually call syncMutation.mutate() here if you can access it,
-      // or rely on the backend sending the new customer in the next sync interval.
     },
   });
 };

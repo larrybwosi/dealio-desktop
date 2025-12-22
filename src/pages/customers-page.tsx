@@ -29,8 +29,8 @@ export default function CustomersPage() {
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Customer Management</h1>
-          <p className="text-muted-foreground mt-1">Manage your customer database</p>
+          <h1 className="text-3xl font-serif font-bold">Customer Management</h1>
+          <p className="text-muted-foreground font-serif mt-1">Manage your customer database</p>
         </div>
 
         <Button onClick={() => setIsDialogOpen(true)}>
@@ -59,7 +59,7 @@ export default function CustomersPage() {
           <Card className="col-span-full">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <User className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No customers found</p>
+              <p className="text-muted-foreground font-serif">No customers found</p>
               <Button 
                 variant="outline" 
                 className="mt-4"
@@ -76,8 +76,8 @@ export default function CustomersPage() {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
-                    <CardTitle className="text-lg">{customer.name}</CardTitle>
-                    <CardDescription className="mt-1">
+                    <CardTitle className="text-lg font-serif">{customer.name}</CardTitle>
+                    <CardDescription className="mt-1 font-serif">
                       {!!customer?.loyaltyPoints && (
                         <Badge variant="secondary" className="mt-1">
                           {customer?.loyaltyPoints} points
@@ -95,32 +95,32 @@ export default function CustomersPage() {
               <CardContent className="space-y-3">
                 {customer.email && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Mail className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{customer.email}</span>
+                    <Mail className="w-4 h-4 text-muted-foreground font-serif" />
+                    <span className="text-muted-foreground font-serif">{customer.email}</span>
                   </div>
                 )}
 
                 {customer.phone && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Phone className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-muted-foreground">{customer.phone}</span>
+                    <Phone className="w-4 h-4 text-muted-foreground font-serif" />
+                    <span className="text-muted-foreground font-serif">{customer.phone}</span>
                   </div>
                 )}
 
                 <div className="pt-3 border-t space-y-1">
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Purchases</span>
-                    <span className="font-medium">{formatCurrency(customer?.totalPurchases|| 0)}</span>
+                    <span className="text-muted-foreground font-serif">Total Purchases</span>
+                    <span className="font-medium font-serif">{formatCurrency(customer?.totalPurchases|| 0)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Last Visit</span>
-                    <span className="font-medium">{new Date(customer?.lastVisit|| "").toLocaleDateString()}</span>
+                    <span className="text-muted-foreground font-serif">Last Visit</span>
+                    <span className="font-medium font-serif">{new Date(customer?.lastVisit|| "").toLocaleDateString()}</span>
                   </div>
                 </div>
 
                 {customer.notes && (
                   <div className="pt-3 border-t">
-                    <p className="text-sm text-muted-foreground">{customer.notes}</p>
+                    <p className="text-sm text-muted-foreground font-serif">{customer.notes}</p>
                   </div>
                 )}
               </CardContent>

@@ -12,7 +12,6 @@ import {
   Check,
   ChevronsUpDown,
   Search,
-  // X icon removed from imports
 } from 'lucide-react';
 import { useFormattedCurrency, cn } from '@/lib/utils';
 
@@ -612,14 +611,11 @@ export default function CreateOrderPage() {
   return (
     // FULL WIDTH CONTAINER: Removed padding and max-width logic
     <div className="min-h-screen bg-white dark:bg-zinc-950 font-sans text-zinc-900 dark:text-zinc-100 flex flex-col">
-      
-      {/* "PAPER" CONTAINER: Removed max-width, shadows, and borders to make it a flat page */}
       <div className="w-full bg-white dark:bg-zinc-900 flex flex-col min-h-screen">
         
         {/* === HEADER ACTIONS BAR === */}
         <div className="px-8 py-4 border-b border-zinc-100 dark:border-zinc-800 flex items-center justify-between bg-zinc-50/30 dark:bg-zinc-900/50">
            <div className="flex items-center gap-2 text-zinc-500">
-               {/* REMOVED CANCEL BUTTON WITH X ICON AS REQUESTED */}
            </div>
            <div className="flex items-center gap-3">
               <div className="text-xs text-zinc-400 mr-2 uppercase tracking-widest font-semibold hidden md:block">
