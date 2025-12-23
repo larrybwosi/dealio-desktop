@@ -147,7 +147,7 @@ export default function SettingsPage() {
     }).catch(err => console.error("Failed to check auto-start status", err));
   }, []);
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     const newTaxRate = Number.parseFloat(taxRate) || 0;
     const newLowStockThreshold = Number.parseInt(lowStockThreshold, 10) || 10;
     const newMaxHeldOrders = Number.parseInt(maxHeldOrders, 10) || 20;
@@ -177,6 +177,17 @@ export default function SettingsPage() {
       heldOrderExpiryHours: newHeldOrderExpiryHours,
       requireHoldReason,
     });
+
+    try {
+      if (enableCustomerDisplay) {
+        await invoke('open_customer_screen');
+      } else {
+        await invoke('close_customer_screen');
+      }
+    } catch (error) {
+      console.error("Failed to toggle customer screen:", error);
+      toast.error("Failed to toggle customer screen window");
+    }
 
     // Update Auto-start OS setting
     try {

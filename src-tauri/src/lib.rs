@@ -97,7 +97,7 @@ async fn process_sale_command(
     location_id: String,
     payload: serde_json::Value,
     base_url: String,
-    device_key: Option<String>, // <--- Added Argument
+    device_key: Option<String>,
     member_token: Option<String>
 ) -> Result<models::SaleResponse, String> {
     // Pass device_key to the logic
@@ -111,7 +111,7 @@ async fn sync_sales_command(
     app: AppHandle,
     state: State<'_, SalesState>,
     base_url: String,
-    device_key: Option<String>, // <--- Added Argument
+    device_key: Option<String>,
     member_token: Option<String>
 ) -> Result<String, String> {
     // Pass device_key to the logic
@@ -225,6 +225,14 @@ async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
     window.show().map_err(|e| e.to_string())?;
     window.set_focus().map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+#[tauri::command]
+async fn close_customer_screen(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("customer") {
+        window.close().map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
@@ -658,15 +666,16 @@ pub fn run() {
             start_scan, 
             list_hid_devices, 
             open_customer_screen,
+            close_customer_screen,
             sync_products_command,
             search_products_command,
-            get_products_by_ids_command, // <--- Added
+            get_products_by_ids_command,
             start_nfc_listener,
             get_serial_ports, 
             open_cash_drawer,
             sync_customers_command,   
             search_customers_command, 
-            get_customers_by_ids_command, // <--- Added
+            get_customers_by_ids_command,
             process_sale_command,    
             sync_sales_command,      
             get_pending_sales_command,
