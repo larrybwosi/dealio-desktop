@@ -3,14 +3,12 @@ use hidapi::HidApi;
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton};
-// use tauri_plugin_printer_v2::init;
 use std::thread;
 use std::time::Duration;
 use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION};
 use std::io::Write;
+use tempfile::Builder;
 
-// use std::process::Command;
-use tempfile::NamedTempFile;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
 
@@ -437,7 +435,7 @@ async fn print_system_receipt(
 ) -> Result<String, PrinterError> { 
     
     // Logic: If it's already a file path (PDF), use it. 
-    // If it's raw text, write it to a temp file first.
+    // If it's raw text, write it to a temp file with a specific extension (.txt).
     let file_to_print = if is_path {
         // Verify file exists
         let path = std::path::PathBuf::from(&content);
@@ -446,16 +444,20 @@ async fn print_system_receipt(
         }
         content 
     } else {
-        // Write raw text to temp file
-        // FIX: Map errors to PrinterError::SystemError
-        let mut temp_file = NamedTempFile::new()
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+        // FIX: Use Builder to add a ".txt" suffix. 
+        // SumatraPDF requires an extension to know how to render the file.
+        let mut temp_file = Builder::new()
+            .suffix(".txt") 
+            .tempfile()
+            .map_err(|e| PrinterError::SystemError(format!("Temp file creation failed: {}", e)))?;
 
+        // Write content to the file
         temp_file.write_all(content.as_bytes())
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+            .map_err(|e| PrinterError::SystemError(format!("Failed to write to temp file: {}", e)))?;
 
+        // Persist the file so the external process (Sumatra/lp) can read it
         let (_, path) = temp_file.keep()
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+            .map_err(|e| PrinterError::SystemError(format!("Failed to persist temp file: {}", e)))?;
 
         path.to_string_lossy().to_string()
     };
@@ -464,31 +466,35 @@ async fn print_system_receipt(
     {
         use tauri_plugin_shell::ShellExt; 
 
-        // FIX: Map errors to PrinterError::SystemError
+        // SumatraPDF arguments for silent printing
+        let args = vec![
+            "-print-to".to_string(), 
+            printer_name, 
+            "-silent".to_string(), 
+            file_to_print.clone() // Clone path string for the args
+        ];
+
         let command = app.shell().sidecar("sumatrapdf") 
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?
-            .args(&[
-                "-print-to", 
-                &printer_name, 
-                "-silent", 
-                &file_to_print
-            ]);
+            .map_err(|e| PrinterError::SystemError(format!("Sidecar config error: {}", e)))?
+            .args(&args);
 
         let (mut _rx, _child) = command.spawn()
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+            .map_err(|e| PrinterError::SystemError(format!("Failed to spawn SumatraPDF: {}", e)))?;
 
         Ok("Sent to SumatraPDF sidecar".into())
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        // For Linux/Mac, we use std::process::Command (ensure strictly scoped or imported)
+        // Linux/Mac: Use 'lp' (CUPS), which supports text and PDF natively
         let output = std::process::Command::new("lp")
             .arg("-d")
             .arg(&printer_name)
             .arg(&file_to_print)
+            // optional: "-o raw" if you are sending raw ESC/POS codes, 
+            // but for plain text/PDF, omit it.
             .output()
-            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+            .map_err(|e| PrinterError::SystemError(format!("Failed to execute lp: {}", e)))?;
             
         if output.status.success() {
              Ok("Sent to CUPS".into())

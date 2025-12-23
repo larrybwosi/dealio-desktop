@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::models::PrinterError;
-use crate::print_system_receipt;
+// use crate::print_system_receipt;
 
 // Define the jobs you want to support
 #[derive(Debug, Serialize, Deserialize, Clone)]

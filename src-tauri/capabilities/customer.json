@@ -6,7 +6,6 @@
   "permissions": [
     "core:default",
     "dialog:allow-open",
-    "printer:allow-print-pdf",
     "http:default",
     {
       "identifier": "http:default",
