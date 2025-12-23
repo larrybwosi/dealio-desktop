@@ -128,7 +128,6 @@ export default function SettingsPage() {
   const [lowStockThreshold, setLowStockThreshold] = useState((settings?.lowStockThreshold ?? 10).toString());
   const [enableCashDrawer, setEnableCashDrawer] = useState(settings?.enableCashDrawer ?? false);
   const [requireEmployeePin, setRequireEmployeePin] = useState(settings?.requireEmployeePin ?? false);
-  const [enableAutoPrint, setEnableAutoPrint] = useState(settings?.enableAutoPrint ?? false);
   const [printerName] = useState(settings?.printerName || '');
   const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
   const [paybillNumber, setPaybillNumber] = useState(settings?.paybillNumber || '');
@@ -172,7 +171,6 @@ export default function SettingsPage() {
       lowStockThreshold: newLowStockThreshold,
       enableCashDrawer,
       requireEmployeePin,
-      enableAutoPrint,
       printerName,
       enableEmailReceipts,
       paybillNumber,
@@ -1107,20 +1105,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
-            </Card>
-
-            {/* --- AUTO PRINT SETTINGS (Kept the same) --- */}
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Auto-Print Settings</h2>
-              <div className="flex items-center justify-between py-2">
-                <div className="flex-1">
-                  <div className="font-medium">Auto-Print Receipts</div>
-                  <p className="text-sm text-muted-foreground">
-                    Automatically print receipt after completing payment
-                  </p>
-                </div>
-                <Switch checked={enableAutoPrint} onCheckedChange={setEnableAutoPrint} />
-              </div>
             </Card>
 
             {/* --- CASH DRAWER SETTINGS --- */}

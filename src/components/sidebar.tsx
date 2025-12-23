@@ -21,6 +21,7 @@ import {
   Plus,
   Banknote,
   Wallet,
+  LogOut,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -63,7 +64,11 @@ const iconMap: Record<string, any> = {
   BankNote: Banknote
 };
 
-export function Sidebar() {
+interface SidebarProps {
+  onCheckout?: () => void;
+}
+
+export function Sidebar({ onCheckout }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const sidebarItems = usePosStore(state => state.settings.sidebarItems.filter(item => item.enabled));
   const businessName = usePosStore(state => state.settings.businessName);
@@ -247,15 +252,35 @@ export function Sidebar() {
               <div className="text-sm font-medium truncate">{currentMember?.name || 'User'}</div>
               <div className="text-xs text-muted-foreground truncate">{currentMember?.email || ''}</div>
             </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+              onClick={onCheckout}
+              title="Check Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         )}
         
         {isCollapsed && (
-          <div className="flex justify-center p-3 rounded-lg bg-muted mt-4">
-            <Avatar className="w-8 h-8">
-              <AvatarImage src={currentMember?.image} />
-              <AvatarFallback>{currentMember?.name?.substring(0, 1).toUpperCase() || 'U'}</AvatarFallback>
-            </Avatar>
+          <div className="flex flex-col items-center gap-2 mt-4">
+            <div className="flex justify-center p-3 rounded-lg bg-muted w-full">
+              <Avatar className="w-8 h-8">
+                <AvatarImage src={currentMember?.image} />
+                <AvatarFallback>{currentMember?.name?.substring(0, 1).toUpperCase() || 'U'}</AvatarFallback>
+              </Avatar>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={onCheckout}
+              title="Check Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         )}
       </div>

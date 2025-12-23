@@ -1,6 +1,7 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { PrintJob, PrintQueueItem } from '@/types/print-types';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface PrinterDevice {
   id: string;
@@ -32,6 +33,7 @@ interface PrinterState {
   removeFromQueue: (jobId: string) => void;
   clearPrintHistory: () => void;
   getPrintJob: (jobId: string) => PrintJob | undefined;
+  loadConfig: () => Promise<void>;
 }
 
 export const usePrinterStore = create<PrinterState>()(
@@ -48,15 +50,50 @@ export const usePrinterStore = create<PrinterState>()(
         kitchen: null,
       },
 
-      setPrinters: (printers) => set({ availablePrinters: printers }),
-      
-      assignPrinter: (type, printerId) => 
-        set((state) => ({
-          assignments: {
-            ...state.assignments,
-            [type]: printerId, // Update only the specific role
+      // UPDATE setPrinters to not just set list, but also check for auto-assignments
+      setPrinters: (printers) => {
+        set({ availablePrinters: printers });
+        
+        // Check for auto-assignments
+        const autoAssignments = get().assignments;
+        if (autoAssignments.receipt) {
+          const receiptPrinter = printers.find(p => p.id === autoAssignments.receipt);
+          if (receiptPrinter) {
+            set({ assignments: { ...autoAssignments, receipt: receiptPrinter.id } });
           }
-        })),
+        }
+        if (autoAssignments.kitchen) {
+          const kitchenPrinter = printers.find(p => p.id === autoAssignments.kitchen);
+          if (kitchenPrinter) {
+            set({ assignments: { ...autoAssignments, kitchen: kitchenPrinter.id } });
+          }
+        }
+        if (autoAssignments.invoice) {
+          const invoicePrinter = printers.find(p => p.id === autoAssignments.invoice);
+          if (invoicePrinter) {
+            set({ assignments: { ...autoAssignments, invoice: invoicePrinter.id } });
+          }
+        }
+      },
+
+      assignPrinter: async (type, printerId) => {
+        // 1. Update State
+        set((state) => ({
+          assignments: { ...state.assignments, [type]: printerId }
+        }));
+        
+        // 2. Persist to Disk via Rust
+        const currentAssignments = get().assignments;
+        try {
+           await invoke('save_printer_config', { 
+             config: {
+               receipt_printer: currentAssignments.receipt,
+               kitchen_printer: currentAssignments.kitchen,
+               invoice_printer: currentAssignments.invoice
+             }
+           });
+        } catch(e) { console.error("Failed to save config", e); }
+      },
 
       // Print job management
       addPrintJob: (job) =>
@@ -89,6 +126,18 @@ export const usePrinterStore = create<PrinterState>()(
       getPrintJob: (jobId) => {
         const state = get();
         return state.printHistory.find((job) => job.id === jobId);
+      },
+      loadConfig: async () => {
+        try {
+          const config = await invoke<any>('get_printer_config');
+          set(() => ({
+             assignments: {
+               receipt: config.receipt_printer || null,
+               kitchen: config.kitchen_printer || null,
+               invoice: config.invoice_printer || null,
+             }
+          }));
+        } catch (e) { console.error("Failed to load config", e); }
       },
     }),
     {

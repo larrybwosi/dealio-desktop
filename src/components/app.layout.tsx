@@ -1,8 +1,7 @@
-// components/layout/app-layout.tsx
 import { useState } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Input } from '@/components/ui/input';
-import { Calendar, Search, LogOut } from 'lucide-react';
+import { Calendar, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
@@ -41,7 +40,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {showSidebar && <Sidebar />}
+      {showSidebar && <Sidebar onCheckout={() => setShowCheckoutDialog(true)} />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
@@ -60,16 +59,6 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
           <div className="flex items-center gap-3">
             <NotificationCenter />
             <NotificationSettingsDialog />
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowCheckoutDialog(true)}
-              className="gap-2 text-destructive hover:text-destructive"
-            >
-              <LogOut className="w-4 h-4" />
-              Check Out
-            </Button>
 
             <Button variant="outline" className="gap-2 bg-transparent">
               <Calendar className="w-4 h-4" />

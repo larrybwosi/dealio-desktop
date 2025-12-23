@@ -16,8 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { usePrinter } from '@/hooks/use-printer';
 import { PrinterJobType } from '@/store/printer-store';
+import { usePosStore } from '@/store/store';
 
 export default function PrinterSettings() {
   const { 
@@ -28,6 +32,9 @@ export default function PrinterSettings() {
     loading,
     printDocument 
   } = usePrinter();
+
+  const settings = usePosStore(state => state.settings);
+  const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
 
 
   // Helper to test specific roles
@@ -166,6 +173,24 @@ export default function PrinterSettings() {
                  <Button variant="outline" size="icon" onClick={() => handleTest('kitchen')}>
                   <Printer className="h-4 w-4" />
                 </Button>
+              </div>
+            </div>
+
+            <Separator className="my-4" />
+            
+            <div className="bg-background p-4 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <RefreshCcw className="h-4 w-4 text-indigo-600" />
+                    <Label className="text-sm font-semibold">Auto-Print Receipts</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Automatically print receipt after completing payment</p>
+                </div>
+                <Switch 
+                  checked={settings.enableAutoPrint} 
+                  onCheckedChange={(val) => updateBusinessSettings({ enableAutoPrint: val })} 
+                />
               </div>
             </div>
 
