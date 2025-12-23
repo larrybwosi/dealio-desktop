@@ -532,6 +532,23 @@ async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, PrinterEr
 }
 
 
+#[tauri::command]
+fn get_products_by_ids_command(
+    state: State<'_, ProductState>,
+    ids: Vec<String>
+) -> Vec<models::PosProduct> {
+    product_store::get_products_by_ids(&state, ids)
+}
+
+#[tauri::command]
+fn get_customers_by_ids_command(
+    state: State<'_, CustomerState>,
+    ids: Vec<String>
+) -> Vec<models::PosCustomer> {
+    customer_store::get_customers_by_ids(&state, ids)
+}
+
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -643,11 +660,13 @@ pub fn run() {
             open_customer_screen,
             sync_products_command,
             search_products_command,
+            get_products_by_ids_command, // <--- Added
             start_nfc_listener,
             get_serial_ports, 
             open_cash_drawer,
             sync_customers_command,   
             search_customers_command, 
+            get_customers_by_ids_command, // <--- Added
             process_sale_command,    
             sync_sales_command,      
             get_pending_sales_command,

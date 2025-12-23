@@ -193,3 +193,24 @@ pub fn search_local(state: &ProductState, query: String, category: String) -> Ve
     .cloned()
     .collect()
 }
+
+pub fn get_products_by_ids(state: &ProductState, ids: Vec<String>) -> Vec<PosProduct> {
+    let products = state.products.lock().unwrap();
+    if ids.is_empty() {
+        return Vec::new();
+    }
+    
+    // Create a HashSet for O(1) lookups if the list is large, 
+    // but for small lists, simple iteration is fine. 
+    // Given the use case (page load), ids could be 50+, so let's stick to simple filter.
+    products.iter()
+        .filter(|p| {
+            // Check if Product ID matches
+            if ids.contains(&p.product_id) { return true; }
+
+            // Check if ANY variant ID matches
+            p.variants.iter().any(|v| ids.contains(&v.variant_id))
+        })
+        .cloned()
+        .collect()
+}

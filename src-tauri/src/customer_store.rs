@@ -225,3 +225,15 @@ pub fn search_local(state: &CustomerState, query: String) -> Vec<PosCustomer> {
     .cloned()
     .collect()
 }
+
+pub fn get_customers_by_ids(state: &CustomerState, ids: Vec<String>) -> Vec<PosCustomer> {
+    let customers = state.customers.lock().unwrap();
+    if ids.is_empty() {
+        return Vec::new();
+    }
+
+    customers.iter()
+        .filter(|c| ids.contains(&c.id))
+        .cloned()
+        .collect()
+}

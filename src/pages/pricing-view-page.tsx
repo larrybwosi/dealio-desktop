@@ -10,8 +10,11 @@ import { Loader2, RefreshCw, Search, Tag, Users, List } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
-import { usePosProducts } from '@/hooks/products';
-import { usePosCustomers } from '@/hooks/customers';
+// import { usePosCustomerSync } from '@/hooks/use-customer-sync';
+// import { usePosProducts } from '@/hooks/products';
+// import { usePosCustomers } from '@/hooks/customers';
+import { PosProduct } from '@/hooks/products';
+import { PosCustomer } from '@/hooks/customers';
 
 interface ClientPriceList {
     id: string;
@@ -47,16 +50,34 @@ export default function PricingViewPage() {
     const formatCurrency = useFormattedCurrency();
     const { triggerSync, isSyncing } = usePosPricingSync();
 
-    // Fetch products and customers for name resolution
-    const { products } = usePosProducts({ search: '', category: '' });
-    const { customers } = usePosCustomers({ search: '' });
+
+    // Local state for lookups
+    const [products, setProducts] = useState<PosProduct[]>([]);
+    const [customers, setCustomers] = useState<PosCustomer[]>([]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const result = await invoke<PosPricingData>('get_pos_pricing_command');
-            // console.log("Raw Pricing Data:", JSON.stringify(result, null, 2));
-            setData(result);
+            const pricingData = await invoke<PosPricingData>('get_pos_pricing_command');
+            console.log(pricingData);
+            setData(pricingData);
+
+            // 1. Collect IDs
+            const variantIds = new Set<string>();
+            pricingData.items.forEach(i => variantIds.add(i.variantId));
+            
+            const customerIds = new Set<string>();
+            Object.keys(pricingData.allocations).forEach(id => customerIds.add(id));
+
+            // 2. Fetch Metadata in Parallel
+            const [fetchedProducts, fetchedCustomers] = await Promise.all([
+                 invoke<PosProduct[]>('get_products_by_ids_command', { ids: Array.from(variantIds) }),
+                 invoke<PosCustomer[]>('get_customers_by_ids_command', { ids: Array.from(customerIds) })
+            ]);
+
+            setProducts(fetchedProducts);
+            setCustomers(fetchedCustomers);
+
         } catch (error) {
             console.error("Failed to fetch pricing:", error);
         } finally {

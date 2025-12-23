@@ -10,7 +10,6 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
@@ -20,6 +19,7 @@ import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 import { UpdateTestingPanel } from '@/components/update-testing-panel';
+import GeneralSettings from '@/components/settings/general-tab';
 // import { useTheme } from 'next-themes';
 
 
@@ -224,132 +224,22 @@ export default function SettingsPage() {
             <TabsTrigger value="developer">Developer</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="general" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Business Information</h2>
-              <div className="space-y-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="businessName">Business Name</Label>
-                  <Input
-                    id="businessName"
-                    value={businessName}
-                    onChange={e => setBusinessName(e.target.value)}
-                    placeholder="Enter business name"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="businessType">Business Type</Label>
-                  <Select value={businessType} onValueChange={handleBusinessTypeChange}>
-                    <SelectTrigger id="businessType">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.values(businessConfigs).map(config => (
-                        <SelectItem key={config.type} value={config.type}>
-                          {config.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-sm text-muted-foreground">{currentConfig.description}</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="currency">Currency</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger id="currency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="IDR">IDR - Indonesian Rupiah</SelectItem>
-                        <SelectItem value="USD">USD - US Dollar</SelectItem>
-                        <SelectItem value="EUR">EUR - Euro</SelectItem>
-                        <SelectItem value="GBP">GBP - British Pound</SelectItem>
-                        <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
-                        <SelectItem value="CNY">CNY - Chinese Yuan</SelectItem>
-                        <SelectItem value="KSH">KSH Kenyan Shilling</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="grid gap-2">
-                    <Label htmlFor="taxRate">Tax Rate (%) - {currentConfig.taxSettings.taxLabel}</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      value={taxRate}
-                      onChange={e => setTaxRate(e.target.value)}
-                      placeholder="0"
-                    />
-                    <p className="text-xs text-muted-foreground">All product prices are tax-inclusive</p>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Order Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Allow Save Unpaid Orders</div>
-                    <p className="text-sm text-muted-foreground">
-                      Enable the option to save orders to the order list without payment
-                    </p>
-                  </div>
-                  <Switch checked={allowSaveUnpaidOrders} onCheckedChange={setAllowSaveUnpaidOrders} />
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Auto Start on Boot</div>
-                    <p className="text-sm text-muted-foreground">
-                      Automatically start the application when the computer boots up
-                    </p>
-                  </div>
-                  <Switch checked={enableAutoStart} onCheckedChange={setEnableAutoStart} />
-                </div>
-              </div>
-            </Card>
-
-
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-2">Business Features</h2>
-              <p className="text-sm text-muted-foreground mb-4">
-                Features available for your {currentConfig.label} business type
-              </p>
-              <div className="grid grid-cols-2 gap-3">
-                {Object.entries(currentConfig.features).map(([key, enabled]) => (
-                  <div key={key} className="flex items-center gap-2">
-                    <Badge variant={enabled ? 'default' : 'secondary'} className="w-full justify-center">
-                      {enabled ? '✓' : '✗'}{' '}
-                      {key
-                        .replace(/([A-Z])/g, ' $1')
-                        .trim()
-                        .replace(/^\w/, c => c.toUpperCase())}
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Available Order Types</h2>
-              <div className="flex flex-wrap gap-2">
-                {currentConfig.orderTypes.map(orderType => (
-                  <Badge key={orderType} variant="outline" className="text-sm">
-                    {orderType.charAt(0).toUpperCase() + orderType.slice(1)}
-                  </Badge>
-                ))}
-              </div>
-            </Card>
-          </TabsContent>
+          <GeneralSettings
+            businessName={businessName}
+            setBusinessName={setBusinessName}
+            businessType={businessType}
+            handleBusinessTypeChange={handleBusinessTypeChange}
+            businessConfigs={businessConfigs}
+            currentConfig={currentConfig}
+            currency={currency}   
+            setCurrency={setCurrency}
+            taxRate={taxRate}
+            setTaxRate={setTaxRate}
+            allowSaveUnpaidOrders={allowSaveUnpaidOrders}
+            setAllowSaveUnpaidOrders={setAllowSaveUnpaidOrders}
+            enableAutoStart={enableAutoStart}
+            setEnableAutoStart={setEnableAutoStart}
+          />
 
           <TabsContent value="theme" className="space-y-6">
             <Card className="p-6">
