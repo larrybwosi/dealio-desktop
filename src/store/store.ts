@@ -341,22 +341,6 @@ export interface SecurityConfig {
   enableDataEncryption: boolean;
 }
 
-export interface ApiSyncConfig {
-  enabled: boolean;
-  apiEndpoint: string;
-  apiKey: string;
-  syncInterval: number;
-  lastSyncTimestamp?: Date;
-  autoSync: boolean;
-  syncOnOrderComplete: boolean;
-  syncInventory: boolean;
-  syncCustomers: boolean;
-  syncEmployees: boolean;
-  syncOrders: boolean;
-  enableOfflineMode: boolean;
-  conflictResolution: 'server' | 'client' | 'manual';
-}
-
 export interface BusinessSettings {
   businessName: string;
   businessType: BusinessType;
@@ -377,7 +361,6 @@ export interface BusinessSettings {
   themeConfig: ThemeConfig;
   printers: PrinterConfig[];
   securityConfig: SecurityConfig;
-  apiSyncConfig: ApiSyncConfig;
   notificationSettings: NotificationSettings;
   autoPrintConfig: AutoPrintConfig; // Auto-print configuration
   paybillNumber?: string;
@@ -557,8 +540,6 @@ interface PosStore {
 
   updateSecurityConfig: (config: Partial<SecurityConfig>) => void;
 
-  updateApiSyncConfig: (config: Partial<ApiSyncConfig>) => void;
-
   updateAutoPrintConfig: (config: Partial<AutoPrintConfig>) => void;
 
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
@@ -569,8 +550,6 @@ interface PosStore {
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
   simulateOnlineOrder: () => void;
   checkLowStockAlerts: () => void;
-
-  syncDataToApi: () => Promise<{ success: boolean; error?: string }>;
 
   setTableNumber: (tableNumber: string) => void;
   setInstructions: (instructions: string) => void;
@@ -775,21 +754,6 @@ const getDefaultSecurityConfig = (): SecurityConfig => ({
   enableDataEncryption: false,
 });
 
-const getDefaultApiSyncConfig = (): ApiSyncConfig => ({
-  enabled: false,
-  apiEndpoint: '',
-  apiKey: '',
-  syncInterval: 300,
-  autoSync: false,
-  syncOnOrderComplete: false,
-  syncInventory: true,
-  syncCustomers: true,
-  syncEmployees: true,
-  syncOrders: true,
-  enableOfflineMode: true,
-  conflictResolution: 'server',
-});
-
 const getDefaultNotificationSettings = (): NotificationSettings => ({
   enabled: true,
   soundEnabled: true,
@@ -837,7 +801,6 @@ export const usePosStore = create<PosStore>()(
         themeConfig: getDefaultThemeConfig(),
         printers: getDefaultPrinters(),
         securityConfig: getDefaultSecurityConfig(),
-        apiSyncConfig: getDefaultApiSyncConfig(),
         notificationSettings: getDefaultNotificationSettings(),
         autoPrintConfig: DEFAULT_AUTO_PRINT_CONFIG, // Auto-print configuration
         paybillNumber: '',
@@ -1536,14 +1499,6 @@ export const usePosStore = create<PosStore>()(
           },
         })),
 
-      updateApiSyncConfig: (config: Partial<ApiSyncConfig>) =>
-        set(state => ({
-          settings: {
-            ...state.settings,
-            apiSyncConfig: { ...state.settings.apiSyncConfig, ...config },
-          },
-        })),
-
       updateAutoPrintConfig: (config: Partial<AutoPrintConfig>) =>
         set(state => ({
           settings: {
@@ -1662,63 +1617,6 @@ export const usePosStore = create<PosStore>()(
             });
           }
         });
-      },
-
-      syncDataToApi: async () => {
-        const state = get();
-        const { apiSyncConfig } = state.settings;
-
-        if (!apiSyncConfig.enabled || !apiSyncConfig.apiEndpoint) {
-          console.warn(' API sync is not configured');
-          return { success: false, error: 'API sync not configured' };
-        }
-
-        try {
-          const dataToSync: any = {};
-
-          if (apiSyncConfig.syncOrders) {
-            dataToSync.orders = state.orders;
-          }
-          if (apiSyncConfig.syncInventory) {
-            dataToSync.products = state.products;
-          }
-          if (apiSyncConfig.syncEmployees) {
-            dataToSync.employees = state.employees;
-          }
-
-          const response = await fetch(apiSyncConfig.apiEndpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${apiSyncConfig.apiKey}`,
-            },
-            body: JSON.stringify({
-              businessId: state.settings.businessName,
-              timestamp: new Date().toISOString(),
-              data: dataToSync,
-            }),
-          });
-
-          if (!response.ok) {
-            throw new Error(`API sync failed: ${response.statusText}`);
-          }
-
-          set(state => ({
-            settings: {
-              ...state.settings,
-              apiSyncConfig: {
-                ...state.settings.apiSyncConfig,
-                lastSyncTimestamp: new Date(),
-              },
-            },
-          }));
-
-          console.log(' Data synced successfully to API');
-          return { success: true };
-        } catch (error: any) {
-          console.error(' API sync error:', error);
-          return { success: false, error: error.message };
-        }
       },
 
       setTableNumber: tableNumber =>

@@ -13,7 +13,6 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type } from 'lucide-react';
-import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useScanner } from '@/hooks/use-scanner';
@@ -37,11 +36,8 @@ export default function SettingsPage() {
   const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
   const updateThemeConfig = usePosStore(state => state.updateThemeConfig);
   const updateSecurityConfig = usePosStore(state => state.updateSecurityConfig);
-  const updateApiSyncConfig = usePosStore(state => state.updateApiSyncConfig);
-  const syncDataToApi = usePosStore(state => state.syncDataToApi);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
   const updateCustomerDisplayConfig = usePosStore(state => state.updateCustomerDisplayConfig);
-  const { setDeviceKey } = useAuthStore(state => state);
 
   const {
     vid,
@@ -142,9 +138,6 @@ export default function SettingsPage() {
   const [maxHeldOrders, setMaxHeldOrders] = useState((settings?.maxHeldOrders ?? 20).toString());
   const [heldOrderExpiryHours, setHeldOrderExpiryHours] = useState((settings?.heldOrderExpiryHours ?? 24).toString());
   const [requireHoldReason, setRequireHoldReason] = useState(settings?.requireHoldReason ?? false);
-
-  const [syncing, setSyncing] = useState(false);
-
   const currentConfig = getBusinessConfig();
 
   // Sync auto-start local state with OS setting on mount
@@ -206,17 +199,6 @@ export default function SettingsPage() {
     setTaxRate(config.taxSettings.defaultRate.toString());
   };
 
-  const handleSyncData = async () => {
-    setSyncing(true);
-    const result = await syncDataToApi();
-    setSyncing(false);
-
-    if (result.success) {
-      toast.success('Data synced successfully!');
-    } else {
-      toast.error(`Sync failed: ${result.error}`);
-    }
-  };
 
   return (
     <div className="flex-1 overflow-y-auto p-8">
@@ -238,7 +220,6 @@ export default function SettingsPage() {
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="customer-display">Display</TabsTrigger>
-            <TabsTrigger value="api">API Sync</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
             <TabsTrigger value="developer">Developer</TabsTrigger>
           </TabsList>
@@ -1474,158 +1455,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </Card>
-            )}
-          </TabsContent>
-
-          <TabsContent value="api" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">API Configuration</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable API Sync</div>
-                    <p className="text-sm text-muted-foreground">Synchronize data with external API</p>
-                  </div>
-                  <Switch
-                    checked={settings.apiSyncConfig?.enabled || false}
-                    onCheckedChange={value => updateApiSyncConfig({ enabled: value })}
-                  />
-                </div>
-
-                {settings.apiSyncConfig?.enabled && (
-                  <>
-                    {/* <div className="grid gap-2">
-                      <Label htmlFor="apiEndpoint">API Endpoint</Label>
-                      <Input
-                        id="apiEndpoint"
-                        placeholder="https://api.example.com/pos/sync"
-                        value={settings.apiSyncConfig?.apiEndpoint || ""}
-                        onChange={(e) => updateApiSyncConfig({ apiEndpoint: e.target.value })}
-                      />
-                    </div> */}
-
-                    <div className="grid gap-2">
-                      <Label htmlFor="apiKey">API Key</Label>
-                      <Input
-                        id="apiKey"
-                        type="password"
-                        placeholder="Enter your API key"
-                        value={settings.apiSyncConfig?.apiKey || ''}
-                        onChange={e => {
-                          updateApiSyncConfig({ apiKey: e.target.value });
-                          setDeviceKey(e.target.value);
-                        }}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-            </Card>
-
-            {settings.apiSyncConfig?.enabled && (
-              <>
-                <Card className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Sync Options</h2>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex-1">
-                        <div className="font-medium">Auto Sync</div>
-                        <p className="text-sm text-muted-foreground">Automatically sync data periodically</p>
-                      </div>
-                      <Switch
-                        checked={settings.apiSyncConfig?.autoSync || false}
-                        onCheckedChange={value => updateApiSyncConfig({ autoSync: value })}
-                      />
-                    </div>
-
-                    {settings.apiSyncConfig?.autoSync && (
-                      <div className="grid gap-2 pl-6">
-                        <Label htmlFor="syncInterval">Sync Interval (seconds)</Label>
-                        <Input
-                          id="syncInterval"
-                          type="number"
-                          min="60"
-                          value={settings.apiSyncConfig?.syncInterval || 300}
-                          onChange={e => updateApiSyncConfig({ syncInterval: Number.parseInt(e.target.value) })}
-                        />
-                      </div>
-                    )}
-
-                    <Separator />
-
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex-1">
-                        <div className="font-medium">Sync on Order Complete</div>
-                        <p className="text-sm text-muted-foreground">Sync immediately after completing orders</p>
-                      </div>
-                      <Switch
-                        checked={settings.apiSyncConfig?.syncOnOrderComplete || false}
-                        onCheckedChange={value => updateApiSyncConfig({ syncOnOrderComplete: value })}
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between py-2">
-                      <div className="flex-1">
-                        <div className="font-medium">Enable Offline Mode</div>
-                        <p className="text-sm text-muted-foreground">Continue working when API is unavailable</p>
-                      </div>
-                      <Switch
-                        checked={settings.apiSyncConfig?.enableOfflineMode || false}
-                        onCheckedChange={value => updateApiSyncConfig({ enableOfflineMode: value })}
-                      />
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Data Selection</h2>
-                  <p className="text-sm text-muted-foreground mb-4">Choose which data to sync with the API</p>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2">
-                      <span>Orders</span>
-                      <Switch
-                        checked={settings.apiSyncConfig?.syncOrders || false}
-                        onCheckedChange={value => updateApiSyncConfig({ syncOrders: value })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span>Inventory</span>
-                      <Switch
-                        checked={settings.apiSyncConfig?.syncInventory || false}
-                        onCheckedChange={value => updateApiSyncConfig({ syncInventory: value })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span>Customers</span>
-                      <Switch
-                        checked={settings.apiSyncConfig?.syncCustomers || false}
-                        onCheckedChange={value => updateApiSyncConfig({ syncCustomers: value })}
-                      />
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span>Employees</span>
-                      <Switch
-                        checked={settings.apiSyncConfig?.syncEmployees || false}
-                        onCheckedChange={value => updateApiSyncConfig({ syncEmployees: value })}
-                      />
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6">
-                  <h2 className="text-xl font-semibold mb-4">Manual Sync</h2>
-                  <div className="space-y-4">
-                    {settings.apiSyncConfig?.lastSyncTimestamp && (
-                      <p className="text-sm text-muted-foreground">
-                        Last synced: {new Date(settings.apiSyncConfig.lastSyncTimestamp).toLocaleString()}
-                      </p>
-                    )}
-                    <Button onClick={handleSyncData} disabled={syncing} className="w-full">
-                      {syncing ? 'Syncing...' : 'Sync Now'}
-                    </Button>
-                  </div>
-                </Card>
-              </>
             )}
           </TabsContent>
 
