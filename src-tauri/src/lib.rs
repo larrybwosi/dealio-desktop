@@ -9,7 +9,7 @@ use std::time::Duration;
 use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION};
 use std::io::Write;
 
-use std::process::Command;
+// use std::process::Command;
 use tempfile::NamedTempFile;
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
@@ -430,10 +430,11 @@ async fn print_network_receipt(ip: String, port: Option<u16>, text: String) -> R
 // --- Method 2: OS Driver (Shell) ---
 #[tauri::command]
 async fn print_system_receipt(
+    app: AppHandle, 
     printer_name: String, 
     content: String, 
     is_path: bool 
-) -> Result<String, PrinterError> {
+) -> Result<String, PrinterError> { 
     
     // Logic: If it's already a file path (PDF), use it. 
     // If it's raw text, write it to a temp file first.
@@ -443,64 +444,60 @@ async fn print_system_receipt(
         if !path.exists() {
              return Err(PrinterError::SystemError(format!("File not found: {}", content)));
         }
-        content // Return the path string as is
+        content 
     } else {
         // Write raw text to temp file
-        let mut temp_file = NamedTempFile::new()?;
-        temp_file.write_all(content.as_bytes())?;
-        // Keep the file alive until printed (persist ensures it isn't deleted immediately)
-        let (_, path) = temp_file.keep().map_err(|e| PrinterError::SystemError(e.to_string()))?;
+        // FIX: Map errors to PrinterError::SystemError
+        let mut temp_file = NamedTempFile::new()
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+
+        temp_file.write_all(content.as_bytes())
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+
+        let (_, path) = temp_file.keep()
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+
         path.to_string_lossy().to_string()
     };
 
     #[cfg(target_os = "windows")]
     {
-        // For Windows, printing a PDF usually requires a specific verb or helper.
-        // However, 'Out-Printer' works mostly for text/PostScript. 
-        // For PDFs on Windows via command line, it is trickier without external tools (like Acrobat Reader flags or SumatraPDF).
-        // Assuming 'content' implies text or your driver handles the file type:
-        
-        let output = Command::new("powershell")
-            .args(&[
-                "-Command",
-                "Out-Printer",
-                "-Name", &printer_name,
-                "-InputObject", &format!("(Get-Content '{}' -Raw)", file_to_print) // Note: This reads the file as text!
-            ])
-            .output()
-            .map_err(PrinterError::Io)?;
+        use tauri_plugin_shell::ShellExt; 
 
-        // NOTE: If printing actual PDF binaries on Windows, you might need:
-        // Command::new("powershell").args(&["Start-Process", "-FilePath", &file_to_print, "-Verb", "PrintTo", "-ArgumentList", &printer_name])
-        
-        if output.status.success() {
-             Ok("Sent to Windows spooler".into())
-        } else {
-            let err_msg = String::from_utf8_lossy(&output.stderr);
-            Err(PrinterError::SystemError(format!("Windows Spooler failed: {}", err_msg)))
-        }
+        // FIX: Map errors to PrinterError::SystemError
+        let command = app.shell().sidecar("sumatrapdf") 
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?
+            .args(&[
+                "-print-to", 
+                &printer_name, 
+                "-silent", 
+                &file_to_print
+            ]);
+
+        let (mut _rx, _child) = command.spawn()
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+
+        Ok("Sent to SumatraPDF sidecar".into())
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        // MacOS/Linux 'lp' handles PDF and Text automatically based on file content
-        let output = Command::new("lp")
+        // For Linux/Mac, we use std::process::Command (ensure strictly scoped or imported)
+        let output = std::process::Command::new("lp")
             .arg("-d")
             .arg(&printer_name)
             .arg(&file_to_print)
             .output()
-            .map_err(PrinterError::Io)?;
-
+            .map_err(|e| PrinterError::SystemError(e.to_string()))?;
+            
         if output.status.success() {
-            Ok("Sent to CUPS spooler".into())
+             Ok("Sent to CUPS".into())
         } else {
-            let err_msg = String::from_utf8_lossy(&output.stderr);
-            Err(PrinterError::SystemError(format!("CUPS failed: {}", err_msg)))
+             Err(PrinterError::SystemError(format!("CUPS failed: {}", String::from_utf8_lossy(&output.stderr))))
         }
     }
-} 
+}
 
-// --- Method 3: Direct USB (Raw) ---
 #[tauri::command]
 async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, PrinterError> {
     tokio::task::spawn_blocking(move || {

@@ -121,11 +121,15 @@ pub async fn print_job(
     content: String,  // Can be raw text or a file path
     is_path: bool     // New flag to distinguish text vs file
 ) -> Result<String, PrinterError> {
+    
     // 1. Load the config
-    let config = get_printer_config(app).await.map_err(|e| PrinterError::SystemError(e))?;
+    // FIX: Clone 'app' here because get_printer_config consumes it, 
+    // but we need 'app' again for step 3.
+    let config = get_printer_config(app.clone()) 
+        .await
+        .map_err(|e| PrinterError::SystemError(e))?;
     
     // 2. Determine which printer to use based on job_type
-    // We let the Backend decide the printer based on the job type configuration
     let target_printer = match job_type.as_str() {
         "receipt" => config.receipt_printer,
         "kitchen" => config.kitchen_printer,
@@ -135,8 +139,8 @@ pub async fn print_job(
 
     // 3. Print
     if let Some(printer_name) = target_printer {
-        // Pass the new is_path flag to the shared function in lib.rs
-        print_system_receipt(printer_name, content, is_path).await
+        // FIX: Pass 'app' as the first argument
+        crate::print_system_receipt(app, printer_name, content, is_path).await
     } else {
         Err(PrinterError::SystemError(format!("No printer configured for {}", job_type)))
     }
