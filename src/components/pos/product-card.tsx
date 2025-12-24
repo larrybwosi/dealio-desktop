@@ -12,6 +12,7 @@ import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react'
 import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 // --- Types ---
 interface Unit {
@@ -50,6 +51,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   const [selectedVariantId, setSelectedVariantId] = useState<string>(
     product.variants[0]?.variantId
   );
+
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
   const [imgError, setImgError] = useState(false);
@@ -128,7 +130,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
       <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
         {!imgError && product.imageUrl ? (
           <img
-            src={product.imageUrl}
+            src={convertFileSrc(product.imageUrl)}
             alt={product.name}
             onError={() => setImgError(true)}
             className={cn(

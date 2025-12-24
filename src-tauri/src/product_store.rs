@@ -9,7 +9,7 @@ use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use tokio::fs as async_fs; // Import Tokio FS for async operations
 
 const STORE_FILENAME: &str = "pos_products.json";
-const TIMEOUT_SECONDS: u64 = 15;
+const TIMEOUT_SECONDS: u64 = 60; 
 
 // --- State Management ---
 pub struct ProductState {
@@ -26,7 +26,7 @@ impl ProductState {
     }
 }
 
-// --- Helper: File Path ---
+// --- Helper: File Paths ---
 fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
     
@@ -37,12 +37,98 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
     Ok(app_dir.join(STORE_FILENAME))
 }
 
+fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
+    let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
+    let images_dir = app_dir.join("product_images");
+
+    if !images_dir.exists() {
+        fs::create_dir_all(&images_dir).context("Failed to create Images Directory")?;
+    }
+    
+    Ok(images_dir)
+}
+
+// --- Helper: Cache Single Image ---
+async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
+    if url.trim().is_empty() {
+        return None;
+    }
+
+    // 1. Generate a safe filename from the URL
+    let clean_name = url.replace("https://", "")
+                        .replace("http://", "")
+                        .replace('/', "_")
+                        .replace(':', "")
+                        .replace('?', "_");
+    
+    // Ensure extension exists or default to .jpg if missing
+    let filename = if clean_name.contains('.') {
+        clean_name
+    } else {
+        format!("{}.jpg", clean_name)
+    };
+
+    let images_dir = match get_images_dir(app) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("Failed to get image dir: {}", e);
+            return Some(url.to_string()); // Fallback to remote URL
+        }
+    };
+
+    let file_path = images_dir.join(&filename);
+    let file_path_str = file_path.to_string_lossy().to_string();
+
+    // 2. Check if file already exists locally AND has content
+    if file_path.exists() {
+        // Integrity check: If file is 0 bytes, it's corrupt/empty.
+        if let Ok(metadata) = fs::metadata(&file_path) {
+             if metadata.len() > 0 {
+                 return Some(file_path_str);
+             }
+        }
+        // If we reach here, file exists but is invalid (0 bytes). Remove it.
+        let _ = async_fs::remove_file(&file_path).await;
+    }
+
+    // 3. Download if not exists (or was just deleted)
+    match reqwest::get(url).await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                match resp.bytes().await {
+                    Ok(bytes) => {
+                        // Write to file
+                        if let Err(e) = async_fs::write(&file_path, &bytes).await {
+                            eprintln!("Failed to write image {}: {}", filename, e);
+                            return Some(url.to_string());
+                        }
+
+                        // Verify write success (double check)
+                        if let Ok(metadata) = fs::metadata(&file_path) {
+                            if metadata.len() > 0 {
+                                return Some(file_path_str);
+                            }
+                        }
+                        return Some(url.to_string());
+                    }
+                    Err(_) => return Some(url.to_string()),
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to download image {}: {}", url, e);
+        }
+    }
+
+    // Fallback: return original URL if download failed
+    Some(url.to_string())
+}
+
 // --- 1. Load Data on Startup (Synchronous is fine here) ---
 pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<()> {
     let path = get_store_path(app)?;
     
     if path.exists() {
-        // std::fs is fine here because this runs once during app boot
         let content = fs::read_to_string(path).context("Failed to read store file")?;
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
@@ -54,7 +140,7 @@ pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<
     Ok(())
 }
 
-// --- 2. Sync Engine (Fixed) ---
+// --- 2. Sync Engine (Modified) ---
 pub async fn run_sync(
     app: AppHandle,
     state: &ProductState,
@@ -71,7 +157,6 @@ pub async fn run_sync(
     let clean_base_url = base_url.trim_end_matches('/');
     let target_url = format!("{}/api/v1/pos/products", clean_base_url);
     
-    // Quick lock just to read the timestamp
     let last_sync_time = state.last_sync.lock().unwrap().clone();
     
     // --- BUILD HEADERS ---
@@ -120,15 +205,25 @@ pub async fn run_sync(
         return Err(anyhow::anyhow!("Server returned error: {} - {}", status, error_text));
     }
 
-    let res_body = response.json::<ProductsSyncResponse>().await
+    let mut res_body = response.json::<ProductsSyncResponse>().await
         .context("Failed to parse server response JSON")?;
 
+    // --- IMAGE CACHING LOGIC ---
+    // Updated: Ensure we only attempt to cache if the URL is valid/remote.
+    for product in &mut res_body.products {
+        if let Some(url) = &product.image_url {
+             // Basic check to ensure we aren't re-caching a local path (if server sent weird data)
+             if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
+                let local_path = cache_image(&app, url).await;
+                product.image_url = local_path;
+             }
+        }
+    }
+
     // --- MERGE LOGIC ---
-    // Capture the count BEFORE moving 'res_body.products'
     let incoming_count = res_body.products.len();
     let sync_timestamp = res_body.sync_timestamp.clone();
 
-    // We block momentarily to update memory (fast)
     let updated_list = {
         let mut products_guard = state.products.lock().unwrap();
         
@@ -137,13 +232,12 @@ pub async fn run_sync(
             .map(|p| (p.product_id.clone(), p))
             .collect();
 
-        // Consume res_body.products here
         for product in res_body.products {
             product_map.insert(product.product_id.clone(), product);
         }
 
         let list: Vec<PosProduct> = product_map.into_values().collect();
-        *products_guard = list.clone(); // Update memory state
+        *products_guard = list.clone();
         list
     };
 
@@ -153,19 +247,17 @@ pub async fn run_sync(
 
     let file_data = (Some(new_sync_time), updated_list);
     
-    // CPU INTENSIVE: Serialization (Run in blocking thread)
     let json = tokio::task::spawn_blocking(move || {
         serde_json::to_string(&file_data)
     }).await??;
     
-    // I/O INTENSIVE: File Write (Async)
     let path = get_store_path(&app)?;
     async_fs::write(path, json).await.context("Failed to write to disk")?;
 
     Ok(incoming_count)
 }
 
-// --- 3. Search Logic (Kept the same) ---
+// --- 3. Search Logic ---
 pub fn search_local(state: &ProductState, query: String, category: String) -> Vec<PosProduct> {
     let products = state.products.lock().unwrap();
     let query = query.trim().to_lowercase();
@@ -200,15 +292,9 @@ pub fn get_products_by_ids(state: &ProductState, ids: Vec<String>) -> Vec<PosPro
         return Vec::new();
     }
     
-    // Create a HashSet for O(1) lookups if the list is large, 
-    // but for small lists, simple iteration is fine. 
-    // Given the use case (page load), ids could be 50+, so let's stick to simple filter.
     products.iter()
         .filter(|p| {
-            // Check if Product ID matches
             if ids.contains(&p.product_id) { return true; }
-
-            // Check if ANY variant ID matches
             p.variants.iter().any(|v| ids.contains(&v.variant_id))
         })
         .cloned()
