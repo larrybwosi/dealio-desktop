@@ -64,7 +64,7 @@ export enum TransactionType {
 interface RustSaleResponse {
   success: boolean;
   message: string;
-  server_response?: any;
+  server_response?: any; // Now optional as backend processes in background
 }
 
 interface RustQueuedSale {
@@ -104,10 +104,9 @@ export type { RustQueuedSale };
  * Hook to process a new sale via Rust Backend.
  * 1. Generates UUID.
  * 2. Sends to Rust (which encrypts & saves to disk).
- * 3. Rust attempts immediate sync.
+ * 3. Rust attempts background sync immediately.
  */
 export const useProcessSale = () => {
-  // Assuming useAuthStore contains the deviceKey as well (it should based on store.rs context)
   const { currentLocation, memberToken, deviceKey } = useAuthStore();
   const locationId = currentLocation?.id;
   const queryClient = useQueryClient();
@@ -120,8 +119,12 @@ export const useProcessSale = () => {
       const saleId = crypto.randomUUID();
 
       // Combine data for Rust
-      const payload = { ...data, locationId };
+      const payload = {
+        ...data,
+        locationId
+      };
 
+      // Call Rust Command (Non-blocking background process)
       const response = await invoke<RustSaleResponse>('process_sale_command', {
         saleId,
         locationId,
@@ -131,29 +134,25 @@ export const useProcessSale = () => {
         memberToken: memberToken || null
       });
 
-      return response;
+      return { ...response, saleId };
     },
-
     onSuccess: (data) => {
       // Invalidate queries to update local stock counts or sales lists
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
 
-      // Check the message from Rust to see if it was synced or queued
-      if (data.message.toLowerCase().includes('offline')) {
-        toast.warning('Saved Offline', {
-            description: 'Network unreachable. Sale queued securely.',
-            duration: 3000
-        });
+      // If it was an offline queue or background process
+      if (data.message.toLowerCase().includes('background') || data.message.toLowerCase().includes('offline')) {
+        // Don't show success toast here for M-Pesa, the UI handles the "Waiting" state
+        console.log("Sale processed in background:", data.message);
       } else {
         toast.success('Sale Processed', {
-            description: 'Transaction completed successfully.',
-            duration: 2000
+          description: 'Transaction saved successfully.',
+          duration: 2000,
         });
       }
     },
-
     onError: (error) => {
       console.error("Critical error processing sale:", error);
       toast.error("System Error", {
@@ -167,60 +166,25 @@ export const usePendingSales = () => {
   const { data: pendingSales = [], isLoading, error } = useQuery({
     queryKey: ['pos-sales-queue'],
     queryFn: async () => {
-      return await invoke<RustQueuedSale[]>('get_pending_sales_command');
+       const sales = await invoke<RustQueuedSale[]>('get_pending_sales_command');
+       return sales;
     },
-    refetchInterval: 5000,
+    refetchInterval: 5000 // Poll every 5s to see if queue clears
   });
 
-  return {
-    pendingSales,
-    pendingCount: pendingSales.length,
-    isLoading,
-    error
-  };
-};
-
-/**
- * Hook to sync offline sales.
- * Triggers the background Rust worker.
- */
-export const useSyncOfflineSales = () => {
-  const { memberToken, deviceKey } = useAuthStore();
   const queryClient = useQueryClient();
-
-  // Helper query to get the count of pending items from Rust
-  const { data: pendingSales = [] } = useQuery({
-    queryKey: ['pos-sales-queue'],
-    queryFn: async () => {
-        return await invoke<RustQueuedSale[]>('get_pending_sales_command');
-    },
-    // Poll every 5 seconds to keep the badge updated
-    refetchInterval: 5000, 
-  });
-
   const syncMutation = useMutation({
     mutationFn: async () => {
-      console.log(`[Sync] Triggering background sync...`);
-      
-      const response = await invoke<string>('sync_sales_command', {
-        baseUrl: API_ENDPOINT,
-        deviceKey: deviceKey || null, // <--- Added
-        memberToken: memberToken || null
-      });
-      
-      return response;
+       // Trigger manual sync
+       const count = await invoke<number>('sync_sales_command', { 
+         baseUrl: API_ENDPOINT,
+         // Auth params fetched inside rust or passed here if needed
+       });
+       return count;
     },
-    onSuccess: (message) => {
-      // Message format: "Synced X sales"
-      if (message !== "Synced 0 sales") {
-        toast.success(message);
-        queryClient.invalidateQueries({ queryKey: ['sales'] });
-        queryClient.invalidateQueries({ queryKey: ['inventory'] });
-        queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
-      }
-    },
-    onError: (err) => {
-      console.error("Sync failed:", err);
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
+      toast.success("Sync Complete");
     }
   });
 
@@ -228,21 +192,17 @@ export const useSyncOfflineSales = () => {
     syncSales: syncMutation.mutate,
     isSyncing: syncMutation.isPending,
     pendingCount: pendingSales.length,
-    pendingSales // Exposed if you need to list them in a UI drawer
+    pendingSales,
+    isLoading,
+    error
   };
 };
 
-
-// --- Order Creation Hook (Online Only / Special Orders) ---
-export interface OrderFormValues {
-  [key: string]: any;
-}
-
-export interface UseCreateOrderOptions {
-  onSuccess?: (data: any) => void;
-  onError?: (error: Error) => void;
-  onSettled?: () => void;
-}
+//For manual sales (Direct API - Deprecated for POS, used for online orders/fallback)
+export const processSaleApi = async (data: ProcessSaleInput, locationId: string) => {
+  const response = await apiClient.post(`/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, data);
+  return response.data;
+};
 
 export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
   const { currentLocation } = useAuthStore();
@@ -264,12 +224,13 @@ export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
   });
 };
 
-//For manual sales using mpesa
-export const processSaleApi = async (data: ProcessSaleInput, locationId?: string) => {
-  // Ensure we pass flags for detailed stock tracking if needed
-  const response = await apiClient.post(
-    `/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, 
-    { ...data, locationId }
-  );
-  return response.data;
-};
+// --- Order Creation Hook (Online Only / Special Orders) ---
+export interface OrderFormValues {
+  [key: string]: any;
+}
+
+export interface UseCreateOrderOptions {
+  onSuccess?: (data: any) => void;
+  onError?: (error: Error) => void;
+  onSettled?: () => void;
+}

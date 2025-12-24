@@ -33,13 +33,13 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
-import { PaymentMethod, PaymentStatus, useProcessSale, processSaleApi } from '@/hooks/sales';
+import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
-import { useCashDrawer } from '@/hooks/use-cash-drawer'; // Added hook
+import { useCashDrawer } from '@/hooks/use-cash-drawer';
 
 // --- COMPONENT ---
 
@@ -49,7 +49,6 @@ const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
   const tierLevel = customer.loyaltyPoints || 0;
 
   if (tierLevel >= 1000) {
-    // Dark mode compatible gold/yellow badge
     return (
       <Badge 
         variant="secondary" 
@@ -60,7 +59,6 @@ const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
     );
   }
   if (tierLevel >= 500) {
-    // Dark mode compatible purple badge
     return (
       <Badge 
         variant="secondary" 
@@ -71,7 +69,6 @@ const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
     );
   }
   if (tierLevel >= 100) {
-    // Dark mode compatible blue badge
     return (
       <Badge 
         variant="secondary" 
@@ -114,15 +111,11 @@ const generateMpesaQrCodeData = (
     accountRef: string, 
     amount: number
 ): string => {
-    // Safaricom standard for Transacting QR (Lipa na M-Pesa QR)
-    // Structure: MerchantName*Paybill/Till*AccountRef*Amount
-    
-    const businessNumber = paybillNumber || tillNumber; // Choose one for the business identifier
+    const businessNumber = paybillNumber || tillNumber;
     const type = paybillNumber ? 'Paybill' : 'Till';
 
-    if (!businessNumber) return `ERROR*NO_MPESA_ID*0*0*0`; // Fallback for missing settings
+    if (!businessNumber) return `ERROR*NO_MPESA_ID*0*0*0`;
 
-    // Using a more standard (non-TLV) format for simplicity and readability in this example:
     return `M-PESA-PAYMENT|${type.toUpperCase()}|${businessNumber}|${accountRef}|${amount.toFixed(2)}|${organizationName}`;
 };
 
@@ -163,9 +156,9 @@ const PaymentModal = ({
   const [detectedPayment, setDetectedPayment] = useState<any>(null);
   
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
-  const { openPhysicalDrawer } = useCashDrawer(); // Initialize Hook
+  const { openPhysicalDrawer } = useCashDrawer();
   const settings = usePosStore((state) => state.settings);
-  const autoPrintConfig = settings.autoPrintConfig; // Get auto-print config
+  const autoPrintConfig = settings.autoPrintConfig;
   const locationId = useAuthStore(state => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
 
@@ -215,16 +208,13 @@ const PaymentModal = ({
     return received > totalPayable ? received - totalPayable : 0;
   }, [cashReceived, totalPayable]);
 
-  // General QR Code Link (used for other payments/web links, kept for backwards compatibility)
   const paymentUrl = useMemo(
     () => `${API_ENDPOINT}/payment/${orderId}?amount=${totalPayable}&customer=${customer?.id || 'guest'}`,
     [orderId, totalPayable, customer]
   );
 
-  // M-PESA Transacting QR Code Data (New Feature)
+  // M-PESA Transacting QR Code Data
   const mpesaQrData = useMemo(() => {
-      // Use paybill ref for paybill, or sale number for general till payment tracking
-      // The `paybillAccountNo` (which is the clean reference) is passed here
       const ref = mpesaMode === 'PAYBILL' ? paybillAccountNo : paybillAccountNo;
       return generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, ref, totalPayable);
   }, [mpesaMode, organizationName, paybillNumber, tillNumber, paybillAccountNo, totalPayable]);
@@ -240,7 +230,6 @@ const PaymentModal = ({
   // Effect to communicate M-Pesa details to Customer Display
   useEffect(() => {
     if (isOpen && selectedTab === 'MOBILE_PAYMENT' && (mpesaMode === 'QR' || mpesaMode === 'PAYBILL')) {
-      // Emit the QR code data for the customer display
       emit('payment-update', {
         type: 'MPESA_QR',
         amount: totalPayable,
@@ -269,80 +258,71 @@ const PaymentModal = ({
              amount: totalPayable,
          });
     } else {
-        // Clear payment details when tab changes or modal closes
         emit('payment-update', { type: 'CLEAR' });
     }
   }, [isOpen, selectedTab, mpesaMode, mpesaQrData, totalPayable, paybillNumber, tillNumber, paybillAccountNo, cashReceived, change, mpesaPhone]);
 
   const paymentChannel = useAblyStore((state) => state.paymentChannel);
-  // console.log('paymentChannel', paymentChannel);
   const ably = useAblyStore((state) => state.client);
   
-    // --- ABLY LISTENER FOR C2B (PAYBILL/BUY GOODS/QR) ---
+  // --- ABLY LISTENER FOR ALL MODES (Unified) ---
   useEffect(() => {
-      // 1. GUARD: Wait until we have the dynamic channel name
       if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably || !paymentChannel) return;
       
-      // 2. USE: Use the fetched name directly
-      console.log(`Subscribing to dynamic channel: ${paymentChannel}`);
+      console.log(`Subscribing to channel: ${paymentChannel} for Sale: ${fullSaleNumber}`);
       const channel = ably.channels.get(paymentChannel);
 
       const handleUnclaimed = (message: any) => {
           const data = message.data;
           
-          // --- 1. Paybill / QR Match ---
           if ((mpesaMode === 'PAYBILL' || mpesaMode === 'QR') && data.accountRef) {
             if (data.accountRef.toUpperCase() === paybillAccountNo.toUpperCase()) {
-                setDetectedPayment(data);
-                setMpesaStatus('SUCCESS');
-                if (Number(data.amount) >= totalPayable) {
-                    setTimeout(() => handleManualMatchCompletion(data), 1000);
-                }
+                handlePaymentMatch(data);
             }
           }
 
-          // --- 2. Buy Goods Match ---
           if (mpesaMode === 'BUY_GOODS') {
-              // Allow slight float margin errors
               if (Math.abs(Number(data.amount) - totalPayable) < 1.0) {
-                  setDetectedPayment(data);
-                  if (Number(data.amount) === totalPayable) {
-                        setTimeout(() => handleManualMatchCompletion(data), 1000);
-                  }
+                  handlePaymentMatch(data);
               }
           }
       };
 
-      // Subscribe
-      channel.subscribe('payment-unclaimed', handleUnclaimed);
-      
-      // Subscribe to specific updates (e.g., STK Push success)
-      channel.subscribe('payment-update', (msg) => {
-          const txData = msg.data; // Alias for clarity
-          // Check transaction ID or account ref
-          if(txData.transactionId === fullSaleNumber || txData.data?.accountRef === paybillAccountNo) {
-              setMpesaStatus('SUCCESS');
-              setDetectedPayment(txData.data);
-              setTimeout(() => handleManualMatchCompletion(txData.data), 1000);
+      // Handle specific transaction updates (STK Push Success or Fail)
+      const handleUpdate = (msg: any) => {
+          const txData = msg.data;
+          // Match by Sale ID (fullSaleNumber) or Account Ref
+          if (txData.transactionId === fullSaleNumber || txData.data?.accountRef === paybillAccountNo) {
+             const isSuccess = txData.status === 'COMPLETED' || txData.status === 'SUCCESS';
+             if (isSuccess) {
+                 handlePaymentMatch(txData.data || txData);
+             } else if (txData.status === 'FAILED' || txData.status === 'CANCELLED') {
+                 setMpesaStatus('FAILED');
+                 setMpesaWaiting(false);
+                 setValidationErrors(['Payment Failed or Cancelled. Please retry.']);
+             }
           }
-      });
+      };
 
-      // Cleanup: Unsubscribe when component unmounts or channel changes
+      channel.subscribe('payment-unclaimed', handleUnclaimed);
+      channel.subscribe('payment-update', handleUpdate);
+
       return () => {
           channel.unsubscribe();
       };
+  }, [isOpen, selectedTab, mpesaMode, ably, paymentChannel, fullSaleNumber, paybillAccountNo, totalPayable]);
+
+  const handlePaymentMatch = (data: any) => {
+      setDetectedPayment(data);
+      setMpesaStatus('SUCCESS');
+      setMpesaWaiting(false);
       
-      // 3. DEPENDENCY: Listen to paymentChannelName changes
-    }, [
-      isOpen, 
-      selectedTab, 
-      mpesaMode, 
-      ably, 
-      paymentChannel,
-      totalPayable, 
-      paybillAccountNo, 
-      fullSaleNumber
-  ]);
+      // Auto-complete after delay if in STK or Waiting mode
+      // For Manual/Paybill, we wait 1s. For STK, we also wait 1.5s to show success tick.
+      setTimeout(() => {
+          handleManualMatchCompletion(data);
+      }, 1500);
+  };
 
   const handleCopy = async (text: string) => {
     await writeText(text);
@@ -363,8 +343,8 @@ const PaymentModal = ({
         sellingUnitId: item.selectedUnit?.unitId || '',
       })),
       locationId: locationId,
-      saleNumber: fullSaleNumber, // **ALWAYS use the full sale number for the backend record**
-      accountRef: paybillAccountNo, // **Send the clean account ref for C2B matching**
+      saleNumber: fullSaleNumber,
+      accountRef: paybillAccountNo,
       isWholesale: false,
       customerId: (customer?.id && customer.id !== 'temp-id') ? customer.id : null,
       paymentMethod: paymentMethod,
@@ -376,10 +356,9 @@ const PaymentModal = ({
 
     if (paymentMethod === PaymentMethod.MPESA) {
       payload.mpesaPhoneNumber = mpesaMode === 'STK' ? normalizePhoneNumber(mpesaPhone, PHONE_CONFIG) : undefined;
-      payload.mpesaPaymentMode = mpesaMode; // Track which mode was used
+      payload.mpesaPaymentMode = mpesaMode;
       payload.amountReceived = totalPayable;
       payload.change = 0;
-      // If we have a detected payment receipt (C2B), attach it
       if (detectedPayment?.receipt) {
           payload.notes = `${notes} [M-Pesa Receipt: ${detectedPayment.receipt}]`;
       }
@@ -400,25 +379,22 @@ const PaymentModal = ({
     return result.data;
   };
 
-  // Used when we receive a C2B event and just want to finalize the sale locally
   const handleManualMatchCompletion = async (c2bData: any) => {
-      // If the webhook already created the sale in the DB, we might just need to fetch/link it.
-      // However, assuming the standard flow where this UI creates the "Sale" record:
       const payload = preparePayload(PaymentStatus.COMPLETED);
       if (!payload) return;
       
       try {
-          // Inject the receipt number
           const finalPayload = { 
               ...payload, 
               amountReceived: c2bData.amount,
-              notes: `M-Pesa C2B: ${c2bData.receipt}. ${payload.notes}` 
+              notes: `M-Pesa C2B/STK: ${c2bData.receipt || 'Confirmed'}. ${payload.notes}` 
           };
           
+          // Re-submit as completed (Rust will update/overwrite the pending one via ID or create new log)
           const queuedSale: any = await createSale(finalPayload);
           completeOrderFlow(finalPayload, queuedSale);
       } catch (e) {
-          console.error("Error finalizing C2B sale", e);
+          console.error("Error finalizing sale", e);
       }
   };
 
@@ -429,47 +405,21 @@ const PaymentModal = ({
     try {
       setMpesaStatus('IDLE');
       
-      // 1. STK PUSH FLOW
+      // 1. MPESA STK LOGIC (Background Processing)
       if (payload.paymentMethod === 'MPESA' && mpesaMode === 'STK') {
-        const response: any = await processSaleApi(payload, locationId);
-        if (response?.status === 202 && response?.meta?.ablyChannel) {
-          setMpesaWaiting(true);
-          setMpesaStatus('WAITING');
-          const channel = ably?.channels.get(response.meta.ablyChannel);
-          channel?.subscribe('payment-update', (msg) => {
-            if (msg.data.transactionId === response.id) {
-               const newStatus = msg.data.status === 'COMPLETED' ? 'SUCCESS' : 'FAILED';
-               setMpesaStatus(newStatus);
-               setMpesaWaiting(false);
-               if (newStatus === 'SUCCESS') {
-                 setTimeout(() => {
-                   completeOrderFlow(payload, response);
-                   channel?.unsubscribe();
-                 }, 1500);
-               } else {
-                   setValidationErrors(['User cancelled or timed out or payment failed.']);
-               }
-            }
-          });
-        } else {
-            completeOrderFlow(payload, response);
-        }
-      } 
-      // 2. MANUAL C2B (PAYBILL, BUY GOODS, QR) FLOW - User initiates and we wait/confirm
-      else if (payload.paymentMethod === 'MPESA' && (mpesaMode === 'PAYBILL' || mpesaMode === 'BUY_GOODS' || mpesaMode === 'QR')) {
-            // If payment was detected by listener, it already auto-completed via handleManualMatchCompletion
-            // If no payment detected, cashier is forcing completion.
-            if (detectedPayment) {
-                 // Already handled by listener and handleManualMatchCompletion
-                 return;
-            }
+        // A. Send to Backend (Returns immediately "Saved locally")
+        // The Backend Background Task will trigger the STK Push
+        await createSale(payload);
 
-            // Fallback: Force complete the sale if the cashier confirms it's paid (e.g., they saw an SMS/screen)
-            const queuedSale: any = await createSale(payload);
-            completeOrderFlow(payload, queuedSale);
-      }
-      // 3. OTHER METHODS (CASH, CARD, PENDING)
+        // B. Switch UI to Waiting Mode immediately
+        setMpesaWaiting(true);
+        setMpesaStatus('WAITING');
+        
+        // C. Listener is already active in useEffect, waiting for `fullSaleNumber`
+      } 
+      // 2. ALL OTHER METHODS
       else {
+        // Optimistic Completion: Save to Rust and close dialog immediately
         const queuedSale: any = await createSale(payload);
         completeOrderFlow(payload, queuedSale);
       }
@@ -477,6 +427,7 @@ const PaymentModal = ({
     } catch (error) {
       console.error('Payment Error:', error);
       setValidationErrors(['Failed to process sale. Please check connection.']);
+      setMpesaWaiting(false);
     }
   };
 
@@ -496,22 +447,16 @@ const PaymentModal = ({
         notes: payload.notes || notes,
         status: payload.paymentStatus === 'COMPLETED' ? 'completed' : 'pending-payment',
         paymentMethod: selectedTab as any,
-        saleNumber: fullSaleNumber, // Use full sale number here
+        saleNumber: fullSaleNumber,
         amountPaid: payload.amountReceived || 0,
         change: payload.change || 0,
     }
     
-    // --- CASH DRAWER AUTO-OPEN ---
-    // Check if: 
-    // 1. Payment method is CASH
-    // 2. Auto-open feature is enabled in AutoPrint Config
-    // 3. Cash drawer hardware is enabled in main settings (handled inside hook)
     if (selectedTab === 'CASH' && autoPrintConfig.openCashDrawer) {
       console.log('[Pos] Triggering Auto-Open Cash Drawer');
       openPhysicalDrawer();
     }
 
-    // Clear the payment display on completion
     emit('payment-update', { type: 'CLEAR_COMPLETED' }); 
     onPaymentComplete(completedOrder);
     onClose();
@@ -547,7 +492,6 @@ const PaymentModal = ({
     }
   }
 
-
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <AnimatePresence>
@@ -567,8 +511,9 @@ const PaymentModal = ({
                         <div>
                             <h3 className="text-2xl font-bold mb-2">Check Customer Phone</h3>
                             <p className="text-muted-foreground">Prompt sent to <strong>{mpesaPhone}</strong>.</p>
+                            <p className="text-xs text-muted-foreground mt-2">Sale saved. Waiting for confirmation...</p>
                         </div>
-                        <Button variant="outline" onClick={() => setMpesaWaiting(false)}>Cancel</Button>
+                        <Button variant="outline" onClick={() => setMpesaWaiting(false)}>Cancel Waiting</Button>
                     </motion.div>
                 </div>
             )}
@@ -655,7 +600,7 @@ const PaymentModal = ({
                       </TabsList>
 
                       <TabsContent value="MOBILE_PAYMENT" className="space-y-4">
-                        {/* M-Pesa Mode Selector (Updated with 'QR') */}
+                        {/* M-Pesa Mode Selector */}
                         <div className="flex p-1 bg-muted rounded-lg">
                               {['STK', 'QR', 'PAYBILL', 'BUY_GOODS'].map((mode) => (
                                    <button
@@ -685,7 +630,6 @@ const PaymentModal = ({
                                         value={mpesaPhone} 
                                         onChange={(e) => {
                                             setMpesaPhone(e.target.value);
-                                            // Reset status if phone number changes while IDLE
                                             if (mpesaStatus !== 'IDLE') setMpesaStatus('IDLE');
                                         }} 
                                         className="pl-9" 
@@ -693,16 +637,11 @@ const PaymentModal = ({
                                         disabled={mpesaStatus === 'WAITING' || mpesaStatus === 'SUCCESS'}
                                     />
                                 </div>
-                                {/* STK Status Indicator */}
-                                {mpesaStatus !== 'IDLE' ? (
-                                    <MpesaStkStatus status={mpesaStatus} phone={mpesaPhone} />
-                                ) : (
-                                    <p className="text-xs text-muted-foreground">Prompts client to enter PIN automatically.</p>
-                                )}
+                                <MpesaStkStatus status={mpesaStatus} phone={mpesaPhone} />
                             </div>
                         )}
 
-                        {/* MODE: QR CODE (New Updated Logic) */}
+                        {/* MODE: QR CODE */}
                         {mpesaMode === 'QR' && (
                             <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 flex flex-col items-center">
                                 <div className="p-4 border rounded-lg bg-card shadow-lg dark:bg-zinc-800 flex flex-col items-center space-y-3">
@@ -715,7 +654,7 @@ const PaymentModal = ({
                                           size={180} 
                                           level="H"
                                           bgColor="#ffffff"
-                                          fgColor="#000000" // QR codes must be black on white for scanning reliability
+                                          fgColor="#000000"
                                       />
                                   </motion.div>
                                   <div className="text-sm font-mono text-center break-all text-muted-foreground pt-1">
@@ -724,7 +663,6 @@ const PaymentModal = ({
                                   </div>
                                 </div>
 
-                                {/* Status Indicator */}
                                 {!detectedPayment ? (
                                     <div className="flex items-center gap-3 text-sm text-amber-600 bg-amber-50 p-3 rounded-md dark:bg-amber-950 dark:text-amber-400">
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -762,7 +700,6 @@ const PaymentModal = ({
                                     </div>
                                 </div>
                                 
-                                {/* Status Indicator */}
                                 {!detectedPayment ? (
                                     <div className="flex items-center gap-3 text-sm text-amber-600 bg-amber-50 p-3 rounded-md dark:bg-amber-950 dark:text-amber-400">
                                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -791,7 +728,6 @@ const PaymentModal = ({
                                     </div>
                                 </div>
 
-                                {/* Incoming Payments List (Mock "Listener") */}
                                 <div className="space-y-2">
                                     <Label className="text-xs text-muted-foreground">Incoming Payments Stream</Label>
                                     {!detectedPayment ? (
@@ -854,14 +790,12 @@ const PaymentModal = ({
                   <ReceiptText className="mr-2 h-4 w-4" /> Save Pending
                 </Button>
                 
-                {/* DYNAMIC ACTION BUTTON */}
                 <Button
                   onClick={() => handlePaymentSubmission(PaymentStatus.COMPLETED)}
                   className="w-full sm:w-auto min-w-[140px]"
                   disabled={
                       isProcessing || 
                       mpesaWaiting ||
-                      // Disable if STK failed and no payment was received/detected (must fix phone or re-try)
                       (selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK' && mpesaStatus === 'FAILED') || 
                       (selectedTab === 'CASH' && (parseFloat(cashReceived) || 0) < totalPayable) ||
                       (selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK' && !mpesaPhone)

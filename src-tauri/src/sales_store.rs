@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
 use crate::models::{QueuedSale, SaleStatus, SaleResponse};
 use anyhow::{Result, Context};
@@ -15,20 +15,18 @@ use rand::RngCore;
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
 const APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
 
+// Refactored to Arc<Mutex> to allow sharing with background threads
 pub struct SalesState {
-    pub queue: Mutex<Vec<QueuedSale>>,
+    pub queue: Arc<Mutex<Vec<QueuedSale>>>,
 }
 
 impl SalesState {
     pub fn new() -> Self {
         Self {
-            queue: Mutex::new(Vec::new()),
+            queue: Arc::new(Mutex::new(Vec::new())),
         }
     }
 }
-
-// ... [Keep Encryption Helpers (get_cipher_key, save_queue_encrypted, load_queue_encrypted, get_store_path) exactly as they were] ...
-// (Omitting them here for brevity, assume they are unchanged)
 
 fn get_cipher_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
@@ -99,7 +97,7 @@ pub fn init_state(app: &AppHandle, state: &SalesState) {
     }
 }
 
-// 1. Process Sale (Queue first, then try sync)
+// 1. Process Sale (Non-blocking Background Sync)
 pub async fn process_sale(
     app: AppHandle,
     state: &SalesState,
@@ -111,7 +109,7 @@ pub async fn process_sale(
     token: Option<String>
 ) -> Result<SaleResponse> {
     
-    // A. Add to Local Queue (Encrypted)
+    // A. Add to Local Queue (Encrypted) immediately
     let new_sale = QueuedSale {
         id: sale_id.clone(),
         timestamp: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_millis() as u64,
@@ -122,45 +120,68 @@ pub async fn process_sale(
         last_error: None,
     };
 
+    // Block briefly to save to disk (Offline First guarantee)
     {
         let mut q = state.queue.lock().unwrap();
         q.push(new_sale.clone());
         if let Err(e) = save_queue_encrypted(&app, &q) {
             eprintln!("CRITICAL: Failed to persist sales queue: {}", e);
+            return Err(anyhow::anyhow!("Failed to persist sale locally: {}", e));
         }
     }
 
-    // B. Attempt Immediate Sync
-    let sync_result = push_single_sale(&base_url, &location_id, &payload, device_key, token).await;
+    // B. Spawn Background Sync Task
+    // We clone the necessary ARCs and data to move them into the async thread
+    let queue_ref = state.queue.clone();
+    let app_handle = app.clone();
+    let sale_id_clone = sale_id.clone();
+    let payload_clone = payload.clone();
+    let base_url_clone = base_url.clone();
+    let location_id_clone = location_id.clone();
+    let device_key_clone = device_key.clone();
+    let token_clone = token.clone();
 
-    let mut q = state.queue.lock().unwrap();
-    
-    match sync_result {
-        Ok(server_resp) => {
-            if let Some(pos) = q.iter().position(|x| x.id == sale_id) {
-                q.remove(pos);
-                let _ = save_queue_encrypted(&app, &q); 
+    tauri::async_runtime::spawn(async move {
+        println!("[Background] Starting sync for sale: {}", sale_id_clone);
+        
+        // Attempt upload (this will await M-Pesa response if the API is designed to wait)
+        let sync_result = push_single_sale(
+            &base_url_clone, 
+            &location_id_clone, 
+            &payload_clone, 
+            device_key_clone, 
+            token_clone
+        ).await;
+
+        let mut q = queue_ref.lock().unwrap();
+        
+        match sync_result {
+            Ok(_) => {
+                println!("[Background] Sale {} synced successfully.", sale_id_clone);
+                // Remove from queue on success
+                if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
+                    q.remove(pos);
+                    let _ = save_queue_encrypted(&app_handle, &q); 
+                }
+            },
+            Err(e) => {
+                eprintln!("[Background] Sync failed for {}: {}. Leaving in queue.", sale_id_clone, e);
+                // Update error state in queue
+                if let Some(item) = q.iter_mut().find(|x| x.id == sale_id_clone) {
+                    item.last_error = Some(e.to_string());
+                    item.retry_count += 1;
+                }
+                let _ = save_queue_encrypted(&app_handle, &q);
             }
-            Ok(SaleResponse {
-                success: true,
-                message: "Sale processed successfully".into(),
-                server_response: Some(server_resp)
-            })
-        },
-        Err(e) => {
-            if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
-                item.last_error = Some(e.to_string());
-                item.retry_count += 1;
-            }
-            let _ = save_queue_encrypted(&app, &q);
-            
-            Ok(SaleResponse {
-                success: true, 
-                message: "Network unreachable. Saved to offline queue.".into(),
-                server_response: None
-            })
         }
-    }
+    });
+
+    // C. Return immediate success to UI
+    Ok(SaleResponse {
+        success: true,
+        message: "Sale saved locally and processing in background.".into(),
+        server_response: None // UI shouldn't rely on this for immediate feedback anymore
+    })
 }
 
 // 2. Background Sync (Retry mechanism)
@@ -184,8 +205,8 @@ pub async fn sync_pending_sales(
     let mut success_count = 0;
     let mut ids_to_remove = Vec::new();
 
+    // We can run these concurrently or sequentially. Sequentially is safer for order.
     for sale in pending_items {
-        // Pass device_key and token to the helper
         match push_single_sale(&base_url, &sale.location_id, &sale.transaction_data, device_key.clone(), token.clone()).await {
             Ok(_) => {
                 ids_to_remove.push(sale.id);
@@ -216,9 +237,11 @@ async fn push_single_sale(
 ) -> Result<serde_json::Value> {
     
     let clean_base = base_url.trim_end_matches('/');
+    // Check if this is an M-Pesa sale to adjust timeout potentially? 
+    // Usually reqwest defaults are fine, but for STK we might want a longer timeout.
     let url = format!("{}/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", clean_base, location_id);
 
-    // --- BUILD HEADERS (Matches store.rs) ---
+    // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
     
     if let Some(key) = device_key {
@@ -234,8 +257,10 @@ async fn push_single_sale(
         headers.insert(AUTHORIZATION, val);
     }
 
+    // Build client with extended timeout for M-Pesa scenarios
     let client = reqwest::Client::builder()
         .default_headers(headers)
+        .timeout(std::time::Duration::from_secs(60)) // 60s timeout for M-Pesa waits
         .build()?;
 
     let resp = client.post(&url)
