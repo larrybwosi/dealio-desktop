@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
 
 // --- Response Wrapper ---
 #[derive(Debug, Serialize, Deserialize)]
@@ -293,4 +294,52 @@ impl serde::Serialize for PrinterError {
     {
         serializer.serialize_str(&self.to_string())
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Shift {
+    pub id: String,
+    pub opened_at: DateTime<Utc>,
+    pub closed_at: Option<DateTime<Utc>>,
+    pub operator_id: Option<String>,
+    
+    // Money tracking
+    pub starting_float: f64,
+    pub total_cash_sales: f64,    // Sales made in cash
+    pub total_cash_drops: f64,    // Cash removed (e.g., paying vendor)
+    pub total_cash_refunds: f64,  // Cash given back
+    
+    // Reconciliation
+    pub expected_cash: f64,       // Float + Sales - Drops - Refunds
+    pub actual_cash: Option<f64>, // What user counted
+    pub variance: Option<f64>,    // Actual - Expected
+    pub operator_card_id: Option<String>, // The Card ID
+    pub operator_pin: Option<String>,  // The PIN (or Hash of PIN)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CashMovement {
+    pub amount: f64,
+    pub reason: String,
+    pub timestamp: DateTime<Utc>,
+    pub movement_type: String, // "DROP", "PAYOUT", "REFUND"
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ShiftSyncPayload {
+    pub location_id: String,
+    pub shift_id: String,
+    pub opened_at: String, // ISO String
+    pub closed_at: Option<String>,
+    
+    // Auth Data for Anti-Buddy Punching
+    pub operator_card_id: String, 
+    pub operator_pin: String, // Sending raw or hashed depending on your API security
+    
+    // Money
+    pub starting_float: f64,
+    pub total_cash_sales: f64,
+    pub total_cash_drops: f64,
+    pub actual_cash_count: Option<f64>,
+    pub variance: Option<f64>,
 }

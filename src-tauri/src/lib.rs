@@ -28,6 +28,10 @@ use pricing_store::PricingState;
 
 mod printer_manager;
 
+mod shift_store;
+use shift_store::ShiftState;
+use models::Shift;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -556,6 +560,78 @@ fn get_customers_by_ids_command(
     customer_store::get_customers_by_ids(&state, ids)
 }
 
+// --- SHIFT COMMANDS ---
+
+#[tauri::command]
+fn get_shift_command(state: State<'_, ShiftState>) -> Option<Shift> {
+    shift_store::get_shift_status(&state)
+}
+
+#[tauri::command]
+fn add_cash_drop_command(
+    state: State<'_, ShiftState>,
+    amount: f64,
+    reason: String
+) -> Result<(), String> {
+    shift_store::record_cash_drop(&state, amount, reason)
+}
+
+#[tauri::command]
+fn record_shift_sale_command(
+    state: State<'_, ShiftState>,
+    amount: f64
+) -> Result<(), String> {
+    shift_store::record_cash_sale(&state, amount)
+}
+
+#[tauri::command]
+fn open_shift_command(
+    state: State<'_, ShiftState>,
+    card_id: String,
+    pin: String,
+    float_amount: f64
+) -> Result<Shift, String> {
+    if card_id.is_empty() || pin.is_empty() {
+        return Err("Credentials missing".to_string());
+    }
+
+    // Now passes card_id and pin individually to shift_store
+    shift_store::open_new_shift(&state, card_id, pin, float_amount)
+}
+
+#[tauri::command]
+async fn close_shift_command(
+    app: AppHandle,
+    state: State<'_, ShiftState>,
+    card_id: String,
+    pin: String,
+    actual_count: f64,
+    printer_name: Option<String>
+) -> Result<Shift, String> {
+    if card_id.is_empty() || pin.is_empty() {
+        return Err("Credentials missing".to_string());
+    }
+
+    let closed_shift = shift_store::close_current_shift(&state, actual_count)?;
+    let report_text = shift_store::generate_z_report_text(&closed_shift);
+    
+    if let Some(p_name) = printer_name {
+         let _ = print_system_receipt(app, p_name, report_text, false).await;
+    }
+
+    Ok(closed_shift)
+}
+
+#[tauri::command]
+async fn sync_shifts_command(
+    state: State<'_, ShiftState>,
+    base_url: String,
+    location_id: String,
+    api_token: String
+) -> Result<String, String> {
+    shift_store::sync_pending_shifts(&state, base_url, location_id, api_token).await
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -564,6 +640,7 @@ pub fn run() {
         .manage(CustomerState::new()) // Initialize Customer State
         .manage(SalesState::new()) // Initialize Sales State
         .manage(PricingState::new()) // Initialize Pricing State
+        .manage(ShiftState::new()) // Initialize Shift State
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
@@ -688,10 +765,14 @@ pub fn run() {
             printer_manager::get_system_printers,
             printer_manager::save_printer_config,
             printer_manager::get_printer_config,
-            printer_manager::print_job
+            printer_manager::print_job,
+            open_shift_command,
+            get_shift_command,
+            add_cash_drop_command,
+            record_shift_sale_command,
+            close_shift_command,
+            sync_shifts_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-
-//print_system_receipt
