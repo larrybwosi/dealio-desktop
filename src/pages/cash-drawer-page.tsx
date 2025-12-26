@@ -22,7 +22,7 @@ export default function CashDrawerPage() {
   const closeCashDrawer = usePosStore((state) => state.closeCashDrawer)
   const addCashTransaction = usePosStore((state) => state.addCashTransaction)
 
-  const { openPhysicalDrawer, isOpening } = useCashDrawer() // Hook usage
+  const { openPhysicalDrawer, isOpening } = useCashDrawer()
 
   const [isOpenDrawerDialogOpen, setIsOpenDrawerDialogOpen] = useState(false)
   const [isCloseDrawerDialogOpen, setIsCloseDrawerDialogOpen] = useState(false)

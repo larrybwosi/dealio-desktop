@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils';
 import { emitTo } from '@tauri-apps/api/event';
 import { HeldOrdersDialog } from '@/components/held-orders-dialog';
 import { HoldOrderDialog } from '@/components/hold-order-dialog';
+import { convertFileSrc } from '@tauri-apps/api/core';
 
 export function Cart() {
   // --- Layout & Resize States ---
@@ -72,8 +73,8 @@ export function Cart() {
   const removeItemFromOrder = usePosStore(state => state.removeItemFromOrder);
   const updateItemInOrder = usePosStore(state => state.updateItemInOrder);
   const resetOrder = usePosStore(state => state.resetOrder);
-  const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
-  const allowSaveUnpaidOrders = usePosStore(state => state.settings.allowSaveUnpaidOrders);
+  // const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
+  // const allowSaveUnpaidOrders = usePosStore(state => state.settings.allowSaveUnpaidOrders);
 
   // --- Hold Sale Store Hooks ---
   const heldOrders = usePosStore(state => state.heldOrders);
@@ -224,10 +225,10 @@ export function Cart() {
     setPaymentDialogOpen(true);
   };
 
-  const handleSaveUnpaidOrder = () => {
-    if (currentOrder.items.length === 0) return;
-    saveUnpaidOrder(0);
-  };
+  // const handleSaveUnpaidOrder = () => {
+  //   if (currentOrder.items.length === 0) return;
+  //   saveUnpaidOrder(0);
+  // };
 
   const handlePaymentComplete = useCallback(
     (completedOrder: Order) => {
@@ -393,7 +394,7 @@ export function Cart() {
                     <div className="flex gap-3">
                       <div className="relative w-14 h-14 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
                         <img
-                          src={item.imageUrl || '/placeholder.svg?height=64&width=64'}
+                          src={convertFileSrc(item.imageUrl|| '') || '/placeholder.svg?height=64&width=64'}
                           alt={item.productName}
                           className="object-cover w-full h-full"
                         />
@@ -485,7 +486,7 @@ export function Cart() {
                 Checkout (KSH. {total.toLocaleString()})
               </Button>
 
-              {allowSaveUnpaidOrders && (
+              {/* {allowSaveUnpaidOrders && (
                 <Button
                   variant="outline"
                   className="w-full text-xs md:text-sm h-9 border-dashed"
@@ -494,7 +495,7 @@ export function Cart() {
                 >
                   Save as Unpaid
                 </Button>
-              )}
+              )} */}
 
               {/* Hold Sale Buttons (Enterprise) */}
               {enableHoldSale && (

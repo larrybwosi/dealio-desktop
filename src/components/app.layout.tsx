@@ -25,7 +25,7 @@ interface AppLayoutProviderProps {
 
 export default function AppLayoutProvider({ children }: AppLayoutProviderProps) {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
-  const { checkOut, currentMember } = useAuth();
+  const { checkOut } = useAuth();
   const location = useLocation();
 
   const handleCheckout = () => {
@@ -45,10 +45,6 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
           <div className="flex items-center gap-6 flex-1">
-            <h1 className="text-lg">
-              <span className="text-muted-foreground">Welcome, </span>
-              <span className="font-semibold">{currentMember?.name || 'User'}</span>
-            </h1>
 
             <div className="relative max-w-md flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

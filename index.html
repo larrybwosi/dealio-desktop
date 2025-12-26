@@ -11,25 +11,17 @@
         - Color Palette: Slate (Professional, Secure, Clean)
         - Accent: Indigo/Violet (Modern Tech feel)
       */
+      /* ENTERPRISE DESIGN SYSTEM 
+        - Color Palette: Slate (Professional, Secure, Clean)
+        - Accent: Indigo/Violet (Modern Tech feel)
+      */
+      /* SPLASH VARIABLES */
       :root {
-        --bg-surface: #0b1120; /* Deep Slate */
-        --bg-subtle: #1e293b;
-        --text-primary: #f8fafc;
-        --text-secondary: #94a3b8;
-        --accent-primary: #6366f1; /* Indigo 500 */
-        --accent-glow: rgba(99, 102, 241, 0.4);
-        --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --splash-bg: #0b1120;
+        --splash-accent: #6366f1;
+        --splash-glow: rgba(99, 102, 241, 0.4);
       }
-
-      body {
-        margin: 0;
-        padding: 0;
-        background-color: var(--bg-surface);
-        color: var(--text-primary);
-        font-family: var(--font-sans);
-        -webkit-font-smoothing: antialiased;
-      }
-
+      
       /* SPLASH CONTAINER */
       #splash-root {
         position: fixed;
@@ -69,10 +61,10 @@
       .brand-icon {
         width: 48px;
         height: 48px;
-        background: linear-gradient(135deg, var(--accent-primary), #4338ca);
+        background: linear-gradient(135deg, var(--splash-accent), #4338ca);
         border-radius: 12px;
         position: relative;
-        box-shadow: 0 0 30px var(--accent-glow);
+        box-shadow: 0 0 30px var(--splash-glow);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -114,7 +106,7 @@
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.2em;
-        color: var(--accent-primary);
+        color: var(--splash-accent);
         margin-top: 4px;
       }
 
@@ -134,10 +126,10 @@
         top: 0;
         height: 100%;
         width: 100%;
-        background: var(--accent-primary);
+        background: var(--splash-accent);
         transform: translateX(-100%);
         animation: progress 2s ease-in-out infinite;
-        box-shadow: 0 0 10px var(--accent-primary);
+        box-shadow: 0 0 10px var(--splash-accent);
       }
 
       /* STATUS TEXT */

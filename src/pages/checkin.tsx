@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   Zap,
   Settings,
+  Keyboard,
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -79,6 +80,10 @@ export default function CheckinPage() {
   const cardInputRef = useRef<HTMLInputElement>(null);
   const passwordInputRef = useRef<HTMLInputElement>(null);
 
+  // --- HID Scanner Buffer Refs ---
+  const scannerBuffer = useRef<string>('');
+  const lastKeyTime = useRef<number>(0);
+
   // --- 1. Initialize Listener & Version ---
   useEffect(() => {
     cardInputRef.current?.focus();
@@ -104,19 +109,7 @@ export default function CheckinPage() {
 
       // Listen for 'nfc-read' events from Rust
       unlisten = await listen<string>('nfc-read', (event) => {
-        const scannedId = event.payload;
-        
-        // Update UI State on Scan
-        setCardId(scannedId);
-        setError('');
-        setIsScanning(false);
-        setScanSuccess(true);
-
-        // Visual feedback: Wait 1s showing green check, then focus password
-        setTimeout(() => {
-          passwordInputRef.current?.focus();
-          setScanSuccess(false);
-        }, 1000);
+        handleScanData(event.payload);
       });
     };
 
@@ -128,15 +121,80 @@ export default function CheckinPage() {
     };
   }, []);
 
+  // --- 2. HID / Keyboard Scanner Listener ---
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: globalThis.KeyboardEvent) => {
+      // If user is actively typing in the password field, ignore global scan logic
+      // to prevent the scanner from overwriting the password or stealing focus.
+      if (document.activeElement === passwordInputRef.current) return;
+
+      const now = Date.now();
+      
+      // Scanners type very fast (usually <50ms between keys). 
+      // If gap is large (>100ms), it's likely a manual human typing or a new scan starting.
+      if (now - lastKeyTime.current > 100) {
+        scannerBuffer.current = '';
+      }
+      lastKeyTime.current = now;
+
+      // Detect "Enter" which usually marks the end of a barcode/magnetic scan
+      if (e.key === 'Enter') {
+        // If we have data in the buffer, treat it as a scan
+        if (scannerBuffer.current.length > 0) {
+          e.preventDefault(); // Prevent form submission
+          handleScanData(scannerBuffer.current);
+          scannerBuffer.current = '';
+        }
+        return;
+      }
+
+      // Accumulate printable characters
+      // We exclude control keys (Shift, Alt, etc) by checking key length
+      if (e.key.length === 1) {
+        scannerBuffer.current += e.key;
+        
+        // UX Polish: If the user clicked away and focus is lost, 
+        // using a scanner shouldn't feel broken.
+        // However, if the user IS focused on the Card Input, 
+        // `handleCardIdChange` will also fire.
+        // We sync them up by forcing the input to update if it's not focused.
+        if (document.activeElement !== cardInputRef.current) {
+             setCardId(scannerBuffer.current);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
+  // --- Unified Scan Handler ---
+  const handleScanData = (scannedId: string) => {
+    // Clean the ID (trim whitespace usually added by cheap scanners)
+    const cleanId = scannedId.trim();
+    if (!cleanId) return;
+
+    setCardId(cleanId);
+    setError('');
+    setIsScanning(false);
+    setScanSuccess(true);
+
+    // Visual feedback: Wait 500ms showing green check, then focus password
+    setTimeout(() => {
+      passwordInputRef.current?.focus();
+      setScanSuccess(false);
+    }, 500);
+  };
+
   // --- Manual Scan Trigger (Visual Only now) ---
   const handleScanClick = (): void => {
-    // If the user clicks manually, we just set the visual state to "Scanning..."
-    // The actual hardware listener is already running in the background.
     setIsScanning(true);
     setError('');
     setScanSuccess(false);
     
-    // Optional: timeout to stop spinning if no card is tapped after 10s
+    // Set focus to card input so keyboard scanners work immediately
+    cardInputRef.current?.focus();
+    
     setTimeout(() => {
         if (!scanSuccess) setIsScanning(false);
     }, 10000); 
@@ -144,6 +202,8 @@ export default function CheckinPage() {
 
   const handleCardIdChange = (e: ChangeEvent<HTMLInputElement>): void => {
     setCardId(e.target.value);
+    // Keep buffer in sync if user is typing manually
+    scannerBuffer.current = e.target.value; 
     setError('');
   };
 
@@ -168,13 +228,26 @@ export default function CheckinPage() {
     }
 
     await checkIn({ cardId, password });
+    
+    // Clear sensitive data on success/fail cycle
     setCardId('');
+    scannerBuffer.current = '';
     setPassword('');
     setShowPassword(false);
     cardInputRef.current?.focus();
   };
 
   const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>): void => {
+    // If Enter is pressed in Card ID field
+    if (e.key === 'Enter' && e.currentTarget.id === 'cardId') {
+        e.preventDefault();
+        if (cardId.trim()) {
+            passwordInputRef.current?.focus();
+        }
+        return;
+    }
+
+    // If Enter is pressed in Password field
     if (e.key === 'Enter' && !isCheckingIn) {
       handleSubmit();
     }
@@ -298,7 +371,7 @@ export default function CheckinPage() {
                     {isScanning ? 'Scanning...' : scanSuccess ? 'Card Verified' : 'Tap to Scan Badge'}
                   </span>
                   <span className="text-xs text-slate-500 hidden sm:inline-block">
-                    {isScanning ? 'Waiting for card...' : scanSuccess ? 'Redirecting...' : 'Or use manual entry below'}
+                    {isScanning ? 'Waiting for card...' : scanSuccess ? 'Redirecting...' : 'Supports NFC & USB Scanners'}
                   </span>
                 </div>
               </div>
@@ -327,10 +400,15 @@ export default function CheckinPage() {
                     value={cardId}
                     onChange={handleCardIdChange}
                     onKeyDown={handleKeyPress}
-                    placeholder="Enter ID manually"
+                    placeholder="Enter ID or Scan..."
+                    autoFocus
                     className="pl-10 bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:ring-blue-500/20 h-11 transition-all"
                     disabled={isCheckingIn}
                   />
+                  {/* Visual indicator for Keyboard/Scanner support */}
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600" title="Scanner Ready">
+                    <Keyboard className="h-4 w-4 opacity-50" />
+                  </div>
                 </div>
               </div>
 

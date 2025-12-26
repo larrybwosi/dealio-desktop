@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,13 +6,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Search, Tag, Users, List } from 'lucide-react';
+import { Loader2, RefreshCw, Search, Tag, Users, List, AlertCircle } from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
-// import { usePosCustomerSync } from '@/hooks/use-customer-sync';
-// import { usePosProducts } from '@/hooks/products';
-// import { usePosCustomers } from '@/hooks/customers';
 import { PosProduct } from '@/hooks/products';
 import { PosCustomer } from '@/hooks/customers';
 
@@ -50,16 +47,44 @@ export default function PricingViewPage() {
     const formatCurrency = useFormattedCurrency();
     const { triggerSync, isSyncing } = usePosPricingSync();
 
-
-    // Local state for lookups
+    // Local state for raw data
     const [products, setProducts] = useState<PosProduct[]>([]);
     const [customers, setCustomers] = useState<PosCustomer[]>([]);
+
+    // OPTIMIZATION: Create Lookup Maps for O(1) access
+    // This solves the issue of iterating through arrays for every table row
+    const lookups = useMemo(() => {
+        const productMap = new Map<string, string>();
+        const customerMap = new Map<string, string>();
+
+        // Index Products by Variant ID
+        products.forEach((p: any) => {
+            // Check for 'name' (from Rust serde rename) OR 'productName' (legacy/types)
+            const pName = p.name || p.productName || "Unknown Product"; 
+            
+            p.variants.forEach((v: any) => {
+                const vName = v.name || v.variantName || "Unknown Variant";
+                const fullName = vName === "Default" || vName === pName 
+                    ? pName 
+                    : `${pName} - ${vName}`;
+                
+                productMap.set(v.variantId, fullName);
+            });
+        });
+
+        // Index Customers by ID
+        customers.forEach((c: any) => {
+            const cName = c.name || c.company || "Unknown Customer";
+            customerMap.set(c.id, cName);
+        });
+
+        return { productMap, customerMap };
+    }, [products, customers]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
             const pricingData = await invoke<PosPricingData>('get_pos_pricing_command');
-            console.log(pricingData);
             setData(pricingData);
 
             // 1. Collect IDs
@@ -69,14 +94,16 @@ export default function PricingViewPage() {
             const customerIds = new Set<string>();
             Object.keys(pricingData.allocations).forEach(id => customerIds.add(id));
 
-            // 2. Fetch Metadata in Parallel
+            // 2. Fetch Metadata
+            // Note: Ensure your backend 'get_products_by_ids_command' can handle the IDs being passed 
+            // (e.g. if you pass variant IDs, it should find the parent products).
             const [fetchedProducts, fetchedCustomers] = await Promise.all([
                  invoke<PosProduct[]>('get_products_by_ids_command', { ids: Array.from(variantIds) }),
                  invoke<PosCustomer[]>('get_customers_by_ids_command', { ids: Array.from(customerIds) })
             ]);
 
-            setProducts(fetchedProducts);
-            setCustomers(fetchedCustomers);
+            setProducts(fetchedProducts || []);
+            setCustomers(fetchedCustomers || []);
 
         } catch (error) {
             console.error("Failed to fetch pricing:", error);
@@ -106,22 +133,6 @@ export default function PricingViewPage() {
     const getItemsForList = (listId: string) => {
         return data?.items.filter(i => i.priceListId === listId) || [];
     };
-
-    const getProductName = (variantId: string) => {
-        // Flatten variants from all products to find the match
-        for (const product of products) {
-            const variant = product.variants.find(v => v.variantId === variantId);
-            if (variant) {
-                return `${product.productName} - ${variant.variantName}`;
-            }
-        }
-        return variantId; // Fallback to ID
-    };
-
-    const getCustomerName = (customerId: string) => {
-        const customer = customers.find(c => c.id === customerId);
-        return customer ? (customer.name || customer.phone || customerId) : customerId;
-    }
 
     if (loading && !data) {
         return (
@@ -219,23 +230,30 @@ export default function PricingViewPage() {
                                             <TableHeader>
                                                 <TableRow>
                                                     <TableHead className="w-[400px]">Product / Variant</TableHead>
-                                                    <TableHead>Unit ID (Base if Empty)</TableHead>
+                                                    <TableHead>Unit ID</TableHead>
                                                     <TableHead>Min Qty</TableHead>
                                                     <TableHead className="text-right">Price</TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {getItemsForList(list.id).map(item => {
-                                                    const productName = getProductName(item.variantId);
+                                                    const productName = lookups.productMap.get(item.variantId);
+                                                    
                                                     return (
                                                         <TableRow key={item.id}>
                                                             <TableCell>
                                                                 <div className="flex flex-col">
-                                                                    <span className="font-medium text-sm">{productName}</span>
+                                                                    {/* Display Name if found, otherwise show "Loading/Unknown" style */}
+                                                                    <span className={productName ? "font-medium text-sm" : "font-mono text-xs text-red-500"}>
+                                                                        {productName || "Product not found"}
+                                                                    </span>
+                                                                    {/* Keep ID small for reference */}
                                                                     <span className="text-[10px] text-zinc-400 font-mono">{item.variantId}</span>
                                                                 </div>
                                                             </TableCell>
-                                                            <TableCell className="font-mono text-xs text-zinc-600">{item.sellingUnitId || <span className="text-zinc-400 italic">Base Unit</span>}</TableCell>
+                                                            <TableCell className="font-mono text-xs text-zinc-600">
+                                                                {item.sellingUnitId || <span className="text-zinc-400 italic">Base Unit</span>}
+                                                            </TableCell>
                                                             <TableCell>{item.minQuantity}</TableCell>
                                                             <TableCell className="text-right font-medium">{formatCurrency(parseFloat(item.price))}</TableCell>
                                                         </TableRow>
@@ -268,11 +286,15 @@ export default function PricingViewPage() {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {Object.entries(data?.allocations || {}).map(([custId, lists]) => (
+                                        {Object.entries(data?.allocations || {}).map(([custId, lists]) => {
+                                            const customerName = lookups.customerMap.get(custId);
+                                            return (
                                             <TableRow key={custId}>
                                                 <TableCell>
                                                     <div className="flex flex-col">
-                                                         <span className="font-medium text-sm">{getCustomerName(custId)}</span>
+                                                         <span className={customerName ? "font-medium text-sm" : "font-mono text-xs text-red-500"}>
+                                                             {customerName || "Customer not found"}
+                                                         </span>
                                                          <span className="text-[10px] text-zinc-400 font-mono">{custId}</span>
                                                     </div>
                                                 </TableCell>
@@ -285,7 +307,7 @@ export default function PricingViewPage() {
                                                     </div>
                                                 </TableCell>
                                             </TableRow>
-                                        ))}
+                                        )})}
                                          {Object.keys(data?.allocations || {}).length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={2} className="text-center text-zinc-500 py-8">No specific customer allocations found</TableCell>
@@ -303,9 +325,19 @@ export default function PricingViewPage() {
                                 <CardTitle>Raw JSON Data</CardTitle>
                             </CardHeader>
                              <CardContent>
-                                <pre className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded text-xs overflow-auto max-h-[500px]">
-                                    {JSON.stringify({ pricing: data, products: products.slice(0, 3), customers: customers.slice(0, 3) }, null, 2)}
-                                </pre>
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded text-sm">
+                                        <AlertCircle className="h-4 w-4" />
+                                        <span>Verify that <strong>get_products_by_ids_command</strong> returns products when passed Variant IDs. If names are still missing, the backend query might require Product IDs.</span>
+                                    </div>
+                                    <pre className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded text-xs overflow-auto max-h-[500px]">
+                                        {JSON.stringify({ 
+                                            lookups,
+                                            products: products.slice(0, 3), 
+                                            customers: customers.slice(0, 3) 
+                                        }, null, 2)}
+                                    </pre>
+                                </div>
                             </CardContent>
                         </Card>
                     </TabsContent>

@@ -20,7 +20,6 @@ import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 import { UpdateTestingPanel } from '@/components/update-testing-panel';
 import GeneralSettings from '@/components/settings/general-tab';
-// import { useTheme } from 'next-themes';
 
 
 interface HidDevice {
@@ -60,8 +59,6 @@ export default function SettingsPage() {
     isOpening: isOpeningDrawer,
     isLoadingPorts,
   } = useCashDrawer();
-
-  // const { setTheme } = useTheme()
 
   const THEME_PRESETS = [
     { name: 'Default', primary: 'oklch(0.623 0.188 259.815)', accent: 'oklch(0.951 0.025 236.824)' }, // Default Purple
@@ -262,7 +259,6 @@ export default function SettingsPage() {
                     value={settings.themeConfig?.mode || 'light'}
                     onValueChange={value =>{
                       updateThemeConfig({ mode: value as any })
-                      // setTheme(value)
                     }}
                   >
                     <SelectTrigger id="themeMode">
