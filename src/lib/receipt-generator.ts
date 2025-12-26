@@ -24,9 +24,10 @@ export async function generateReceiptPDF(
 
     // Generate PDF document using react-pdf
     const doc = createElement(ReceiptPdfDocument, { order, settings, qrCodeUrl });
+    console.log("Document:", doc);
     //@ts-expect-error
     const blob = await pdf(doc).toBlob();
-    
+    console.log("Blob:", blob);
     return blob;
   } catch (error) {
     console.error('Error generating PDF receipt:', error);
@@ -39,29 +40,40 @@ export async function generateReceiptPDF(
  * This is needed for the printer plugin which requires a file path
  */
 export async function savePdfToTempFile(blob: Blob, orderId: string): Promise<string> {
-  try {
-    const { BaseDirectory, writeFile } = await import('@tauri-apps/plugin-fs');
-    const { join } = await import('@tauri-apps/api/path');
+try {
+    // Added 'mkdir' to imports to ensure the folder exists
+    const { BaseDirectory, writeFile, mkdir } = await import('@tauri-apps/plugin-fs');
+    // Switched 'appDataDir' to 'documentDir'
+    const { join, documentDir } = await import('@tauri-apps/api/path');
     
     // Convert blob to array buffer
     const arrayBuffer = await blob.arrayBuffer();
     const uint8Array = new Uint8Array(arrayBuffer);
     
-    // Create temp directory path
+    // 1. Define the specific folder structure inside Documents
+    // You can change 'receipts' to 'Dealio/receipts' if you want a parent folder
+    const folderName = 'Dealio';
+    
+    // 2. Ensure the directory exists before writing (Crucial for Documents)
+    await mkdir(folderName, { 
+      baseDir: BaseDirectory.Document, 
+      recursive: true 
+    });
+
+    // 3. Construct the file path
     const fileName = `receipt_${orderId}_${Date.now()}.pdf`;
-    const tempPath = await join('temp', 'receipts', fileName);
+    const filePath = await join(folderName, fileName);
     
-    // Write file to temp directory
-    await writeFile(tempPath, uint8Array, { baseDir: BaseDirectory.AppData });
+    // 4. Write file to Document directory
+    await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Document });
     
-    // Return absolute path
-    const { appDataDir } = await import('@tauri-apps/api/path');
-    const appData = await appDataDir();
-    const absolutePath = await join(appData, 'temp', 'receipts', fileName);
+    // 5. Resolve absolute path for the return value
+    const docRoot = await documentDir();
+    const absolutePath = await join(docRoot, folderName, fileName);
     
     return absolutePath;
   } catch (error) {
-    console.error('Error saving PDF to temp file:', error);
+    console.error('Error saving PDF to Documents:', error);
     throw new Error(`Failed to save PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

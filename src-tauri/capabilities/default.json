@@ -51,7 +51,10 @@
         { "path": "$DOWNLOAD/Dealio" },
         { "path": "$DOWNLOAD/Dealio/*" },
         { "path": "$DOCUMENT/Dealio" },
-        { "path": "$DOCUMENT/Dealio/*" }
+        { "path": "$DOCUMENT/Dealio/*" },
+        { "path": "$APP_DATA/**" },
+        { "path": "$APPDATA/com.dealio.pos" },
+        { "path": "$APPDATA/com.dealio.pos/**" }
       ]
     },
     {
@@ -66,7 +69,11 @@
         { "path": "$DOCUMENT/Dealio" },
         { "path": "$DOCUMENT/Dealio/*" },
         { "path": "$APPDATA" },
-        { "path": "$APPDATA/*" }
+        { "path": "$APPDATA/*" },
+        { "path": "$APP_DATA" },
+        { "path": "$APP_DATA/**" },
+        { "path": "$APPDATA/com.dealio.pos" },
+        { "path": "$APPDATA/com.dealio.pos/**" }
       ]
     },
     {

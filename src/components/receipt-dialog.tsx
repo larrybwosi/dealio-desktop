@@ -156,7 +156,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const settings = usePosStore(state => state.settings);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
 
-  const { printDocument } = usePrinter();
+  const { printPdfReceipt } = usePrinter();
 
   const [isPrinting, setIsPrinting] = useState<boolean>(false);
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
@@ -164,6 +164,9 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
 
   // 1. Map Data
   const formattedOrder = useMemo(() => formatOrderForReceipt(completedOrder), [completedOrder]);
+
+  //settings
+  // const receiptSettings = settings.receiptConfig || {};
 
   // 2. Generate QR for PDF (Base64)
   // We do this here because the PDF renderer needs a string, it can't render a Canvas ref like the Preview does.
@@ -227,7 +230,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
       filePath = `${dealioFolderPath}/${fileName}`;
       await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Document });
 
-      printDocument('receipt', filePath, true);
+      printPdfReceipt(formattedOrder, settings, 1);
 
       toast.success('Sent to printer!');
     } catch (error) {

@@ -20,6 +20,7 @@ export const PrinterService = {
       const msg = await invoke<string>('print_system_receipt', { printerName, text: content });
       return { success: true, message: msg };
     } catch (err) {
+      console.error(err);
       return { success: false, message: String(err) };
     }
   },
