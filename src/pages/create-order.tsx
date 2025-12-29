@@ -42,6 +42,7 @@ import { useAuthStore } from '@/store/pos-auth-store';
 import { useDebounce } from 'use-debounce';
 import OrderSuccessView from '@/components/order-success';
 import { usePosPricingSync, useBatchPricing } from '@/hooks/use-pricing-sync';
+import { notify } from '@/lib/notify';
 
 // --- TYPES ---
 
@@ -164,10 +165,17 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
                     key={`${product.variantId}-${index}`}
                     value={product.variantId}
                     onSelect={() => {
+                      if (product.stock <= 0) {
+                        notify.error(`Item Out of Stock`, { duration: 2000 });
+                        return;
+                      }
                       onSelect(product);
                       setOpen(false);
                     }}
-                    className="cursor-pointer"
+                    className={cn(
+                      "cursor-pointer",
+                      product.stock <= 0 && "opacity-50"
+                    )}
                   >
                     <Check
                       className={cn(
@@ -176,7 +184,16 @@ function ProductSearchCombobox({ value, onSelect, error }: ProductSearchCombobox
                       )}
                     />
                     <div className="flex flex-col">
-                      <span className="font-medium">{product.productName}</span>
+                      <div className="flex items-center gap-2">
+                         <span className={cn("font-medium", product.stock <= 0 && "text-muted-foreground line-through")}>
+                           {product.productName}
+                         </span>
+                         {product.stock <= 0 && (
+                           <span className="text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded font-bold uppercase">
+                             Out of Stock
+                           </span>
+                         )}
+                      </div>
                       <div className="flex gap-2 text-xs text-muted-foreground">
                           <span className="bg-zinc-100 dark:bg-zinc-800 px-1 rounded">{product.variantName}</span>
                           <span>•</span>
@@ -312,6 +329,7 @@ const OrderItemRow = memo(({
                 // We set an initial price, but the useEffect will immediately verify/override it if a custom price applies
                 setValue(`items.${index}.unitPrice`, defaultUnit?.price || 0);
                 setValue(`items.${index}._availableUnits`, product.sellableUnits);
+                setValue(`items.${index}._maxStock`, product.stock); // Track max stock
               }}
             />
           )}
@@ -350,8 +368,14 @@ const OrderItemRow = memo(({
           type="number"
           min="1"
           onKeyDown={blockInvalidChar}
-          {...register(`items.${index}.quantity`, { valueAsNumber: true })}
-          className={cn("h-10 text-center", NO_SPINNER_CLASS)}
+          {...register(`items.${index}.quantity`, { 
+            valueAsNumber: true,
+          })}
+          className={cn(
+            "h-10 text-center", 
+            NO_SPINNER_CLASS,
+            errors.items?.[index]?.quantity && "border-red-500 focus-visible:ring-red-500"
+          )}
         />
         {errors.items?.[index]?.quantity && (
           <div className="mt-1 text-[10px] text-red-500">{errors.items?.[index]?.quantity.message}</div>
@@ -504,6 +528,7 @@ export default function CreateOrderPage() {
     formState: { errors },
   } = useForm({
     resolver: zodResolver(CreateOrderSchema),
+    mode: 'onChange',
     defaultValues: {
       type: TransactionType.SALES_ORDER,
       locationId: locationId,

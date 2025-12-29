@@ -11,6 +11,15 @@ export const OrderItemSchema = z.object({
   sellingUnitId: z.string().cuid('Invalid selling unit ID').optional(),
   quantity: z.number().int().positive('Quantity must be a positive integer'),
   unitPrice: z.number().nonnegative('Price cannot be negative').optional(),
+  _maxStock: z.number().optional(),
+}).refine((data) => {
+  if (data._maxStock !== undefined && data.quantity > data._maxStock) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Exceeds available stock",
+  path: ["quantity"]
 });
 
 export const OrderPaymentSchema = z.object({
