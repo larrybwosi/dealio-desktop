@@ -89,9 +89,13 @@ interface RustQueuedSale {
     notes: string;
     cartItems: Array<{
       productId: string;
+      productName?: string;
       variantId: string;
+      variantName?: string;
       quantity: number;
       sellingUnitId: string;
+      sellingUnitName?: string;
+      unitPrice?: number;
     }>;
   };
 }

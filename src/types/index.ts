@@ -60,6 +60,19 @@ export interface Order {
 }
 
 // types/transaction.ts
+export interface TransactionItem {
+  id: string;
+  productId: string;
+  productName: string;
+  variantId?: string;
+  variantName?: string;
+  unitId?: string;
+  unitName?: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
 export interface Transaction {
   id: string;
   number?: string;
@@ -72,4 +85,5 @@ export interface Transaction {
   fulfillmentId?: string | null;
   invoiceLink?: string; 
   deliveryId?: string;
+  items?: TransactionItem[];
 }

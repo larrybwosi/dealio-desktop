@@ -338,9 +338,13 @@ const PaymentModal = ({
     const payload: any = {
       cartItems: cartItems.map((item) => ({
         productId: item.productId || '',
+        productName: item.productName || 'Unknown Product',
         variantId: item.variantId || '',
+        variantName: item.variantName || '',
         quantity: item.quantity,
         sellingUnitId: item.selectedUnit?.unitId || '',
+        sellingUnitName: item.selectedUnit?.unitName || '',
+        unitPrice: item.price,
       })),
       locationId: locationId,
       saleNumber: fullSaleNumber,

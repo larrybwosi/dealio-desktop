@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Download, Eye, Printer, AlertCircle, CheckCircle2, Cloud, RefreshCw } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { usePendingSales } from "@/hooks/sales"
+import { ReceiptDialog } from "@/components/receipt-dialog"
+import { Order } from "@/types"
 
 export function HistoryPage() {
   const { pendingSales: queue, isLoading, error } = usePendingSales()
@@ -19,6 +21,46 @@ export function HistoryPage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+
+  // Receipt Printing State
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [receiptOrder, setReceiptOrder] = useState<Order | null>(null)
+
+  const handlePrintReceipt = (transaction: any) => {
+    // Map transaction data to Order type for receipt dialog
+    const orderItems = transaction.cartItems.map((item: any) => ({
+      productId: item.productId,
+      productName: item.productName || item.productId,
+      quantity: item.quantity,
+      price: item.unitPrice || 0,
+      variant: item.variantName,
+      variantName: item.variantName,
+      unitName: item.sellingUnitName,
+      selectedUnit: {
+          unitId: item.sellingUnitId,
+          unitName: item.sellingUnitName || '',
+          price: item.unitPrice || 0
+      }
+    }));
+
+    const order: any = {
+      id: transaction.saleNumber || 'TEMP',
+      orderNumber: transaction.saleNumber || 'PENDING',
+      items: orderItems,
+      customer: transaction.customerId ? { name: 'Customer', id: transaction.customerId } : null,
+      subtotal: transaction.amountReceived || 0, // Approx
+      discount: transaction.discountAmount || 0,
+      tax: 0,
+      total: calculateTotal(transaction),
+      status: 'completed',
+      paymentMethod: transaction.paymentMethod,
+      datetime: new Date().toISOString(), // This should ideally come from timestamp
+      // We might need to pass the actual timestamp from the parent object if available
+    };
+    
+    setReceiptOrder(order);
+    setReceiptOpen(true);
+  };
 
   const filteredOrders = useMemo(() => {
     const now = new Date()
@@ -381,16 +423,25 @@ export function HistoryPage() {
               <h3 className="font-semibold mb-3">Items</h3>
               <div className="space-y-3 bg-muted/30 p-3 rounded-lg">
                 {selectedOrderData.transactionData.cartItems.map((item, index) => (
-                  <div key={index} className="flex justify-between text-sm border-b border-border/50 pb-2 last:border-0">
+                  <div key={index} className="flex justify-between text-sm border-b border-border/50 pb-2 last:border-0 hover:bg-white/50 dark:hover:bg-black/20 p-2 rounded-sm transition-colors">
                     <div className="flex-1 pr-4">
-                      <div className="font-mono text-xs text-muted-foreground truncate w-48">Prod: {item.productId}</div>
-                      <div className="font-mono text-[10px] text-muted-foreground truncate w-48">Var: {item.variantId}</div>
-                      {item.sellingUnitId && (
-                        <div className="font-mono text-[10px] text-muted-foreground truncate w-48">Unit: {item.sellingUnitId}</div>
-                      )}
+                      <div className="font-medium text-sm truncate w-48" title={item.productName || item.productId}>
+                          {item.productName || <span className="text-muted-foreground font-mono text-xs">{item.productId}</span>}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate w-48">
+                         {item.variantName || <span className="font-mono text-[10px]">{item.variantId}</span>}
+                         {item.sellingUnitName && (
+                             <span className="ml-1 opacity-70">• {item.sellingUnitName}</span>
+                         )}
+                      </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">Qty: {item.quantity}</div>
+                      <div className="font-medium">x{item.quantity}</div>
+                       {item.unitPrice && (
+                          <div className="text-[10px] text-muted-foreground">
+                              @ {settings.currency} {item.unitPrice.toLocaleString()}
+                          </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -433,9 +484,13 @@ export function HistoryPage() {
             )}
 
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 gap-2 bg-transparent">
+              <Button 
+                variant="outline" 
+                className="flex-1 gap-2 bg-transparent hover:bg-muted"
+                onClick={() => handlePrintReceipt(selectedOrderData.transactionData)}
+              >
                 <Printer className="w-4 h-4" />
-                Print
+                Print Receipt
               </Button>
             </div>
             
@@ -448,6 +503,15 @@ export function HistoryPage() {
             )}
           </div>
         </div>
+      )}
+      {/* Receipt Dialog */}
+      {receiptOrder && (
+        <ReceiptDialog
+          open={receiptOpen}
+          onOpenChange={setReceiptOpen}
+          completedOrder={receiptOrder}
+          onClose={() => setReceiptOpen(false)}
+        />
       )}
     </div>
   )

@@ -66,7 +66,9 @@ export const ProcessSaleInputSchema = z
         z.object(
           {
             productId: z.string({ required_error: 'Product ID is required' }).min(1, 'Product ID cannot be empty'),
+            productName: z.string().optional(),
             variantId: z.string({ required_error: 'Variant ID is required' }).min(1, 'Variant ID cannot be empty'),
+            variantName: z.string().optional(),
             quantity: z
               .number({
                 required_error: 'Quantity is required',
@@ -77,6 +79,8 @@ export const ProcessSaleInputSchema = z
             sellingUnitId: z
               .string({ required_error: 'Selling unit ID is required' })
               .min(1, 'Selling unit ID cannot be empty'),
+            sellingUnitName: z.string().optional(),
+            unitPrice: z.number().optional(),
           },
           { required_error: 'Cart items are required' }
         )
