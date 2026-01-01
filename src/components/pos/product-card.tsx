@@ -11,7 +11,6 @@ import {
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
 import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { convertFileSrc } from '@tauri-apps/api/core';
 
 // --- Types ---
@@ -55,7 +54,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
   const [imgError, setImgError] = useState(false);
-  const formatCurrency = useFormattedCurrency()
+  const formatCurrency = useFormattedCurrency();
 
   // Derive Current Variant
   const currentVariant = useMemo(
@@ -120,82 +119,87 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
     setQty(val);
   };
 
+  const hasMultipleVariants = product.variants.length > 1;
+  const hasMultipleUnits = currentVariant?.sellableUnits?.length > 1;
+
   return (
     <Card className={cn(
-        "group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300",
-        "hover:shadow-md hover:border-primary/40 bg-card"
+        "group flex flex-col h-full overflow-hidden border-border/60 shadow-sm transition-all duration-300",
+        "hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 bg-card/50 backdrop-blur-sm"
     )}>
       
       {/* --- Image Section --- */}
-      <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
+      <div className="relative aspect-[4/3] w-full bg-muted/10 overflow-hidden border-b border-border/30">
         {!imgError && product.imageUrl ? (
           <img
             src={convertFileSrc(product.imageUrl)}
             alt={product.name}
             onError={() => setImgError(true)}
             className={cn(
-              'object-cover w-full h-full transition-transform duration-500 group-hover:scale-105',
-              isOutOfStock && 'grayscale opacity-50'
+              'object-cover w-full h-full transition-transform duration-700 ease-out group-hover:scale-105',
+              isOutOfStock && 'grayscale opacity-60'
             )}
             loading="lazy"
           />
         ) : (
-          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
-            <ImageOff className="w-10 h-10 mb-1.5" />
-            <span className="text-xs font-medium">No Image</span>
+          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/20 bg-muted/5">
+            <ImageOff className="w-12 h-12 mb-2" />
+            <span className="text-[10px] uppercase font-semibold tracking-wider">No Image</span>
           </div>
         )}
         
-        {/* Status Badges Overlay */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+        {/* Badges */}
+        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10 items-start">
           {isOutOfStock && (
-            <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
+            <Badge variant="destructive" className="shadow-sm font-bold uppercase text-[10px] tracking-wider px-2 py-0.5">
               Sold Out
             </Badge>
           )}
           {isLowStock && !isOutOfStock && (
-            <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200 shadow-sm text-[10px] font-medium">
+            <Badge variant="secondary" className="bg-amber-100/90 text-amber-700 border-amber-200/50 backdrop-blur-md shadow-sm text-[10px] font-medium px-2 py-0.5">
               Only {stock} left
             </Badge>
           )}
           {pricingMode === 'wholesale' && (
-            <Badge className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-fit text-[10px] gap-1">
+            <Badge className="bg-blue-600/90 hover:bg-blue-700 text-white backdrop-blur-md shadow-sm text-[10px] gap-1 px-2 py-0.5">
               <Tag className="w-3 h-3" /> Wholesale
             </Badge>
           )}
         </div>
+
+        {/* Category Overlay (Bottom Left) */}
+        {!isOutOfStock && (
+            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                <span className="text-[10px] font-medium text-white/90 uppercase tracking-wider px-1">
+                    {product.category}
+                </span>
+            </div>
+        )}
       </div>
 
       {/* --- Content Section --- */}
-      <div className="flex flex-col flex-1 p-2.5 space-y-1.5">
+      <div className="flex flex-col flex-1 p-2 ">
         
-        {/* Title & Category */}
-        <div className="space-y-0.5">
-            <div className="flex justify-between items-start gap-2">
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
-                    {product.category}
-                </span>
-                {/* SKU for quick reference */}
-                <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-70">
+        {/* Title & SKU */}
+        <div>
+            <h3 className="font-semibold text-sm leading-snug line-clamp-2 min-h-[2.5rem] text-foreground/90 group-hover:text-primary transition-colors">
+                {product.name}
+            </h3>
+            <div className="flex items-center justify-between">
+                 <span className="text-[10px] font-mono text-muted-foreground/70 flex items-center gap-1">
                    <Package className="w-3 h-3" /> {currentVariant?.sku}
                 </span>
             </div>
-            <h3 className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
-                {product.name}
-            </h3>
         </div>
 
-        <Separator className="bg-border/50" />
-
-        {/* Dynamic Controls (Variants/Units) and Price in one row */}
-        <div className="space-y-1.5">
-            {/* If we have multiple variants OR multiple units, we show selectors */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-                {/* Variant and Unit Selectors */}
-                <div className="grid grid-cols-2 gap-1.5 flex-1">
-                    {product.variants.length > 1 ? (
+        {/* Selectors Area */}
+        <div className="space-y-2 pt-1 border-t border-dashed border-border/50 mt-1">
+             {/* Dynamic Selectors Row */}
+             {(hasMultipleVariants || hasMultipleUnits) && (
+                <div className="grid grid-cols-2 gap-2">
+                    {hasMultipleVariants && (
                          <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                            <SelectTrigger className="h-7 text-[11px] bg-background/50 border-input/60 focus:ring-1 focus:ring-primary/20">
                                 <span className="truncate">{currentVariant.name}</span>
                             </SelectTrigger>
                             <SelectContent>
@@ -206,11 +210,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
                                 ))}
                             </SelectContent>
                          </Select>
-                    ) : <div />}
-
-                    {currentVariant?.sellableUnits?.length > 1 ? (
+                    )}
+                    
+                    {hasMultipleUnits && (
                         <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
-                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                            <SelectTrigger className={cn("h-7 text-[11px] bg-background/50 border-input/60 focus:ring-1 focus:ring-primary/20", !hasMultipleVariants && "col-span-2")}>
                                  <span className="truncate">{currentUnit?.unitName}</span>
                             </SelectTrigger>
                             <SelectContent>
@@ -221,76 +225,73 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
                                 ))}
                             </SelectContent>
                         </Select>
-                    ) : <div />}
+                    )}
                 </div>
+             )}
 
-                {/* Price Display */}
-                <div className="flex flex-col items-end min-w-[100px]">
-                    <span className="text-[10px] text-muted-foreground font-medium text-right leading-tight">
-                        Price
+            {/* Price & Unit (If simplified view or single unit) */}
+            <div className="flex items-end justify-between bg-muted/30 p-2 rounded-md">
+                <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+                        {currentUnit?.unitName || 'Price'}
                     </span>
-                    <span className={cn("font-bold tracking-tight leading-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
-                        {formatCurrency(price)}
-                    </span>
-                    <span className="text-[9px] text-muted-foreground text-right leading-tight">
-                        per {currentUnit?.unitName}
+                    <span className={cn("font-bold text-lg leading-none tracking-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-primary")}>
+                         {formatCurrency(price)}
                     </span>
                 </div>
+                
+                {/* Quantity input mini */}
+                {!isOutOfStock && (
+                <div className="flex items-center h-7 bg-background shadow-sm rounded-md border border-input/40">
+                    <button 
+                        onClick={() => handleQtyChange(qty - 1)}
+                        disabled={qty <= 0}
+                        className="h-full px-2 hover:bg-muted/50 text-muted-foreground hover:text-foreground rounded-l-md disabled:opacity-30 transition-colors"
+                    >
+                        <Minus className="w-3 h-3" />
+                    </button>
+                    <div className="w-px h-3 bg-border" />
+                    <Input 
+                         type="number"
+                         value={qty > 0 ? qty : ''} 
+                         onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
+                         placeholder="0"
+                         className="w-10 h-full border-0 p-0 text-center text-xs focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
+                    />
+                     <div className="w-px h-3 bg-border" />
+                    <button 
+                        onClick={() => handleQtyChange(qty + 1)}
+                        disabled={qty >= stock}
+                        className="h-full px-2 hover:bg-muted/50 text-muted-foreground hover:text-foreground rounded-r-md disabled:opacity-30 transition-colors"
+                    >
+                        <Plus className="w-3 h-3" />
+                    </button>
+                </div>
+                )}
             </div>
         </div>
 
-        {/* Footer: Actions Only */}
-        <div className="mt-auto pt-1">
-            {/* Action Bar */}
-            <div className="flex items-center gap-1.5 h-9">
-                {/* Quantity Segmented Control */}
-                <div className={cn(
-                    "flex items-center h-full rounded-md border bg-background shadow-sm",
-                    isOutOfStock ? "opacity-50 pointer-events-none" : "hover:border-primary/50"
-                )}>
-                    <button
-                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-l-md transition-colors disabled:opacity-50"
-                        disabled={qty <= 0}
-                        onClick={() => handleQtyChange(qty - 1)}
-                    >
-                        <Minus className="w-3.5 h-3.5" />
-                    </button>
-                    
-                    <div className="h-4 w-px bg-border/50" />
-                    
-                    <Input
-                        type="number"
-                        className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={qty > 0 ? qty : ''}
-                        placeholder="0"
-                        onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
-                    />
-                    
-                    <div className="h-4 w-px bg-border/50" />
-
-                    <button
-                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-r-md transition-colors disabled:opacity-50"
-                        disabled={qty >= stock}
-                        onClick={() => handleQtyChange(qty + 1)}
-                    >
-                        <Plus className="w-3.5 h-3.5" />
-                    </button>
-                </div>
-
-                {/* Add Button */}
-                <Button
-                    className={cn(
-                        "flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide", 
-                        qty > 0 ? "animate-in zoom-in-95 duration-200" : ""
-                    )}
-                    disabled={isOutOfStock}
-                    onClick={handleAdd}
-                    variant={qty > 0 ? "default" : "secondary"}
-                >
-                    <ShoppingCart className="w-3.5 h-3.5 mr-2" />
-                    Add
-                </Button>
-            </div>
+        {/* Action Button */}
+        <div className="mt-auto pt-2">
+            <Button
+                className={cn(
+                    "w-full h-9 shadow-sm font-medium tracking-wide text-xs transition-all active:scale-[0.98]", 
+                    qty > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-primary/90 hover:bg-primary"
+                )}
+                disabled={isOutOfStock}
+                onClick={handleAdd}
+                variant={qty > 0 ? "default" : "secondary"}
+                size="sm"
+            >
+                {qty > 0 ? (
+                    <>Add {qty} to Order</>
+                ) : (
+                    <>
+                     <ShoppingCart className="w-3.5 h-3.5 mr-2 opacity-70" />
+                     Add to Cart
+                    </>
+                )}
+            </Button>
         </div>
       </div>
     </Card>

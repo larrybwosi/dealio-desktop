@@ -7,16 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   Search, 
-  Scan, 
   Store, 
   Truck,
   RefreshCw,
   X,
-  PackageOpen,
-  CheckCircle2,
   WifiOff,
   Wifi,
-  MonitorCheck
+  MonitorCheck,
+  CheckCircle2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
@@ -29,6 +27,7 @@ import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
 import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
@@ -51,7 +50,6 @@ export function POS() {
   const { 
     startScanner, 
     stopScanner, 
-    isScanning, 
     isConnected, 
     lastScanned, 
     error: scannerError 
@@ -309,175 +307,153 @@ export function POS() {
   }, [scannerError]);
 
   return (
-    <div className="flex flex-col h-full bg-background/50">
+    <div className="flex flex-col h-full bg-muted/5">
       {businessConfig.features.showOrdersList && <PendingOrdersList />}
       
-      {/* --- Header Section (Sticky) --- */}
-      <div className="flex flex-col gap-4 p-4 pb-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-10 sticky top-0 border-b">
-        
-        {/* Top Bar: Title & Primary Actions */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-           <div className="flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                 <PackageOpen className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                  <h2 className="text-xl font-bold tracking-tight font-serif">Product List</h2>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                      {products.length} items • {pricingMode} mode
-                      {isSyncing && <span className="ml-2 italic text-primary">(Syncing...)</span>}
-                  </p>
-              </div>
-              
-              {isScanning && (
-                <div className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                  isConnected 
-                    ? "bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20" 
-                    : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20"
-                )}>
-                  {isConnected ? (
-                    <>
-                      <Wifi className="w-3.5 h-3.5" />
-                      <span>Scanner Ready</span>
-                    </>
-                  ) : (
-                    <>
-                      <WifiOff className="w-3.5 h-3.5" />
-                      <span>Scanner Connecting...</span>
-                    </>
-                  )}
-                </div>
-              )}
-           </div>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-             
-             {/* Table Selector (Restaurant Mode) */}
-             {businessConfig.features.tableManagement && (
-                <Button 
-                   variant={currentOrder.tableNumber ? "default" : "outline"}
-                   className={cn("gap-2", currentOrder.tableNumber && "bg-indigo-600 hover:bg-indigo-700 text-white")}
-                   onClick={() => setShowTableSelector(true)}
-                >
-                    <div className="flex flex-col items-start leading-none gap-0.5">
-                       <span className="text-[10px] uppercase opacity-80 font-semibold">Table</span>
-                       <span className="text-sm font-bold">{currentOrder.tableNumber || "None"}</span>
-                    </div>
-                </Button>
-             )}
-
-            <div className="bg-muted/50 p-1 rounded-lg flex items-center border border-border flex-1 md:flex-none">
-              <button
-                onClick={() => setPricingMode('retail')}
-                className={cn(
-                    'flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200', 
-                    pricingMode === 'retail' 
-                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border' 
-                        : 'text-muted-foreground hover:bg-background/50'
+      {/* --- Filter Bar (Header) --- */}
+      <div className="flex flex-col gap-3 p-3 bg-background border-b z-10 shadow-sm shrink-0">
+        <div className="flex flex-col md:flex-row gap-3 items-center justify-between">
+            {/* Search */}
+            <div className="relative w-full md:w-[320px] lg:w-[400px] group transition-all duration-300">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                <Input
+                ref={searchInputRef}
+                placeholder="Search products..."
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                className="pl-9 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
+                />
+                {inputValue && (
+                    <button 
+                        onClick={clearSearch}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted"
+                    >
+                        <X className="w-3 h-3" />
+                    </button>
                 )}
-              >
-                <Store className="w-4 h-4" /> Retail
-              </button>
-              <button
-                onClick={() => setPricingMode('wholesale')}
-                className={cn(
-                    'flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-1.5 text-sm font-medium rounded-md transition-all duration-200', 
-                    pricingMode === 'wholesale' 
-                        ? 'bg-background text-foreground shadow-sm ring-1 ring-border' 
-                        : 'text-muted-foreground hover:bg-background/50'
-                )}
-              >
-                <Truck className="w-4 h-4" /> Wholesale
-              </button>
             </div>
 
-            <Button 
-                variant="outline" 
-                size="icon" 
-                onClick={handleRefresh}
-                className={cn("shrink-0", isSyncing && "opacity-70")}
-                disabled={isSyncing}
-                title="Sync Products"
-            >
-                <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-            </Button>
-            
-            <Button 
-                variant="ghost" 
-                size="icon" 
-                onClick={() => invoke('open_customer_screen')}
-                title="Relaunch Customer Display"
-                className="shrink-0"
-            >
-                <MonitorCheck className="w-4 h-4" />
-            </Button>
-          </div>
+            {/* Quick Actions (Mode & Sync) */}
+            <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+                
+                {/* Table Selector */}
+                {businessConfig.features.tableManagement && (
+                    <Button 
+                    variant={currentOrder.tableNumber ? "default" : "outline"}
+                    size="sm"
+                    className={cn("gap-2 h-9 rounded-full", currentOrder.tableNumber && "bg-indigo-600 hover:bg-indigo-700 text-white")}
+                    onClick={() => setShowTableSelector(true)}
+                    >
+                        <span className="text-[10px] uppercase font-bold tracking-wider">Table</span>
+                        <span className="font-bold">{currentOrder.tableNumber || "None"}</span>
+                    </Button>
+                )}
+
+                {/* Pricing Toggle */}
+               <div className="bg-muted/40 p-0.5 rounded-full flex items-center border border-border/60">
+                    <button
+                        onClick={() => setPricingMode('retail')}
+                        className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200', 
+                            pricingMode === 'retail' 
+                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20' 
+                                : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                        )}
+                    >
+                        <Store className="w-3.5 h-3.5" /> Retail
+                    </button>
+                    <button
+                        onClick={() => setPricingMode('wholesale')}
+                        className={cn(
+                            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200', 
+                            pricingMode === 'wholesale' 
+                                ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800' 
+                                : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                        )}
+                    >
+                        <Truck className="w-3.5 h-3.5" /> Wholesale
+                    </button>
+               </div>
+
+                <div className="w-px h-6 bg-border/60 mx-1" />
+
+                {/* Util Buttons */}
+                <TooltipProvider>
+                    <Tooltip delayDuration={300}>
+                         <TooltipTrigger asChild>
+                             <Button 
+                                variant="outline" 
+                                size="icon" 
+                                className="h-9 w-9 rounded-full border-dashed"
+                                onClick={handleRefresh}
+                                disabled={isSyncing}
+                            >
+                                <RefreshCw className={cn("w-3.5 h-3.5", isSyncing && "animate-spin")} />
+                            </Button>
+                         </TooltipTrigger>
+                         <TooltipContent side="bottom" className="text-xs">Sync Products</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => invoke('open_customer_screen')}
+                                className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
+                            >
+                                <MonitorCheck className="w-4 h-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-xs">Customer Screen</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                {settings.enableBarcodeScanner && (
+                     <Button 
+                        variant={isConnected ? "outline" : "ghost"} 
+                        size="icon"
+                        className={cn("h-9 w-9 rounded-full", isConnected ? "text-green-600 border-green-200 bg-green-50/50" : "text-amber-500")}
+                        onClick={() => setShowBarcodeScanner(true)}
+                        title={isConnected ? "Scanner Connected" : "Scanner Disconnected"}
+                     >
+                        {isConnected ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
+                     </Button>
+                )}
+            </div>
         </div>
 
-        {/* Second Bar: Search & Categories */}
-        <div className="flex flex-col lg:flex-row gap-4 pb-4">
-            <div className="flex gap-2 w-full lg:w-1/3 shrink-0">
-                <div className="relative w-full group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-                    <Input
-                    ref={searchInputRef}
-                    placeholder="Search by name, SKU, or barcode..."
-                    value={inputValue}
-                    onChange={e => setInputValue(e.target.value)}
-                    className="pl-10 pr-8 h-10 bg-muted/30 focus:bg-background transition-all"
+        {/* Categories Scroller */}
+        <div className="w-full">
+             <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex w-max space-x-2 p-1">
+                    <CategoryBadge 
+                        label="All Items" 
+                        isActive={activeCategory === 'all'} 
+                        onClick={() => setActiveCategory('all')} 
                     />
-                    {inputValue && (
-                        <button 
-                            onClick={clearSearch}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted"
-                        >
-                            <X className="w-3 h-3" />
-                        </button>
-                    )}
-                </div>
-                {settings.enableBarcodeScanner && (
-                  <Button variant="secondary" onClick={() => setShowBarcodeScanner(true)} className="gap-2 shrink-0">
-                      <Scan className="w-4 h-4" /> 
-                      <span className="hidden sm:inline">Scanner</span>
-                  </Button>
-                )}
-            </div>
-
-            <div className="flex-1 min-w-0 border-l border-border pl-0 lg:pl-4">
-                <ScrollArea className="w-full whitespace-nowrap">
-                    <div className="flex w-max space-x-2 pb-2">
+                    {Array.from(knownCategories).map(cat => (
                         <CategoryBadge 
-                            label="All Items" 
-                            isActive={activeCategory === 'all'} 
-                            onClick={() => setActiveCategory('all')} 
+                            key={cat} 
+                            label={cat} 
+                            isActive={activeCategory === cat} 
+                            onClick={() => setActiveCategory(cat)} 
                         />
-                        {Array.from(knownCategories).map(cat => (
-                            <CategoryBadge 
-                                key={cat} 
-                                label={cat} 
-                                isActive={activeCategory === cat} 
-                                onClick={() => setActiveCategory(cat)} 
-                            />
-                        ))}
-                        {knownCategories.size === 0 && !isSyncing && (
-                            <span className="text-xs text-muted-foreground py-2 italic px-2">
-                                Categories will appear as items load...
-                            </span>
-                        )}
-                    </div>
-                    <ScrollBar orientation="horizontal" className="h-2" />
-                </ScrollArea>
-            </div>
+                    ))}
+                </div>
+                <ScrollBar orientation="horizontal" className="h-2" />
+            </ScrollArea>
         </div>
       </div>
 
       {/* --- Product Grid Content --- */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-4 bg-muted/10"> 
+      <div className="flex-1 overflow-y-auto px-4 py-4 bg-muted/10 scroll-smooth"> 
         {isSyncing && products.length === 0 ? (
            <ProductGridSkeleton />
         ) : (
-          <div className="pb-20">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-4">
+          <div className="pb-20 max-w-[2400px] mx-auto">
+            {/* Optimized Grid Layouts */}
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 content-start">
               {products.map((product) => (
                 <ProductCard 
                   key={product.productId} 
@@ -490,18 +466,18 @@ export function POS() {
             </div>
             
             {!isSyncing && products.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                    <div className="bg-muted p-6 rounded-full mb-4">
-                        <Search className="w-10 h-10 opacity-40" />
+                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in-50">
+                    <div className="bg-muted/50 p-6 rounded-full mb-4">
+                        <Search className="w-12 h-12 opacity-30" />
                     </div>
                     <h4 className="font-semibold text-lg text-foreground">No products found</h4>
-                    <p className="max-w-xs text-center mt-1">
-                        We couldn't find anything matching "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
+                    <p className="max-w-xs text-center mt-1 text-sm">
+                        No matches for "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
                     </p>
                     <Button 
                         variant="link" 
                         onClick={() => {setInputValue(''); setActiveCategory('all');}}
-                        className="mt-2"
+                        className="mt-2 text-primary"
                     >
                         Clear filters
                     </Button>
