@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router';
+import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router';
 import { useEffect } from 'react';
 import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
@@ -18,6 +18,7 @@ import { POS } from '@/pages/pos';
 import SettingsPage from '@/pages/settings-page';
 import CustomerDisplay from '@/pages/customer-display';
 import PricingViewPage from '@/pages/pricing-view-page';
+import NotFound from '@/pages/not-found';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -62,7 +63,7 @@ const AppRoutes = () => {
       <Route path="/checkin" element={<CheckinPage />} />
       <Route path="/setup" element={<SetupPage />} />
       <Route path="/customer" element={<CustomerDisplay />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 };

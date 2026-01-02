@@ -1,0 +1,631 @@
+diff --git a/.gitattributes b/.gitattributes
+new file mode 100644
+index 0000000..461710a
+--- /dev/null
++++ b/.gitattributes
+@@ -0,0 +1,8 @@
++* text=auto
++*.js text eol=lf
++*.jsx text eol=lf
++*.ts text eol=lf
++*.tsx text eol=lf
++*.json text eol=lf
++*.css text eol=lf
++*.md text eol=lf
+diff --git a/package.json b/package.json
+index 12f899e..d57a6f4 100644
+--- a/package.json
++++ b/package.json
+@@ -8,7 +8,8 @@
+     "build": "tsc && vite build",
+     "preview": "vite preview",
+     "tauri": "tauri",
+-    "exe": "npx tauri build"
++    "exe": "npx tauri build",
++    "lint:ox": "oxlint"
+   },
+   "dependencies": {
+     "@hookform/resolvers": "^5.2.2",
+@@ -103,6 +104,7 @@
+     "@types/react": "^19.2.7",
+     "@types/react-dom": "^19.2.3",
+     "@vitejs/plugin-react": "^4.7.0",
++    "oxlint": "^1.36.0",
+     "tailwindcss": "^4.1.17",
+     "tw-animate-css": "^1.4.0",
+     "typescript": "~5.8.3",
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index a1759ea..450a9ea 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -279,6 +279,9 @@ importers:
+       '@vitejs/plugin-react':
+         specifier: ^4.7.0
+         version: 4.7.0(vite@7.2.4(@types/node@24.10.0)(jiti@2.6.1)(lightningcss@1.30.2))
++      oxlint:
++        specifier: ^1.36.0
++        version: 1.36.0
+       tailwindcss:
+         specifier: ^4.1.17
+         version: 4.1.17
+@@ -583,6 +586,46 @@ packages:
+   '@jridgewell/trace-mapping@0.3.31':
+     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+ 
++  '@oxlint/darwin-arm64@1.36.0':
++    resolution: {integrity: sha512-MJkj82GH+nhvWKJhSIM6KlZ8tyGKdogSQXtNdpIyP02r/tTayFJQaAEWayG2Jhsn93kske+nimg5MYFhwO/rlg==}
++    cpu: [arm64]
++    os: [darwin]
++
++  '@oxlint/darwin-x64@1.36.0':
++    resolution: {integrity: sha512-VvEhfkqj/99dCTqOcfkyFXOSbx4lIy5u2m2GHbK4WCMDySokOcMTNRHGw8fH/WgQ5cDrDMSTYIGQTmnBGi9tiQ==}
++    cpu: [x64]
++    os: [darwin]
++
++  '@oxlint/linux-arm64-gnu@1.36.0':
++    resolution: {integrity: sha512-EMx92X5q+hHc3olTuj/kgkx9+yP0p/AVs4yvHbUfzZhBekXNpUWxWvg4hIKmQWn+Ee2j4o80/0ACGO0hDYJ9mg==}
++    cpu: [arm64]
++    os: [linux]
++
++  '@oxlint/linux-arm64-musl@1.36.0':
++    resolution: {integrity: sha512-7YCxtrPIctVYLqWrWkk8pahdCxch6PtsaucfMLC7TOlDt4nODhnQd4yzEscKqJ8Gjrw1bF4g+Ngob1gB+Qr9Fw==}
++    cpu: [arm64]
++    os: [linux]
++
++  '@oxlint/linux-x64-gnu@1.36.0':
++    resolution: {integrity: sha512-lnaJVlx5r3NWmoOMesfQXJSf78jHTn8Z+sdAf795Kgteo72+qGC1Uax2SToCJVN2J8PNG3oRV5bLriiCNR2i6Q==}
++    cpu: [x64]
++    os: [linux]
++
++  '@oxlint/linux-x64-musl@1.36.0':
++    resolution: {integrity: sha512-AhuEU2Qdl66lSfTGu/Htirq8r/8q2YnZoG3yEXLMQWnPMn7efy8spD/N1NA7kH0Hll+cdfwgQkQqC2G4MS2lPQ==}
++    cpu: [x64]
++    os: [linux]
++
++  '@oxlint/win32-arm64@1.36.0':
++    resolution: {integrity: sha512-GlWCBjUJY2QgvBFuNRkiRJu7K/djLmM0UQKfZV8IN+UXbP/JbjZHWKRdd4LXlQmzoz7M5Hd6p+ElCej8/90FCg==}
++    cpu: [arm64]
++    os: [win32]
++
++  '@oxlint/win32-x64@1.36.0':
++    resolution: {integrity: sha512-J+Vc00Utcf8p77lZPruQgb0QnQXuKnFogN88kCnOqs2a83I+vTBB8ILr0+L9sTwVRvIDMSC0pLdeQH4svWGFZg==}
++    cpu: [x64]
++    os: [win32]
++
+   '@radix-ui/number@1.1.1':
+     resolution: {integrity: sha512-MkKCwxlXTgz6CFoJx3pCwn07GKp36+aZyu/u2Ln2VrA5DcdyCZkASEDBTd8x5whTQQL5CiYf4prXKLcgQdv29g==}
+ 
+@@ -2454,6 +2497,16 @@ packages:
+   once@1.4.0:
+     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
+ 
++  oxlint@1.36.0:
++    resolution: {integrity: sha512-IicUdXfXgI8OKrDPnoSjvBfeEF8PkKtm+CoLlg4LYe4ypc8U+T4r7730XYshdBGZdelg+JRw8GtCb2w/KaaZvw==}
++    engines: {node: ^20.19.0 || >=22.12.0}
++    hasBin: true
++    peerDependencies:
++      oxlint-tsgolint: '>=0.10.0'
++    peerDependenciesMeta:
++      oxlint-tsgolint:
++        optional: true
++
+   p-cancelable@2.1.1:
+     resolution: {integrity: sha512-BZOr3nRQHOntUjTrH8+Lh54smKHoHyur8We1V8DSMVrl5A2malOOwuJRnKRDjSnkoeBh4at6BwEnb5I7Jl31wg==}
+     engines: {node: '>=8'}
+@@ -3194,6 +3247,30 @@ snapshots:
+       '@jridgewell/resolve-uri': 3.1.2
+       '@jridgewell/sourcemap-codec': 1.5.5
+ 
++  '@oxlint/darwin-arm64@1.36.0':
++    optional: true
++
++  '@oxlint/darwin-x64@1.36.0':
++    optional: true
++
++  '@oxlint/linux-arm64-gnu@1.36.0':
++    optional: true
++
++  '@oxlint/linux-arm64-musl@1.36.0':
++    optional: true
++
++  '@oxlint/linux-x64-gnu@1.36.0':
++    optional: true
++
++  '@oxlint/linux-x64-musl@1.36.0':
++    optional: true
++
++  '@oxlint/win32-arm64@1.36.0':
++    optional: true
++
++  '@oxlint/win32-x64@1.36.0':
++    optional: true
++
+   '@radix-ui/number@1.1.1': {}
+ 
+   '@radix-ui/primitive@1.1.3': {}
+@@ -5182,6 +5259,17 @@ snapshots:
+     dependencies:
+       wrappy: 1.0.2
+ 
++  oxlint@1.36.0:
++    optionalDependencies:
++      '@oxlint/darwin-arm64': 1.36.0
++      '@oxlint/darwin-x64': 1.36.0
++      '@oxlint/linux-arm64-gnu': 1.36.0
++      '@oxlint/linux-arm64-musl': 1.36.0
++      '@oxlint/linux-x64-gnu': 1.36.0
++      '@oxlint/linux-x64-musl': 1.36.0
++      '@oxlint/win32-arm64': 1.36.0
++      '@oxlint/win32-x64': 1.36.0
++
+   p-cancelable@2.1.1: {}
+ 
+   p-limit@2.3.0:
+diff --git a/src-tauri/tauri.conf.json b/src-tauri/tauri.conf.json
+index 94a1c3e..fd25c0c 100644
+--- a/src-tauri/tauri.conf.json
++++ b/src-tauri/tauri.conf.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://schema.tauri.app/config/2",
+   "productName": "Dealio",
+-  "version": "1.5.4",
++  "version": "1.5.6",
+   "identifier": "com.dealio.pos",
+   "build": {
+     "beforeDevCommand": "pnpm dev",
+diff --git a/src/App.tsx b/src/App.tsx
+index 3fde955..473720e 100644
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1,4 +1,4 @@
+-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router';
++import { BrowserRouter as Router, Routes, Route, Outlet } from 'react-router';
+ import { useEffect } from 'react';
+ import SetupPage from '@/pages/set-up';
+ import CheckinPage from '@/pages/checkin';
+@@ -18,6 +18,7 @@ import { POS } from '@/pages/pos';
+ import SettingsPage from '@/pages/settings-page';
+ import CustomerDisplay from '@/pages/customer-display';
+ import PricingViewPage from '@/pages/pricing-view-page';
++import NotFound from '@/pages/not-found';
+ 
+ // Layout wrapper component that uses AppLayout
+ const LayoutWrapper = () => {
+@@ -62,7 +63,7 @@ const AppRoutes = () => {
+       <Route path="/checkin" element={<CheckinPage />} />
+       <Route path="/setup" element={<SetupPage />} />
+       <Route path="/customer" element={<CustomerDisplay />} />
+-      <Route path="*" element={<Navigate to="/" replace />} />
++      <Route path="*" element={<NotFound />} />
+     </Routes>
+   );
+ };
+diff --git a/src/components/error-boundary.tsx b/src/components/error-boundary.tsx
+new file mode 100644
+index 0000000..8b2692d
+--- /dev/null
++++ b/src/components/error-boundary.tsx
+@@ -0,0 +1,73 @@
++import { Component, ErrorInfo, ReactNode } from "react";
++import { Button } from "@/components/ui/button";
++import { AlertTriangle, RotateCcw } from "lucide-react";
++
++interface Props {
++  children?: ReactNode;
++}
++
++interface State {
++  hasError: boolean;
++  error?: Error;
++}
++
++export class ErrorBoundary extends Component<Props, State> {
++  public state: State = {
++    hasError: false,
++  };
++
++  public static getDerivedStateFromError(error: Error): State {
++    return { hasError: true, error };
++  }
++
++  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
++    console.error("Uncaught error:", error, errorInfo);
++  }
++
++  public handleReload = () => {
++    window.location.reload();
++  };
++
++  public render() {
++    if (this.state.hasError) {
++      return (
++        <div className="flex flex-col items-center justify-center min-h-screen bg-background border-zinc-200 dark:bg-zinc-950 p-6 text-center">
++          <div className="bg-card border-zinc-200 dark:border-zinc-800 border rounded-xl shadow-lg p-8 max-w-md w-full flex flex-col items-center animate-in fade-in zoom-in duration-300">
++            <div className="h-16 w-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-6">
++              <AlertTriangle className="h-8 w-8" />
++            </div>
++            
++            <h1 className="text-2xl font-bold text-foreground mb-2">
++              Something went wrong
++            </h1>
++            
++            <p className="text-muted-foreground mb-6">
++              The application encountered an unexpected error. We apologize for the inconvenience.
++            </p>
++            
++            {this.state.error && (
++              <div className="w-full bg-muted/50 rounded-md p-3 mb-6 text-left overflow-hidden">
++                <p className="text-xs font-mono text-muted-foreground break-all">
++                  {this.state.error.toString()}
++                </p>
++              </div>
++            )}
++
++            <div className="flex gap-4 w-full">
++              <Button 
++                onClick={this.handleReload} 
++                className="w-full gap-2 items-center"
++                size="lg"
++              >
++                <RotateCcw className="h-4 w-4" />
++                Reload Application
++              </Button>
++            </div>
++          </div>
++        </div>
++      );
++    }
++
++    return this.props.children;
++  }
++}
+diff --git a/src/components/pos/product-card.tsx b/src/components/pos/product-card.tsx
+index fa3891c..a586315 100644
+--- a/src/components/pos/product-card.tsx
++++ b/src/components/pos/product-card.tsx
+@@ -11,6 +11,7 @@ import {
+ import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
+ import { cn, useFormattedCurrency } from '@/lib/utils';
+ import { Badge } from '@/components/ui/badge';
++import { Separator } from '@/components/ui/separator';
+ import { convertFileSrc } from '@tauri-apps/api/core';
+ 
+ // --- Types ---
+@@ -54,7 +55,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
+   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
+   const [qty, setQty] = useState<number>(0);
+   const [imgError, setImgError] = useState(false);
+-  const formatCurrency = useFormattedCurrency();
++  const formatCurrency = useFormattedCurrency()
+ 
+   // Derive Current Variant
+   const currentVariant = useMemo(
+@@ -119,87 +120,82 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
+     setQty(val);
+   };
+ 
+-  const hasMultipleVariants = product.variants.length > 1;
+-  const hasMultipleUnits = currentVariant?.sellableUnits?.length > 1;
+-
+   return (
+     <Card className={cn(
+-        "group flex flex-col h-full overflow-hidden border-border/60 shadow-sm transition-all duration-300",
+-        "hover:shadow-lg hover:border-primary/30 hover:-translate-y-0.5 bg-card/50 backdrop-blur-sm"
++        "group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300",
++        "hover:shadow-md hover:border-primary/40 bg-card"
+     )}>
+       
+       {/* --- Image Section --- */}
+-      <div className="relative aspect-[4/3] w-full bg-muted/10 overflow-hidden border-b border-border/30">
++      <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
+         {!imgError && product.imageUrl ? (
+           <img
+             src={convertFileSrc(product.imageUrl)}
+             alt={product.name}
+             onError={() => setImgError(true)}
+             className={cn(
+-              'object-cover w-full h-full transition-transform duration-700 ease-out group-hover:scale-105',
+-              isOutOfStock && 'grayscale opacity-60'
++              'object-cover w-full h-full transition-transform duration-500 group-hover:scale-105',
++              isOutOfStock && 'grayscale opacity-50'
+             )}
+             loading="lazy"
+           />
+         ) : (
+-          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/20 bg-muted/5">
+-            <ImageOff className="w-12 h-12 mb-2" />
+-            <span className="text-[10px] uppercase font-semibold tracking-wider">No Image</span>
++          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
++            <ImageOff className="w-10 h-10 mb-1.5" />
++            <span className="text-xs font-medium">No Image</span>
+           </div>
+         )}
+         
+-        {/* Badges */}
+-        <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10 items-start">
++        {/* Status Badges Overlay */}
++        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+           {isOutOfStock && (
+-            <Badge variant="destructive" className="shadow-sm font-bold uppercase text-[10px] tracking-wider px-2 py-0.5">
++            <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
+               Sold Out
+             </Badge>
+           )}
+           {isLowStock && !isOutOfStock && (
+-            <Badge variant="secondary" className="bg-amber-100/90 text-amber-700 border-amber-200/50 backdrop-blur-md shadow-sm text-[10px] font-medium px-2 py-0.5">
++            <Badge variant="secondary" className="bg-amber-100 text-amber-700 border-amber-200 shadow-sm text-[10px] font-medium">
+               Only {stock} left
+             </Badge>
+           )}
+           {pricingMode === 'wholesale' && (
+-            <Badge className="bg-blue-600/90 hover:bg-blue-700 text-white backdrop-blur-md shadow-sm text-[10px] gap-1 px-2 py-0.5">
++            <Badge className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-fit text-[10px] gap-1">
+               <Tag className="w-3 h-3" /> Wholesale
+             </Badge>
+           )}
+         </div>
+-
+-        {/* Category Overlay (Bottom Left) */}
+-        {!isOutOfStock && (
+-            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+-                <span className="text-[10px] font-medium text-white/90 uppercase tracking-wider px-1">
+-                    {product.category}
+-                </span>
+-            </div>
+-        )}
+       </div>
+ 
+       {/* --- Content Section --- */}
+-      <div className="flex flex-col flex-1 p-2 ">
++      <div className="flex flex-col flex-1 p-2.5 space-y-1.5">
+         
+-        {/* Title & SKU */}
+-        <div>
+-            <h3 className="font-semibold text-sm leading-snug line-clamp-2 min-h-[2.5rem] text-foreground/90 group-hover:text-primary transition-colors">
+-                {product.name}
+-            </h3>
+-            <div className="flex items-center justify-between">
+-                 <span className="text-[10px] font-mono text-muted-foreground/70 flex items-center gap-1">
++        {/* Title & Category */}
++        <div className="space-y-0.5">
++            <div className="flex justify-between items-start gap-2">
++                <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
++                    {product.category}
++                </span>
++                {/* SKU for quick reference */}
++                <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-70">
+                    <Package className="w-3 h-3" /> {currentVariant?.sku}
+                 </span>
+             </div>
++            <h3 className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
++                {product.name}
++            </h3>
+         </div>
+ 
+-        {/* Selectors Area */}
+-        <div className="space-y-2 pt-1 border-t border-dashed border-border/50 mt-1">
+-             {/* Dynamic Selectors Row */}
+-             {(hasMultipleVariants || hasMultipleUnits) && (
+-                <div className="grid grid-cols-2 gap-2">
+-                    {hasMultipleVariants && (
++        <Separator className="bg-border/50" />
++
++        {/* Dynamic Controls (Variants/Units) and Price in one row */}
++        <div className="space-y-1.5">
++            {/* If we have multiple variants OR multiple units, we show selectors */}
++            <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
++                {/* Variant and Unit Selectors */}
++                <div className="grid grid-cols-2 gap-1.5 flex-1">
++                    {product.variants.length > 1 ? (
+                          <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
+-                            <SelectTrigger className="h-7 text-[11px] bg-background/50 border-input/60 focus:ring-1 focus:ring-primary/20">
++                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                                 <span className="truncate">{currentVariant.name}</span>
+                             </SelectTrigger>
+                             <SelectContent>
+@@ -210,11 +206,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
+                                 ))}
+                             </SelectContent>
+                          </Select>
+-                    )}
+-                    
+-                    {hasMultipleUnits && (
++                    ) : <div />}
++
++                    {currentVariant?.sellableUnits?.length > 1 ? (
+                         <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
+-                            <SelectTrigger className={cn("h-7 text-[11px] bg-background/50 border-input/60 focus:ring-1 focus:ring-primary/20", !hasMultipleVariants && "col-span-2")}>
++                            <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
+                                  <span className="truncate">{currentUnit?.unitName}</span>
+                             </SelectTrigger>
+                             <SelectContent>
+@@ -225,73 +221,76 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
+                                 ))}
+                             </SelectContent>
+                         </Select>
+-                    )}
++                    ) : <div />}
+                 </div>
+-             )}
+ 
+-            {/* Price & Unit (If simplified view or single unit) */}
+-            <div className="flex items-end justify-between bg-muted/30 p-2 rounded-md">
+-                <div className="flex flex-col">
+-                    <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wide">
+-                        {currentUnit?.unitName || 'Price'}
++                {/* Price Display */}
++                <div className="flex flex-col items-end min-w-[100px]">
++                    <span className="text-[10px] text-muted-foreground font-medium text-right leading-tight">
++                        Price
+                     </span>
+-                    <span className={cn("font-bold text-lg leading-none tracking-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-primary")}>
+-                         {formatCurrency(price)}
++                    <span className={cn("font-bold tracking-tight leading-tight", pricingMode === 'wholesale' ? "text-blue-600" : "text-foreground")}>
++                        {formatCurrency(price)}
++                    </span>
++                    <span className="text-[9px] text-muted-foreground text-right leading-tight">
++                        per {currentUnit?.unitName}
+                     </span>
+                 </div>
+-                
+-                {/* Quantity input mini */}
+-                {!isOutOfStock && (
+-                <div className="flex items-center h-7 bg-background shadow-sm rounded-md border border-input/40">
+-                    <button 
+-                        onClick={() => handleQtyChange(qty - 1)}
++            </div>
++        </div>
++
++        {/* Footer: Actions Only */}
++        <div className="mt-auto pt-1">
++            {/* Action Bar */}
++            <div className="flex items-center gap-1.5 h-9">
++                {/* Quantity Segmented Control */}
++                <div className={cn(
++                    "flex items-center h-full rounded-md border bg-background shadow-sm",
++                    isOutOfStock ? "opacity-50 pointer-events-none" : "hover:border-primary/50"
++                )}>
++                    <button
++                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-l-md transition-colors disabled:opacity-50"
+                         disabled={qty <= 0}
+-                        className="h-full px-2 hover:bg-muted/50 text-muted-foreground hover:text-foreground rounded-l-md disabled:opacity-30 transition-colors"
++                        onClick={() => handleQtyChange(qty - 1)}
+                     >
+-                        <Minus className="w-3 h-3" />
++                        <Minus className="w-3.5 h-3.5" />
+                     </button>
+-                    <div className="w-px h-3 bg-border" />
+-                    <Input 
+-                         type="number"
+-                         value={qty > 0 ? qty : ''} 
+-                         onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
+-                         placeholder="0"
+-                         className="w-10 h-full border-0 p-0 text-center text-xs focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none bg-transparent"
++                    
++                    <div className="h-4 w-px bg-border/50" />
++                    
++                    <Input
++                        type="number"
++                        className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
++                        value={qty > 0 ? qty : ''}
++                        placeholder="0"
++                        onChange={(e) => handleQtyChange(parseInt(e.target.value) || 0)}
+                     />
+-                     <div className="w-px h-3 bg-border" />
+-                    <button 
+-                        onClick={() => handleQtyChange(qty + 1)}
++                    
++                    <div className="h-4 w-px bg-border/50" />
++
++                    <button
++                        className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-r-md transition-colors disabled:opacity-50"
+                         disabled={qty >= stock}
+-                        className="h-full px-2 hover:bg-muted/50 text-muted-foreground hover:text-foreground rounded-r-md disabled:opacity-30 transition-colors"
++                        onClick={() => handleQtyChange(qty + 1)}
+                     >
+-                        <Plus className="w-3 h-3" />
++                        <Plus className="w-3.5 h-3.5" />
+                     </button>
+                 </div>
+-                )}
+-            </div>
+-        </div>
+ 
+-        {/* Action Button */}
+-        <div className="mt-auto pt-2">
+-            <Button
+-                className={cn(
+-                    "w-full h-9 shadow-sm font-medium tracking-wide text-xs transition-all active:scale-[0.98]", 
+-                    qty > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-primary/90 hover:bg-primary"
+-                )}
+-                disabled={isOutOfStock}
+-                onClick={handleAdd}
+-                variant={qty > 0 ? "default" : "secondary"}
+-                size="sm"
+-            >
+-                {qty > 0 ? (
+-                    <>Add {qty} to Order</>
+-                ) : (
+-                    <>
+-                     <ShoppingCart className="w-3.5 h-3.5 mr-2 opacity-70" />
+-                     Add to Cart
+-                    </>
+-                )}
+-            </Button>
++                {/* Add Button */}
++                <Button
++                    className={cn(
++                        "flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide", 
++                        qty > 0 ? "animate-in zoom-in-95 duration-200" : ""
++                    )}
++                    disabled={isOutOfStock}
++                    onClick={handleAdd}
++                    variant={qty > 0 ? "default" : "secondary"}
++                >
++                    <ShoppingCart className="w-3.5 h-3.5 mr-2" />
++                    Add
++                </Button>
++            </div>
+         </div>
+       </div>
+     </Card>
+diff --git a/src/main.tsx b/src/main.tsx
+index e9b1da2..18b0987 100644
+--- a/src/main.tsx
++++ b/src/main.tsx
+@@ -2,12 +2,15 @@ import { StrictMode } from "react";
+ import ReactDOM from "react-dom/client";
+ import ClientLayout from "./lib/providers";
+ import DynamicRenderer from "./App";
++import { ErrorBoundary } from "./components/error-boundary";
+ import './index.css';
+ 
+ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+   <StrictMode>
+     <ClientLayout>
+-      <DynamicRenderer />
++      <ErrorBoundary>
++        <DynamicRenderer />
++      </ErrorBoundary>
+     </ClientLayout>
+   </StrictMode>
+ );
+diff --git a/src/pages/not-found.tsx b/src/pages/not-found.tsx
+new file mode 100644
+index 0000000..2eb7497
+--- /dev/null
++++ b/src/pages/not-found.tsx
+@@ -0,0 +1,32 @@
++import { Button } from "@/components/ui/button";
++import { MoveLeft, FileQuestion } from "lucide-react";
++import { useNavigate } from "react-router";
++
++export default function NotFound() {
++  const navigate = useNavigate();
++
++  return (
++    <div className="flex flex-col items-center justify-center min-h-screen bg-background p-6 text-center">
++      <div className="flex flex-col items-center max-w-md animate-in fade-in slide-in-from-bottom-5 duration-500">
++        <div className="relative mb-8">
++          <div className="absolute inset-0 bg-primary/20 blur-3xl rounded-full" />
++          <div className="relative h-24 w-24 bg-card border shadow-sm rounded-2xl flex items-center justify-center">
++             <FileQuestion className="h-10 w-10 text-primary" />
++          </div>
++        </div>
++
++        <h1 className="text-4xl font-bold tracking-tight mb-2">404</h1>
++        <h2 className="text-xl font-semibold text-foreground mb-4">Page Not Found</h2>
++        
++        <p className="text-muted-foreground mb-8 text-balance">
++          Sorry, we couldn't find the page you're looking for. It might have been removed, moved, or doesn't exist.
++        </p>
++
++        <Button onClick={() => navigate("/")} size="lg" className="gap-2">
++          <MoveLeft className="h-4 w-4" />
++          Back to Dashboard
++        </Button>
++      </div>
++    </div>
++  );
++}

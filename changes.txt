@@ -1,0 +1,10 @@
+A  .gitattributes
+M  package.json
+M  pnpm-lock.yaml
+M  src-tauri/tauri.conf.json
+M  src/App.tsx
+A  src/components/error-boundary.tsx
+M  src/components/pos/product-card.tsx
+M  src/main.tsx
+A  src/pages/not-found.tsx
+?? changes.txt
