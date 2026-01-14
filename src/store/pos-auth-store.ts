@@ -1,5 +1,7 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { invoke } from '@tauri-apps/api/core';
+import { API_ENDPOINT } from '@/lib/axios';
 
 type LocationType = 
   | "RETAIL_SHOP" 
@@ -60,6 +62,7 @@ interface PosAuthState {
   currentLocation: InventoryLocation | null;
   isRestoredSession: boolean;
   sessionUpdatedAt: number | null;
+  isInitialized: boolean;
 }
 
 interface PosAuthActions {
@@ -71,6 +74,10 @@ interface PosAuthActions {
   refreshSession: () => void;
   resetAll: () => void;
   resetDevice: () => void;
+  
+  // Async initialization
+  initializeFromBackend: () => Promise<void>;
+  registerDevice: (apiKey: string, location: InventoryLocation) => Promise<void>;
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -83,6 +90,7 @@ const initialState: PosAuthState = {
   currentLocation: null,
   isRestoredSession: false,
   sessionUpdatedAt: null,
+  isInitialized: false,
 };
 
 export const useAuthStore = create<PosAuthState & PosAuthActions>()(
@@ -127,25 +135,56 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         set({ currentLocation: null });
       },
 
-      // Reset everything to initial state
       resetAll: () => {
         set(initialState);
       },
 
-      // Reset only device-related data (keeps member session if active)
       resetDevice: () => {
         set({
           deviceKey: null,
           currentLocation: null,
         });
       },
+
+      initializeFromBackend: async () => {
+        try {
+          // rust struct: DeviceConfig { base_url, location_id, device_key }
+          const config = await invoke<{ device_key: string, location_id: string } | null>('get_device_config');
+          if (config) {
+             set({ deviceKey: config.device_key, isInitialized: true });
+             console.log("[AuthStore] Initialized from backend");
+          } else {
+             set({ isInitialized: true });
+          }
+        } catch (error) {
+           console.error("Failed to initialize auth store:", error);
+           set({ isInitialized: true });
+        }
+      },
+
+      registerDevice: async (apiKey: string, location: InventoryLocation) => {
+         try {
+             await invoke('set_device_config', {
+                 baseUrl: API_ENDPOINT,
+                 locationId: location.id,
+                 deviceKey: apiKey
+             });
+             
+             // Update local state
+             set({ deviceKey: apiKey, currentLocation: location });
+         } catch (error) {
+             console.error("Failed to register device:", error);
+             throw error;
+         }
+      }
+
     }),
     {
       name: STORAGE_KEY,
       storage: createJSONStorage(() => localStorage),
 
       partialize: (state) => ({
-        deviceKey: state.deviceKey,
+        // REMOVED deviceKey from here for security
         currentLocation: state.currentLocation,
         memberToken: state.memberToken,
         currentMember: state.currentMember,
@@ -161,8 +200,6 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
         if (isExpired) {
           console.log('Session expired. Clearing member data.');
-
-          // Clear only member-related data on expiration
           state.memberToken = null;
           state.currentMember = null;
           state.isRestoredSession = false;
