@@ -32,6 +32,9 @@ mod shift_store;
 use shift_store::ShiftState;
 use models::Shift;
 
+mod auth_store;
+use auth_store::AuthState;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -641,6 +644,7 @@ pub fn run() {
         .manage(SalesState::new()) // Initialize Sales State
         .manage(PricingState::new()) // Initialize Pricing State
         .manage(ShiftState::new()) // Initialize Shift State
+        .manage(AuthState::new()) // Initialize Auth State
             .setup(|app| {
                 // Load data from disk immediately on app launch
                 let state = app.state::<ProductState>();
@@ -771,7 +775,11 @@ pub fn run() {
             add_cash_drop_command,
             record_shift_sale_command,
             close_shift_command,
-            sync_shifts_command
+            sync_shifts_command,
+            auth_store::set_device_config,
+            auth_store::login_member,
+            auth_store::logout_member,
+            auth_store::get_device_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

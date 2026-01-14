@@ -30,8 +30,20 @@ const LayoutWrapper = () => {
 };
 
 const AppRoutes = () => {
-  const { deviceKey, currentLocation } = useAuthStore();
+  const { deviceKey, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
   const { isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    initializeFromBackend();
+  }, [initializeFromBackend]);
+
+  if (!isInitialized) {
+      return (
+          <div className="h-screen w-screen flex items-center justify-center bg-zinc-950 text-white">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+          </div>
+      )
+  }
 
   if (!deviceKey || !currentLocation?.id) {
     return <SetupPage />;

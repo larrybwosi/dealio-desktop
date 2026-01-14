@@ -1,7 +1,8 @@
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use reqwest::header::{HEADER_NAME, HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use keyring::Entry;
 
 // --- Data Types ---
 
@@ -13,7 +14,7 @@ pub struct MemberProfile {
     // Add other non-sensitive fields from your Member model
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct DeviceConfig {
     pub base_url: String,
     pub location_id: String,
@@ -29,13 +30,43 @@ pub struct AuthState {
     pub current_user: Mutex<Option<MemberProfile>>,
 }
 
+const KEYRING_SERVICE: &str = "dealio-desktop";
+const KEYRING_USER: &str = "device-config";
+
 impl AuthState {
     pub fn new() -> Self {
+        let initial_config = Self::load_from_keyring();
+        if initial_config.is_some() {
+            println!("[AuthStore] Loaded device config from Keyring");
+        } else {
+            println!("[AuthStore] No device config found in Keyring");
+        }
+
         Self {
-            device_config: Mutex::new(None),
+            device_config: Mutex::new(initial_config),
             member_token: Mutex::new(None),
             current_user: Mutex::new(None),
         }
+    }
+
+    fn load_from_keyring() -> Option<DeviceConfig> {
+        let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).ok()?;
+        let password = entry.get_password().ok()?;
+        
+        match serde_json::from_str(&password) {
+            Ok(config) => Some(config),
+            Err(e) => {
+                eprintln!("[AuthStore] Failed to parse config from keyring: {}", e);
+                None
+            }
+        }
+    }
+
+    fn save_to_keyring(config: &DeviceConfig) -> Result<(), String> {
+        let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
+        let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
+        entry.set_password(&json).map_err(|e| e.to_string())?;
+        Ok(())
     }
 
     // --- Helper to get a configured HTTP Client ---
@@ -88,8 +119,15 @@ pub async fn set_device_config(
     location_id: String,
     device_key: String
 ) -> Result<(), String> {
+    let new_config = DeviceConfig { base_url, location_id, device_key };
+    
+    // 1. Save to Keyring first (fail early if secure storage fails)
+    AuthState::save_to_keyring(&new_config)?;
+
+    // 2. Update memory
     let mut config = state.device_config.lock().map_err(|_| "Lock error")?;
-    *config = Some(DeviceConfig { base_url, location_id, device_key });
+    *config = Some(new_config);
+    
     Ok(())
 }
 
@@ -101,7 +139,7 @@ pub async fn login_member(
 ) -> Result<MemberProfile, String> {
     // 1. Get Client and URL from state
     let (client, base_url) = state.get_client()?;
-    let url = format!("{}/check-in", base_url); // Adjust endpoint path
+    let url = format!("{}/api/v1/pos/check-in", base_url); // Adjusted endpoint path
 
     // 2. Perform Request
     let body = serde_json::json!({ "cardId": card_id, "pin": pin });
@@ -131,4 +169,10 @@ pub async fn logout_member(state: State<'_, AuthState>) -> Result<(), String> {
     *state.member_token.lock().unwrap() = None;
     *state.current_user.lock().unwrap() = None;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_device_config(state: State<'_, AuthState>) -> Result<Option<DeviceConfig>, String> {
+    let config = state.device_config.lock().map_err(|_| "Lock error")?;
+    Ok(config.clone())
 }

@@ -62,3 +62,7 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
 
+[dependencies.keyring]
+version = "2"
+
+
