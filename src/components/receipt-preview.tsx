@@ -21,6 +21,7 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
     try {
       return format(new Date(date), config?.dateFormat || 'yyyy-MM-dd HH:mm');
     } catch (e) {
+      console.log('Date error', e instanceof Error ? e.message : 'Unknown error');
       return format(new Date(), 'yyyy-MM-dd HH:mm');
     }
   };
@@ -177,7 +178,7 @@ export function ReceiptPreview({ order, className = '', settings: propSettings }
                       )}
                     </td>
                     <td className="py-1 text-center">{item.quantity}</td>
-                    <td className="py-1 text-right">{(item.selectedUnit?.price || 0 * item.quantity).toLocaleString()}</td>
+                    <td className="py-1 text-right">{(item.selectedUnit?.price || 1 * item.quantity).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

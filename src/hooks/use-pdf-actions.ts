@@ -6,8 +6,6 @@ import { documentDir } from '@tauri-apps/api/path';
 import { BaseDirectory, writeFile, mkdir, exists, remove } from '@tauri-apps/plugin-fs';
 import { usePrinter } from '@/hooks/use-printer';
 import { processFileDownload } from '@/lib/utils';
-// @ts-ignore
-import { DocumentProps } from '@react-pdf/renderer';
 
 export function usePdfActions() {
     const { printDocument } = usePrinter();
@@ -56,7 +54,9 @@ export function usePdfActions() {
                 if (filePath && (await exists(filePath, { baseDir: BaseDirectory.Document }))) {
                     await remove(filePath, { baseDir: BaseDirectory.Document });
                 }
-            } catch (e) { /* ignore cleanup error */ }
+            } catch (e) {
+                console.log('Printer error', e instanceof Error ? e.message : 'Unknown error');
+            }
             setIsPrinting(false);
         }
     };
