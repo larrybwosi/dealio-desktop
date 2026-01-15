@@ -288,6 +288,57 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="grid gap-2">
+                   <div className="flex items-center justify-between"> 
+                      <Label htmlFor="zoomLevel">Zoom Level</Label>
+                      <span className="text-sm text-muted-foreground">{settings.themeConfig?.zoomLevel ?? 100}%</span>
+                   </div>
+                   <div className="flex items-center gap-4">
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                           const current = settings.themeConfig?.zoomLevel ?? 100;
+                           if (current > 50) updateThemeConfig({ zoomLevel: current - 10 });
+                        }}
+                      >
+                        <span className="text-lg">-</span>
+                      </Button>
+                      <div className="flex-1">
+                        <input 
+                           type="range"
+                           min="50"
+                           max="150"
+                           step="10"
+                           value={settings.themeConfig?.zoomLevel ?? 100}
+                           onChange={(e) => updateThemeConfig({ zoomLevel: parseInt(e.target.value) })}
+                           className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+                        />
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                           const current = settings.themeConfig?.zoomLevel ?? 100;
+                           if (current < 150) updateThemeConfig({ zoomLevel: current + 10 });
+                        }}
+                      >
+                        <span className="text-lg">+</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => updateThemeConfig({ zoomLevel: 100 })}
+                        className="text-xs ml-2"
+                      >
+                        Reset
+                      </Button>
+                   </div>
+                   <p className="text-xs text-muted-foreground">Adjust the interface scale (50% - 150%)</p>
+                </div>
 
                 <div className="flex items-center justify-between py-2">
                   <div className="flex-1">

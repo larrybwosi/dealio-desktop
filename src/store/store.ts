@@ -314,6 +314,7 @@ export interface ThemeConfig {
   accentColor: string;
   fontSize: 'small' | 'medium' | 'large';
   compactMode: boolean;
+  zoomLevel: number;
 }
 
 export interface PrinterConfig {
@@ -727,6 +728,7 @@ const getDefaultThemeConfig = (): ThemeConfig => ({
   accentColor: 'oklch(0.96 0.005 240)',
   fontSize: 'medium',
   compactMode: false,
+  zoomLevel: 100, // Default 100%
 });
 
 const getDefaultPrinters = (): PrinterConfig[] => [

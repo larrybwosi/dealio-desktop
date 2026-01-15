@@ -50,6 +50,15 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       root.classList.remove("compact-mode")
     }
 
+    // Apply Zoom Level
+    if (themeConfig.zoomLevel) {
+      // @ts-ignore - zoom is a non-standard property but widely supported for this use case
+      root.style.zoom = (themeConfig.zoomLevel / 100).toString();
+    } else {
+      // @ts-ignore
+      root.style.zoom = "1";
+    }
+
     // Apply Custom Colors
     if (themeConfig.primaryColor) {
       root.style.setProperty("--primary", themeConfig.primaryColor);
