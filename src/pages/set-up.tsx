@@ -95,7 +95,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
-  // We don't set to store yet
+  const {setDeviceKey} = useAuthStore()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,6 +105,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
     }
     setError('');
     setIsValidating(true);
+    setDeviceKey(apiKey)
     
     setTimeout(() => {
         setIsValidating(false);
@@ -157,6 +158,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
 const LocationStep = ({ onBack, onComplete, isSubmitting }: { onBack: () => void, onComplete: (l: Location) => void, isSubmitting: boolean }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { locations, isLoading } = usePosLocations();
+  console.log(locations)
 
   const handleComplete = () => {
     const loc = locations?.find(l => l.id === selectedId);
