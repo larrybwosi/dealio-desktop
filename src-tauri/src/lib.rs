@@ -35,6 +35,8 @@ use models::Shift;
 mod auth_store;
 use auth_store::AuthState;
 
+mod security;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,

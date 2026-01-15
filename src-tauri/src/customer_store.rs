@@ -15,8 +15,7 @@ use rand::RngCore;
 
 const CUSTOMER_FILENAME: &str = "secure_customers.bin"; 
 const TIMEOUT_SECONDS: u64 = 15;
-// A hardcoded salt for key derivation
-const APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
+const LEGACY_APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
 
 // --- State Management ---
 pub struct CustomerState {
@@ -34,9 +33,9 @@ impl CustomerState {
 }
 
 // --- Helper: Encryption Logic ---
-fn get_cipher_key() -> [u8; 32] {
+fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(APP_SECRET);
+    hasher.update(LEGACY_APP_SECRET);
     hasher.finalize().into()
 }
 
@@ -45,8 +44,10 @@ fn save_encrypted(path: PathBuf, sync_token: Option<String>, customers: &Vec<Pos
     let data_wrapper = (sync_token, customers);
     let json_data = serde_json::to_string(&data_wrapper)?;
 
-    // 2. Encrypt
-    let key = get_cipher_key();
+    // 2. Encrypt with Secure Key
+    let key = crate::security::get_or_create_key("customer_store_key")
+         .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
+
     let cipher = Aes256Gcm::new(&key.into());
     
     // Generate a random 96-bit nonce
@@ -68,7 +69,7 @@ fn save_encrypted(path: PathBuf, sync_token: Option<String>, customers: &Vec<Pos
 }
 
 fn load_encrypted(path: PathBuf) -> Result<(Option<String>, Vec<PosCustomer>)> {
-    let file_bytes = fs::read(path).context("Failed to read secure file")?;
+    let file_bytes = fs::read(&path).context("Failed to read secure file")?;
     
     if file_bytes.len() < 12 {
         return Err(anyhow::anyhow!("File corrupted or too short"));
@@ -81,16 +82,33 @@ fn load_encrypted(path: PathBuf) -> Result<(Option<String>, Vec<PosCustomer>)> {
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
-    // 2. Decrypt
-    let key = get_cipher_key();
-    let cipher = Aes256Gcm::new(&key.into());
+    // 2a. Try Secure Key
+    if let Ok(key) = crate::security::get_or_create_key("customer_store_key") {
+        let cipher = Aes256Gcm::new(&key.into());
+        if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
+            let data = serde_json::from_slice(&plaintext)?;
+            return Ok(data);
+        }
+    }
 
-    // FIX: Added '&' before nonce
+    // 2b. Try Legacy Key (Migration)
+    println!("[CustomerStore] Decryption with secure key failed. Attempting legacy migration...");
+    let legacy_key = get_legacy_key();
+    let cipher = Aes256Gcm::new(&legacy_key.into());
+
     let plaintext = cipher.decrypt(&nonce, ciphertext)
         .map_err(|_| anyhow::anyhow!("Decryption failed - Invalid Key or Corrupted Data"))?;
 
-    // 3. Parse JSON
-    let data = serde_json::from_slice(&plaintext)?;
+    let data: (Option<String>, Vec<PosCustomer>) = serde_json::from_slice(&plaintext)?;
+    
+    // Re-save immediately with new secure key
+    println!("[CustomerStore] Legacy decryption successful. Migrating data to secure key...");
+    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1) {
+        eprintln!("[CustomerStore] Failed to migrate data: {}", e);
+    } else {
+        println!("[CustomerStore] Data successfully migrated to secure storage.");
+    }
+
     Ok(data)
 }
 

@@ -13,7 +13,7 @@ use sha2::{Sha256, Digest};
 use rand::RngCore;
 
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
-const APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
+const LEGACY_APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
 
 // Refactored to Arc<Mutex> to allow sharing with background threads
 pub struct SalesState {
@@ -28,15 +28,20 @@ impl SalesState {
     }
 }
 
-fn get_cipher_key() -> [u8; 32] {
+// Legacy key derivation for backward compatibility
+fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(APP_SECRET);
+    hasher.update(LEGACY_APP_SECRET);
     hasher.finalize().into()
 }
 
 fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> {
     let json_data = serde_json::to_string(queue)?;
-    let key = get_cipher_key();
+    
+    // Use secure key from keyring
+    let key = crate::security::get_or_create_key("sales_queue_key")
+        .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
+        
     let cipher = Aes256Gcm::new(&key.into());
     
     let mut nonce_bytes = [0u8; 12];
@@ -60,7 +65,7 @@ fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
         return Ok(Vec::new());
     }
 
-    let file_bytes = fs::read(path)?;
+    let file_bytes = fs::read(&path)?;
     if file_bytes.len() < 12 { return Ok(Vec::new()); }
 
     let (nonce_slice, ciphertext) = file_bytes.split_at(12);
@@ -69,14 +74,40 @@ fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
-    let key = get_cipher_key();
-    let cipher = Aes256Gcm::new(&key.into());
+    // 1. Try with authorized key from Keyring
+    let secure_key_res = crate::security::get_or_create_key("sales_queue_key");
+    
+    if let Ok(key) = secure_key_res {
+        let cipher = Aes256Gcm::new(&key.into());
+        if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
+            let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
+            return Ok(queue);
+        }
+    }
 
-    let plaintext = cipher.decrypt(&nonce, ciphertext)
-        .map_err(|_| anyhow::anyhow!("Decryption failed"))?;
+    // 2. Migration: Try with Legacy Key
+    println!("[SalesStore] Decryption with secure key failed. Attempting migration with legacy key...");
+    let legacy_key = get_legacy_key();
+    let legacy_cipher = Aes256Gcm::new(&legacy_key.into());
 
-    let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
-    Ok(queue)
+    match legacy_cipher.decrypt(&nonce, ciphertext) {
+        Ok(plaintext) => {
+             let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
+             println!("[SalesStore] Legacy decryption successful. Migrating data to secure key...");
+             
+             // Re-encrypt immediately with new safe key
+             if let Err(e) = save_queue_encrypted(app, &queue) {
+                 eprintln!("[SalesStore] Failed to migrate updated data: {}", e);
+             } else {
+                 println!("[SalesStore] Data successfully migrated to secure storage.");
+             }
+             
+             Ok(queue)
+        },
+        Err(_) => {
+            Err(anyhow::anyhow!("Decryption failed with both keys"))
+        }
+    }
 }
 
 fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
