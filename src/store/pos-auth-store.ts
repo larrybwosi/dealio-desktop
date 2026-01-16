@@ -149,10 +149,35 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       initializeFromBackend: async () => {
         try {
           // rust struct: DeviceConfig { base_url, location_id, device_key }
-          const config = await invoke<{ device_key: string, location_id: string } | null>('get_device_config');
+          const config = await invoke<{ device_key: string, location_id: string, base_url: string } | null>('get_device_config');
           if (config) {
-             set({ deviceKey: config.device_key, isInitialized: true });
-             console.log("[AuthStore] Initialized from backend");
+             set({ deviceKey: config.device_key });
+             console.log("[AuthStore] Device key loaded from backend");
+             
+             // If currentLocation is not already hydrated from localStorage, fetch it
+             const { currentLocation } = get();
+             if (!currentLocation?.id && config.location_id) {
+               console.log("[AuthStore] Fetching location from API...");
+               try {
+                 const response = await fetch(`${API_ENDPOINT}/api/v1/pos/locations`, {
+                   headers: {
+                     'Content-Type': 'application/json',
+                     'X-Device-Api-Key': config.device_key,
+                   },
+                 });
+                 if (response.ok) {
+                   const data = await response.json();
+                   const location = data.locations?.find((loc: { id: string }) => loc.id === config.location_id);
+                   if (location) {
+                     set({ currentLocation: location });
+                     console.log("[AuthStore] Location restored from API");
+                   }
+                 }
+               } catch (fetchError) {
+                 console.error("[AuthStore] Failed to fetch location:", fetchError);
+               }
+             }
+             set({ isInitialized: true });
           } else {
              set({ isInitialized: true });
           }

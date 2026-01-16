@@ -35,11 +35,13 @@ const KEYRING_USER: &str = "device-config";
 
 impl AuthState {
     pub fn new() -> Self {
-        let initial_config = Self::load_from_keyring();
+        // Try keyring first, then file
+        let initial_config = Self::load_from_keyring().or_else(|| Self::load_from_file());
+        
         if initial_config.is_some() {
-            println!("[AuthStore] Loaded device config from Keyring");
+            println!("[AuthStore] Loaded device config successfully");
         } else {
-            println!("[AuthStore] No device config found in Keyring");
+            println!("[AuthStore] No device config found in Keyring or File");
         }
 
         Self {
@@ -49,12 +51,65 @@ impl AuthState {
         }
     }
 
+    fn get_config_path() -> Option<std::path::PathBuf> {
+        let proj_dirs = directories::ProjectDirs::from("com", "dealio", "pos")?;
+        let config_dir = proj_dirs.config_dir();
+        if !config_dir.exists() {
+            let _ = std::fs::create_dir_all(config_dir);
+        }
+        Some(config_dir.join("device.json"))
+    }
+
+    fn load_from_file() -> Option<DeviceConfig> {
+        let path = Self::get_config_path()?;
+        println!("[AuthStore] Attempting to load from file: {:?}", path);
+        
+        let content = std::fs::read_to_string(path).ok()?;
+        match serde_json::from_str(&content) {
+            Ok(config) => {
+                 println!("[AuthStore] Loaded config from file");
+                 Some(config)
+            },
+            Err(e) => {
+                eprintln!("[AuthStore] Failed to parse file config: {}", e);
+                None
+            }
+        }
+    }
+
+    fn save_to_file(config: &DeviceConfig) -> Result<(), String> {
+        let path = Self::get_config_path().ok_or("Could not determine config path")?;
+        println!("[AuthStore] Saving to file: {:?}", path);
+
+        let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
+        std::fs::write(&path, json).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn load_from_keyring() -> Option<DeviceConfig> {
-        let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).ok()?;
-        let password = entry.get_password().ok()?;
+        println!("[AuthStore] Attempting to load from keyring Service: {}, User: {}", KEYRING_SERVICE, KEYRING_USER);
+        
+        let entry = match Entry::new(KEYRING_SERVICE, KEYRING_USER) {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("[AuthStore] Failed to create keyring entry: {}", e);
+                return None;
+            }
+        };
+
+        let password = match entry.get_password() {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("[AuthStore] Failed to retrieve password from keyring: {}", e);
+                return None;
+            }
+        };
         
         match serde_json::from_str(&password) {
-            Ok(config) => Some(config),
+            Ok(config) => {
+                println!("[AuthStore] Successfully loaded and parsed device config.");
+                Some(config)
+            },
             Err(e) => {
                 eprintln!("[AuthStore] Failed to parse config from keyring: {}", e);
                 None
@@ -63,9 +118,24 @@ impl AuthState {
     }
 
     fn save_to_keyring(config: &DeviceConfig) -> Result<(), String> {
-        let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
-        let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
-        entry.set_password(&json).map_err(|e| e.to_string())?;
+        // 1. Try Keyring
+        println!("[AuthStore] Saving config to keyring...");
+        let keyring_result = (|| -> Result<(), String> {
+            let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
+            let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
+            entry.set_password(&json).map_err(|e| e.to_string())?;
+            Ok(())
+        })();
+
+        if let Err(e) = keyring_result {
+            eprintln!("[AuthStore] Keyring save failed: {}. Falling back to file.", e);
+        } else {
+             println!("[AuthStore] Successfully saved to keyring");
+        }
+
+        // 2. ALWAYS Save to File as Backup
+        Self::save_to_file(config)?;
+        
         Ok(())
     }
 
