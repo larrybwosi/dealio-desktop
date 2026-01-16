@@ -258,3 +258,32 @@ pub async fn restore_member_session(
     println!("[AuthStore] Session restored for member: {}", member.name);
     Ok(())
 }
+
+#[tauri::command]
+pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), String> {
+    // 1. Clear Keyring
+    let keyring_del = (|| -> Result<(), String> {
+        let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
+        entry.delete_password().map_err(|e| e.to_string())?;
+        Ok(())
+    })();
+
+    if let Err(e) = keyring_del {
+         eprintln!("[AuthStore] Optional Keyring delete failed (might not exist): {}", e);
+    }
+
+    // 2. Clear File
+    if let Some(path) = AuthState::get_config_path() {
+        if path.exists() {
+             let _ = std::fs::remove_file(path);
+        }
+    }
+
+    // 3. Clear Memory
+    *state.device_config.lock().unwrap() = None;
+    *state.member_token.lock().unwrap() = None;
+    *state.current_user.lock().unwrap() = None;
+    
+    println!("[AuthStore] Device configuration reset complete.");
+    Ok(())
+}

@@ -35,9 +35,12 @@ pub struct PosProduct {
     pub category: String,
     
     // Make optional as some products might not have images
+    // Make optional as some products might not have images
     pub image_url: Option<String>, 
     
     // New field seen in your JSON
+    // Use custom deserializer to handle "004" (string) vs 0 (int)
+    #[serde(default, deserialize_with = "deserialize_option_string_or_num")]
     pub total_stock: Option<i32>, 
 
     pub variants: Vec<Variant>,
@@ -56,9 +59,53 @@ pub struct Variant {
 
     pub sku: String,
     pub barcode: Option<String>,
+    
+    #[serde(deserialize_with = "deserialize_string_or_num")]
     pub stock: i32,
 
     pub sellable_units: Vec<SellableUnit>,
+}
+
+// --- Custom Deserializers ---
+
+fn deserialize_option_string_or_num<'de, D>(deserializer: D) -> Result<Option<i32>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+    match v {
+        serde_json::Value::Number(n) => Ok(n.as_i64().map(|x| x as i32)),
+        serde_json::Value::String(s) => {
+            if s.is_empty() {
+                Ok(None)
+            } else {
+                s.parse::<f64>()
+                 .map(|f| Some(f as i32))
+                 .or_else(|_| s.parse::<i32>().map(Some))
+                 .map_err(serde::de::Error::custom)
+            }
+        },
+        serde_json::Value::Null => Ok(None),
+        _ => Err(serde::de::Error::custom("Expected number, string, or null")),
+    }
+}
+
+fn deserialize_string_or_num<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+    match v {
+        serde_json::Value::Number(n) => n.as_i64().map(|x| x as i32).ok_or_else(|| serde::de::Error::custom("Number out of range")),
+        serde_json::Value::String(s) => {
+             // Handle cases like "004" or "5.0"
+             s.parse::<f64>()
+              .map(|f| f as i32)
+              .or_else(|_| s.parse::<i32>())
+              .map_err(serde::de::Error::custom)
+        },
+        _ => Err(serde::de::Error::custom("Expected number or string")),
+    }
 }
 
 // --- 3. Sellable Unit ---

@@ -499,7 +499,9 @@ interface PosStore {
   updateItemQuantity: (productId: string, unitId: string, quantity: number) => void;
   updateItemInOrder: (item: OrderItem) => void;
   removeItemFromOrder: (productId: string, unitId: string) => void;
+  setProducts: (products: Product[]) => void;
   resetOrder: () => void;
+  resetStore: () => void;
   completeOrder: (paymentMethod: string, discountAmount: number) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
 
@@ -980,6 +982,37 @@ export const usePosStore = create<PosStore>()(
             ),
           },
         })),
+
+      setProducts: products => set({ products }),
+
+
+
+      resetStore: () =>
+        set({
+          products: [],
+
+          orders: [],
+          employees: [],
+          notifications: [],
+          heldOrders: [],
+          // Keep settings as is? User said "invalidate the products and the customers".
+          // We don't want to wipe business settings like tax rate etc unless requested.
+          // But "Device Reset" usually means clean slate.
+          // Let's safe clear transactional data.
+          lastCompletedOrder: null,
+          currentOrder: {
+            customerName: '',
+            orderType: 'takeaway',
+            items: [],
+            tableNumber: '',
+            instructions: '',
+            metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
+          },
+          // Clear caches if any
+        }),
 
       resetOrder: () =>
         set({

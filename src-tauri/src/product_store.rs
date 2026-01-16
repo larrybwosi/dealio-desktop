@@ -8,7 +8,7 @@ use anyhow::{Result, Context};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use tokio::fs as async_fs; // Import Tokio FS for async operations
 
-const STORE_FILENAME: &str = "pos_products.json";
+const STORE_FILENAME: &str = "dealio_products.json";
 const TIMEOUT_SECONDS: u64 = 60; 
 
 // --- State Management ---

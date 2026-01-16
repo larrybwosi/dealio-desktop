@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { useAuth } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { usePosStore } from '@/store/store';
 import { useNavigate } from 'react-router';
 
 // --- Tauri V2 Imports ---
@@ -74,7 +75,7 @@ export default function CheckinPage() {
   const [appVersion, setAppVersion] = useState<string>('');
 
   const { checkIn, isCheckingIn } = useAuth();
-  const { currentLocation, resetAll } = useAuthStore();
+  const { currentLocation } = useAuthStore();
   const navigate = useNavigate();
 
   const cardInputRef = useRef<HTMLInputElement>(null);
@@ -253,12 +254,38 @@ export default function CheckinPage() {
     }
   };
 
-  const handleResetConfig = () => {
-    navigate('/setup');
-    resetAll();
+  // --- Confirmation Dialog Logic ---
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
+  
+  const handleResetRequest = () => {
+      setResetDialogOpen(true);
+  };
+
+  const handleConfirmReset = async () => {
+      setResetDialogOpen(false);
+      
+      try {
+          // 1. Reset Backend
+          await invoke('reset_device_config');
+          
+          // 2. Reset Frontend Store (includes products, customers, etc)
+          // We need to access the store state directly as we might not have exposed resetStore via hook properly if typing was an issue,
+          // but assuming useAuthStore/usePosStore hooks are valid. 
+          // Note: `resetAll` is from `useAuthStore`. We also need `resetStore` from `usePosStore` (the main store).
+           
+          // Accessing the unstable_batchedUpdates equivalent or just separate calls
+          useAuthStore.getState().resetAll();
+          usePosStore.getState().resetStore();
+          
+          navigate('/setup');
+      } catch (err) {
+          console.error("Reset failed:", err);
+          setError("Failed to reset device");
+      }
   };
 
   return (
+    <>
     <div className="min-h-screen w-full flex bg-slate-950 text-white overflow-hidden">
       {/* --- LEFT SIDE: Visuals & Typewriter --- */}
       <div className="hidden lg:flex w-1/2 relative flex-col justify-between p-12 bg-slate-900 border-r border-slate-800">
@@ -313,9 +340,9 @@ export default function CheckinPage() {
           <Button
             variant="ghost"
             size="icon"
-            onClick={handleResetConfig}
-            className="absolute right-4 top-4 text-slate-600 hover:text-blue-400 hover:bg-slate-800 transition-colors rounded-full"
-            title="Reset API Configuration"
+            onClick={handleResetRequest}
+            className="absolute right-4 top-4 text-slate-600 hover:text-red-400 hover:bg-slate-800 transition-colors rounded-full"
+            title="Reset Device Configuration"
           >
             <Settings className="w-4 h-4" />
             <span className="sr-only">Settings</span>
@@ -476,6 +503,36 @@ export default function CheckinPage() {
           </CardFooter>
         </Card>
       </div>
+      
+      {/* Alert Dialog for Reset */}
+      {/* Using a custom modal if AlertDialog is not available, but assuming similar UI structure or basic modal */}
+       {resetDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="space-y-4">
+              <div className="flex flex-col space-y-2 text-center sm:text-left">
+                 <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-500" />
+                    Reset Device?
+                 </h2>
+                 <p className="text-sm text-slate-400">
+                    This will disconnect this device from the location, clear all local data (products, customers), and require a fresh setup. This action cannot be undone.
+                 </p>
+              </div>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2 gap-2 sm:gap-0 pt-2">
+                 <Button variant="outline" onClick={() => setResetDialogOpen(false)} className="border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
+                    Cancel
+                 </Button>
+                 <Button variant="destructive" onClick={handleConfirmReset} className="bg-red-600 hover:bg-red-700 text-white">
+                    Yes, Reset Everything
+                 </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
+    </>
   );
 }

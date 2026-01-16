@@ -767,7 +767,8 @@ pub fn run() {
             auth_store::login_member,
             auth_store::logout_member,
             auth_store::get_device_config,
-            auth_store::restore_member_session
+            auth_store::restore_member_session,
+            auth_store::reset_device_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

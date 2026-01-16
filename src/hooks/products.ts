@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 // import { API_ENDPOINT } from '@/lib/axios'; // Unused now
 import { useAuthStore } from '@/store/pos-auth-store';
+import { usePosStore } from '@/store/store';
 import { invoke } from '@tauri-apps/api/core';
 import { useDebounce } from 'use-debounce';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 
 // --- Types (Kept the same) ---
 export interface SellableUnit {
@@ -31,6 +32,7 @@ export interface PosProduct {
   barcode?: string;
   imageUrl?: string;
   stock: number;
+  totalStock?: number; // Added to match backend
   sellableUnits: SellableUnit[];
   variants: Variant[];
   updatedAt?: string;
@@ -44,6 +46,7 @@ interface UsePosProductsParams {
 
 export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
   const queryClient = useQueryClient();
+  const setProducts = usePosStore(state => state.setProducts);
   
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
@@ -58,10 +61,16 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     queryKey: ['pos-products', debouncedSearch, category],
     queryFn: async () => {
       // Invoke Tauri command to search local DB
-      return await invoke<PosProduct[]>('search_products_command', {
+      const rawProducts = await invoke<PosProduct[]>('search_products_command', {
         query: debouncedSearch,
         category: category,
       });
+
+      // Map backend totalStock to frontend stock
+      return rawProducts.map(p => ({
+        ...p,
+        stock: p.stock ?? p.totalStock ?? 0 
+      }));
     },
     // Prevent refetching simply because the user clicked the window
     staleTime: 1000 * 60 * 5, // 5 minutes
@@ -69,6 +78,22 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     // Keep previous data visible while fetching new search results to prevent UI flash
     placeholderData: (prev) => prev,
   });
+
+  // --- SYNC TO GLOBAL STORE ---
+  // When we fetch "all" products (no search, no category filter), update the global store
+  // so that features like Low Stock Alerts works.
+  useEffect(() => {
+    if (products.length > 0 && !debouncedSearch && category === 'all') {
+        const mappedForStore = products.map(p => ({
+             ...p,
+             // Ensure optional fields required by Store Product interface are populated if needed
+             // store.ts expects 'name' (optional) and 'productName' (required)
+             // backend sends 'productName'.
+             // We can just pass the mapped product since it now has 'stock'.
+        }));
+        setProducts(mappedForStore as any); // Cast as any if minor type mismatches exist, or align types perfectly.
+    }
+  }, [products, debouncedSearch, category, setProducts]);
 
   // --- MUTATION: Sync Logic ---
   const syncMutation = useMutation({
