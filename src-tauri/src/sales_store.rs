@@ -131,6 +131,8 @@ pub fn init_state(app: &AppHandle, state: &SalesState) {
 // 1. Process Sale (Non-blocking Background Sync)
 use crate::auth_store::AuthState;
 
+// In sales_store.rs
+
 // 1. Process Sale (Non-blocking Background Sync)
 pub async fn process_sale(
     app: AppHandle,
@@ -147,9 +149,12 @@ pub async fn process_sale(
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
 
-    let token = {
+    // FIX: Extract Member ID along with Token
+    let (token, member_id) = {
         let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
     };
     
     // A. Add to Local Queue (Encrypted) immediately
@@ -183,6 +188,9 @@ pub async fn process_sale(
     let location_id_clone = location_id.clone();
     let device_key_clone = device_key.clone();
     let token_clone = token.clone();
+    
+    // FIX: Clone member_id for background thread
+    let member_id_clone = member_id.clone();
 
     tauri::async_runtime::spawn(async move {
         println!("[Background] Starting sync for sale: {}", sale_id_clone);
@@ -193,7 +201,8 @@ pub async fn process_sale(
             &location_id_clone, 
             &payload_clone, 
             Some(device_key_clone),
-            token_clone
+            token_clone,
+            member_id_clone // <--- Added member_id
         ).await;
 
         let mut q = queue_ref.lock().unwrap();
@@ -228,7 +237,6 @@ pub async fn process_sale(
 }
 
 // 2. Background Sync (Retry mechanism)
-// 2. Background Sync (Retry mechanism)
 pub async fn sync_pending_sales(
     app: AppHandle,
     state: &SalesState,
@@ -243,9 +251,12 @@ pub async fn sync_pending_sales(
         }
     };
 
-    let token = {
+    // FIX: Extract Member ID along with Token
+    let (token, member_id) = {
         let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
     };
 
     if base_url.is_empty() || device_key.is_none() {
@@ -266,7 +277,15 @@ pub async fn sync_pending_sales(
 
     // We can run these concurrently or sequentially. Sequentially is safer for order.
     for sale in pending_items {
-        match push_single_sale(&base_url, &sale.location_id, &sale.transaction_data, device_key.clone(), token.clone()).await {
+        // FIX: Pass member_id to push_single_sale
+        match push_single_sale(
+            &base_url, 
+            &sale.location_id, 
+            &sale.transaction_data, 
+            device_key.clone(), 
+            token.clone(),
+            member_id.clone() // <--- Added member_id
+        ).await {
             Ok(_) => {
                 ids_to_remove.push(sale.id);
                 success_count += 1;
@@ -292,7 +311,8 @@ async fn push_single_sale(
     location_id: &str, 
     payload: &serde_json::Value, 
     device_key: Option<String>,
-    token: Option<String>
+    token: Option<String>,
+    member_id: Option<String> // <--- FIX: Added member_id parameter
 ) -> Result<serde_json::Value> {
     
     let clean_base = base_url.trim_end_matches('/');
@@ -316,6 +336,12 @@ async fn push_single_sale(
         headers.insert(AUTHORIZATION, val);
     }
 
+    // FIX: Add Member ID Header
+    if let Some(mid) = member_id {
+        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
+        headers.insert("X-Member-Id", val);
+    }
+
     // Build client with extended timeout for M-Pesa scenarios
     let client = reqwest::Client::builder()
         .default_headers(headers)
@@ -334,6 +360,7 @@ async fn push_single_sale(
     let body: serde_json::Value = resp.json().await?;
     Ok(body)
 }
+
 
 pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
     state.queue.lock().unwrap().clone()

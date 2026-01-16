@@ -10,7 +10,7 @@ use keyring::Entry;
 pub struct MemberProfile {
     pub id: String,
     pub name: String,
-    pub role: String,
+    pub role: Option<String>,
     // Add other non-sensitive fields from your Member model
 }
 
@@ -245,4 +245,16 @@ pub async fn logout_member(state: State<'_, AuthState>) -> Result<(), String> {
 pub async fn get_device_config(state: State<'_, AuthState>) -> Result<Option<DeviceConfig>, String> {
     let config = state.device_config.lock().map_err(|_| "Lock error")?;
     Ok(config.clone())
+}
+
+#[tauri::command]
+pub async fn restore_member_session(
+    state: State<'_, AuthState>,
+    token: String,
+    member: MemberProfile
+) -> Result<(), String> {
+    *state.member_token.lock().unwrap() = Some(token);
+    *state.current_user.lock().unwrap() = Some(member.clone());
+    println!("[AuthStore] Session restored for member: {}", member.name);
+    Ok(())
 }

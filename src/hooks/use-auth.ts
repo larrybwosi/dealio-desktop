@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { invoke } from '@tauri-apps/api/core';
 import { apiClient } from '@/lib/axios';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
@@ -54,6 +55,16 @@ export function useAuth() {
     onSuccess: data => {
       // On success, update the global store with member, token, AND restoration status
       setMemberSession(data.member, data.token, data.restoredSession);
+
+      // Sync with Rust Backend
+      invoke('restore_member_session', { 
+        token: data.token, 
+        member: {
+          id: data.member.id,
+          name: data.member.name,
+          role: (data.member as any).role || 'staff' // Fallback if missing
+        } 
+      }).catch((err: unknown) => console.error("Failed to sync session to Rust:", err));
 
       // Provide context-aware feedback
       if (data.restoredSession) {

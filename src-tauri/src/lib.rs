@@ -617,11 +617,9 @@ async fn close_shift_command(
 #[tauri::command]
 async fn sync_shifts_command(
     state: State<'_, ShiftState>,
-    base_url: String,
-    location_id: String,
-    api_token: String
+    auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    shift_store::sync_pending_shifts(&state, base_url, location_id, api_token).await
+    shift_store::sync_pending_shifts(&state, &auth_state).await
 }
 
 
@@ -768,7 +766,8 @@ pub fn run() {
             auth_store::set_device_config,
             auth_store::login_member,
             auth_store::logout_member,
-            auth_store::get_device_config
+            auth_store::get_device_config,
+            auth_store::restore_member_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -178,6 +178,21 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
                }
              }
              set({ isInitialized: true });
+             
+             // Sync existing session to Rust if present
+             const { memberToken, currentMember } = get();
+             if (memberToken && currentMember) {
+                console.log("[AuthStore] Restoring backend session...");
+                invoke('restore_member_session', { 
+                    token: memberToken, 
+                    member: {
+                      id: currentMember.id,
+                      name: currentMember.name,
+                      role: (currentMember as any).role || 'staff'
+                    } 
+                }).catch(e => console.error("Failed to restore backend session:", e));
+             }
+
           } else {
              set({ isInitialized: true });
           }

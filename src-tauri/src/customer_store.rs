@@ -141,6 +141,8 @@ pub fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Resul
 // --- 2. Sync Engine ---
 use crate::auth_store::AuthState;
 
+// In customer_store.rs
+
 pub async fn run_sync(
     app: AppHandle,
     state: &CustomerState,
@@ -154,9 +156,13 @@ pub async fn run_sync(
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
 
-    let member_token = {
+    // FIX: Extract Member ID along with Token
+    let (member_token, member_id) = {
         let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        
+        let mid = user_guard.as_ref().map(|u| u.id.clone());
+        (token_guard.clone(), mid)
     };
     
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
@@ -165,7 +171,6 @@ pub async fn run_sync(
     let target_url = format!("{}/api/v1/pos/customers", clean_base_url);
     let last_token = state.last_sync_token.lock().unwrap().clone();
     
-    // --- BUILD HEADERS ---
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
     
@@ -178,6 +183,12 @@ pub async fn run_sync(
         let mut val = HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
         val.set_sensitive(true);
         headers.insert(AUTHORIZATION, val);
+    }
+
+    // FIX: Add Member ID Header
+    if let Some(mid) = member_id {
+        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
+        headers.insert("X-Member-Id", val);
     }
 
     let client = reqwest::Client::builder()

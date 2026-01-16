@@ -503,7 +503,7 @@ function CategoryBadge({ label, isActive, onClick }: { label: string, isActive: 
         <button
             onClick={onClick}
             className={cn(
-                'px-4 py-2 text-sm font-medium rounded-full transition-all border',
+                'px-4 py-2 text-sm font-medium rounded-sm transition-all border',
                 isActive 
                     ? 'bg-primary text-primary-foreground border-primary shadow-sm' 
                     : 'bg-background text-muted-foreground border-border hover:border-primary/50 hover:bg-muted/50'

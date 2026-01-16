@@ -2,6 +2,8 @@ use std::sync::Mutex;
 use chrono::Utc;
 use uuid::Uuid;
 use crate::models::{Shift, CashMovement, ShiftSyncPayload};
+use crate::auth_store::AuthState;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
 // The State container
 pub struct ShiftState {
@@ -156,11 +158,27 @@ VARIANCE:           {:.2}
 
 pub async fn sync_pending_shifts(
     state: &ShiftState,
-    base_url: String,
-    location_id: String,
-    api_token: String
+    auth_state: &AuthState
 ) -> Result<String, String> {
     
+    // 1. Get Config/Auth from State
+    let (base_url, location_id, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| "Lock error".to_string())?;
+        let config = config_guard.as_ref().ok_or("Device not configured".to_string())?;
+        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+    };
+
+    let member_token = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| "Lock error".to_string())?;
+        token_guard.clone()
+    };
+    
+    // FIX: Extract Member ID
+    let member_id = {
+        let user_guard = auth_state.current_user.lock().map_err(|_| "Lock error".to_string())?;
+        user_guard.as_ref().map(|u| u.id.clone())
+    };
+
     let shift_opt = {
         let lock = state.current_shift.lock().unwrap();
         lock.clone()
@@ -177,7 +195,6 @@ pub async fn sync_pending_shifts(
             opened_at: shift.opened_at.to_rfc3339(),
             closed_at: shift.closed_at.map(|t| t.to_rfc3339()),
             
-            // Fix 2: Unwrap Option<String> to String for the payload
             operator_card_id: shift.operator_card_id.unwrap_or_default(), 
             operator_pin: shift.operator_pin.unwrap_or_default(), 
 
@@ -188,9 +205,33 @@ pub async fn sync_pending_shifts(
             variance: shift.variance,
         };
 
-        let client = reqwest::Client::new();
-        let res = client.post(format!("{}/api/shifts/sync", base_url))
-            .header("Authorization", format!("Bearer {}", api_token))
+        // --- BUILD HEADERS ---
+        let mut headers = HeaderMap::new();
+        
+        let mut val = HeaderValue::from_str(&device_key).map_err(|_| "Invalid Device Key".to_string())?;
+        val.set_sensitive(true);
+        headers.insert("X-Device-Api-Key", val);
+
+        if let Some(token) = member_token {
+            let auth_val = format!("Bearer {}", token);
+            let mut val = HeaderValue::from_str(&auth_val).map_err(|_| "Invalid Token".to_string())?;
+            val.set_sensitive(true);
+            headers.insert(AUTHORIZATION, val);
+        }
+        
+        // Add Member ID Header
+        if let Some(mid) = member_id {
+            let val = HeaderValue::from_str(&mid).map_err(|_| "Invalid Member ID".to_string())?;
+            headers.insert("X-Member-Id", val);
+        }
+
+        let client = reqwest::Client::builder()
+            .default_headers(headers)
+            .build()
+            .map_err(|e| e.to_string())?;
+
+        let clean_base_url = base_url.trim_end_matches('/');
+        let res = client.post(format!("{}/api/v1/pos/shifts/sync", clean_base_url)) // Updated endpoint path to match standard
             .json(&payload)
             .send()
             .await
