@@ -1,16 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
-import { useAuthStore } from "@/store/pos-auth-store";
+// import { useAuthStore } from "@/store/pos-auth-store";
 import { API_ENDPOINT } from "@/lib/axios";
 import { useMemo, useDeferredValue, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 
 // --- HOOKS ---
 
 export const usePosPricingSync = () => {
   const queryClient = useQueryClient();
   
+  
   // Get Auth & Config Data
-  const { deviceKey, memberToken } = useAuthStore();
+  // const { deviceKey, memberToken } = useAuthStore(); // Unused
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -19,11 +21,7 @@ export const usePosPricingSync = () => {
           console.warn("API Endpoint is missing, sending empty string to Rust for debugging.");
       }
       
-      const result = await invoke("sync_pricing_command", {
-        baseUrl: API_ENDPOINT,
-        deviceKey,
-        memberToken
-      });
+      const result = await invoke("sync_pricing_command", {});
       return result;
     },
     onSuccess: (newTimestamp) => {

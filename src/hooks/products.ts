@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { API_ENDPOINT } from '@/lib/axios';
+// import { API_ENDPOINT } from '@/lib/axios'; // Unused now
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
 import { useDebounce } from 'use-debounce';
@@ -46,9 +46,8 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
   const queryClient = useQueryClient();
   
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
+  // 1. Selectors prevent unnecessary re-renders when other auth parts change
   const locationId = useAuthStore((state) => state.currentLocation?.id);
-  const deviceKey = useAuthStore((state) => state.deviceKey);
-  const memberToken = useAuthStore((state) => state.memberToken);
 
   // 2. Debounce the search input (500ms delay)
   const safeSearch = search || "";
@@ -76,15 +75,9 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
     mutationFn: async () => {
       if (!locationId) throw new Error("No Location ID");
 
-      const payload = {
-        baseUrl: API_ENDPOINT,
-        locationId: locationId,
-        deviceKey: deviceKey ?? null,
-        memberToken: memberToken ?? null
-      };
-
       // CRITICAL: Ensure 'sync_products_command' is ASYNC in Rust
-      const res = await invoke('sync_products_command', payload);
+      // No args needed now, backend uses stored auth state
+      const res = await invoke('sync_products_command', {});
       return res;
     },
     onSuccess: () => {

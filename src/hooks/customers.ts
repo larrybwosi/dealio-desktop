@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from '@tauri-apps/api/core';
 import { useCallback } from 'react';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { API_ENDPOINT } from '@/lib/axios';
+// import { API_ENDPOINT } from '@/lib/axios';
 import { apiClient } from "@/lib/axios";
 import { Customer } from "@/types";
 import { useDebounce } from "use-debounce";
@@ -34,9 +34,8 @@ export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParam
     const queryClient = useQueryClient();
     
     // 1. Optimization: Use Selectors to prevent unnecessary re-renders
+    // 1. Optimization: Use Selectors to prevent unnecessary re-renders
     const locationId = useAuthStore((state) => state.currentLocation?.id);
-    const deviceKey = useAuthStore((state) => state.deviceKey);
-    const memberToken = useAuthStore((state) => state.memberToken);
 
     const safeSearch = search || "";
     const [debouncedSearch] = useDebounce(safeSearch, 500);
@@ -57,15 +56,9 @@ export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParam
         mutationFn: async () => {
             if (!locationId) throw new Error("No Location ID");
 
-            const payload = {
-                baseUrl: API_ENDPOINT,
-                locationId: locationId,
-                deviceKey: deviceKey ?? null,
-                memberToken: memberToken ?? null
-            };
-
             console.log("Syncing Customers...");
-            const res = await invoke('sync_customers_command', payload);
+            // No args needed now, backend uses stored auth state
+            const res = await invoke('sync_customers_command', {});
             console.log("Sync Result:", res);
             return res;
         },

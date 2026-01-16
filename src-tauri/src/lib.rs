@@ -46,12 +46,9 @@ struct ScanPayload {
 async fn sync_products_command(
     app: AppHandle,
     state: State<'_, ProductState>,
-    base_url: String,
-    location_id: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    match product_store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
+    match product_store::run_sync(app, &state, &auth_state).await {
         Ok(count) => {
             Ok(format!("Synced {} products", count))
         },
@@ -77,12 +74,9 @@ fn search_products_command(
 async fn sync_customers_command(
     app: AppHandle,
     state: State<'_, CustomerState>,
-    base_url: String,
-    location_id: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    match customer_store::run_sync(app, &state, base_url, location_id, device_key, member_token).await {
+    match customer_store::run_sync(app, &state, &auth_state).await {
         Ok(count) => Ok(format!("Synced {} customers", count)),
         Err(e) => Err(e.to_string())
     }
@@ -102,15 +96,12 @@ fn search_customers_command(
 async fn process_sale_command(
     app: AppHandle,
     state: State<'_, SalesState>,
+    auth_state: State<'_, AuthState>,
     sale_id: String,
-    location_id: String,
-    payload: serde_json::Value,
-    base_url: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    payload: serde_json::Value
 ) -> Result<models::SaleResponse, String> {
-    // Pass device_key to the logic
-    sales_store::process_sale(app, &state, sale_id, location_id, payload, base_url, device_key, member_token)
+    // Pass auth_state to the logic
+    sales_store::process_sale(app, &state, sale_id, payload, &auth_state)
         .await
         .map_err(|e| e.to_string())
 }
@@ -119,12 +110,10 @@ async fn process_sale_command(
 async fn sync_sales_command(
     app: AppHandle,
     state: State<'_, SalesState>,
-    base_url: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    // Pass device_key to the logic
-    match sales_store::sync_pending_sales(app, &state, base_url, device_key, member_token).await {
+    // Pass auth_state to the logic
+    match sales_store::sync_pending_sales(app, &state, &auth_state).await {
         Ok(count) => Ok(format!("Synced {} sales", count)),
         Err(e) => Err(e.to_string())
     }
@@ -143,11 +132,9 @@ fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::Queued
 async fn sync_pricing_command(
     app: AppHandle,
     state: State<'_, PricingState>,
-    base_url: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    match pricing_store::run_sync(app, &state, base_url, device_key, member_token).await {
+    match pricing_store::run_sync(app, &state, &auth_state).await {
         Ok(timestamp) => Ok(timestamp),
         Err(e) => Err(e.to_string())
     }

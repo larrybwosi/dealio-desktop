@@ -1,10 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { isAxiosError } from 'axios';
-import { apiClient, API_ENDPOINT } from '@/lib/axios';
+import { apiClient } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput } from '@/lib/validation/transactions';
 import { invoke } from '@tauri-apps/api/core';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 // --- Types & Enums ---
 
@@ -111,7 +111,7 @@ export type { RustQueuedSale };
  * 3. Rust attempts background sync immediately.
  */
 export const useProcessSale = () => {
-  const { currentLocation, memberToken, deviceKey } = useAuthStore();
+  const { currentLocation } = useAuthStore();
   const locationId = currentLocation?.id;
   const queryClient = useQueryClient();
 
@@ -131,11 +131,7 @@ export const useProcessSale = () => {
       // Call Rust Command (Non-blocking background process)
       const response = await invoke<RustSaleResponse>('process_sale_command', {
         saleId,
-        locationId,
         payload,
-        baseUrl: API_ENDPOINT,
-        deviceKey: deviceKey || null,
-        memberToken: memberToken || null
       });
 
       return { ...response, saleId };
@@ -180,10 +176,7 @@ export const usePendingSales = () => {
   const syncMutation = useMutation({
     mutationFn: async () => {
        // Trigger manual sync
-       const count = await invoke<number>('sync_sales_command', { 
-         baseUrl: API_ENDPOINT,
-         // Auth params fetched inside rust or passed here if needed
-       });
+       const count = await invoke<number>('sync_sales_command', {});
        return count;
     },
     onSuccess: () => {

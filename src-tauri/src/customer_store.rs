@@ -139,14 +139,25 @@ pub fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Resul
 }
 
 // --- 2. Sync Engine ---
+use crate::auth_store::AuthState;
+
 pub async fn run_sync(
     app: AppHandle,
     state: &CustomerState,
-    base_url: String,
-    _location_id: String,
-    device_key: Option<String>,
-    member_token: Option<String>
+    auth_state: &AuthState
 ) -> Result<usize> {
+    
+    // 1. Get Config/Auth from State
+    let (base_url, _location_id, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+    };
+
+    let member_token = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        token_guard.clone()
+    };
     
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
 
@@ -155,12 +166,13 @@ pub async fn run_sync(
     let last_token = state.last_sync_token.lock().unwrap().clone();
     
     // --- BUILD HEADERS ---
+    // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
-    if let Some(key) = device_key {
-        let mut val = HeaderValue::from_str(&key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
-        val.set_sensitive(true);
-        headers.insert("X-Device-Api-Key", val);
-    }
+    
+    let mut val = HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
+    val.set_sensitive(true);
+    headers.insert("X-Device-Api-Key", val);
+
     if let Some(token) = member_token {
         let auth_val = format!("Bearer {}", token);
         let mut val = HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;

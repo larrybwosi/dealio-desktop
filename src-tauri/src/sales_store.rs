@@ -129,16 +129,28 @@ pub fn init_state(app: &AppHandle, state: &SalesState) {
 }
 
 // 1. Process Sale (Non-blocking Background Sync)
+use crate::auth_store::AuthState;
+
+// 1. Process Sale (Non-blocking Background Sync)
 pub async fn process_sale(
     app: AppHandle,
     state: &SalesState,
     sale_id: String,
-    location_id: String,
     payload: serde_json::Value,
-    base_url: String,
-    device_key: Option<String>,
-    token: Option<String>
+    auth_state: &AuthState
 ) -> Result<SaleResponse> {
+    
+    // 1. Get Config/Auth from State
+    let (base_url, location_id, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+    };
+
+    let token = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        token_guard.clone()
+    };
     
     // A. Add to Local Queue (Encrypted) immediately
     let new_sale = QueuedSale {
@@ -180,7 +192,7 @@ pub async fn process_sale(
             &base_url_clone, 
             &location_id_clone, 
             &payload_clone, 
-            device_key_clone, 
+            Some(device_key_clone),
             token_clone
         ).await;
 
@@ -216,13 +228,29 @@ pub async fn process_sale(
 }
 
 // 2. Background Sync (Retry mechanism)
+// 2. Background Sync (Retry mechanism)
 pub async fn sync_pending_sales(
     app: AppHandle,
     state: &SalesState,
-    base_url: String,
-    device_key: Option<String>,
-    token: Option<String>
+    auth_state: &AuthState
 ) -> Result<usize> {
+    // 1. Get Config/Auth from State
+    let (base_url, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        match config_guard.as_ref() {
+            Some(c) => (c.base_url.clone(), Some(c.device_key.clone())),
+            None => (String::new(), None) // Handle unconfigured state gracefully?
+        }
+    };
+
+    let token = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        token_guard.clone()
+    };
+
+    if base_url.is_empty() || device_key.is_none() {
+        return Ok(0); // Cannot sync if not configured
+    }
     let pending_items: Vec<QueuedSale> = {
         let q = state.queue.lock().unwrap();
         q.iter()
