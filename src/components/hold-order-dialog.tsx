@@ -42,24 +42,28 @@ const QUICK_REASONS = [
   'Loyalty lookup',
 ];
 
-const priorityOptions: { value: HeldOrderPriority; label: string; description: string; color: string }[] = [
+// Updated priorityOptions with dark-mode safe semantic colors
+const priorityOptions: { value: HeldOrderPriority; label: string; description: string; color: string; iconColor: string }[] = [
   {
     value: 'normal',
     label: 'Normal',
     description: 'Standard hold priority',
-    color: 'border-slate-300 bg-slate-50 hover:bg-slate-100',
+    color: 'border-border bg-card hover:bg-accent',
+    iconColor: 'text-muted-foreground',
   },
   {
     value: 'high',
     label: 'High',
     description: 'Customer waiting nearby',
-    color: 'border-amber-300 bg-amber-50 hover:bg-amber-100',
+    color: 'border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 dark:border-amber-500/20 dark:bg-amber-500/10',
+    iconColor: 'text-amber-600 dark:text-amber-500',
   },
   {
     value: 'urgent',
     label: 'Urgent',
     description: 'Immediate attention needed',
-    color: 'border-red-300 bg-red-50 hover:bg-red-100',
+    color: 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 dark:border-destructive/20 dark:bg-destructive/10',
+    iconColor: 'text-destructive',
   },
 ];
 
@@ -84,16 +88,12 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
 
   const handleHold = () => {
     if (!canHold) {
-      toast.error('Maximum held orders reached', {
-        description: `You can hold a maximum of ${maxHeldOrders} orders. Please complete or delete existing held orders.`,
-      });
+      toast.error('Maximum held orders reached');
       return;
     }
 
     if (!reasonValid) {
-      toast.error('Reason required', {
-        description: 'Please enter a reason for holding this order.',
-      });
+      toast.error('Reason required');
       return;
     }
 
@@ -104,15 +104,10 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
       icon: <Pause className="w-4 h-4" />,
     });
 
-    // Reset state
     setReason('');
     setPriority('normal');
     onOpenChange(false);
     onHoldComplete?.();
-  };
-
-  const handleQuickReason = (quickReason: string) => {
-    setReason(quickReason);
   };
 
   return (
@@ -128,8 +123,8 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
           </DialogDescription>
         </DialogHeader>
 
-        {/* Order Summary */}
-        <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+        {/* Order Summary - Uses bg-muted/50 for subtle contrast in both modes */}
+        <div className="bg-muted/50 rounded-lg p-4 space-y-2 border border-border/50">
           <div className="flex items-center justify-between text-sm">
             <span className="flex items-center gap-2 text-muted-foreground">
               <ShoppingBag className="w-4 h-4" />
@@ -153,20 +148,18 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
           </div>
         </div>
 
-        {/* Warning for max orders */}
         {!canHold && (
-          <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 flex items-start gap-2">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-medium text-destructive">Maximum Held Orders Reached</p>
-              <p className="text-muted-foreground">
-                You have {heldOrders.length}/{maxHeldOrders} held orders. Complete or delete some before holding more.
+              <p className="text-muted-foreground text-xs">
+                You have {heldOrders.length}/{maxHeldOrders} held orders.
               </p>
             </div>
           </div>
         )}
 
-        {/* Reason Input */}
         <div className="space-y-3">
           <Label htmlFor="reason" className="flex items-center gap-1">
             <MessageSquare className="w-4 h-4" />
@@ -174,25 +167,24 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
           </Label>
           <Input
             id="reason"
-            placeholder={requireHoldReason ? 'Enter reason for holding...' : 'Optional reason for holding...'}
+            placeholder={requireHoldReason ? 'Enter reason...' : 'Optional reason...'}
             value={reason}
             onChange={e => setReason(e.target.value)}
             className={cn(!reasonValid && 'border-destructive focus-visible:ring-destructive')}
           />
           
-          {/* Quick Reasons */}
           <div className="flex flex-wrap gap-1.5">
             {QUICK_REASONS.map(quickReason => (
               <Badge
                 key={quickReason}
-                variant="outline"
+                variant="secondary"
                 className={cn(
-                  'cursor-pointer transition-colors text-xs',
+                  'cursor-pointer transition-colors text-xs font-normal border-transparent',
                   reason === quickReason
-                    ? 'bg-primary/10 border-primary text-primary'
-                    : 'hover:bg-muted'
+                    ? 'bg-primary text-primary-foreground hover:bg-primary'
+                    : 'hover:bg-accent text-muted-foreground'
                 )}
-                onClick={() => handleQuickReason(quickReason)}
+                onClick={() => setReason(quickReason)}
               >
                 {quickReason}
               </Badge>
@@ -200,7 +192,6 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
           </div>
         </div>
 
-        {/* Priority Selection */}
         <div className="space-y-3">
           <Label className="flex items-center gap-1">
             <Clock className="w-4 h-4" />
@@ -213,26 +204,26 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
                 type="button"
                 onClick={() => setPriority(option.value)}
                 className={cn(
-                  'p-3 rounded-lg border-2 text-center transition-all',
+                  'p-3 rounded-lg border text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   option.color,
                   priority === option.value
-                    ? 'ring-2 ring-primary ring-offset-2'
-                    : 'hover:shadow-sm'
+                    ? 'ring-2 ring-primary ring-offset-2 ring-offset-background'
+                    : 'opacity-80 hover:opacity-100'
                 )}
               >
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  {option.value === 'high' && <AlertTriangle className="w-3 h-3 text-amber-600" />}
-                  {option.value === 'urgent' && <AlertCircle className="w-3 h-3 text-red-600" />}
-                  <span className="font-medium text-sm">{option.label}</span>
+                  {option.value === 'high' && <AlertTriangle className={cn("w-3 h-3", option.iconColor)} />}
+                  {option.value === 'urgent' && <AlertCircle className={cn("w-3 h-3", option.iconColor)} />}
+                  <span className="font-semibold text-xs">{option.label}</span>
                 </div>
-                <p className="text-[10px] text-muted-foreground">{option.description}</p>
+                <p className="text-[10px] text-muted-foreground leading-tight">{option.description}</p>
               </button>
             ))}
           </div>
         </div>
 
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button

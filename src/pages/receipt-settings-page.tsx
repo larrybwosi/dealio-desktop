@@ -40,25 +40,25 @@ function SettingsSection({
   
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <Card className="border-border/50">
+      <Card className="border-border/40 shadow-sm hover:shadow-md transition-all duration-200 bg-card/50 backdrop-blur-sm">
         <CollapsibleTrigger asChild>
-          <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors py-3">
+          <CardHeader className="cursor-pointer hover:bg-muted/40 active:bg-muted/60 transition-colors py-3.5 px-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
+                <div className="p-2 rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 shadow-sm">
                   <Icon className="w-4 h-4 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                  {description && <CardDescription className="text-xs">{description}</CardDescription>}
+                  <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+                  {description && <CardDescription className="text-xs mt-0.5">{description}</CardDescription>}
                 </div>
               </div>
-              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+              <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-200", isOpen && "rotate-180")} />
             </div>
           </CardHeader>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <CardContent className="pt-0 pb-4 space-y-4">{children}</CardContent>
+          <CardContent className="pt-0 pb-5 px-4 space-y-4">{children}</CardContent>
         </CollapsibleContent>
       </Card>
     </Collapsible>
@@ -70,10 +70,10 @@ function ToggleRow({ label, description, checked, onChange }: {
   label: string; description?: string; checked: boolean; onChange: (v: boolean) => void 
 }) {
   return (
-    <div className="flex items-center justify-between py-1.5">
-      <div>
-        <Label className="text-sm">{label}</Label>
-        {description && <p className="text-xs text-muted-foreground">{description}</p>}
+    <div className="flex items-center justify-between py-2 px-1 rounded-md hover:bg-muted/30 transition-colors">
+      <div className="flex-1 pr-4">
+        <Label className="text-sm font-medium cursor-pointer">{label}</Label>
+        {description && <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{description}</p>}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} />
     </div>
@@ -231,44 +231,50 @@ export default function ReceiptSettingsPage() {
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
       {/* Left Panel: Settings */}
-      <div className="w-full lg:w-[480px] xl:w-[520px] flex flex-col border-r bg-card h-full">
+      <div className="w-full lg:w-[480px] xl:w-[540px] flex flex-col border-r bg-gradient-to-b from-background to-muted/30 h-full">
         {/* Header */}
-        <div className="p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-20">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5">
+        <div className="p-5 border-b bg-background/95 backdrop-blur-md sticky top-0 z-20 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/25 via-primary/15 to-primary/5 shadow-sm">
                 <Printer className="w-5 h-5 text-primary" />
               </div>
               <div>
-                <h2 className="font-semibold text-lg">Print Settings</h2>
-                <p className="text-xs text-muted-foreground">Configure receipts & kitchen tickets</p>
+                <h2 className="font-bold text-xl tracking-tight">Print Settings</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Customize receipts & kitchen tickets</p>
               </div>
             </div>
             <Button 
-              variant="ghost" 
+              variant="outline" 
               size="sm" 
               onClick={() => mode === 'receipt' ? setConfig(getDefaultReceiptConfig()) : setKConfig(getDefaultKitchenTicketConfig())}
-              className="text-xs"
+              className="text-xs gap-1.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/50 transition-colors"
             >
-              <RotateCcw className="w-3 h-3 mr-1" /> Reset
+              <RotateCcw className="w-3.5 h-3.5" /> Reset
             </Button>
           </div>
 
           {/* Mode Tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 p-1 bg-muted/60 rounded-lg">
             <Button 
-              variant={mode === 'receipt' ? 'default' : 'outline'} 
+              variant={mode === 'receipt' ? 'default' : 'ghost'} 
               size="sm" 
               onClick={() => setMode('receipt')}
-              className="flex-1 h-9"
+              className={cn(
+                "flex-1 h-9 font-medium transition-all",
+                mode === 'receipt' ? 'shadow-sm' : 'hover:bg-background/60'
+              )}
             >
               <FileText className="w-4 h-4 mr-2" /> Customer Receipt
             </Button>
             <Button 
-              variant={mode === 'kitchen' ? 'default' : 'outline'} 
+              variant={mode === 'kitchen' ? 'default' : 'ghost'} 
               size="sm" 
               onClick={() => setMode('kitchen')}
-              className="flex-1 h-9"
+              className={cn(
+                "flex-1 h-9 font-medium transition-all",
+                mode === 'kitchen' ? 'shadow-sm' : 'hover:bg-background/60'
+              )}
             >
               <ChefHat className="w-4 h-4 mr-2" /> Kitchen Ticket
             </Button>
@@ -287,31 +293,46 @@ export default function ReceiptSettingsPage() {
 
       {/* Right Panel: Preview */}
       <div className={cn(
-        "flex-1 relative flex flex-col transition-colors duration-300",
-        previewBg === 'dark' ? "bg-neutral-900" : "bg-neutral-100"
+        "flex-1 relative flex flex-col transition-all duration-500",
+        previewBg === 'dark' 
+          ? "bg-gradient-to-br from-neutral-900 via-neutral-900 to-neutral-800" 
+          : "bg-gradient-to-br from-neutral-50 via-neutral-100 to-neutral-200"
       )}>
         {/* Preview Toolbar */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-background/95 backdrop-blur border shadow-lg rounded-full p-1.5 px-4">
-          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}>
-            <ZoomOut className="w-3.5 h-3.5" />
-          </Button>
-          <span className="text-xs font-mono w-10 text-center">{previewScale}%</span>
-          <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}>
-            <ZoomIn className="w-3.5 h-3.5" />
-          </Button>
-          <Separator orientation="vertical" className="h-4" />
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-background/98 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full p-1 px-3">
           <Button 
             variant="ghost" 
             size="icon" 
-            className="w-7 h-7"
+            className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
+            onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}
+          >
+            <ZoomOut className="w-4 h-4" />
+          </Button>
+          <span className="text-sm font-semibold tabular-nums w-14 text-center text-muted-foreground">{previewScale[0]}%</span>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
+            onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}
+          >
+            <ZoomIn className="w-4 h-4" />
+          </Button>
+          <Separator orientation="vertical" className="h-5 mx-1" />
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className={cn(
+              "w-8 h-8 rounded-full transition-all",
+              previewBg === 'dark' ? 'bg-primary/15 text-primary' : 'hover:bg-primary/10 hover:text-primary'
+            )}
             onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
           >
-            <Layout className="w-3.5 h-3.5" />
+            <Layout className="w-4 h-4" />
           </Button>
         </div>
 
         {/* Action Buttons */}
-        <div className="absolute top-4 right-4 z-20 flex gap-2">
+        <div className="absolute top-5 right-5 z-20 flex gap-2">
           <Button 
             size="sm" 
             disabled={isPrinting || isDownloading} 
@@ -319,9 +340,9 @@ export default function ReceiptSettingsPage() {
               ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />, 'receipt-test')
               : handlePrint(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
-            className="shadow-lg"
+            className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
           >
-            <Printer className="w-4 h-4 mr-2" /> {isPrinting ? 'Printing...' : 'Print Test'}
+            <Printer className="w-4 h-4" /> {isPrinting ? 'Printing...' : 'Print Test'}
           </Button>
           <Button 
             size="sm" 
@@ -331,16 +352,16 @@ export default function ReceiptSettingsPage() {
               ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />, 'receipt-test')
               : handleDownload(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
-            className="shadow-lg"
+            className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
           >
-            <Download className="w-4 h-4 mr-2" /> {isDownloading ? 'Saving...' : 'Download'}
+            <Download className="w-4 h-4" /> {isDownloading ? 'Saving...' : 'Download'}
           </Button>
         </div>
 
         {/* Preview Canvas */}
-        <div className="flex-1 overflow-auto flex items-start justify-center p-10 pt-20">
+        <div className="flex-1 overflow-auto flex items-start justify-center p-12 pt-24">
           <div 
-            className="transition-all duration-200 shadow-2xl"
+            className="transition-all duration-300 ease-out"
             style={{
               transform: `scale(${previewScale[0] / 100})`,
               transformOrigin: 'top center',

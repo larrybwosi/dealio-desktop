@@ -711,6 +711,13 @@ pub fn run() {
 
                 Ok(())
             })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Prevent the app from closing and hide the window instead
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         // .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_websocket::init())
         // .plugin(init())

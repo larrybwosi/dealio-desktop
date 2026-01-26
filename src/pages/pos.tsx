@@ -109,19 +109,25 @@ export function POS() {
 
   // --- SCREEN LAUNCH LOGIC ---
   useEffect(() => {
-    const initCustomerScreen = async () => {
-      // Only open if enabled in settings
-      if (!settings.enableCustomerDisplay) return;
+    const syncCustomerScreenWindow = async () => {
+      const globalEnabled = !!settings.enableCustomerDisplay;
+      const configEnabled = settings.customerDisplayConfig?.enabled ?? true;
+      const shouldBeOpen = globalEnabled && configEnabled;
 
       try {
-        await invoke('open_customer_screen');
-        console.log("Customer screen signal sent");
+        if (shouldBeOpen) {
+          await invoke('open_customer_screen');
+          console.log('Customer screen: opened');
+        } else {
+          await invoke('close_customer_screen');
+          console.log('Customer screen: closed');
+        }
       } catch (e) {
-        console.error("Failed to open customer screen:", e);
+        console.error('Failed to sync customer screen window:', e);
       }
     };
-    initCustomerScreen();
-  }, [settings.enableCustomerDisplay]);
+    syncCustomerScreenWindow();
+  }, [settings.enableCustomerDisplay, settings.customerDisplayConfig?.enabled]);
 
   // 4. Extract Categories
   useEffect(() => {
