@@ -1,71 +1,63 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { pdf } from '@react-pdf/renderer';
-import { Printer, Download, CheckCircle2, Loader2, Receipt, ArrowRight } from 'lucide-react';
-import { toast } from 'sonner';
+import { 
+  Printer, 
+  Download, 
+  Check, 
+  Loader2, 
+  Receipt, 
+  ArrowRight, 
+  CreditCard, 
+  Wallet 
+} from 'lucide-react';
 import QRCode from 'qrcode'; 
 
 // UI Components
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Badge } from '@/components/ui/badge';
 
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { ReceiptPreview } from '@/components/receipt-preview'; 
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
-
-// Tauri / System Imports
-import { BaseDirectory, writeFile, mkdir, exists, remove } from '@tauri-apps/plugin-fs';
-import { isTauri } from '@tauri-apps/api/core';
-import { documentDir } from '@tauri-apps/api/path';
-import { usePrinter } from '@/hooks/use-printer';
-import { processFileDownload } from '@/lib/utils';
+import { usePdfActions } from '@/hooks/use-pdf-actions';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 interface ReceiptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  completedOrder: any; // Raw order object from checkout
+  completedOrder: any; 
   onClose: () => void;
 }
 
 // --- Utility: Mapper ---
-/**
- * Maps the raw checkout object to the strict 'Order' interface
- * used by the Receipt System.
- */
 const formatOrderForReceipt = (order: any): Order | null => {
   if (!order) return null;
-
 
   return {
     id: order.id || 'temp-id',
     orderNumber: order.orderNumber || `#${Math.floor(Math.random() * 10000)}`,
     customerName: order.customer?.name || order.customerName || 'Guest',
-
-    // Enterprise Metadata
     orderType: order.orderType || 'Walk-in',
-    cashierName: order.cashierName || 'Staff', // Ensure your checkout passes this
-    paymentMethod: order.paymentMethod || 'Cash', // Ensure your checkout passes this
+    cashierName: order.cashierName || 'Staff',
+    paymentMethod: order.paymentMethod || 'Cash',
     status: 'completed',
-
-    items: (order.items || []).map((item: any) => {
-        return {
-            productId: item.productId || item.id,
-            productName: item.productName || item.name || 'Unknown Product',
-            variantName: item.variantName || item.variant || '',
-            sku: item.sku || '',
-            quantity: item.quantity || 1,
-            selectedUnit: {
-                unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
-                price: parseFloat(item.price || item.selectedUnit?.price || '0'),
-            },
-            note: item.note || item.notes || '',
-        };
-    }),
-
+    items: (order.items || []).map((item: any) => ({
+      productId: item.productId || item.id,
+      productName: item.productName || item.name || 'Unknown Product',
+      variantName: item.variantName || item.variant || '',
+      sku: item.sku || '',
+      quantity: item.quantity || 1,
+      selectedUnit: {
+        unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
+        price: parseFloat(item.price || item.selectedUnit?.price || '0'),
+      },
+      note: item.note || item.notes || '',
+    })),
     subTotal: parseFloat(order.subtotal || order.subTotal || '0'),
     discount: parseFloat(order.discount || '0'),
     taxes: parseFloat(order.tax || order.taxes || '0'),
@@ -74,10 +66,21 @@ const formatOrderForReceipt = (order: any): Order | null => {
   };
 };
 
+// --- Sub-component: Summary Card ---
+const SummaryMetric = ({ label, value, currency, highlight = false }: { label: string, value: number, currency: string, highlight?: boolean }) => (
+  <div className={cn("flex flex-col gap-1 p-3 rounded-lg border", highlight ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900" : "bg-card border-border")}>
+    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
+    <span className={cn("text-lg font-bold tabular-nums", highlight ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+      <span className="text-xs opacity-70 mr-0.5">{currency}</span>
+      {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    </span>
+  </div>
+);
+
 // --- Sub-component: Action Panel ---
 interface ActionPanelProps {
   completedOrder: any;
-  orderNumber: string;
+  formattedOrder: Order;
   onPrint: () => void;
   onDownload: () => void;
   onClose: () => void;
@@ -88,88 +91,124 @@ interface ActionPanelProps {
 
 const ActionPanel = ({
   completedOrder,
-  orderNumber,
+  formattedOrder,
   onPrint,
   onDownload,
   onClose,
   isPrinting,
   isDownloading,
   currency,
-}: ActionPanelProps) => (
-  <div className="flex flex-col h-full justify-between p-1 pt-4 md:pt-1">
-    <div className="text-center space-y-6">
-      {/* Success Header */}
-      <div className="space-y-2">
-        <div className="h-16 w-16 bg-emerald-500/10 dark:bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto animate-in zoom-in duration-300">
-          <CheckCircle2 className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+}: ActionPanelProps) => {
+  const changeDue = completedOrder.change ? parseFloat(completedOrder.change) : 0;
+  const amountPaid = parseFloat(completedOrder.amountPaid || formattedOrder.total);
+
+  return (
+    <div className="flex flex-col h-full justify-between p-6 md:p-8 animate-in slide-in-from-left-4 duration-500">
+      <div className="space-y-8">
+        {/* Header & Success State */}
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400 flex items-center justify-center shadow-sm ring-4 ring-emerald-50 dark:ring-emerald-950/50">
+              <Check className="h-6 w-6 stroke-[3px]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold tracking-tight text-foreground">Payment Successful</h2>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Badge variant="outline" className="font-mono text-xs px-1.5 py-0 h-5">
+                  {formattedOrder.orderNumber}
+                </Badge>
+                <span>•</span>
+                <span className="text-xs">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+            </div>
+          </div>
         </div>
-        <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-foreground">Payment Successful</DialogTitle>
-          <p className="text-muted-foreground">Transaction #{orderNumber} completed.</p>
-        </DialogHeader>
+
+        {/* Financial Summary */}
+        <div className="space-y-4">
+          {/* Hero Change Display */}
+          <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-card to-secondary/30 p-6 shadow-sm">
+            <div className="relative z-10">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Change Due</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-medium text-muted-foreground self-start mt-2">{currency}</span>
+                <span className="text-5xl font-extrabold tracking-tight text-foreground tabular-nums">
+                  {changeDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            </div>
+            {/* Background decoration */}
+            <div className="absolute -right-6 -bottom-6 opacity-5 dark:opacity-10">
+              <Wallet className="h-32 w-32" />
+            </div>
+          </div>
+
+          {/* Quick Stats Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryMetric label="Total Bill" value={formattedOrder.total} currency={currency} />
+            <SummaryMetric label="Amount Paid" value={amountPaid} currency={currency} />
+          </div>
+          
+          <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
+            <span className="flex items-center gap-1.5">
+              <CreditCard className="h-4 w-4" /> 
+              Method: <span className="font-medium text-foreground">{formattedOrder.paymentMethod}</span>
+            </span>
+            <span>{formattedOrder.items.length} items</span>
+          </div>
+        </div>
       </div>
 
-      {/* Change Due Display */}
-      <div className="bg-card border border-border p-6 rounded-xl shadow-sm">
-        <p className="text-sm text-muted-foreground uppercase tracking-wider font-semibold">Change Due</p>
-        <p className="text-4xl font-extrabold text-foreground mt-2">
-          <span className="text-lg font-medium text-muted-foreground mr-1">{currency}</span>
-          {completedOrder.change?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) ||
-            '0.00'}
-        </p>
+      {/* Action Buttons */}
+      <div className="space-y-3 mt-auto pt-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Button 
+            onClick={onPrint} 
+            disabled={isPrinting} 
+            className="h-12 shadow-sm transition-all active:scale-[0.98]" 
+            variant="default"
+          >
+            {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+            {isPrinting ? 'Printing...' : 'Print Receipt'}
+          </Button>
+
+          <Button
+            variant="outline"
+            onClick={onDownload}
+            disabled={isDownloading}
+            className="h-12 border-input bg-background hover:bg-accent/50 transition-all active:scale-[0.98]"
+          >
+            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            Download
+          </Button>
+        </div>
+
+        <Separator className="my-2" />
+
+        <Button
+          onClick={onClose}
+          size="lg"
+          className="w-full h-12 text-base font-medium bg-primary text-primary-foreground shadow-md hover:shadow-lg transition-all group"
+        >
+          Start New Order 
+          <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+        </Button>
       </div>
     </div>
-
-    {/* Actions */}
-    <div className="space-y-3 pt-8 md:pt-0">
-      <Button onClick={onPrint} disabled={isPrinting} className="w-full h-12 text-base shadow-sm" size="lg">
-        {isPrinting ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Printer className="mr-2 h-5 w-5" />}
-        {isPrinting ? 'Printing...' : 'Print Receipt'}
-      </Button>
-
-      <Button
-        variant="outline"
-        onClick={onDownload}
-        disabled={isDownloading}
-        className="w-full h-12 border-input bg-background hover:bg-accent hover:text-accent-foreground"
-      >
-        {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-        {isDownloading ? 'Generating PDF...' : 'Download PDF'}
-      </Button>
-
-      <Separator className="my-4 bg-border" />
-
-      <Button
-        variant="ghost"
-        onClick={onClose}
-        size="sm"
-        className="w-full text-muted-foreground hover:text-foreground group"
-      >
-        Start New Order <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-1" />
-      </Button>
-    </div>
-  </div>
-);
+  );
+};
 
 // --- Main Component ---
 export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: ReceiptDialogProps) {
   const settings = usePosStore(state => state.settings);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
-
-  const { printPdfReceipt } = usePrinter();
-
-  const [isPrinting, setIsPrinting] = useState<boolean>(false);
-  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
   const [qrCodePdfUrl, setQrCodePdfUrl] = useState<string>('');
 
-  // 1. Map Data
+  // Map Data
   const formattedOrder = useMemo(() => formatOrderForReceipt(completedOrder), [completedOrder]);
 
-  //settings
-  // const receiptSettings = settings.receiptConfig || {};
-
-  // 2. Generate QR for PDF (Base64)
-  // We do this here because the PDF renderer needs a string, it can't render a Canvas ref like the Preview does.
+  // Generate QR for PDF
   useEffect(() => {
     if (formattedOrder && receiptConfig?.showQrCode) {
       const qrData =
@@ -183,114 +222,27 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
     }
   }, [formattedOrder, receiptConfig]);
 
-  // 3. Document Instance (Memoized)
+  // Document Instance
   const DocumentInstance = useMemo(() => {
     if (!formattedOrder) return null;
     return <ReceiptPdfDocument order={formattedOrder} settings={settings} qrCodeUrl={qrCodePdfUrl} />;
   }, [formattedOrder, settings, qrCodePdfUrl]);
 
-  // --- 🖨️ Print Handler ---
-  const handlePrint = async () => {
-    if (!formattedOrder || !DocumentInstance) return;
-
-    // Web Fallback
-    if (!isTauri()) {
-      toast.info('Sending to browser print...');
-      window.print();
-      // Note: Ideally, you'd render the component to a hidden iframe for web printing,
-      // but standard window.print() works if the ReceiptPreview is styled with @media print.
-      return;
-    }
-
-    if (isPrinting) return;
-    setIsPrinting(true);
-    toast.info('Generating print job...');
-
-    let filePath = '';
-
-    try {
-      // Generate Blob
-      const blob = await pdf(DocumentInstance).toBlob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      // Sanitize Filename
-      const safeOrderNum = formattedOrder.orderNumber.replace(/[^a-z0-9]/gi, '_');
-      const fileName = `Receipt_${safeOrderNum}.pdf`;
-
-      // Directory Handling
-      const documentDirPath = await documentDir();
-      const dealioFolderPath = `${documentDirPath}/Dealio`;
-
-      if (!(await exists('Dealio', { baseDir: BaseDirectory.Document }))) {
-        await mkdir('Dealio', { baseDir: BaseDirectory.Document, recursive: true });
-      }
-
-      // Write & Print
-      filePath = `${dealioFolderPath}/${fileName}`;
-      await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Document });
-
-      printPdfReceipt(formattedOrder, settings, 1);
-
-      toast.success('Sent to printer!');
-    } catch (error) {
-      console.error('Silent print error:', error);
-      toast.error(`Print failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      // Cleanup
-      try {
-        if (filePath && (await exists(filePath, { baseDir: BaseDirectory.Document }))) {
-          await remove(filePath, { baseDir: BaseDirectory.Document });
-        }
-      } catch (e) {
-        console.error('Failed to remove file:', e);
-        /* ignore cleanup errors */
-      }
-      setIsPrinting(false);
-    }
-  };
-
-  // --- 📥 Download Handler ---
-  const handleDownload = async () => {
-    if (!formattedOrder || !DocumentInstance) return;
-    if (isDownloading) return;
-
-    setIsDownloading(true);
-    
-    const loadingToastId = toast.loading('Downloading receipt...', {
-      description: `Order: ${formattedOrder.orderNumber}`
-    });
-
-    try {
-      const blob = await pdf(DocumentInstance).toBlob();
-      const safeOrderNum = formattedOrder.orderNumber.replace(/[^a-z0-9]/gi, '_');
-      const fileName = `Receipt_${safeOrderNum}.pdf`;
-
-      await processFileDownload(blob, fileName, loadingToastId);
-    } catch (error) {
-      console.error('Download error:', error);
-      toast.error('Failed to save receipt', {
-        description: 'Please try again',
-        id: loadingToastId
-      });
-    } finally {
-      setIsDownloading(false);
-    }
-  };
-
   if (!formattedOrder) return null;
+  const safeOrderNum = formattedOrder.orderNumber.replace(/[^a-z0-9]/gi, '_');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] md:max-w-[950px] p-0 overflow-hidden gap-0 border-border bg-background">
-        <div className="grid grid-cols-1 md:grid-cols-2 h-full md:h-[650px] max-h-[90vh]">
-          {/* Left: Actions */}
-          <div className="p-6 md:p-8 flex flex-col h-full overflow-y-auto bg-background order-2 md:order-1">
+      <DialogContent className="sm:max-w-[500px] md:max-w-[1000px] p-0 overflow-hidden border-border bg-background shadow-2xl duration-300">
+        <div className="grid grid-cols-1 md:grid-cols-2 h-[90vh] md:h-[700px]">
+          
+          {/* LEFT: Actions Panel */}
+          <div className="order-2 md:order-1 bg-background h-full flex flex-col border-t md:border-t-0 md:border-r border-border/60">
             <ActionPanel
               completedOrder={completedOrder}
-              orderNumber={formattedOrder.orderNumber}
-              onPrint={handlePrint}
-              onDownload={handleDownload}
+              formattedOrder={formattedOrder}
+              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`)}
+              onDownload={() => DocumentInstance && handleDownload(DocumentInstance, `Receipt_${safeOrderNum}`)}
               onClose={onClose}
               isPrinting={isPrinting}
               isDownloading={isDownloading}
@@ -298,38 +250,41 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             />
           </div>
 
-          {/* Right: Live Preview */}
-          <div className="bg-neutral-100/80 p-6 md:p-8 border-b md:border-b-0 md:border-l border-border flex flex-col items-center justify-start h-full overflow-hidden order-1 md:order-2 relative">
-            <div className="absolute top-4 left-4 flex items-center gap-1.5 text-xs font-bold text-muted-foreground/60 uppercase tracking-wider z-10">
-              <Receipt className="h-3.5 w-3.5" />
-              <span>Preview</span>
+          {/* RIGHT: Live Preview */}
+          <div className="order-1 md:order-2 relative bg-neutral-100 dark:bg-neutral-900/50 flex flex-col h-full overflow-hidden">
+            
+            {/* Background Pattern for Texture */}
+            <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none" 
+                 style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }}>
             </div>
 
-            <ScrollArea className="h-full w-full pt-6">
-              <div className="pb-8 flex justify-center min-h-full">
-                {/* We use the same ReceiptPreview component from the Settings page.
-                   We pass the specific order and the global settings.
-                 */}
-                <div
-                  className="bg-white shadow-xl transition-all duration-200 ease-out origin-top"
+            {/* Preview Label */}
+            <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 dark:bg-black/40 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm">
+              <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs font-semibold text-foreground/80 tracking-wide uppercase">Receipt Preview</span>
+            </div>
+
+            <ScrollArea className="h-full w-full">
+              <div className="flex justify-center py-12 min-h-full">
+                <div 
+                  className={cn(
+                    "bg-white text-black shadow-2xl shadow-black/10 transition-transform duration-500 ease-out animate-in zoom-in-95 slide-in-from-bottom-4",
+                    "origin-top"
+                  )}
                   style={{
-                    width:
-                      receiptConfig?.paperSize === '80mm'
-                        ? '370px'
-                        : receiptConfig?.paperSize === '58mm'
-                        ? '280px'
-                        : '480px',
-                    transform: 'scale(0.9)', // Slight scale down to fit dialog nicely
+                    width: receiptConfig?.paperSize === '80mm' ? '370px' : receiptConfig?.paperSize === '58mm' ? '280px' : '480px',
+                    transform: 'scale(0.95)',
                   }}
                 >
                   <ReceiptPreview
                     order={formattedOrder}
-                    settings={settings} // Pass full settings so it reads receiptConfig
+                    settings={settings}
                   />
                 </div>
               </div>
             </ScrollArea>
           </div>
+          
         </div>
       </DialogContent>
     </Dialog>

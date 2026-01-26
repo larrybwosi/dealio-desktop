@@ -1,10 +1,11 @@
 import { apiClient } from '@/lib/axios';
-import { CheckCircle2, ExternalLink, Loader2, Plus, Printer } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { processFileDownload } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card'; // Assuming you have a Card component
 
 function OrderSuccessView({ 
   orderId, 
@@ -18,74 +19,90 @@ function OrderSuccessView({
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
 
-    const handleDownloadInvoice = async () => {
-      if (!invoiceUrl) return;
-      if (isDownloading) return;
-      const loadingToastId = toast.loading('Downloading invoice...', {
-        description: `Order: ${orderId}`
+  const handleDownloadInvoice = async () => {
+    if (!invoiceUrl || isDownloading) return;
+    
+    const loadingToastId = toast.loading('Preparing your document...', {
+      description: `Order: ${orderId}`
+    });
+
+    setIsDownloading(true);
+    try {
+      const response = await apiClient.get(invoiceUrl, { responseType: 'blob' });
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
+      const fileName = `Receipt_${safeOrderNum}.pdf`;
+
+      await processFileDownload(blob, fileName, loadingToastId);
+    } catch (error) {
+      toast.error('Download failed', {
+        description: 'Please try again or contact support.',
+        id: loadingToastId
       });
-  
-      setIsDownloading(true);
-      try {
-        const response = await apiClient.get(invoiceUrl, { responseType: 'blob' });
-        const blob = new Blob([response.data], { type: 'application/pdf' });
-        const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
-        const fileName = `Receipt_${safeOrderNum}.pdf`;
-  
-        await processFileDownload(blob, fileName, loadingToastId);
-      } catch (error) {
-        console.error('Download error:', error);
-        toast.error('Failed to save invoice', {
-          description: 'Please try again',
-          id: loadingToastId
-        });
-      } finally {
-        setIsDownloading(false);
-      }
-    };
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
-      <div className="h-20 w-20 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-6">
-        <CheckCircle2 className="h-10 w-10 text-green-600 dark:text-green-400" />
-      </div>
-      
-      <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-2">Order Created Successfully!</h2>
-      <p className="text-zinc-500 max-w-md mb-8">
-        The order has been recorded in the system. You can now view the details, download the invoice, or create another order.
-      </p>
+    <div className="min-h-[70vh] flex items-center justify-center p-6 animate-in fade-in zoom-in-95 duration-500">
+      <Card className="w-full max-w-lg border-zinc-200/60 dark:border-zinc-800/60 shadow-xl shadow-zinc-200/20 dark:shadow-none bg-white/50 dark:bg-zinc-950/50 backdrop-blur-sm">
+        <CardContent className="pt-12 pb-10 flex flex-col items-center text-center">
+          {/* Success Icon with Pulse Effect */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping duration-[2000ms]" />
+            <div className="relative h-24 w-24 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/20 rounded-full flex items-center justify-center border-4 border-white dark:border-zinc-950 shadow-sm">
+              <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          
+          <div className="space-y-2 mb-8">
+            <h2 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
+              Order Confirmed!
+            </h2>
+            <div className="inline-flex items-center rounded-full border border-zinc-200 dark:border-zinc-800 px-3 py-1 text-xs font-medium text-zinc-500 bg-zinc-50 dark:bg-zinc-900">
+              Reference: <span className="ml-1.5 font-mono text-zinc-900 dark:text-zinc-300">{orderId}</span>
+            </div>
+            <p className="text-zinc-500 dark:text-zinc-400 max-w-xs mx-auto pt-2">
+              Your order has been processed. You can now manage your receipt or track the transaction status.
+            </p>
+          </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md">
-        <Button 
-          variant="outline" 
-          className="flex-1 gap-2"
-          onClick={handleDownloadInvoice}
-          disabled={!invoiceUrl || isDownloading} // Disable if no URL
-        >
-          {isDownloading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Printer className="h-4 w-4" />}
-          Download Invoice
-        </Button>
-        
-        <Button 
-          variant="outline"
-          className="flex-1 gap-2"
-          onClick={() => navigate(`/pending-transactions?id=${orderId}`)}
-        >
-          <ExternalLink className="h-4 w-4" />
-          View Transaction
-        </Button>
-      </div>
+          {/* Action Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-8">
+            <Button 
+              variant="outline" 
+              className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
+              onClick={handleDownloadInvoice}
+              disabled={!invoiceUrl || isDownloading}
+            >
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Printer className="h-4 w-4" />}
+              Save Invoice
+            </Button>
+            
+            <Button 
+              variant="outline"
+              className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
+              onClick={() => navigate(`/pending-transactions?id=${orderId}`)}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Details
+            </Button>
+          </div>
 
-      <div className="mt-8">
-        <Button 
-          size="lg" 
-          className="bg-indigo-600 hover:bg-indigo-700 text-white min-w-[200px] gap-2"
-          onClick={onReset}
-        >
-          <Plus className="h-4 w-4" />
-          Create Another Order
-        </Button>
-      </div>
+          <hr className="w-full border-zinc-100 dark:border-zinc-800 mb-8" />
+
+          <Button 
+            size="lg" 
+            className="w-full sm:w-auto px-10 h-12 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-semibold transition-all group"
+            onClick={onReset}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Create Another Order
+            <ArrowRight className="ml-2 h-4 w-4 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
