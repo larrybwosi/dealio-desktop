@@ -133,10 +133,13 @@ use crate::auth_store::AuthState;
 
 // In sales_store.rs
 
+use crate::shift_store::ShiftState;
+
 // 1. Process Sale (Non-blocking Background Sync)
 pub async fn process_sale(
     app: AppHandle,
     state: &SalesState,
+    shift_state: &ShiftState,
     sale_id: String,
     payload: serde_json::Value,
     auth_state: &AuthState
@@ -167,6 +170,20 @@ pub async fn process_sale(
         retry_count: 0,
         last_error: None,
     };
+
+    // Check for Cash Sale and Record in Shift
+    // We do this BEFORE async spawn to ensure it's recorded immediately in local state
+    if let Some(payment_method) = payload.get("paymentMethod").and_then(|v| v.as_str()) {
+        if payment_method.eq_ignore_ascii_case("cash") {
+            if let Some(total) = payload.get("total").and_then(|v| v.as_f64()) {
+                 if let Err(e) = crate::shift_store::record_cash_sale(shift_state, total) {
+                     eprintln!("[SalesStore] Failed to record cash sale in shift: {}", e);
+                 } else {
+                     println!("[SalesStore] Recorded cash sale of {:.2} in active shift.", total);
+                 }
+            }
+        }
+    }
 
     // Block briefly to save to disk (Offline First guarantee)
     {

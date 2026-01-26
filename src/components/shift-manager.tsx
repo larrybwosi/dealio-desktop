@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+
 import { Shift, shiftService } from "@/lib/shift-service";
+import { useCashDrawer } from "@/hooks/use-cash-drawer";
+import { toast } from "sonner";
+import { usePrinterStore } from "@/store/printer-store";
 
 const ShiftManager: React.FC = () => {
   const [currentShift, setCurrentShift] = useState<Shift | null>(null);
+  const { openPhysicalDrawer } = useCashDrawer();
+  const { assignments } = usePrinterStore();
   const [loading, setLoading] = useState(false);
   
   // Auth State
@@ -45,32 +51,45 @@ const ShiftManager: React.FC = () => {
   // --- ACTIONS ---
 
   const handleOpenShift = async () => {
-    if (!cardId || !pin) return alert("Please scan card and enter PIN");
+    if (!cardId || !pin) return toast.error("Please scan card and enter PIN");
     setLoading(true);
     try {
       const shift = await shiftService.openShift(cardId, pin, Number(amount));
       setCurrentShift(shift);
       setView("STATUS");
+      
+      // Open Drawer & Notify
+      await openPhysicalDrawer();
+      toast.success("Shift Opened Successfully");
+      
       clearAuth();
     } catch (e) {
-      alert("Error opening shift: " + e);
+      toast.error("Error opening shift: " + e);
     } finally {
       setLoading(false);
     }
   };
 
   const handleCloseShift = async () => {
-    if (!cardId || !pin) return alert("Please scan card and enter PIN");
+    if (!cardId || !pin) return toast.error("Please scan card and enter PIN");
     setLoading(true);
     try {
       // Pass a printer name if you want auto-printing, e.g., "Thermal_Printer_1"
-      const shift = await shiftService.closeShift(cardId, pin, Number(amount), "Generic_Text_Only");
+      const receiptPrinter = assignments.receipt || undefined;
+      const shift = await shiftService.closeShift(cardId, pin, Number(amount), receiptPrinter);
+      
       setCurrentShift(null); // Shift is gone
-      alert(`Shift Closed.\nVariance: ${shift.variance?.toFixed(2)}`);
+      
+      await openPhysicalDrawer();
+      
+      toast.success("Shift Closed", {
+        description: `Variance: ${shift.variance?.toFixed(2)}`
+      });
+      
       setView("OPEN");
       clearAuth();
     } catch (e) {
-      alert("Error closing shift: " + e);
+      toast.error("Error closing shift: " + e);
     } finally {
       setLoading(false);
     }
@@ -192,11 +211,11 @@ const ShiftManager: React.FC = () => {
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="p-4 bg-blue-50 rounded border border-blue-100">
             <div className="text-xs text-blue-500 uppercase">Cash Sales</div>
-            {/* <div className="text-2xl font-bold">{currentShift?.total_cash_sales.toFixed(2)}</div> */}
+            <div className="text-2xl font-bold">{currentShift?.total_cash_sales.toFixed(2)}</div>
         </div>
         <div className="p-4 bg-orange-50 rounded border border-orange-100">
             <div className="text-xs text-orange-500 uppercase">Cash Drops</div>
-            {/* <div className="text-2xl font-bold">{currentShift?.total_cash_drops.toFixed(2)}</div> */}
+             <div className="text-2xl font-bold">{currentShift?.total_cash_drops.toFixed(2)}</div>
         </div>
       </div>
 

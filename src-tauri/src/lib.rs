@@ -96,12 +96,13 @@ fn search_customers_command(
 async fn process_sale_command(
     app: AppHandle,
     state: State<'_, SalesState>,
+    shift_state: State<'_, ShiftState>,
     auth_state: State<'_, AuthState>,
     sale_id: String,
     payload: serde_json::Value
 ) -> Result<models::SaleResponse, String> {
-    // Pass auth_state to the logic
-    sales_store::process_sale(app, &state, sale_id, payload, &auth_state)
+    // Pass auth_state and shift_state to the logic
+    sales_store::process_sale(app, &state, &shift_state, sale_id, payload, &auth_state)
         .await
         .map_err(|e| e.to_string())
 }

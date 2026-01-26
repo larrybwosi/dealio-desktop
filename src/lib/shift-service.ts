@@ -9,6 +9,9 @@ export interface Shift {
   expected_cash: number;
   actual_cash?: number;
   variance?: number;
+  total_cash_sales: number;
+  total_cash_drops: number;
+  total_cash_refunds: number;
 }
 
 export const shiftService = {
