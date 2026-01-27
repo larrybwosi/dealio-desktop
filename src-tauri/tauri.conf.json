@@ -18,7 +18,8 @@
         "resizable": true,
         "fullscreen": false,
         "maximized": true,
-        "label": "main"
+        "label": "main",
+        "visible": false
       },
       {
         "title": "Customer Display",

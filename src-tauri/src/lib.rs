@@ -633,85 +633,89 @@ pub fn run() {
         .manage(PricingState::new()) // Initialize Pricing State
         .manage(ShiftState::new()) // Initialize Shift State
         .manage(AuthState::new()) // Initialize Auth State
-            .setup(|app| {
-                // Load data from disk immediately on app launch
-                let state = app.state::<ProductState>();
-                if let Err(e) = product_store::load_products_from_disk(app.handle(), &state) {
-                    eprintln!("Failed to load initial data: {}", e);
+        .setup(|app| {
+            // --- 1. Load Data (Existing Code) ---
+            let state = app.state::<ProductState>();
+            if let Err(e) = product_store::load_products_from_disk(app.handle(), &state) {
+                eprintln!("Failed to load initial data: {}", e);
+            }
+
+            let cust_state = app.state::<CustomerState>();
+            if let Err(e) = customer_store::load_customers_from_disk(app.handle(), &cust_state) {
+                eprintln!("Failed to load initial customer data: {}", e);
+            }
+
+            let sales_state = app.state::<SalesState>();
+            sales_store::init_state(app.handle(), &sales_state);
+
+            let pricing_state = app.state::<PricingState>();
+            if let Err(e) = pricing_store::load_pricing_from_disk(app.handle(), &pricing_state) {
+                eprintln!("Failed to load initial pricing data: {}", e);
+            }
+
+            // --- 2. Startup Visibility Logic (NEW) ---
+            // Get command line arguments
+            let args: Vec<String> = std::env::args().collect();
+            
+            // We check if the flag "--minimized" is present.
+            // If it is NOT present, we show the window.
+            // If it IS present, we do nothing (window remains hidden per tauri.conf.json).
+            if !args.contains(&"--minimized".to_string()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
+            }
 
-                let cust_state = app.state::<CustomerState>();
-                if let Err(e) = customer_store::load_customers_from_disk(app.handle(), &cust_state) {
-                    eprintln!("Failed to load initial customer data: {}", e);
-                }
+            // --- 3. System Tray (Existing Code) ---
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Show Main Window", true, None::<&str>)?;
+            let hide_i = MenuItem::with_id(app, "hide", "Hide Main Window", true, None::<&str>)?;
+            let customer_i = MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
+            let sep = PredefinedMenuItem::separator(app)?;
+            
+            let menu = Menu::with_items(app, &[&show_i, &hide_i, &customer_i, &sep, &quit_i])?;
 
-                let sales_state = app.state::<SalesState>();
-                sales_store::init_state(app.handle(), &sales_state);
-
-                let pricing_state = app.state::<PricingState>();
-                if let Err(e) = pricing_store::load_pricing_from_disk(app.handle(), &pricing_state) {
-                    eprintln!("Failed to load initial pricing data: {}", e);
-                }
-
-                // --- System Tray Configuration ---
-                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-                let show_i = MenuItem::with_id(app, "show", "Show Main Window", true, None::<&str>)?;
-                let hide_i = MenuItem::with_id(app, "hide", "Hide Main Window", true, None::<&str>)?;
-                let customer_i = MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
-                let sep = PredefinedMenuItem::separator(app)?;
-                
-                let menu = Menu::with_items(app, &[&show_i, &hide_i, &customer_i, &sep, &quit_i])?;
-
-                let _tray = TrayIconBuilder::new()
-                    .icon(app.default_window_icon().unwrap().clone())
-                    .menu(&menu)
-                    .show_menu_on_left_click(false)
-                    .on_menu_event(|app, event| {
-                        match event.id.as_ref() {
-                            "quit" => {
-                                app.exit(0);
+            let _tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, event| {
+                    match event.id.as_ref() {
+                        "quit" => app.exit(0),
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
                             }
-                            "show" => {
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
-                            }
-                            "hide" => {
-                               if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.hide();
-                                }
-                            }
-                            "customer" => {
-                                let app_handle = app.clone();
-                                tauri::async_runtime::spawn(async move {
-                                    let _ = open_customer_screen(app_handle).await;
-                                });
-                            }
-                            _ => {}
                         }
-                    })
-                    .on_tray_icon_event(|tray, event| {
-                         match event {
-                            TrayIconEvent::Click {
-                                button: MouseButton::Left,
-                                ..
-                            } => {
-                                let app = tray.app_handle();
-                                 if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
+                        "hide" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.hide();
                             }
-                            _ => {
-                            }
-                         }
+                        }
+                        "customer" => {
+                            let app_handle = app.clone();
+                            tauri::async_runtime::spawn(async move {
+                                let _ = open_customer_screen(app_handle).await;
+                            });
+                        }
+                        _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
 
-                    })
-                    .build(app)?;
-
-                Ok(())
-            })
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Prevent the app from closing and hide the window instead
