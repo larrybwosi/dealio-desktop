@@ -25,7 +25,44 @@ import {
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { cn } from '@/lib/utils';
-import { PDFViewer } from '@react-pdf/renderer';
+import { usePDF } from '@react-pdf/renderer';
+
+// --- Sub-component: Receipt Preview Wrapper ---
+const ReceiptPreviewWrapper = ({ document }: { document: React.ReactElement<any> }) => {
+  const [instance, update] = usePDF({ document: document as any });
+
+  useEffect(() => {
+    update(document as any);
+  }, [document, update]);
+
+  if (instance.loading) {
+    return (
+      <div className="flex h-full items-center justify-center flex-col gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-sm text-muted-foreground font-medium">Updating Preview...</p>
+      </div>
+    );
+  }
+
+  if (instance.error) {
+     // In settings, errors might be transient while typing, so we show a softer error
+    return (
+      <div className="flex h-full items-center justify-center flex-col gap-2 text-destructive/80">
+        <AlertTriangle className="h-6 w-6" />
+        <p className="text-xs">Preview unavailable</p>
+      </div>
+    );
+  }
+
+  return (
+    <iframe
+      src={instance.url || ''}
+      className="w-full h-full"
+      title="Receipt Preview"
+      style={{ border: 'none', backgroundColor: 'transparent' }}
+    />
+  );
+};
 
 // Collapsible Section Component
 function SettingsSection({ 
@@ -367,13 +404,9 @@ export default function ReceiptSettingsPage() {
         <div className={cn("flex-1 overflow-hidden flex flex-col items-center justify-center pt-20 pb-8 px-8", mode === 'receipt' ? 'h-full' : '')}>
           {mode === 'receipt' ? (
              <div className="w-full h-full max-w-[500px] shadow-2xl rounded-lg overflow-hidden border border-white/10 relative">
-               <PDFViewer 
-                 className="w-full h-full"
-                 showToolbar={false}
-                 style={{ backgroundColor: 'transparent' }}
-               >
-                 <ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />
-               </PDFViewer>
+               <ReceiptPreviewWrapper 
+                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />}
+               />
              </div>
           ) : (
             <div className="flex-1 overflow-auto w-full flex justify-center">

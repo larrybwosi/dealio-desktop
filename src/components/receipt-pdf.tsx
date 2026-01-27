@@ -1,5 +1,7 @@
 'use client';
 
+import React from 'react';
+
 import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import type { Order, ReceiptConfig } from '@/store/store';
@@ -51,7 +53,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
   const baseFontSize = config.fontSize === 'small' ? 9 : config.fontSize === 'medium' ? 10 : 11;
 
   // --- STYLES ---
-  const styles = StyleSheet.create({
+  const styles = React.useMemo(() => StyleSheet.create({
     page: {
       fontFamily: 'Roboto',
       fontSize: baseFontSize,
@@ -232,7 +234,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
       marginTop: 8,
       fontStyle: 'italic',
     }
-  });
+  }), [baseFontSize, isThermal]);
 
   // --- DYNAMIC HEIGHT CALCULATION ---
   const calculatePageHeight = () => {
