@@ -234,9 +234,72 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
     }
   });
 
+  // --- DYNAMIC HEIGHT CALCULATION ---
+  const calculatePageHeight = () => {
+    if (config.paperSize === 'Letter') return 'A4';
+    
+    // Base padding (vertical)
+    let height = isThermal ? 24 : 80;
+
+    // Header approximation
+    if (config.showLogo && config.logoUrl) height += isThermal ? 60 : 70;
+    height += 30; // Business name
+    if (config.showTagline || settings.businessSlogan) height += 20;
+    
+    // Contact info (approx 12px per line)
+    const contactLines = [
+      config.showAddress && settings.address,
+      (config.showPhone || settings.phone),
+      settings.email,
+      settings.website,
+      config.showTaxNumber && config.taxNumber,
+      config.showVatNumber && config.vatNumber,
+      config.showCompanyRegNumber && config.companyRegNumber
+    ].filter(Boolean).length;
+    height += contactLines * 12 + 10;
+
+    // Title & Meta
+    height += 100; // Receipt Title + Meta block
+    if (config.showCustomerName && order.customerName) height += 12;
+    if (config.showOrderType && order.orderType) height += 12;
+    if (config.showCashier && order.cashierName) height += 12;
+
+    // Items
+    height += 30; // Table header
+    order.items?.forEach(item => {
+      height += 18; // Base item line
+      if (item.variantName && !['Default', 'Default Variant'].includes(item.variantName)) height += 12; // Variant line
+    });
+    height += 20; // Table bottom margin
+
+    // Totals
+    if (config.showSubtotal !== false) height += 15;
+    if (config.showDiscountBreakdown !== false && order.discount > 0) height += 15;
+    if (config.showTaxBreakdown !== false) height += 15;
+    if (config.showSavingsTotal && order.discount > 0) height += 15;
+    height += 25; // Grand total + margins
+
+    // Payment
+    height += 40; 
+
+    // Footer
+    height += 60; // Base footer margin + message
+    if (config.showNextVisitPromo) height += 20;
+    if (config.showLoyaltyPoints || config.showLoyaltyBalance) height += 25;
+    if (settings.email) height += 15;
+    if (config.showReturnPolicy) height += 25;
+    if (config.showLegalDisclaimer) height += 25;
+    if (config.showQrCode && qrCodeUrl) height += 60;
+    if (config.showSurveyQr) height += 20;
+    if (config.showSocialMedia) height += 20;
+    
+    // Buffer for safety
+    return height + 50; 
+  };
+
   const pageSize =
-    config.paperSize === '58mm' ? { width: 164, height: 500 } :
-    config.paperSize === '80mm' ? { width: 226, height: 500 } :
+    config.paperSize === '58mm' ? { width: 164, height: calculatePageHeight() } :
+    config.paperSize === '80mm' ? { width: 226, height: calculatePageHeight() } :
     'A4';
 
   // Fallback for null currency

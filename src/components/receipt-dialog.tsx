@@ -17,13 +17,13 @@ import QRCode from 'qrcode';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
-import { ReceiptPreview } from '@/components/receipt-preview'; 
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
+import { useAuthStore } from '@/store/pos-auth-store';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
+import { PDFViewer } from '@react-pdf/renderer'; 
 import { cn } from '@/lib/utils';
 
 // --- Types ---
@@ -201,12 +201,22 @@ const ActionPanel = ({
 // --- Main Component ---
 export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: ReceiptDialogProps) {
   const settings = usePosStore(state => state.settings);
+  const currentMember = useAuthStore(state => state.currentMember);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
   const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
   const [qrCodePdfUrl, setQrCodePdfUrl] = useState<string>('');
 
   // Map Data
-  const formattedOrder = useMemo(() => formatOrderForReceipt(completedOrder), [completedOrder]);
+  const formattedOrder = useMemo(() => {
+    const order = formatOrderForReceipt(completedOrder);
+    if (order && currentMember?.name) {
+       // If the order doesn't have a specific cashier saved (or is generic), override with current logged-in user
+       if (order.cashierName === 'Staff' || !order.cashierName) {
+         order.cashierName = currentMember.name;
+       }
+    }
+    return order;
+  }, [completedOrder, currentMember]);
 
   // Generate QR for PDF
   useEffect(() => {
@@ -264,25 +274,28 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
               <span className="text-xs font-semibold text-foreground/80 tracking-wide uppercase">Receipt Preview</span>
             </div>
 
-            <ScrollArea className="h-full w-full">
-              <div className="flex justify-center py-12 min-h-full">
-                <div 
-                  className={cn(
-                    "bg-white text-black shadow-2xl shadow-black/10 transition-transform duration-500 ease-out animate-in zoom-in-95 slide-in-from-bottom-4",
-                    "origin-top"
-                  )}
-                  style={{
-                    width: receiptConfig?.paperSize === '80mm' ? '370px' : receiptConfig?.paperSize === '58mm' ? '280px' : '480px',
-                    transform: 'scale(0.95)',
-                  }}
-                >
-                  <ReceiptPreview
-                    order={formattedOrder}
-                    settings={settings}
-                  />
-                </div>
-              </div>
-            </ScrollArea>
+            <div className="flex-1 w-full h-full relative p-6 flex items-center justify-center">
+               {/* 
+                 Using PDFViewer to render the actual PDF document as the preview.
+                 We hide the built-in toolbar for a cleaner "Preview" look if possible, 
+                 but standard PDFViewer controls are usually fine.
+               */}
+               {DocumentInstance ? (
+                 <PDFViewer 
+                   className="w-full h-full shadow-2xl rounded-lg border border-border/50"
+                   showToolbar={false}
+                   style={{
+                     backgroundColor: 'transparent',
+                   }}
+                 >
+                   {DocumentInstance}
+                 </PDFViewer>
+               ) : (
+                 <div className="flex h-full items-center justify-center">
+                   <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                 </div>
+               )}
+            </div>
           </div>
           
         </div>

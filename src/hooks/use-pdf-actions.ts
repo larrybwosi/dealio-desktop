@@ -2,11 +2,10 @@ import { useState } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { toast } from 'sonner';
 import { isTauri } from '@tauri-apps/api/core';
-import { documentDir } from '@tauri-apps/api/path';
+import { documentDir, join } from '@tauri-apps/api/path';
 import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { usePrinter } from '@/hooks/use-printer';
 import { processFileDownload } from '@/lib/utils';
-import { join } from 'path';
 
 export function usePdfActions() {
     const { printDocument } = usePrinter();

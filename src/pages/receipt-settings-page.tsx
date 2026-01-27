@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ReceiptPreview } from '@/components/receipt-preview';
+
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { PDFKitchenTicket } from '@/components/receipts/pdf-kitchen-ticket';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
@@ -21,10 +21,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import {
   Download, Printer, RotateCcw, Layout, FileText, QrCode, ZoomIn, ZoomOut,
   Palette, Store, ChefHat, ChevronDown, AlertTriangle, Clock, Users,
-  Globe, CreditCard, Utensils, Bell, Tag, Building2, Scale
+  Globe, CreditCard, Utensils, Bell, Tag, Building2, Scale, Loader2
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { cn } from '@/lib/utils';
+import { PDFViewer } from '@react-pdf/renderer';
 
 // Collapsible Section Component
 function SettingsSection({ 
@@ -300,24 +301,28 @@ export default function ReceiptSettingsPage() {
       )}>
         {/* Preview Toolbar */}
         <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-background/98 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full p-1 px-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
-            onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}
-          >
-            <ZoomOut className="w-4 h-4" />
-          </Button>
-          <span className="text-sm font-semibold tabular-nums w-14 text-center text-muted-foreground">{previewScale[0]}%</span>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
-            onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}
-          >
-            <ZoomIn className="w-4 h-4" />
-          </Button>
-          <Separator orientation="vertical" className="h-5 mx-1" />
+          {mode !== 'receipt' && (
+            <>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
+                onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}
+              >
+                <ZoomOut className="w-4 h-4" />
+              </Button>
+              <span className="text-sm font-semibold tabular-nums w-14 text-center text-muted-foreground">{previewScale[0]}%</span>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="w-8 h-8 rounded-full hover:bg-primary/10 hover:text-primary transition-colors" 
+                onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}
+              >
+                <ZoomIn className="w-4 h-4" />
+              </Button>
+              <Separator orientation="vertical" className="h-5 mx-1" />
+            </>
+          )}
           <Button 
             variant="ghost" 
             size="icon" 
@@ -359,24 +364,32 @@ export default function ReceiptSettingsPage() {
         </div>
 
         {/* Preview Canvas */}
-        <div className="flex-1 overflow-auto flex items-start justify-center p-12 pt-24">
-          <div 
-            className="transition-all duration-300 ease-out"
-            style={{
-              transform: `scale(${previewScale[0] / 100})`,
-              transformOrigin: 'top center',
-              width: mode === 'receipt' 
-                ? (config.paperSize === '80mm' ? '370px' : '280px') 
-                : (kConfig.paperSize === '80mm' ? '300px' : kConfig.paperSize === '58mm' ? '200px' : '350px'),
-              marginBottom: '100px'
-            }}
-          >
-            {mode === 'receipt' ? (
-              <ReceiptPreview order={sampleOrder} settings={{ ...settings, receiptConfig: config }} />
-            ) : (
-              <KitchenTicketPreview order={sampleOrder} config={kConfig} />
-            )}
-          </div>
+        <div className={cn("flex-1 overflow-hidden flex flex-col items-center justify-center pt-20 pb-8 px-8", mode === 'receipt' ? 'h-full' : '')}>
+          {mode === 'receipt' ? (
+             <div className="w-full h-full max-w-[500px] shadow-2xl rounded-lg overflow-hidden border border-white/10 relative">
+               <PDFViewer 
+                 className="w-full h-full"
+                 showToolbar={false}
+                 style={{ backgroundColor: 'transparent' }}
+               >
+                 <ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />
+               </PDFViewer>
+             </div>
+          ) : (
+            <div className="flex-1 overflow-auto w-full flex justify-center">
+              <div 
+                className="transition-all duration-300 ease-out"
+                style={{
+                  transform: `scale(${previewScale[0] / 100})`,
+                  transformOrigin: 'top center',
+                  width: kConfig.paperSize === '80mm' ? '300px' : kConfig.paperSize === '58mm' ? '200px' : '350px',
+                  marginBottom: '100px'
+                }}
+              >
+                <KitchenTicketPreview order={sampleOrder} config={kConfig} />
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
