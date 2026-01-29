@@ -35,7 +35,7 @@ import { API_ENDPOINT } from '@/lib/axios';
 import { usePosStore } from '@/store/store';
 import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
+import { MpesaFlowType, ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
@@ -359,8 +359,23 @@ const PaymentModal = ({
     };
 
     if (paymentMethod === PaymentMethod.MPESA) {
+      // Map UI mode to API Enum
+      let mpesaType: MpesaFlowType;
+      if (mpesaMode === 'STK') {
+        mpesaType = MpesaFlowType.STK_PUSH;
+      } else if (mpesaMode === 'PAYBILL') {
+        mpesaType = MpesaFlowType.PAYBILL_MANUAL;
+      } else if (mpesaMode === 'BUY_GOODS') {
+        mpesaType = MpesaFlowType.TILL_MANUAL;
+      } else {
+        // QR Mode: Deduce based on what number is available
+        mpesaType = paybillNumber ? MpesaFlowType.PAYBILL_MANUAL : MpesaFlowType.TILL_MANUAL;
+      }
+
       payload.mpesaPhoneNumber = mpesaMode === 'STK' ? normalizePhoneNumber(mpesaPhone, PHONE_CONFIG) : undefined;
-      payload.mpesaPaymentMode = mpesaMode;
+      // payload.mpesaPaymentMode = mpesaMode; // Stripped by Zod if not in schema
+      
+      payload.mpesaType = mpesaType;
       payload.amountReceived = totalPayable;
       payload.change = 0;
       if (detectedPayment?.receipt) {

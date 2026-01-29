@@ -59,6 +59,12 @@ export type OrderFormValues = z.infer<typeof CreateOrderSchema>;
 
 const kenyanPhoneRegex = /^(?:254|\+254|0)?(7(?:(?:[129][0-9])|(?:0[0-8])|(?:4[0-1]))[0-9]{6})$/;
 
+export enum MpesaFlowType {
+  STK_PUSH = 'STK_PUSH',
+  PAYBILL_MANUAL = 'PAYBILL_MANUAL',
+  TILL_MANUAL = 'TILL_MANUAL',
+}
+
 export const ProcessSaleInputSchema = z
   .object({
     cartItems: z
@@ -119,6 +125,8 @@ export const ProcessSaleInputSchema = z
     }),
 
     // M-Pesa Specific
+    mpesaType: z.nativeEnum(MpesaFlowType).optional().nullable(),
+    
     mpesaPhoneNumber: z
       .string()
       .regex(kenyanPhoneRegex, 'Invalid Kenyan Phone Number')
@@ -177,16 +185,16 @@ export const ProcessSaleInputSchema = z
       .max(new Date(), 'Sale date cannot be in the future')
       .optional(),
   })
-  // Refinement 1: Require Phone Number if M-Pesa
+  // Refinement 1: Require Phone Number if M-Pesa AND STK_PUSH
   .refine(
     data => {
-      if (data.paymentMethod === 'MPESA') {
+      if (data.paymentMethod === 'MPESA' && data.mpesaType === MpesaFlowType.STK_PUSH) {
         return !!data.mpesaPhoneNumber;
       }
       return true;
     },
     {
-      message: 'Phone number is required for M-Pesa payments',
+      message: 'Phone number is required for M-Pesa STK Push',
       path: ['mpesaPhoneNumber'],
     }
   )

@@ -37,12 +37,6 @@ impl AuthState {
     pub fn new() -> Self {
         // Try keyring first, then file
         let initial_config = Self::load_from_keyring().or_else(|| Self::load_from_file());
-        
-        if initial_config.is_some() {
-            println!("[AuthStore] Loaded device config successfully");
-        } else {
-            println!("[AuthStore] No device config found in Keyring or File");
-        }
 
         Self {
             device_config: Mutex::new(initial_config),
@@ -62,12 +56,10 @@ impl AuthState {
 
     fn load_from_file() -> Option<DeviceConfig> {
         let path = Self::get_config_path()?;
-        println!("[AuthStore] Attempting to load from file: {:?}", path);
         
         let content = std::fs::read_to_string(path).ok()?;
         match serde_json::from_str(&content) {
             Ok(config) => {
-                 println!("[AuthStore] Loaded config from file");
                  Some(config)
             },
             Err(e) => {
@@ -79,7 +71,6 @@ impl AuthState {
 
     fn save_to_file(config: &DeviceConfig) -> Result<(), String> {
         let path = Self::get_config_path().ok_or("Could not determine config path")?;
-        println!("[AuthStore] Saving to file: {:?}", path);
 
         let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
         std::fs::write(&path, json).map_err(|e| e.to_string())?;
@@ -87,8 +78,6 @@ impl AuthState {
     }
 
     fn load_from_keyring() -> Option<DeviceConfig> {
-        println!("[AuthStore] Attempting to load from keyring Service: {}, User: {}", KEYRING_SERVICE, KEYRING_USER);
-        
         let entry = match Entry::new(KEYRING_SERVICE, KEYRING_USER) {
             Ok(e) => e,
             Err(e) => {
@@ -107,7 +96,6 @@ impl AuthState {
         
         match serde_json::from_str(&password) {
             Ok(config) => {
-                println!("[AuthStore] Successfully loaded and parsed device config.");
                 Some(config)
             },
             Err(e) => {
@@ -119,7 +107,6 @@ impl AuthState {
 
     fn save_to_keyring(config: &DeviceConfig) -> Result<(), String> {
         // 1. Try Keyring
-        println!("[AuthStore] Saving config to keyring...");
         let keyring_result = (|| -> Result<(), String> {
             let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
             let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
@@ -129,8 +116,6 @@ impl AuthState {
 
         if let Err(e) = keyring_result {
             eprintln!("[AuthStore] Keyring save failed: {}. Falling back to file.", e);
-        } else {
-             println!("[AuthStore] Successfully saved to keyring");
         }
 
         // 2. ALWAYS Save to File as Backup
@@ -255,7 +240,7 @@ pub async fn restore_member_session(
 ) -> Result<(), String> {
     *state.member_token.lock().unwrap() = Some(token);
     *state.current_user.lock().unwrap() = Some(member.clone());
-    println!("[AuthStore] Session restored for member: {}", member.name);
+    // println!("[AuthStore] Session restored for member: {}", member.name);
     Ok(())
 }
 
