@@ -6,6 +6,7 @@ export type BusinessType =
   | "pharmacy"
   | "bookshop"
   | "grocery"
+  | "supermarket"
   | "bakery"
   | "bar"
   | "clothing"
@@ -274,6 +275,40 @@ export const businessConfigs: Record<BusinessType, BusinessConfig> = {
     },
     orderTypes: ["pickup", "delivery", "online"],
     defaultCategories: ["Fruits", "Vegetables", "Dairy", "Meat", "Bakery", "Beverages"],
+    requiredFields: {
+      customerName: false,
+      customerPhone: false,
+      customerAddress: false,
+      prescription: false,
+      doctorName: false,
+    },
+    taxSettings: {
+      defaultRate: 5,
+      taxLabel: "Sales Tax",
+    },
+  },
+  supermarket: {
+    type: "supermarket",
+    label: "Supermarket",
+    description: "Large-scale supermarket with scan-only POS",
+    features: {
+      tableManagement: false,
+      deliveryTracking: true,
+      prescriptionManagement: false,
+      bookIsbn: false,
+      batchTracking: true,
+      expiryTracking: true,
+      sizeVariants: false,
+      warrantyTracking: false,
+      loyaltyProgram: true,
+      onlineOrdering: true,
+      kitchenDisplay: false,
+      ageVerification: false,
+      showOrdersList: false,
+      b2bBulkPurchase: true,
+    },
+    orderTypes: ["pickup", "delivery", "online"],
+    defaultCategories: ["Fruits", "Vegetables", "Dairy", "Meat", "Bakery", "Beverages", "Frozen", "Household"],
     requiredFields: {
       customerName: false,
       customerPhone: false,

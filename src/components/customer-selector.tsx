@@ -9,6 +9,16 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { usePosStore } from '@/store/store';
 import { usePosCustomers } from '@/hooks/customers';
 
+
+// I want to have the logic of having the supermarket business types to have the pos page like the typical ui found in supermarkets, such that the items are not displayed in the mein page innstead the items appear when they are scanned, just as the native supermarket pos's.
+
+
+
+
+
+
+
+
 // Define the shape based on your Prisma return type
 type SearchResultCustomer = {
   id: string;

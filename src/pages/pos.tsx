@@ -324,7 +324,7 @@ export function POS() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                 <Input
                 ref={searchInputRef}
-                placeholder="Search products..."
+                placeholder={businessConfig.type === 'supermarket' ? "Search products manually..." : "Search products..."}
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 className="pl-9 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
@@ -454,42 +454,94 @@ export function POS() {
 
       {/* --- Product Grid Content --- */}
       <div className="flex-1 overflow-y-auto px-4 py-4 bg-muted/10 scroll-smooth"> 
-        {isSyncing && products.length === 0 ? (
-           <ProductGridSkeleton />
-        ) : (
-          <div className="pb-20 max-w-[2400px] mx-auto">
-            {/* Optimized Grid Layouts */}
-            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 content-start">
-              {products.map((product) => (
-                <ProductCard 
-                  key={product.productId} 
-                  product={product as any} 
-                  onAddToCart={handleAddToCartWrapper}
-                  pricingMode={pricingMode}
-                  customPriceCalculator={handleGetPrice}
+        {businessConfig.type === 'supermarket' ? (
+          /* Scan-Only Mode for Supermarket */
+          <div className="flex flex-col items-center justify-center h-full py-20 text-center">
+            <div className="bg-gradient-to-br from-primary/10 to-primary/5 p-12 rounded-3xl mb-6 border-2 border-dashed border-primary/30">
+              <svg 
+                className="w-24 h-24 text-primary mx-auto mb-2" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={1.5} 
+                  d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" 
                 />
-              ))}
+              </svg>
+              {isConnected ? (
+                <div className="flex items-center gap-2 justify-center text-green-600">
+                  <Wifi className="w-5 h-5" />
+                  <span className="font-semibold">Scanner Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 justify-center text-amber-600">
+                  <WifiOff className="w-5 h-5" />
+                  <span className="font-semibold">Scanner Disconnected</span>
+                </div>
+              )}
             </div>
             
-            {!isSyncing && products.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in-50">
-                    <div className="bg-muted/50 p-6 rounded-full mb-4">
-                        <Search className="w-12 h-12 opacity-30" />
-                    </div>
-                    <h4 className="font-semibold text-lg text-foreground">No products found</h4>
-                    <p className="max-w-xs text-center mt-1 text-sm">
-                        No matches for "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
-                    </p>
-                    <Button 
-                        variant="link" 
-                        onClick={() => {setInputValue(''); setActiveCategory('all');}}
-                        className="mt-2 text-primary"
-                    >
-                        Clear filters
-                    </Button>
-                </div>
+            <h3 className="text-2xl font-bold text-foreground mb-2">Scan Items to Add to Cart</h3>
+            <p className="text-muted-foreground max-w-md mb-6">
+              This is a scan-only POS. Use your barcode scanner to add items to the cart.<br/>
+              You can also use the search bar above to manually look up products.
+            </p>
+            
+            {settings.enableBarcodeScanner && !isConnected && (
+              <Button 
+                variant="outline" 
+                onClick={() => setShowBarcodeScanner(true)}
+                className="gap-2"
+              >
+                <WifiOff className="w-4 h-4" />
+                Configure Scanner
+              </Button>
             )}
           </div>
+        ) : (
+          /* Standard Product Grid for Other Business Types */
+          <>
+            {isSyncing && products.length === 0 ? (
+              <ProductGridSkeleton />
+            ) : (
+              <div className="pb-20 max-w-[2400px] mx-auto">
+                {/* Optimized Grid Layouts */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 content-start">
+                  {products.map((product) => (
+                    <ProductCard 
+                      key={product.productId} 
+                      product={product as any} 
+                      onAddToCart={handleAddToCartWrapper}
+                      pricingMode={pricingMode}
+                      customPriceCalculator={handleGetPrice}
+                    />
+                  ))}
+                </div>
+                
+                {!isSyncing && products.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-muted-foreground animate-in fade-in-50">
+                        <div className="bg-muted/50 p-6 rounded-full mb-4">
+                            <Search className="w-12 h-12 opacity-30" />
+                        </div>
+                        <h4 className="font-semibold text-lg text-foreground">No products found</h4>
+                        <p className="max-w-xs text-center mt-1 text-sm">
+                            No matches for "{inputValue}" in {activeCategory === 'all' ? 'any category' : activeCategory}.
+                        </p>
+                        <Button 
+                            variant="link" 
+                            onClick={() => {setInputValue(''); setActiveCategory('all');}}
+                            className="mt-2 text-primary"
+                        >
+                            Clear filters
+                        </Button>
+                    </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
       
