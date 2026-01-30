@@ -125,6 +125,17 @@ fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::Queued
     sales_store::get_queue_status(&state)
 }
 
+#[tauri::command]
+async fn scan_transaction_code(
+    state: State<'_, SalesState>,
+    auth_state: State<'_, AuthState>,
+    code: String
+) -> Result<serde_json::Value, String> {
+    sales_store::scan_transaction_qr(&auth_state, code)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 
 
 // --- PRICING COMMANDS ---
@@ -744,6 +755,7 @@ pub fn run() {
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             start_scan, 
+            scan_transaction_code, 
             list_hid_devices, 
             open_customer_screen,
             close_customer_screen,
