@@ -1,15 +1,8 @@
 import { createContext, useContext, useCallback, useState, useEffect } from "react"
-import { notify } from "@/lib/notify"
 import { ServerNotification } from "@/types/notifications"
 import { useAuthStore } from "@/store/pos-auth-store"
 import { ably } from "../ably"
-
-// Audio files for different alerts
-const SOUNDS = {
-  ping: "/sounds/ping.mp3",
-  alert: "/sounds/alert.mp3",
-  kitchen: "/sounds/kitchen_bell.mp3",
-}
+import { notificationService } from "@/lib/notification-service"
 
 interface ServerNotificationContextType {
   lastNotification: ServerNotification | null;
@@ -27,59 +20,40 @@ export function ServerNotificationProvider({ children }: { children: React.React
   const { currentLocation } = useAuthStore();
   const storeId = currentLocation?.id;
 
-  // Audio Player Helper
-  const playSound = useCallback((type: string) => {
-    const audio = new Audio(SOUNDS[type as keyof typeof SOUNDS] || SOUNDS.ping)
-    audio.volume = 0.5
-    audio.play().catch(e => console.error("Audio play failed", e))
-  }, [])
-
   // Handle Incoming Message Logic
-  const handleIncomingMessage = useCallback((msg: any) => {
+  const handleIncomingMessage = useCallback(async (msg: any) => {
     const notification: ServerNotification = msg.data;
 
     // 1. Update State
     setLastNotification(notification)
     setHistory(prev => [notification, ...prev].slice(0, 50)) // Keep last 50
 
-    // 2. Play Sound based on priority/type
-    if (notification.type === 'error' || notification.priority === 'high') {
-      playSound('alert')
-    } else if (notification.type === 'order_ready') {
-      playSound('kitchen')
-    } else {
-      playSound('ping')
-    }
+    // 2. Route through notification service
+    const notificationType = notification.type === 'order_ready' ? 'sale' : 
+                             notification.type === 'announcement' ? 'info' :
+                             notification.type === 'error' ? 'error' :
+                             notification.type === 'warning' ? 'warning' :
+                             notification.type === 'success' ? 'success' : 'info';
 
-    // 3. Trigger Visual Toast via our `notify` lib
-    switch (notification.type) {
-      case "order_ready":
-        notify.success(`Order #${notification.action?.payload?.orderId} is Ready!`)
-        break;
-      case "announcement":
-        notify.info(notification.title, { 
-          description: notification.message,
-          duration: 10000 
-        })
-        break;
-      case "error":
-        notify.error(notification.message)
-        break;
-      case "warning":
-        notify.warning(notification.title, { description: notification.message })
-        break;
-      default:
-        notify.success(notification.title)
-    }
+    const priority = notification.priority === 'high' ? 'high' :
+                     notification.priority === 'medium' ? 'medium' : 'low';
 
-    // 4. Handle Auto-Actions
-    if (notification.action?.actionType === 'refresh_data') {
-      console.log("Server requested data refresh...")
-    }
+    await notificationService.send({
+      title: notification.title,
+      body: notification.message,
+      type: notificationType,
+      priority: priority,
+      persistent: true,
+      action: notification.action ? {
+        label: notification.action.label,
+        actionType: notification.action.actionType || 'custom',
+        payload: notification.action.payload
+      } : undefined
+    });
 
-  }, [playSound])
+  }, [])
 
-  // --- CHANGED SECTION: Manual Subscription via useEffect ---
+  // --- Manual Subscription via useEffect ---
   useEffect(() => {
     // 1. Guard clauses: Ensure ably and storeId exist before subscribing
     if (!ably || !storeId) return;
@@ -89,14 +63,12 @@ export function ServerNotificationProvider({ children }: { children: React.React
     const systemChannel = ably.channels.get(`system:global`);
 
     // 3. Subscribe
-    // We pass the handleIncomingMessage callback directly
     storeChannel.subscribe(handleIncomingMessage);
     systemChannel.subscribe(handleIncomingMessage);
 
     console.log(`Subscribed to Ably channels: store:${storeId} and system:global`);
 
-    // 4. Cleanup Function (Crucial)
-    // When component unmounts or storeId changes, we must unsubscribe
+    // 4. Cleanup Function
     return () => {
       storeChannel.unsubscribe(handleIncomingMessage);
       systemChannel.unsubscribe(handleIncomingMessage);

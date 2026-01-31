@@ -37,6 +37,9 @@ use auth_store::AuthState;
 
 mod security;
 
+mod notification_manager;
+use notification_manager::NotificationState;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,
@@ -127,7 +130,7 @@ fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::Queued
 
 #[tauri::command]
 async fn scan_transaction_code(
-    state: State<'_, SalesState>,
+    _state: State<'_, SalesState>,
     auth_state: State<'_, AuthState>,
     code: String
 ) -> Result<serde_json::Value, String> {
@@ -644,6 +647,7 @@ pub fn run() {
         .manage(PricingState::new()) // Initialize Pricing State
         .manage(ShiftState::new()) // Initialize Shift State
         .manage(AuthState::new()) // Initialize Auth State
+        .manage(NotificationState::new()) // Initialize Notification State
         .setup(|app| {
             // --- 1. Load Data (Existing Code) ---
             let state = app.state::<ProductState>();
@@ -663,6 +667,9 @@ pub fn run() {
             if let Err(e) = pricing_store::load_pricing_from_disk(app.handle(), &pricing_state) {
                 eprintln!("Failed to load initial pricing data: {}", e);
             }
+
+            let notification_state = app.state::<NotificationState>();
+            notification_manager::init_notification_state(app.handle(), &notification_state);
 
             // --- 2. Startup Visibility Logic (NEW) ---
             // Get command line arguments
@@ -792,7 +799,14 @@ pub fn run() {
             auth_store::logout_member,
             auth_store::get_device_config,
             auth_store::restore_member_session,
-            auth_store::reset_device_config
+            auth_store::reset_device_config,
+            notification_manager::send_native_notification,
+            notification_manager::get_notification_history,
+            notification_manager::get_unread_notification_count,
+            notification_manager::mark_notification_read,
+            notification_manager::mark_all_notifications_read,
+            notification_manager::delete_notification,
+            notification_manager::clear_all_notifications
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
