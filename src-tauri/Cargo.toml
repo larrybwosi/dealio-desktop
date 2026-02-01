@@ -57,6 +57,10 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-process = "2"
 tauri-plugin-websocket = "2"
 
+[dev-dependencies]
+mockito = "1.2"
+serial_test = "3.2.0" # For running tests serially if needed
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"

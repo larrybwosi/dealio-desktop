@@ -40,6 +40,9 @@ mod security;
 mod notification_manager;
 use notification_manager::NotificationState;
 
+#[cfg(test)]
+mod test_utils;
+
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
     message: String,

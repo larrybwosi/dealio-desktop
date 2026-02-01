@@ -4,6 +4,9 @@ use tauri::State;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use keyring::Entry;
 
+#[cfg(test)]
+mod tests;
+
 // --- Data Types ---
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
