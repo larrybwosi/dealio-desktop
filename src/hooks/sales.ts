@@ -27,6 +27,7 @@ export enum PaymentMethod {
   LOYALTY_POINTS = 'LOYALTY_POINTS',
   ON_ACCOUNT = 'ON_ACCOUNT',
   MPESA = 'MPESA',
+  SPLIT = 'SPLIT',
   OTHER = 'OTHER',
 }
 

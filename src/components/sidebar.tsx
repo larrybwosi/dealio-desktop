@@ -36,8 +36,8 @@ import { ScanOrderDialog } from "./scan-order-dialog";
 // Map sidebar item IDs to their respective routes
 const routeMap: Record<string, string> = {
   order: '/',
-  createOrder: '/create-order',
-  pendingTransactions: '/pending-transactions',
+  'create-order': '/create-order',
+  'pending-transactions': '/pending-transactions',
   history: '/history',
   analytics: '/analytics',
   customers: '/customers',
@@ -86,9 +86,17 @@ export function Sidebar({ onCheckout }: SidebarProps) {
   // Function to get active tab based on current route
   const getActiveTab = () => {
     const path = location.pathname;
+    
+    // First pass: exact match
     for (const [key, route] of Object.entries(routeMap)) {
       if (route === path) return key;
     }
+    
+    // Second pass: starts with (excluding root '/')
+    for (const [key, route] of Object.entries(routeMap)) {
+      if (route !== '/' && path.startsWith(route)) return key;
+    }
+    
     return 'order'; // default to order
   };
 

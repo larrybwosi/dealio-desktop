@@ -119,6 +119,14 @@ export const ProcessSaleInputSchema = z
       invalid_type_error: 'Invalid payment method',
     }),
 
+    // Multi-Tender / Split Payment Breakdown
+    payments: z.array(z.object({
+      method: z.nativeEnum(PaymentMethod),
+      amount: z.number().nonnegative(),
+      reference: z.string().optional(), // e.g. M-Pesa Code, Gift Card Code
+      meta: z.record(z.any()).optional()
+    })).optional(),
+
     paymentStatus: z.nativeEnum(PaymentStatus, {
       required_error: 'Payment status is required',
       invalid_type_error: 'Invalid payment status',

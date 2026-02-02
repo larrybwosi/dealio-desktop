@@ -23,7 +23,7 @@ import { apiClient } from '@/lib/axios';
 import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
 import { DispatchDialog } from '@/components/pending-page/dispatch-dialog';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 
 // Import the new components
 import { TransactionRow } from '@/components/pending-page/transaction-row';
@@ -52,6 +52,7 @@ interface DriverOption {
 export default function PendingTransactionsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const navigate = useNavigate();
   
   // Get the ID from URL if it exists (e.g., /transactions?id=123)
   const [highlightId] = searchParams;
@@ -281,14 +282,18 @@ export default function PendingTransactionsPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button>
+          <Button
+            onClick={() => {
+              navigate('/create-order')
+            }}
+          >
             <Plus className="mr-2 h-4 w-4" /> Create Invoice
           </Button>
         </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className='rounded-none'>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
             <Banknote className="h-4 w-4 text-muted-foreground" />
@@ -297,7 +302,7 @@ export default function PendingTransactionsPage() {
             <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className='rounded-none'>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Dispatched / En-Route</CardTitle>
             <Truck className="h-4 w-4 text-blue-500" />
@@ -307,7 +312,7 @@ export default function PendingTransactionsPage() {
             <p className="text-xs text-muted-foreground">Require reconciliation</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className='rounded-none'>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Action Required</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
@@ -335,13 +340,13 @@ export default function PendingTransactionsPage() {
         </div>
 
         <TabsContent value="all">
-          <Card><CardContent className="p-0"><TransactionTable data={transactions} /></CardContent></Card>
+          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={transactions} /></CardContent></Card>
         </TabsContent>
         <TabsContent value="dispatched">
-          <Card><CardContent className="p-0"><TransactionTable data={dispatchedTx} /></CardContent></Card>
+          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={dispatchedTx} /></CardContent></Card>
         </TabsContent>
         <TabsContent value="pending">
-          <Card><CardContent className="p-0"><TransactionTable data={pendingTx} /></CardContent></Card>
+          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={pendingTx} /></CardContent></Card>
         </TabsContent>
       </Tabs>
 
