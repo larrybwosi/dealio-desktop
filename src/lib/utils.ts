@@ -5,7 +5,7 @@ import { twMerge } from "tailwind-merge"
 
 import { isTauri } from '@tauri-apps/api/core';
 import { writeFile, mkdir, exists, BaseDirectory } from '@tauri-apps/plugin-fs';
-import { documentDir } from '@tauri-apps/api/path';
+import { documentDir, join } from '@tauri-apps/api/path';
 import { toast } from "sonner";
 import { Store } from "@tauri-apps/plugin-store";
 
@@ -70,66 +70,73 @@ export const useFormattedCurrency = (): ((
 };
 
   // Helper to handle Tauri vs Browser download logic to avoid code duplication
+
 export const processFileDownload = async (blob: Blob, fileName: string, loadingToastId: string | number) => {
     try {
-      if (isTauri()) {
-        const arrayBuffer = await blob.arrayBuffer();
-        const uint8Array = new Uint8Array(arrayBuffer);
-        
-        // Ensure directory exists
-        if (!(await exists('Dealio', { baseDir: BaseDirectory.Download }))) {
-          await mkdir('Dealio', { baseDir: BaseDirectory.Download, recursive: true });
+        if (isTauri()) {
+            const arrayBuffer = await blob.arrayBuffer();
+            const uint8Array = new Uint8Array(arrayBuffer);
+            
+            const folderName = 'Dealio';
+            const relativePath = `${folderName}/${fileName}`; // Path relative to Documents
+
+            // 1. Check/Create 'Dealio' folder in DOCUMENTS
+            const dirExists = await exists(folderName, { baseDir: BaseDirectory.Document });
+            if (!dirExists) {
+                await mkdir(folderName, { baseDir: BaseDirectory.Document, recursive: true });
+            }
+
+            // 2. Write file to DOCUMENTS using the relative path
+            await writeFile(relativePath, uint8Array, { baseDir: BaseDirectory.Document });
+            
+            // 3. Get Absolute Path for opening the file
+            // We need the full path for the OS to open it, but writeFile needed the relative path
+            const docDir = await documentDir();
+            const absoluteFilePath = await join(docDir, folderName, fileName);
+
+            toast.success(`Saved to Documents/${folderName}`, {
+                description: fileName,
+                id: loadingToastId,
+                action: {
+                    label: 'Open',
+                    onClick: async () => {
+                        try {
+                            const { openPath } = await import('@tauri-apps/plugin-opener');
+                            await openPath(absoluteFilePath);
+                        } catch (e) {
+                            console.error('Could not open file', e);
+                            toast.error('Failed to open file');
+                        }
+                    },
+                },
+                duration: 5000,
+            });
+        } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            toast.success('Download started', {
+                description: `${fileName} is being downloaded`,
+                id: loadingToastId,
+                duration: 3000,
+            });
         }
-        
-        const documentDirPath = await documentDir();
-        const filePath = `${documentDirPath}/Dealio/${fileName}`;
-        
-        await writeFile(filePath, uint8Array, { baseDir: BaseDirectory.Download });
-        
-        // Update loading toast to success
-        toast.success(`Saved ${fileName} to Downloads`, {
-          description: 'File saved successfully',
-          id: loadingToastId,
-          action: {
-            label: 'Open',
-            onClick: async () => {
-              try {
-                const { openPath } = await import('@tauri-apps/plugin-opener');
-                await openPath(filePath);
-              } catch (e) {
-                console.error('Could not open file', e);
-              }
-            },
-          },
-          duration: 5000,
-        });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        // Update loading toast to success
-        toast.success('Download started', {
-          description: `${fileName} is being downloaded`,
-          id: loadingToastId,
-          duration: 3000,
-        });
-      }
     } catch (error) {
-      console.error('File processing error:', error);
-      toast.error('Failed to save file', {
-        description: 'An error occurred while saving the file',
-        id: loadingToastId
-      });
-      throw error;
+        console.error('File processing error:', error);
+        toast.error('Failed to save file', {
+            description: error instanceof Error ? error.message : 'Unknown error',
+            id: loadingToastId
+        });
+        throw error;
     }
-  }
-  
+}
+
 export async function safeStoreSet<T>(store: Store, key: string, value: T | undefined) {
   // JSON supports null, but passing 'undefined' to Tauri's IPC bridge breaks the command
   const safeValue = value === undefined ? null : value;

@@ -40,6 +40,8 @@ mod security;
 mod notification_manager;
 use notification_manager::NotificationState;
 
+mod data_management;
+
 #[cfg(test)]
 mod test_utils;
 
@@ -803,6 +805,7 @@ pub fn run() {
             auth_store::get_device_config,
             auth_store::restore_member_session,
             auth_store::reset_device_config,
+            data_management::dangerously_clear_all_data,
             notification_manager::send_native_notification,
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,

@@ -566,6 +566,7 @@ interface PosStore {
   deleteHeldOrder: (id: string) => void;
   clearAllHeldOrders: () => void;
   updateHeldOrderPriority: (id: string, priority: HeldOrderPriority) => void;
+  dangerouslyResetEverything: () => void;
 }
 
 export const getDefaultReceiptConfig = (): ReceiptConfig => ({
@@ -1013,6 +1014,113 @@ export const usePosStore = create<PosStore>()(
           },
           // Clear caches if any
         }),
+
+      dangerouslyResetEverything: () => {
+        set({
+          currentOrder: {
+            customerName: '',
+            orderType: 'takeaway',
+            items: [],
+            tableNumber: '',
+            instructions: '',
+            metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
+          },
+          orders: [],
+          products: [],
+          settings: {
+            businessName: 'Dealio',
+            businessType: 'retail' as BusinessType,
+            currency: 'USD',
+            taxRate: 16,
+            // address: '',
+            // phone: '',
+            // email: '',
+            // website: '',
+            receiptConfig: getDefaultReceiptConfig(),
+            sidebarItems: getDefaultSidebarItems('retail'),
+            lowStockThreshold: 10,
+            enableCashDrawer: true,
+            requireEmployeePin: false,
+            enableAutoPrint: false,
+            printerName: '',
+            enableEmailReceipts: false,
+            themeConfig: getDefaultThemeConfig(),
+            printers: getDefaultPrinters(),
+            securityConfig: getDefaultSecurityConfig(),
+            notificationSettings: getDefaultNotificationSettings(),
+            autoPrintConfig: DEFAULT_AUTO_PRINT_CONFIG,
+            paybillNumber: '',
+            tillNumber: '',
+            enableCustomerDisplay: true,
+            customerDisplayConfig: {
+              enabled: true,
+              welcomeMessage: 'Dealio Enterprise',
+              subMessage: 'Welcome to our store',
+              showTime: true,
+              slideIntervalSeconds: 8,
+              showCompanyLogo: true,
+              promoSlides: [
+                {
+                  id: 'slide_1',
+                  type: 'qr',
+                  title: "Join & Save 5%",
+                  subtitle: "Scan to register instantly",
+                  payload: "https://example.com/register",
+                  background: "bg-gradient-to-br from-indigo-600 to-blue-700",
+                  textColor: "text-white",
+                  enabled: true
+                },
+                {
+                  id: 'slide_2',
+                  type: 'icon',
+                  title: "New Arrivals",
+                  subtitle: "Ask about our seasonal catalog",
+                  iconName: 'Store',
+                  background: "bg-gradient-to-br from-emerald-600 to-teal-700",
+                  textColor: "text-white",
+                  enabled: true
+                },
+                {
+                  id: 'slide_3',
+                  type: 'icon',
+                  title: "Secure Payments",
+                  subtitle: "We accept all major cards",
+                  iconName: 'ShieldCheck',
+                  background: "bg-gradient-to-br from-slate-700 to-gray-800",
+                  textColor: "text-white",
+                  enabled: true
+                }
+              ]
+            },
+            kitchenTicketConfig: getDefaultKitchenTicketConfig(),
+            cashDrawerPort: '',
+            enableAutoStart: false,
+            enableBarcodeScanner: true,
+            enableHoldSale: true,
+            maxHeldOrders: 20,
+            heldOrderExpiryHours: 24,
+            requireHoldReason: false,
+          },
+          employees: [],
+          notifications: [],
+          cashDrawers: [],
+          currentEmployeeId: null,
+          activeCashDrawerId: null,
+          isCheckedIn: false,
+          unreadNotificationCount: 0,
+          heldOrders: [],
+          tables: [
+            { id: 'table_1', number: '1', capacity: 4, status: 'available', section: 'Main Hall' },
+            { id: 'table_2', number: '2', capacity: 2, status: 'available', section: 'Main Hall' },
+            { id: 'table_3', number: '3', capacity: 6, status: 'available', section: 'Main Hall' },
+            { id: 'table_4', number: '4', capacity: 4, status: 'available', section: 'Patio' },
+            { id: 'table_5', number: '5', capacity: 8, status: 'available', section: 'VIP' },
+          ],
+        });
+      },
 
       resetOrder: () =>
         set({

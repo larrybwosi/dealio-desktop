@@ -11,7 +11,16 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type, AlertTriangle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { invoke } from '@tauri-apps/api/core';
 import { enable, disable, isEnabled } from '@tauri-apps/plugin-autostart';
 import { useScanner } from '@/hooks/use-scanner';
@@ -37,6 +46,11 @@ export default function SettingsPage() {
   const updateSecurityConfig = usePosStore(state => state.updateSecurityConfig);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
   const updateCustomerDisplayConfig = usePosStore(state => state.updateCustomerDisplayConfig);
+  const dangerouslyResetEverything = usePosStore(state => state.dangerouslyResetEverything);
+
+  const [isWiping, setIsWiping] = useState(false);
+  const [showConfirmWipe, setShowConfirmWipe] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
 
   const {
     vid,
@@ -230,6 +244,7 @@ export default function SettingsPage() {
             <TabsTrigger value="customer-display">Display</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
             <TabsTrigger value="developer">Developer</TabsTrigger>
+            <TabsTrigger value="danger" className="text-destructive data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">Danger Zone</TabsTrigger>
           </TabsList>
 
           <GeneralSettings
@@ -1429,7 +1444,99 @@ export default function SettingsPage() {
           <TabsContent value="developer" className="space-y-6">
             <UpdateTestingPanel />
           </TabsContent>
+
+          <TabsContent value="danger" className="space-y-6">
+            <Card className="p-6 border-destructive/50">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 bg-destructive/10 rounded-full">
+                  <AlertTriangle className="h-6 w-6 text-destructive" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-destructive">Danger Zone</h2>
+                  <p className="text-sm text-muted-foreground">Irreversible administrative actions</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                  <div className="space-y-1">
+                    <h3 className="font-medium">Factory Reset</h3>
+                    <p className="text-sm text-muted-foreground max-w-md">
+                      This will delete all local data including products, customers, sales history, and remove this device's configuration.
+                      The application will restart in a clean state.
+                    </p>
+                  </div>
+                  <Button 
+                    variant="destructive" 
+                    onClick={() => setShowConfirmWipe(true)}
+                  >
+                    Delete All Local Data
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        <AlertDialog open={showConfirmWipe} onOpenChange={setShowConfirmWipe}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action is IRREVERSIBLE. It will permanently delete:
+                <ul className="list-disc list-inside mt-2 space-y-1 text-destructive font-medium">
+                  <li>Local Product Database</li>
+                  <li>Customer Records</li>
+                  <li>Sales & Transaction History</li>
+                  <li>Device Key & API Configuration</li>
+                  <li>All App Settings</li>
+                </ul>
+                <div className="mt-4 p-3 bg-muted rounded-md border text-foreground">
+                  To confirm, please type <span className="font-bold select-all">DELETE</span> below:
+                </div>
+                <Input 
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder="Type DELETE to confirm"
+                  className="mt-3"
+                  autoFocus
+                />
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setConfirmText('')}>Cancel</AlertDialogCancel>
+              <Button
+                variant="destructive"
+                disabled={confirmText !== 'DELETE' || isWiping}
+                onClick={async () => {
+                  setIsWiping(true);
+                  try {
+                    toast.loading('Wiping data & resetting...');
+                    
+                    // 1. Wipe Backend Data (Files, Keyring)
+                    await invoke('dangerously_clear_all_data');
+                    
+                    // 2. Wipe Frontend State (Zustand)
+                    dangerouslyResetEverything();
+                    
+                    toast.success('System reset complete. Restarting...');
+                    
+                    // Wait a bit for toast and state persistence to settle
+                    setTimeout(() => {
+                      window.location.reload();
+                    }, 1500);
+                  } catch (err) {
+                    console.error('Wipe failed:', err);
+                    toast.error('Failed to complete system wipe');
+                    setIsWiping(false);
+                  }
+                }}
+              >
+                {isWiping ? 'Resetting...' : 'Yes, Delete Everything'}
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <div className="flex justify-end pt-4 border-t">
           <Button onClick={handleSaveSettings} size="lg">
