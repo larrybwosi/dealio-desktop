@@ -51,6 +51,7 @@ pub struct AppNotification {
 }
 
 impl AppNotification {
+    #[allow(dead_code)]
     pub fn new(
         notification_type: NotificationType,
         priority: NotificationPriority,

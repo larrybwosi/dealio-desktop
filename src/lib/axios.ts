@@ -8,7 +8,7 @@ export const apiClient = axios.create({
   timeout: 10000, // Add a timeout
 });
 
-//dealio_pk_live_6a2c2394e958b429_64b5900be9f1b4c996b2a975cc3a45ee974ffd5f3fdc30f0e6de232fe83e9960
+//dealio_sk_test_6a0164e28c0b01a2_92c092583b8c9c246c6af011e300791658624cacb44b712d2c5cd35b890f66a7
 // Shoestoredealio_sk_test_c40d652eae09c374_3345cabf39d8ffa533cd8cf76073fc6c45f4d57d758694d663e0ea0b19fd4922
 // Restaurant 
 

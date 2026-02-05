@@ -1,5 +1,4 @@
 use std::fs;
-use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use keyring::Entry;
 
