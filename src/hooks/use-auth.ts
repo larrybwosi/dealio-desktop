@@ -149,6 +149,8 @@ export function useAuth() {
     isCheckingOut,
     /** The error object if check-out failed. */
     checkOutError,
+    /** The current operating location. */
+    currentLocation,
   };
 }
 

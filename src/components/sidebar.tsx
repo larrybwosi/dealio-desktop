@@ -23,7 +23,8 @@ import {
   Wallet,
   LogOut,
   QrCode,
-  LayoutGrid
+  LayoutGrid,
+  MapPin
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -80,7 +81,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
   
   const sidebarItems = usePosStore(state => state.settings.sidebarItems.filter(item => item.enabled));
   const businessName = usePosStore(state => state.settings.businessName);
-  const { currentMember } = useAuth();
+  const { currentMember, currentLocation } = useAuth();
   const location = useLocation();
 
   // Function to get active tab based on current route
@@ -112,22 +113,35 @@ export function Sidebar({ onCheckout }: SidebarProps) {
       >
         <div className="p-6 border-b flex items-center gap-3 relative">
           {!isCollapsed && (
-            <Link to="/" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+            <Link to="/" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity overflow-hidden">
+              <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
                 <span className="text-primary-foreground font-bold text-sm">
                   {(businessName || "Dealio").substring(0, 2).toUpperCase()}
                 </span>
               </div>
-              <span className="font-semibold text-lg truncate text-foreground">{businessName}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-semibold text-lg truncate text-foreground leading-tight">{businessName}</span>
+                {currentLocation && (
+                  <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                    <MapPin className="w-2.5 h-2.5" />
+                    <span className="truncate">{currentLocation.name}</span>
+                  </div>
+                )}
+              </div>
             </Link>
           )}
           {isCollapsed && (
-            <Link to="/" className="mx-auto">
+            <Link to="/" className="mx-auto flex flex-col items-center gap-1">
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                 <span className="text-primary-foreground font-bold text-sm">
                   {(businessName || "Dealio").substring(0, 2).toUpperCase()}
                 </span>
               </div>
+              {currentLocation && (
+                <span className="text-[8px] text-muted-foreground font-bold uppercase truncate max-w-[48px]">
+                  {currentLocation.name}
+                </span>
+              )}
             </Link>
           )}
           <button

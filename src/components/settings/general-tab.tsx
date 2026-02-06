@@ -24,6 +24,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { TabsContent } from "@/components/ui/tabs";
 import { BusinessType, BusinessConfig } from '@/lib/business-configs';
+import { LocationSwitchDialog } from './location-switch-dialog';
+import { useState } from 'react';
+import { useAuthStore } from '@/store/pos-auth-store';
+import { MapPin } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function GeneralSettings({
   businessName,
@@ -56,8 +61,15 @@ export default function GeneralSettings({
   enableAutoStart: boolean;
   setEnableAutoStart: (enable: boolean) => void;
 }) {
+  const { currentLocation } = useAuthStore();
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+
   return (
     <TabsContent value="general" className="space-y-6">
+      <LocationSwitchDialog 
+        open={isLocationDialogOpen} 
+        onOpenChange={setIsLocationDialogOpen} 
+      />
       <div className="grid gap-6 md:grid-cols-12">
         
         {/* LEFT COLUMN: Input & Configuration */}
@@ -117,6 +129,55 @@ export default function GeneralSettings({
                   </p>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Location Settings Card */}
+          <Card className="border-muted/60 shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-500/10 rounded-lg">
+                  <MapPin className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-semibold">Store Location</CardTitle>
+                  <CardDescription>Manage which physical store this terminal is assigned to.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <Separator className="mb-6" />
+            <CardContent>
+               <div className="grid gap-6 sm:grid-cols-2">
+                  <div className="space-y-2.5">
+                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Current Location
+                    </Label>
+                    <div className="flex gap-2">
+                        <Button 
+                            variant="outline" 
+                            className="w-full justify-between font-normal bg-muted/30 hover:bg-muted/50"
+                            onClick={() => setIsLocationDialogOpen(true)}
+                        >
+                            <span className="flex items-center gap-2 truncate">
+                                <Store className="h-4 w-4 text-muted-foreground" />
+                                {currentLocation?.name || 'No Location Set'}
+                            </span>
+                            <span className="text-xs text-primary font-medium">Change</span>
+                        </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2.5">
+                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                        Location Type
+                     </Label>
+                     <div className="flex items-center h-10 px-3 rounded-md bg-muted/30 border border-input">
+                        <span className="text-sm text-foreground capitalize">
+                            {currentLocation?.locationType?.toLowerCase().replace('_', ' ') || 'Unknown'}
+                        </span>
+                     </div>
+                  </div>
+               </div>
             </CardContent>
           </Card>
 
