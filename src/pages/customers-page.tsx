@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Search, Mail, Phone, Edit, User, Plus } from "lucide-react"
+import { Search, Mail, Phone, Edit, User, Plus, RefreshCw } from "lucide-react"
 import AddCustomerSheet from "@/components/customers/add-customer"
 import { useFormattedCurrency } from "@/lib/utils"
 import { usePosCustomers } from "@/hooks/customers"
 
 export default function CustomersPage() {
-  const {customers} = usePosCustomers()
+  const {customers, isSyncing, triggerSync} = usePosCustomers()
 
   const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -33,10 +33,16 @@ export default function CustomersPage() {
           <p className="text-muted-foreground font-serif mt-1">Manage your customer database</p>
         </div>
 
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Create Customer
-        </Button>
+        <div className="flex items-center gap-2">
+           <Button variant="outline" size="sm" onClick={triggerSync} disabled={isSyncing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            Create Customer
+          </Button>
+        </div>
       </div>
 
       <AddCustomerSheet

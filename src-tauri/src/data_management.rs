@@ -4,6 +4,9 @@ use keyring::Entry;
 
 const KEYRING_SERVICE: &str = "dealio-desktop";
 
+use crate::product_store::ProductState;
+use crate::customer_store::CustomerState;
+
 #[tauri::command]
 pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     println!("[DangerZone] Starting full data wipe...");
@@ -73,6 +76,23 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    println!("[DangerZone] Full data wipe completed.");
+    // 4. Reset In-Memory State
+    let product_state = app.state::<ProductState>();
+    if let Ok(mut products) = product_state.products.lock() {
+        products.clear();
+    }
+    if let Ok(mut last_sync) = product_state.last_sync.lock() {
+        *last_sync = None;
+    }
+
+    let customer_state = app.state::<CustomerState>();
+    if let Ok(mut customers) = customer_state.customers.lock() {
+        customers.clear();
+    }
+    if let Ok(mut last_sync) = customer_state.last_sync_token.lock() {
+        *last_sync = None;
+    }
+
+    println!("[DangerZone] Full data wipe completed (files + memory).");
     Ok(())
 }
