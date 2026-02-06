@@ -7,20 +7,37 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Download, Eye, Printer, AlertCircle, CheckCircle2, Cloud, RefreshCw } from "lucide-react"
+import { Search, Download, Eye, Printer, AlertCircle, CheckCircle2, Cloud, RefreshCw, Wifi, WifiOff, Trash2, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { usePendingSales } from "@/hooks/sales"
+import { usePendingSales, useNetworkStatus, useRetrySale, useDeleteSale, useOldSalesCheck } from "@/hooks/sales"
 import { ReceiptDialog } from "@/components/receipt-dialog"
 import { Order } from "@/types"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 export function HistoryPage() {
-  const { pendingSales: queue, isLoading, error } = usePendingSales()
+  const { pendingSales: queue, isLoading, error, syncSales, isSyncing } = usePendingSales()
+  const { isOnline } = useNetworkStatus()
+  const retrySale = useRetrySale()
+  const deleteSale = useDeleteSale()
+  useOldSalesCheck() // Check for old sales on mount
+  
   const settings = usePosStore((state) => state.settings)
   
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [dateFilter, setDateFilter] = useState<string>("all")
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [saleToDelete, setSaleToDelete] = useState<string | null>(null)
 
   // Receipt Printing State
   const [receiptOpen, setReceiptOpen] = useState(false)
@@ -172,9 +189,34 @@ export function HistoryPage() {
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Header */}
-          <div>
-            <h1 className="text-3xl font-bold">Transaction History</h1>
-            <p className="text-muted-foreground mt-1">View offline queue and synced transactions</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Transaction History</h1>
+              <p className="text-muted-foreground mt-1">View offline queue and synced transactions</p>
+            </div>
+            <div className="flex items-center gap-3">
+              {/* Network Status Indicator */}
+              <Badge 
+                variant={isOnline ? "default" : "destructive"} 
+                className={cn(
+                  "gap-2 px-3 py-1.5",
+                  isOnline ? "bg-emerald-500 hover:bg-emerald-600" : "bg-red-500 hover:bg-red-600"
+                )}
+              >
+                {isOnline ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                {isOnline ? "Online" : "Offline"}
+              </Badge>
+              
+              {/* Manual Sync Button */}
+              <Button 
+                onClick={() => syncSales()}
+                disabled={isSyncing || !isOnline || queue.filter(s => s.status === "PENDING").length === 0}
+                className="gap-2"
+              >
+                <RefreshCw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+                {isSyncing ? "Syncing..." : "Sync Now"}
+              </Button>
+            </div>
           </div>
 
           {/* Stats Cards */}
@@ -327,16 +369,59 @@ export function HistoryPage() {
                           </span>
                         </td>
                         <td className="p-4">
-                          <Badge variant="secondary" className={getQueueStatusColor(item.status)}>
-                            {getQueueStatusIcon(item.status)}
-                            <span className="ml-1">{item.status}</span>
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary" className={getQueueStatusColor(item.status)}>
+                              {getQueueStatusIcon(item.status)}
+                              <span className="ml-1">{item.status}</span>
+                            </Badge>
+                            {/* Warning for old sales */}
+                            {(() => {
+                              const now = Date.now();
+                              const ageInDays = (now - item.timestamp) / (1000 * 60 * 60 * 24);
+                              return ageInDays > 3 && item.status !== "SYNCED" ? (
+                                <Badge variant="outline" className="bg-amber-500/10 text-amber-700 border-amber-200 gap-1">
+                                  <AlertTriangle className="w-3 h-3" />
+                                  Old
+                                </Badge>
+                              ) : null;
+                            })()}
+                          </div>
                         </td>
                         <td className="p-4">
-                          <div className="flex gap-2">
+                          <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-8 w-8">
                               <Eye className="w-4 h-4" />
                             </Button>
+                            {/* Retry button for failed sales */}
+                            {item.status === "FAILED" && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  retrySale.mutate(item.id);
+                                }}
+                                disabled={retrySale.isPending}
+                              >
+                                <RefreshCw className={cn("w-4 h-4", retrySale.isPending && "animate-spin")} />
+                              </Button>
+                            )}
+                            {/* Delete button for failed sales */}
+                            {(item.status === "FAILED" || item.retryCount > 5) && (
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSaleToDelete(item.id);
+                                  setDeleteConfirmOpen(true);
+                                }}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -513,6 +598,49 @@ export function HistoryPage() {
           onClose={() => setReceiptOpen(false)}
         />
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Failed Sale?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this sale from the queue. This action cannot be undone.
+              {saleToDelete && (() => {
+                const sale = queue.find(s => s.id === saleToDelete);
+                return sale ? (
+                  <div className="mt-3 p-3 bg-muted rounded-md text-sm">
+                    <div className="font-medium">Sale Details:</div>
+                    <div className="text-muted-foreground mt-1">
+                      Sale #: {sale.transactionData.saleNumber || 'Pending'}
+                    </div>
+                    <div className="text-muted-foreground">
+                      Items: {sale.transactionData.cartItems.length}
+                    </div>
+                    <div className="text-muted-foreground">
+                      Retry Attempts: {sale.retryCount}
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setSaleToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (saleToDelete) {
+                  deleteSale.mutate(saleToDelete);
+                  setSaleToDelete(null);
+                }
+              }}
+            >
+              Delete Sale
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

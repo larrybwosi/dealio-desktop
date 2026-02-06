@@ -452,6 +452,110 @@ pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
     state.queue.lock().unwrap().clone()
 }
 
+/// Retry a single sale by ID
+pub async fn retry_single_sale(
+    app: AppHandle,
+    state: &SalesState,
+    auth_state: &AuthState,
+    sale_id: String,
+) -> Result<bool> {
+    let (base_url, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        match config_guard.as_ref() {
+            Some(c) => (c.base_url.clone(), Some(c.device_key.clone())),
+            None => return Err(anyhow::anyhow!("Device not configured")),
+        }
+    };
+
+    let (token, member_id) = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+    };
+
+    // Find the sale in the queue
+    let sale_data = {
+        let q = state.queue.lock().unwrap();
+        q.iter().find(|s| s.id == sale_id).cloned()
+    };
+
+    let sale = sale_data.ok_or_else(|| anyhow::anyhow!("Sale not found"))?;
+
+    // Attempt to sync
+    match push_single_sale(
+        &base_url,
+        &sale.location_id,
+        &sale.transaction_data,
+        device_key,
+        token,
+        member_id,
+    ).await {
+        Ok(_) => {
+            info!("[SalesStore] Sale {} retried successfully.", sale_id);
+            // Remove from queue
+            let mut q = state.queue.lock().unwrap();
+            q.retain(|s| s.id != sale_id);
+            let _ = save_queue_encrypted(&app, &q);
+            Ok(true)
+        },
+        Err(e) => {
+            warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
+            // Update retry count
+            let mut q = state.queue.lock().unwrap();
+            if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
+                item.retry_count += 1;
+                item.last_error = Some(e.to_string());
+                if item.retry_count > 10 {
+                    item.status = SaleStatus::Failed;
+                }
+            }
+            let _ = save_queue_encrypted(&app, &q);
+            Err(e)
+        }
+    }
+}
+
+/// Check for sales older than specified days
+pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
+    let q = state.queue.lock().unwrap();
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+    
+    let threshold_ms = days_threshold * 24 * 60 * 60 * 1000;
+    
+    q.iter()
+        .filter(|s| s.status != SaleStatus::Synced && (now - s.timestamp) > threshold_ms)
+        .cloned()
+        .collect()
+}
+
+/// Check for repeatedly failed sales
+pub fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
+    let q = state.queue.lock().unwrap();
+    q.iter()
+        .filter(|s| s.retry_count >= retry_threshold)
+        .cloned()
+        .collect()
+}
+
+/// Delete a sale from the queue
+pub fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -> Result<bool> {
+    let mut q = state.queue.lock().unwrap();
+    let initial_len = q.len();
+    q.retain(|s| s.id != sale_id);
+    
+    if q.len() < initial_len {
+        save_queue_encrypted(app, &q)?;
+        info!("[SalesStore] Sale {} deleted from queue.", sale_id);
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+
 pub async fn scan_transaction_qr(
     auth_state: &AuthState,
     qr_code: String,

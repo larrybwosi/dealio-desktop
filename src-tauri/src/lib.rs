@@ -42,6 +42,9 @@ use notification_manager::NotificationState;
 
 mod data_management;
 
+mod network_monitor;
+use network_monitor::NetworkState;
+
 #[cfg(test)]
 mod test_utils;
 
@@ -131,6 +134,44 @@ async fn sync_sales_command(
 #[tauri::command]
 fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::QueuedSale> {
     sales_store::get_queue_status(&state)
+}
+
+#[tauri::command]
+async fn retry_sale_command(
+    app: AppHandle,
+    state: State<'_, SalesState>,
+    auth_state: State<'_, AuthState>,
+    sale_id: String
+) -> Result<bool, String> {
+    sales_store::retry_single_sale(app, &state, &auth_state, sale_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn check_old_sales_command(
+    state: State<'_, SalesState>,
+    days_threshold: u64
+) -> Vec<models::QueuedSale> {
+    sales_store::check_old_pending_sales(&state, days_threshold)
+}
+
+#[tauri::command]
+fn check_failed_sales_command(
+    state: State<'_, SalesState>,
+    retry_threshold: u32
+) -> Vec<models::QueuedSale> {
+    sales_store::check_failed_sales(&state, retry_threshold)
+}
+
+#[tauri::command]
+fn delete_sale_command(
+    app: AppHandle,
+    state: State<'_, SalesState>,
+    sale_id: String
+) -> Result<bool, String> {
+    sales_store::delete_sale(&app, &state, sale_id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -653,6 +694,7 @@ pub fn run() {
         .manage(ShiftState::new()) // Initialize Shift State
         .manage(AuthState::new()) // Initialize Auth State
         .manage(NotificationState::new()) // Initialize Notification State
+        .manage(NetworkState::new()) // Initialize Network State
         .setup(|app| {
             // --- 1. Load Data (Existing Code) ---
             let state = app.state::<ProductState>();
@@ -675,6 +717,46 @@ pub fn run() {
 
             let notification_state = app.state::<NotificationState>();
             notification_manager::init_notification_state(app.handle(), &notification_state);
+
+            // Check for old pending sales and notify user
+            let old_sales = sales_store::check_old_pending_sales(&sales_state, 3);
+            if !old_sales.is_empty() {
+                let notification = notification_manager::AppNotification::new(
+                    notification_manager::NotificationType::Warning,
+                    notification_manager::NotificationPriority::High,
+                    "Old Pending Sales Detected".to_string(),
+                    format!("You have {} pending sales older than 3 days. Please connect to the internet to sync them and avoid data loss.", old_sales.len()),
+                );
+                notification_state.add_notification(notification.clone());
+                let _ = notification_state.save_to_store(app.handle());
+                
+                // Send native notification
+                let _ = app.emit("old-sales-detected", old_sales.len());
+            }
+
+            // Check for failed sales and notify
+            let failed_sales = sales_store::check_failed_sales(&sales_state, 5);
+            if !failed_sales.is_empty() {
+                let _ = app.emit("failed-sales-detected", failed_sales);
+            }
+
+            // Start network monitoring
+            let auth_state_ref = app.state::<AuthState>();
+            let base_url = {
+                let config_guard = auth_state_ref.device_config.lock().unwrap();
+                config_guard.as_ref().map(|c| c.base_url.clone()).unwrap_or_default()
+            };
+            
+            if !base_url.is_empty() {
+                let network_state = app.state::<NetworkState>();
+                let network_state_arc = std::sync::Arc::new(network_state.inner().clone());
+                network_monitor::start_network_monitor(
+                    app.handle().clone(),
+                    network_state_arc,
+                    base_url,
+                    30 // Check every 30 seconds
+                );
+            }
 
             // --- 2. Startup Visibility Logic (NEW) ---
             // Get command line arguments
@@ -805,14 +887,19 @@ pub fn run() {
             auth_store::get_device_config,
             auth_store::restore_member_session,
             auth_store::reset_device_config,
-            data_management::dangerously_clear_all_data,
             notification_manager::send_native_notification,
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,
             notification_manager::mark_notification_read,
             notification_manager::mark_all_notifications_read,
             notification_manager::delete_notification,
-            notification_manager::clear_all_notifications
+            notification_manager::clear_all_notifications,
+            data_management::dangerously_clear_all_data,
+            retry_sale_command,
+            check_old_sales_command,
+            check_failed_sales_command,
+            delete_sale_command,
+            network_monitor::get_network_status_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -4,7 +4,9 @@ import { apiClient } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput } from '@/lib/validation/transactions';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useState } from 'react';
 
 // --- Types & Enums ---
 
@@ -195,6 +197,163 @@ export const usePendingSales = () => {
     error
   };
 };
+
+// Hook to monitor network status
+export const useNetworkStatus = () => {
+  const [isOnline, setIsOnline] = useState(true);
+  
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const status = await invoke<boolean>('get_network_status_command');
+        setIsOnline(status);
+      } catch (error) {
+        console.error('Failed to check network status:', error);
+      }
+    };
+
+    // Check immediately
+    checkStatus();
+
+    // Listen for network status changes
+    const unlisten = listen('network-status-changed', (event: any) => {
+      setIsOnline(event.payload);
+    });
+
+    // Listen for trigger to sync sales
+    const unlistenSync = listen('trigger-sales-sync', async () => {
+      console.log('[Network] Connection restored, triggering sync...');
+      toast.info('Connection Restored', {
+        description: 'Syncing pending sales...',
+      });
+      try {
+        const count = await invoke<number>('sync_sales_command', {});
+        if (count > 0) {
+          toast.success('Sales Synced', {
+            description: `Successfully synced ${count} pending sales.`,
+          });
+        }
+      } catch (error) {
+        console.error('Auto-sync failed:', error);
+      }
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+      unlistenSync.then(fn => fn());
+    };
+  }, []);
+
+  return { isOnline };
+};
+
+// Hook to retry a single sale
+export const useRetrySale = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (saleId: string) => {
+      const result = await invoke<boolean>('retry_sale_command', { saleId });
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
+      toast.success('Sale Retried', {
+        description: 'Sale synced successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast.error('Retry Failed', {
+        description: error?.message || 'Failed to retry sale. Please check your connection.',
+      });
+    },
+  });
+};
+
+// Hook to delete a sale
+export const useDeleteSale = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (saleId: string) => {
+      const result = await invoke<boolean>('delete_sale_command', { saleId });
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
+      toast.success('Sale Deleted', {
+        description: 'Failed sale removed from queue.',
+      });
+    },
+    onError: (error: any) => {
+      toast.error('Delete Failed', {
+        description: error?.message || 'Failed to delete sale.',
+      });
+    },
+  });
+};
+
+// Hook to check for old pending sales on mount
+export const useOldSalesCheck = () => {
+  useEffect(() => {
+    const checkOldSales = async () => {
+      try {
+        const oldSales = await invoke<RustQueuedSale[]>('check_old_sales_command', { 
+          daysThreshold: 3 
+        });
+        
+        if (oldSales.length > 0) {
+          toast.warning('Old Pending Sales', {
+            description: `You have ${oldSales.length} sales older than 3 days. Please connect to sync them.`,
+            duration: 10000,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to check old sales:', error);
+      }
+    };
+
+    checkOldSales();
+
+    // Listen for old sales detected event from backend
+    const unlisten = listen('old-sales-detected', (event: any) => {
+      const count = event.payload;
+      toast.warning('Old Pending Sales Detected', {
+        description: `You have ${count} pending sales older than 3 days. Please connect to the internet to sync them and avoid data loss.`,
+        duration: 15000,
+        action: {
+          label: 'View Sales',
+          onClick: () => {
+            window.location.href = '/history';
+          },
+        },
+      });
+    });
+
+    // Listen for failed sales detected event
+    const unlistenFailed = listen('failed-sales-detected', (event: any) => {
+      const failedSales = event.payload as RustQueuedSale[];
+      if (failedSales.length > 0) {
+        toast.error('Failed Sales Detected', {
+          description: `${failedSales.length} sales have failed to sync multiple times. You can delete them from the history page.`,
+          duration: 15000,
+          action: {
+            label: 'View Sales',
+            onClick: () => {
+              window.location.href = '/history';
+            },
+          },
+        });
+      }
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+      unlistenFailed.then(fn => fn());
+    };
+  }, []);
+};
+
 
 //For manual sales (Direct API - Deprecated for POS, used for online orders/fallback)
 export const processSaleApi = async (data: ProcessSaleInput, locationId: string) => {
