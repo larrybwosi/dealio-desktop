@@ -107,28 +107,6 @@ export function POS() {
       return typeof price === 'number' ? price : null;
   }, [priceMap]);
 
-  // --- SCREEN LAUNCH LOGIC ---
-  useEffect(() => {
-    const syncCustomerScreenWindow = async () => {
-      const globalEnabled = !!settings.enableCustomerDisplay;
-      const configEnabled = settings.customerDisplayConfig?.enabled ?? true;
-      const shouldBeOpen = globalEnabled && configEnabled;
-
-      try {
-        if (shouldBeOpen) {
-          await invoke('open_customer_screen');
-          console.log('Customer screen: opened');
-        } else {
-          await invoke('close_customer_screen');
-          console.log('Customer screen: closed');
-        }
-      } catch (e) {
-        console.error('Failed to sync customer screen window:', e);
-      }
-    };
-    syncCustomerScreenWindow();
-  }, [settings.enableCustomerDisplay, settings.customerDisplayConfig?.enabled]);
-
   // 4. Extract Categories
   useEffect(() => {
     if (activeCategory === 'all' && products.length > 0) {

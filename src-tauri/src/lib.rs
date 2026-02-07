@@ -45,6 +45,9 @@ mod data_management;
 mod network_monitor;
 use network_monitor::NetworkState;
 
+mod customer_screen_state;
+use customer_screen_state::CustomerScreenState;
+
 #[cfg(test)]
 mod test_utils;
 
@@ -292,6 +295,35 @@ async fn close_customer_screen(app: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+// --- New State Management Commands ---
+#[tauri::command]
+async fn set_customer_screen_enabled(
+    app: AppHandle,
+    state: State<'_, CustomerScreenState>,
+    enabled: bool
+) -> Result<(), String> {
+    // Update state
+    state.set_enabled(enabled);
+    
+    // Save to disk
+    state.save_to_store(&app)?;
+    
+    // Open or close window based on state
+    if enabled {
+        open_customer_screen(app).await?;
+    } else {
+        close_customer_screen(app).await?;
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
+fn get_customer_screen_state(state: State<'_, CustomerScreenState>) -> bool {
+    state.is_enabled()
+}
+
 
 // Helper command to list devices ---
 #[tauri::command]
@@ -695,6 +727,7 @@ pub fn run() {
         .manage(AuthState::new()) // Initialize Auth State
         .manage(NotificationState::new()) // Initialize Notification State
         .manage(NetworkState::new()) // Initialize Network State
+        .manage(CustomerScreenState::new()) // Initialize Customer Screen State
         .setup(|app| {
             // --- 1. Load Data (Existing Code) ---
             let state = app.state::<ProductState>();
@@ -756,6 +789,24 @@ pub fn run() {
                     base_url,
                     30 // Check every 30 seconds
                 );
+            }
+
+            // --- Customer Screen State Loading & Auto-Open ---
+            let customer_screen_state = app.state::<CustomerScreenState>();
+            
+            // Load saved state from disk
+            if let Err(e) = customer_screen_state.load_from_store(app.handle()) {
+                eprintln!("Failed to load customer screen state: {}", e);
+            }
+            
+            // Auto-open customer screen if enabled
+            if customer_screen_state.is_enabled() {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = open_customer_screen(app_handle).await {
+                        eprintln!("Failed to open customer screen on startup: {}", e);
+                    }
+                });
             }
 
             // --- 2. Startup Visibility Logic (NEW) ---
@@ -853,6 +904,8 @@ pub fn run() {
             list_hid_devices, 
             open_customer_screen,
             close_customer_screen,
+            set_customer_screen_enabled,
+            get_customer_screen_state,
             sync_products_command,
             search_products_command,
             get_products_by_ids_command,

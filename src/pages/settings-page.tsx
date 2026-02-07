@@ -27,7 +27,6 @@ import { useScanner } from '@/hooks/use-scanner';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
-import { UpdateTestingPanel } from '@/components/update-testing-panel';
 import GeneralSettings from '@/components/settings/general-tab';
 
 
@@ -43,7 +42,6 @@ export default function SettingsPage() {
   const changeBusinessType = usePosStore(state => state.changeBusinessType);
   const getBusinessConfig = usePosStore(state => state.getBusinessConfig);
   const updateThemeConfig = usePosStore(state => state.updateThemeConfig);
-  const updateSecurityConfig = usePosStore(state => state.updateSecurityConfig);
   const updateNotificationSettings = usePosStore(state => state.updateNotificationSettings);
   const updateCustomerDisplayConfig = usePosStore(state => state.updateCustomerDisplayConfig);
   const dangerouslyResetEverything = usePosStore(state => state.dangerouslyResetEverything);
@@ -190,11 +188,7 @@ export default function SettingsPage() {
     });
 
     try {
-      if (enableCustomerDisplay) {
-        await invoke('open_customer_screen');
-      } else {
-        await invoke('close_customer_screen');
-      }
+      await invoke('set_customer_screen_enabled', { enabled: enableCustomerDisplay });
     } catch (error) {
       console.error("Failed to toggle customer screen:", error);
       toast.error("Failed to toggle customer screen window");
@@ -238,12 +232,10 @@ export default function SettingsPage() {
             <TabsTrigger value="theme">Theme</TabsTrigger>
             <TabsTrigger value="enterprise">Enterprise</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="hardware">Hardware</TabsTrigger>
             <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="customer-display">Display</TabsTrigger>
             <TabsTrigger value="navigation">Navigation</TabsTrigger>
-            <TabsTrigger value="developer">Developer</TabsTrigger>
             <TabsTrigger value="danger" className="text-destructive data-[state=active]:bg-destructive data-[state=active]:text-destructive-foreground">Danger Zone</TabsTrigger>
           </TabsList>
 
@@ -726,131 +718,6 @@ export default function SettingsPage() {
                     "metadata": { /* custom data */ }
                   }`}
                 </pre>
-              </div>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="security" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Session Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Session Timeout</div>
-                    <p className="text-sm text-muted-foreground">Automatically log out users after inactivity</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.enableSessionTimeout || false}
-                    onCheckedChange={value => updateSecurityConfig({ enableSessionTimeout: value })}
-                  />
-                </div>
-
-                {settings.securityConfig?.enableSessionTimeout && (
-                  <div className="grid gap-2 pl-6">
-                    <Label htmlFor="sessionTimeout">Session Timeout (minutes)</Label>
-                    <Input
-                      id="sessionTimeout"
-                      type="number"
-                      min="1"
-                      value={settings.securityConfig?.sessionTimeoutMinutes || 30}
-                      onChange={e => updateSecurityConfig({ sessionTimeoutMinutes: Number.parseInt(e.target.value) })}
-                    />
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Login Security</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Failed Login Lock</div>
-                    <p className="text-sm text-muted-foreground">Lock account after multiple failed attempts</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.enableFailedLoginLock || false}
-                    onCheckedChange={value => updateSecurityConfig({ enableFailedLoginLock: value })}
-                  />
-                </div>
-
-                {settings.securityConfig?.enableFailedLoginLock && (
-                  <div className="grid grid-cols-2 gap-4 pl-6">
-                    <div className="grid gap-2">
-                      <Label htmlFor="maxAttempts">Max Failed Attempts</Label>
-                      <Input
-                        id="maxAttempts"
-                        type="number"
-                        min="1"
-                        value={settings.securityConfig?.maxFailedAttempts || 5}
-                        onChange={e => updateSecurityConfig({ maxFailedAttempts: Number.parseInt(e.target.value) })}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="lockoutDuration">Lockout Duration (minutes)</Label>
-                      <Input
-                        id="lockoutDuration"
-                        type="number"
-                        min="1"
-                        value={settings.securityConfig?.lockoutDurationMinutes || 15}
-                        onChange={e =>
-                          updateSecurityConfig({ lockoutDurationMinutes: Number.parseInt(e.target.value) })
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <Separator />
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Require Strong Passwords</div>
-                    <p className="text-sm text-muted-foreground">Enforce minimum 8 characters with mixed case</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.requireStrongPasswords || false}
-                    onCheckedChange={value => updateSecurityConfig({ requireStrongPasswords: value })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Two-Factor Authentication</div>
-                    <p className="text-sm text-muted-foreground">Add extra security layer for admin accounts</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.enableTwoFactorAuth || false}
-                    onCheckedChange={value => updateSecurityConfig({ enableTwoFactorAuth: value })}
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Audit & Compliance</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Audit Log</div>
-                    <p className="text-sm text-muted-foreground">Track all user actions and system changes</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.enableAuditLog || false}
-                    onCheckedChange={value => updateSecurityConfig({ enableAuditLog: value })}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Data Encryption</div>
-                    <p className="text-sm text-muted-foreground">Encrypt sensitive data at rest</p>
-                  </div>
-                  <Switch
-                    checked={settings.securityConfig?.enableDataEncryption || false}
-                    onCheckedChange={value => updateSecurityConfig({ enableDataEncryption: value })}
-                  />
-                </div>
               </div>
             </Card>
           </TabsContent>
@@ -1439,10 +1306,6 @@ export default function SettingsPage() {
                 ))}
               </div>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="developer" className="space-y-6">
-            <UpdateTestingPanel />
           </TabsContent>
 
           <TabsContent value="danger" className="space-y-6">
