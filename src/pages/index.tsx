@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Calendar, Search, LogOut } from 'lucide-react';
+import { Calendar, Search, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
@@ -18,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 
 export default function Home() {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   const { checkOut, currentMember } = useAuth();
 
@@ -45,7 +46,14 @@ export default function Home() {
 
           <div className="flex items-center gap-3">
             <NotificationCenter />
-            <NotificationSettingsDialog />
+            <NotificationCenter />
+            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
+              <Settings className="h-5 w-5" />
+            </Button>
+            <NotificationSettingsDialog 
+              open={showNotificationSettings} 
+              onOpenChange={setShowNotificationSettings} 
+            />
 
             <Button
               variant="outline"

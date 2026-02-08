@@ -378,6 +378,9 @@ export interface BusinessSettings {
   maxHeldOrders: number;
   heldOrderExpiryHours?: number;
   requireHoldReason: boolean;
+
+  
+
 }
 
 export interface Customer {
@@ -479,6 +482,10 @@ interface PosStore {
 
   notifications: Notification[];
   unreadNotificationCount: number;
+
+  // Location
+  currentLocationId: string | null;
+  setCurrentLocationId: (id: string | null) => void;
 
   // Added tables and related methods
   tables: Table[];
@@ -772,6 +779,10 @@ const getDefaultNotificationSettings = (): NotificationSettings => ({
 export const usePosStore = create<PosStore>()(
   persist(
     (set, get) => ({
+
+      currentLocationId: null,
+      setCurrentLocationId: (id) => set({ currentLocationId: id }),
+
       currentOrder: {
         customerName: '',
         orderType: 'takeaway',
@@ -1040,6 +1051,11 @@ export const usePosStore = create<PosStore>()(
             // email: '',
             // website: '',
             receiptConfig: getDefaultReceiptConfig(),
+            allowSaveUnpaidOrders: true,
+            enableCustomerManagement: true,
+            enableEmployeeManagement: true,
+            enableLowStockAlerts: true,
+            requireHoldReason: false,
             sidebarItems: getDefaultSidebarItems('retail'),
             lowStockThreshold: 10,
             enableCashDrawer: true,
@@ -1102,14 +1118,14 @@ export const usePosStore = create<PosStore>()(
             enableHoldSale: true,
             maxHeldOrders: 20,
             heldOrderExpiryHours: 24,
-            requireHoldReason: false,
+
           },
           employees: [],
           notifications: [],
           cashDrawers: [],
           currentEmployeeId: null,
           activeCashDrawerId: null,
-          isCheckedIn: false,
+
           unreadNotificationCount: 0,
           heldOrders: [],
           tables: [
@@ -1955,3 +1971,18 @@ export const usePosStore = create<PosStore>()(
     }
   )
 );
+
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('location-changed', (e: Event) => {
+    const customEvent = e as CustomEvent;
+    const { locationId, products } = customEvent.detail;
+    
+    // Update products in store
+    usePosStore.getState().setProducts(products);
+    usePosStore.getState().setCurrentLocationId(locationId);
+    
+    // Re-check low stock alerts for new location
+    usePosStore.getState().checkLowStockAlerts();
+  });
+}

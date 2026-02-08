@@ -78,6 +78,7 @@ interface PosAuthActions {
   // Async initialization
   initializeFromBackend: () => Promise<void>;
   registerDevice: (apiKey: string, location: InventoryLocation) => Promise<void>;
+  switchLocation: (location: InventoryLocation) => Promise<void>;
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -216,6 +217,45 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
              console.error("Failed to register device:", error);
              throw error;
          }
+      },
+
+      switchLocation: async (location) => {
+        const previousLocation = get().currentLocation;
+        const deviceKey = get().deviceKey;
+        
+        if (!deviceKey) {
+            console.error("Cannot switch location: Device key missing");
+            return;
+        }
+
+        // 1. Update location in backend config
+        try {
+            await invoke('set_device_config', {
+                baseUrl: API_ENDPOINT,
+                locationId: location.id,
+                deviceKey: deviceKey
+            });
+            
+            // 2. Update local state
+            set({ currentLocation: location });
+            
+            // 3. Call switch_location command to load cached products and trigger sync
+            const products = await invoke('switch_location', {
+                newLocationId: location.id
+            });
+            
+            // 4. Update product store via event
+            window.dispatchEvent(new CustomEvent('location-changed', {
+                detail: { 
+                    locationId: location.id,
+                    products,
+                    previousLocationId: previousLocation?.id 
+                }
+            }));
+            
+        } catch (error) {
+            console.error('Failed to switch location:', error);
+        }
       }
 
     }),
@@ -240,9 +280,6 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
         if (isExpired) {
           console.log('Session expired. Clearing member data.');
-          state.memberToken = null;
-          state.currentMember = null;
-          state.isRestoredSession = false;
           state.sessionUpdatedAt = null;
         }
       },

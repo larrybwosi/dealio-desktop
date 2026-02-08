@@ -58,7 +58,7 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
 
   // --- QUERY: Local Search ---
   const { data: products = [], isLoading: isSearching } = useQuery({
-    queryKey: ['pos-products', debouncedSearch, category],
+    queryKey: ['pos-products', debouncedSearch, category, locationId], // Added locationId to force refetch on change
     queryFn: async () => {
       // Invoke Tauri command to search local DB
       const rawProducts = await invoke<PosProduct[]>('search_products_command', {

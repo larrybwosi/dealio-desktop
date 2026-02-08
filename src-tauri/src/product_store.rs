@@ -13,28 +13,30 @@ const TIMEOUT_SECONDS: u64 = 60;
 
 // --- State Management ---
 pub struct ProductState {
-    pub products: Mutex<Vec<PosProduct>>,
-    pub last_sync: Mutex<Option<String>>,
+    // Multi-location cache: HashMap keyed by location_id
+    pub products_by_location: Mutex<HashMap<String, Vec<PosProduct>>>,
+    pub last_sync_by_location: Mutex<HashMap<String, Option<String>>>,
 }
 
 impl ProductState {
     pub fn new() -> Self {
         Self {
-            products: Mutex::new(Vec::new()),
-            last_sync: Mutex::new(None),
+            products_by_location: Mutex::new(HashMap::new()),
+            last_sync_by_location: Mutex::new(HashMap::new()),
         }
     }
 }
 
 // --- Helper: File Paths ---
-fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
+fn get_store_path(app: &AppHandle, location_id: &str) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
     
     if !app_dir.exists() {
         fs::create_dir_all(&app_dir).context("Failed to create App Data Directory")?;
     }
     
-    Ok(app_dir.join(STORE_FILENAME))
+    // Location-specific filename
+    Ok(app_dir.join(format!("products_loc_{}.json", location_id)))
 }
 
 fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
@@ -125,16 +127,19 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 }
 
 // --- 1. Load Data on Startup (Synchronous is fine here) ---
-pub fn load_products_from_disk(app: &AppHandle, state: &ProductState) -> Result<()> {
-    let path = get_store_path(app)?;
+pub fn load_products_from_disk(app: &AppHandle, state: &ProductState, location_id: &str) -> Result<()> {
+    let path = get_store_path(app, location_id)?;
     
     if path.exists() {
         let content = fs::read_to_string(path).context("Failed to read store file")?;
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
         if let Ok((last_sync, products)) = data {
-            *state.last_sync.lock().unwrap() = last_sync;
-            *state.products.lock().unwrap() = products;
+            let mut products_map = state.products_by_location.lock().unwrap();
+            let mut sync_map = state.last_sync_by_location.lock().unwrap();
+            
+            products_map.insert(location_id.to_string(), products);
+            sync_map.insert(location_id.to_string(), last_sync);
         }
     }
     Ok(())
@@ -146,7 +151,8 @@ use crate::auth_store::AuthState;
 pub async fn run_sync(
     app: AppHandle,
     state: &ProductState,
-    auth_state: &AuthState
+    auth_state: &AuthState,
+    force_full_sync: bool // NEW: if true, ignore lastSync and get all products
 ) -> Result<usize> {
     
     // 1. Get Config/Auth from State
@@ -172,7 +178,14 @@ pub async fn run_sync(
     let clean_base_url = base_url.trim_end_matches('/');
     let target_url = format!("{}/api/v1/pos/products", clean_base_url);
     
-    let last_sync_time = state.last_sync.lock().unwrap().clone();
+    // Get last sync time for THIS location (not global)
+    let last_sync_time = if force_full_sync {
+        None
+    } else {
+        state.last_sync_by_location.lock().unwrap()
+            .get(&location_id)
+            .and_then(|opt| opt.clone())
+    };
     
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
@@ -244,11 +257,18 @@ pub async fn run_sync(
     let incoming_count = res_body.products.len();
     let sync_timestamp = res_body.sync_timestamp.clone();
 
+    // --- MERGE LOGIC FOR THIS LOCATION ---
     let updated_list = {
-        let mut products_guard = state.products.lock().unwrap();
+        let mut products_map_guard = state.products_by_location.lock().unwrap();
         
-        let mut product_map: HashMap<String, PosProduct> = products_guard
-            .drain(..)
+        // Get existing products for this location, or empty vec
+        let existing_products = products_map_guard
+            .get(&location_id)
+            .cloned()
+            .unwrap_or_default();
+        
+        let mut product_map: HashMap<String, PosProduct> = existing_products
+            .into_iter()
             .map(|p| (p.product_id.clone(), p))
             .collect();
 
@@ -257,13 +277,18 @@ pub async fn run_sync(
         }
 
         let list: Vec<PosProduct> = product_map.into_values().collect();
-        *products_guard = list.clone();
+        
+        // Update location-specific cache
+        products_map_guard.insert(location_id.clone(), list.clone());
         list
     };
 
-    // --- ASYNC SAVE TO DISK ---
+    // --- ASYNC SAVE TO DISK (LOCATION-SPECIFIC FILE) ---
     let new_sync_time = sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-    *state.last_sync.lock().unwrap() = Some(new_sync_time.clone());
+    
+    // Update sync timestamp for this location
+    state.last_sync_by_location.lock().unwrap()
+        .insert(location_id.clone(), Some(new_sync_time.clone()));
 
     let file_data = (Some(new_sync_time), updated_list);
     
@@ -271,15 +296,17 @@ pub async fn run_sync(
         serde_json::to_string(&file_data)
     }).await??;
     
-    let path = get_store_path(&app)?;
+    let path = get_store_path(&app, &location_id)?;
     async_fs::write(path, json).await.context("Failed to write to disk")?;
 
     Ok(incoming_count)
 }
 
 // --- 3. Search Logic ---
-pub fn search_local(state: &ProductState, query: String, category: String) -> Vec<PosProduct> {
-    let products = state.products.lock().unwrap();
+// Helper to get products for current location from auth state
+pub fn search_local(state: &ProductState, location_id: &str, query: String, category: String) -> Vec<PosProduct> {
+    let products_map = state.products_by_location.lock().unwrap();
+    let products = products_map.get(location_id).cloned().unwrap_or_default();
     let query = query.trim().to_lowercase();
     let filter_category = category != "all" && !category.is_empty();
 
@@ -306,8 +333,9 @@ pub fn search_local(state: &ProductState, query: String, category: String) -> Ve
     .collect()
 }
 
-pub fn get_products_by_ids(state: &ProductState, ids: Vec<String>) -> Vec<PosProduct> {
-    let products = state.products.lock().unwrap();
+pub fn get_products_by_ids(state: &ProductState, location_id: &str, ids: Vec<String>) -> Vec<PosProduct> {
+    let products_map = state.products_by_location.lock().unwrap();
+    let products = products_map.get(location_id).cloned().unwrap_or_default();
     if ids.is_empty() {
         return Vec::new();
     }
@@ -319,4 +347,35 @@ pub fn get_products_by_ids(state: &ProductState, ids: Vec<String>) -> Vec<PosPro
         })
         .cloned()
         .collect()
+}
+
+// --- 4. Location Switch Command ---
+#[tauri::command]
+pub async fn switch_location(
+    app: AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
+    new_location_id: String,
+) -> Result<Vec<PosProduct>, String> {
+    // 1. Load cached products for this location (instant response)
+    load_products_from_disk(&app, &state, &new_location_id)
+        .map_err(|e| e.to_string())?;
+    
+    // 2. Return cached products immediately (even if empty)
+    let cached = {
+        let products_map = state.products_by_location.lock().unwrap();
+        products_map.get(&new_location_id).cloned().unwrap_or_default()
+    };
+    
+    // 3. Trigger background sync (delta if we have lastSync, full if first visit)
+    let app_clone = app.clone();
+    
+    tauri::async_runtime::spawn(async move {
+        // Retrieve states inside the task to avoid lifetime issues
+        let state_inner = app_clone.state::<ProductState>();
+        let auth_inner = app_clone.state::<AuthState>();
+        let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
+    });
+    
+    Ok(cached)
 }

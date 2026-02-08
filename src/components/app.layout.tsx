@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sidebar } from '@/components/sidebar';
 import { Input } from '@/components/ui/input';
-import { Calendar, Search } from 'lucide-react';
+import { Calendar, Search, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
@@ -25,6 +25,7 @@ interface AppLayoutProviderProps {
 
 export default function AppLayoutProvider({ children }: AppLayoutProviderProps) {
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const { checkOut } = useAuth();
   const location = useLocation();
 
@@ -54,7 +55,13 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
 
           <div className="flex items-center gap-3">
             <NotificationCenter />
-            <NotificationSettingsDialog />
+            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
+              <Settings className="h-5 w-5" />
+            </Button>
+            <NotificationSettingsDialog 
+              open={showNotificationSettings} 
+              onOpenChange={setShowNotificationSettings} 
+            />
 
             <Button variant="outline" className="gap-2 bg-transparent">
               <Calendar className="w-4 h-4" />

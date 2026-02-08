@@ -27,7 +27,7 @@ interface LocationSwitchDialogProps {
 
 export function LocationSwitchDialog({ open, onOpenChange }: LocationSwitchDialogProps) {
   const { locations, isLoading } = usePosLocations();
-  const { currentLocation, registerDevice, deviceKey } = useAuthStore();
+  const { currentLocation, switchLocation } = useAuthStore();
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(currentLocation?.id || null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,21 +40,17 @@ export function LocationSwitchDialog({ open, onOpenChange }: LocationSwitchDialo
   };
 
   const handleConfirm = async () => {
-    if (!selectedLocationId || !deviceKey) return;
+    if (!selectedLocationId) return;
     
     const location = locations.find(l => l.id === selectedLocationId);
     if (!location) return;
 
     setIsSubmitting(true);
     try {
-      // We need to cast location to any because the types might slightly mismatch between hooks
-      // But structurally they should be compatible for what registerDevice expects
-      await registerDevice(deviceKey, location as any);
+      // Use switchLocation to update config AND sync products
+      await switchLocation(location as any);
       toast.success(`Switched to ${location.name}`);
       onOpenChange(false);
-      
-      // Optional: Refresh window to ensure everything reloads with new location context if needed
-      // window.location.reload(); 
     } catch (error) {
       console.error(error);
       toast.error("Failed to switch location");

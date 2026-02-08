@@ -62,7 +62,7 @@ async fn sync_products_command(
     state: State<'_, ProductState>,
     auth_state: State<'_, AuthState>
 ) -> Result<String, String> {
-    match product_store::run_sync(app, &state, &auth_state).await {
+    match product_store::run_sync(app, &state, &auth_state, false).await {
         Ok(count) => {
             Ok(format!("Synced {} products", count))
         },
@@ -76,10 +76,16 @@ async fn sync_products_command(
 #[tauri::command]
 fn search_products_command(
     state: State<'_, ProductState>,
+    auth_state: State<'_, AuthState>,
     query: String,
     category: String
 ) -> Vec<models::PosProduct> {
-    product_store::search_local(&state, query, category)
+    // Get current location from auth state
+    let location_id = {
+        let config_guard = auth_state.device_config.lock().unwrap();
+        config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
+    };
+    product_store::search_local(&state, &location_id, query, category)
 }
 
 // --- CUSTOMER COMMANDS ---
@@ -632,9 +638,15 @@ async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, PrinterEr
 #[tauri::command]
 fn get_products_by_ids_command(
     state: State<'_, ProductState>,
+    auth_state: State<'_, AuthState>,
     ids: Vec<String>
 ) -> Vec<models::PosProduct> {
-    product_store::get_products_by_ids(&state, ids)
+    // Get current location from auth state
+    let location_id = {
+        let config_guard = auth_state.device_config.lock().unwrap();
+        config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
+    };
+    product_store::get_products_by_ids(&state, &location_id, ids)
 }
 
 #[tauri::command]
@@ -730,9 +742,19 @@ pub fn run() {
         .manage(CustomerScreenState::new()) // Initialize Customer Screen State
         .setup(|app| {
             // --- 1. Load Data (Existing Code) ---
+            // Note: We can't load products at startup since we need location_id
+            // Products will be loaded when the device is configured/location is set
             let state = app.state::<ProductState>();
-            if let Err(e) = product_store::load_products_from_disk(app.handle(), &state) {
-                eprintln!("Failed to load initial data: {}", e);
+            
+            // Try to load products for the configured location if available
+            let auth_state_init = app.state::<AuthState>();
+            if let Some(location_id) = {
+                let config_guard = auth_state_init.device_config.lock().unwrap();
+                config_guard.as_ref().map(|c| c.location_id.clone())
+            } {
+                if let Err(e) = product_store::load_products_from_disk(app.handle(), &state, &location_id) {
+                    eprintln!("Failed to load initial data for location {}: {}", location_id, e);
+                }
             }
 
             let cust_state = app.state::<CustomerState>();
@@ -909,6 +931,7 @@ pub fn run() {
             sync_products_command,
             search_products_command,
             get_products_by_ids_command,
+            product_store::switch_location,
             start_nfc_listener,
             get_serial_ports, 
             open_cash_drawer,

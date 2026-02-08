@@ -78,11 +78,11 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
 
     // 4. Reset In-Memory State
     let product_state = app.state::<ProductState>();
-    if let Ok(mut products) = product_state.products.lock() {
-        products.clear();
+    if let Ok(mut products_map) = product_state.products_by_location.lock() {
+        products_map.clear();
     }
-    if let Ok(mut last_sync) = product_state.last_sync.lock() {
-        *last_sync = None;
+    if let Ok(mut sync_map) = product_state.last_sync_by_location.lock() {
+        sync_map.clear();
     }
 
     let customer_state = app.state::<CustomerState>();
