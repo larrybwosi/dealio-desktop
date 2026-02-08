@@ -13,7 +13,12 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:frontend": "vitest run",
+    "test:backend": "cd src-tauri && cargo test",
+    "test:e2e": "playwright test",
+    "test:all": "pnpm run test:frontend && pnpm run test:backend && pnpm run test:e2e",
+    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
