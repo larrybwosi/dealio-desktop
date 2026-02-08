@@ -354,7 +354,7 @@ pub fn get_products_by_ids(state: &ProductState, location_id: &str, ids: Vec<Str
 pub async fn switch_location(
     app: AppHandle,
     state: tauri::State<'_, ProductState>,
-    auth_state: tauri::State<'_, AuthState>,
+    _auth_state: tauri::State<'_, AuthState>,
     new_location_id: String,
 ) -> Result<Vec<PosProduct>, String> {
     // 1. Load cached products for this location (instant response)

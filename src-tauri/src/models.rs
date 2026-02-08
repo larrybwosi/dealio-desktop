@@ -390,3 +390,12 @@ pub struct ShiftSyncPayload {
     pub actual_cash_count: Option<f64>,
     pub variance: Option<f64>,
 }
+
+// --- GLOBAL SEARCH ---
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GlobalSearchResult {
+   pub products: Vec<PosProduct>,
+   pub customers: Vec<PosCustomer>,
+   pub sales: Vec<QueuedSale>,
+}

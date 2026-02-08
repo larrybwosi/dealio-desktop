@@ -619,3 +619,16 @@ pub async fn scan_transaction_qr(
     let error_body = resp.text().await.unwrap_or_default();
     Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
 }
+
+pub fn search_local(state: &SalesState, query: String) -> Vec<QueuedSale> {
+    let q = state.queue.lock().unwrap();
+    let lower_query = query.to_lowercase();
+    
+    q.iter()
+        .filter(|s| {
+            s.id.to_lowercase().contains(&lower_query) ||
+            s.transaction_data.get("saleNumber").and_then(|v| v.as_str()).map(|v| v.to_lowercase().contains(&lower_query)).unwrap_or(false)
+        })
+        .cloned()
+        .collect()
+}

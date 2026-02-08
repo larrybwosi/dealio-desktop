@@ -88,6 +88,44 @@ fn search_products_command(
     product_store::search_local(&state, &location_id, query, category)
 }
 
+#[tauri::command]
+fn search_global_command(
+    product_state: State<'_, ProductState>,
+    customer_state: State<'_, CustomerState>,
+    sales_state: State<'_, SalesState>,
+    auth_state: State<'_, AuthState>,
+    query: String
+) -> models::GlobalSearchResult {
+    // 1. Search Products
+    let location_id = {
+        let config_guard = auth_state.device_config.lock().unwrap();
+        config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
+    };
+    
+    let products = product_store::search_local(&product_state, &location_id, query.clone(), "All".to_string())
+        .into_iter()
+        .take(5)
+        .collect();
+
+    // 2. Search Customers
+    let customers = customer_store::search_local(&customer_state, query.clone())
+        .into_iter()
+        .take(5)
+        .collect();
+
+    // 3. Search Sales (Pending/Failed/Queue)
+    let sales = sales_store::search_local(&sales_state, query)
+        .into_iter()
+        .take(5)
+        .collect();
+
+    models::GlobalSearchResult {
+        products,
+        customers,
+        sales
+    }
+}
+
 // --- CUSTOMER COMMANDS ---
 
 #[tauri::command]
@@ -930,6 +968,7 @@ pub fn run() {
             get_customer_screen_state,
             sync_products_command,
             search_products_command,
+            search_global_command,
             get_products_by_ids_command,
             product_store::switch_location,
             start_nfc_listener,

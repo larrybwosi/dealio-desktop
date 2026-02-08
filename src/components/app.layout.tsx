@@ -1,7 +1,7 @@
 import { useState } from 'react';
+import { GlobalSearch } from './global-search';
 import { Sidebar } from '@/components/sidebar';
-import { Input } from '@/components/ui/input';
-import { Calendar, Search, Settings } from 'lucide-react';
+import { Calendar, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
@@ -48,8 +48,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
           <div className="flex items-center gap-6 flex-1">
 
             <div className="relative max-w-md flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search anything" className="pl-10" />
+              <GlobalSearch />
             </div>
           </div>
 
