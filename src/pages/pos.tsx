@@ -22,7 +22,7 @@ import { usePosProducts } from '@/hooks/products';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
 import { useDebounce } from 'use-debounce';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
@@ -290,6 +290,28 @@ export function POS() {
     }
   }, [scannerError]);
 
+
+
+  const handleOpenCustomerScreen = async () => {
+    if (!settings.customerDisplayConfig?.enabled) {
+      toast.error('Customer Screen Disabled', {
+        description: 'Please enable the customer display in settings first.',
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      await invoke('open_customer_screen');
+    } catch (error) {
+      console.error('Failed to open customer screen:', error);
+      toast.error('Failed to open screen', {
+        description: 'Check if the screen is already open or try again.',
+        duration: 3000,
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-muted/5">
       {businessConfig.features.showOrdersList && <PendingOrdersList />}
@@ -383,7 +405,7 @@ export function POS() {
                             <Button 
                                 variant="ghost" 
                                 size="icon" 
-                                onClick={() => invoke('open_customer_screen')}
+                                onClick={handleOpenCustomerScreen}
                                 className="h-9 w-9 rounded-full text-muted-foreground hover:text-foreground"
                             >
                                 <MonitorCheck className="w-4 h-4" />
@@ -425,13 +447,12 @@ export function POS() {
                         />
                     ))}
                 </div>
-                <ScrollBar orientation="horizontal" className="h-2" />
             </ScrollArea>
         </div>
       </div>
 
       {/* --- Product Grid Content --- */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 bg-muted/10 scroll-smooth"> 
+      <div className="flex-1 overflow-y-auto px-4 py-4 bg-muted/10 scroll-smooth no-scrollbar"> 
         {businessConfig.type === 'supermarket' ? (
           /* Scan-Only Mode for Supermarket */
           <div className="flex flex-col items-center justify-center h-full py-20 text-center">

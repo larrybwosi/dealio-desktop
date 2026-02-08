@@ -108,6 +108,22 @@
   gap: 1rem;
 }
 
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  & [data-slot="scroll-area-viewport"]::-webkit-scrollbar {
+    display: none;
+  }
+  & [data-slot="scroll-area-viewport"] {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
 /* --- Base Layer (Variables & Resets) --- */
 @layer base {
   :root {

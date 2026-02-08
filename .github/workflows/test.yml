@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4 # Updated to v4 for better compatibility
+      - uses: pnpm/action-setup@v4
         with:
           version: 8
       - name: Use Node.js
@@ -63,7 +63,20 @@ jobs:
             libpcsclite-dev \
             pkg-config \
             patchelf
-      
+
+      - name: Create dummy binaries for macOS/Linux
+        if: matrix.platform != 'windows-latest'
+        run: |
+          mkdir -p src-tauri/binaries
+          
+          # Create dummy files for all targets you build
+          touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
+          touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
+          touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
+          
+          # Make them executable (Aligned correctly now)
+          chmod +x src-tauri/binaries/*
+
       - name: Run Backend Tests
         run: pnpm test:backend
 

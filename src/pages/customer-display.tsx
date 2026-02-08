@@ -156,16 +156,7 @@ export default function CustomerDisplay() {
   // IDLE LOGIC: Empty cart AND no active payment
   const isIdle = cart.length === 0 && !isPaymentActive;
 
-  if (config.enabled === false) {
-      return (
-          <div className="h-screen w-screen flex items-center justify-center bg-slate-950 text-slate-500">
-              <div className="text-center">
-                  <MonitorSmartphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Customer Display is Disabled</p>
-              </div>
-          </div>
-      );
-  }
+
 
   return (
     <div className="h-[100dvh] w-screen bg-slate-50 text-slate-900 font-sans overflow-hidden select-none">

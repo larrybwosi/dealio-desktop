@@ -137,7 +137,6 @@ export default function SettingsPage() {
   const [enableEmailReceipts] = useState(settings?.enableEmailReceipts ?? false);
   const [paybillNumber, setPaybillNumber] = useState(settings?.paybillNumber || '');
   const [tillNumber, setTillNumber] = useState(settings?.tillNumber || '');
-  const [enableCustomerDisplay, setEnableCustomerDisplay] = useState(settings?.enableCustomerDisplay ?? true);
   const [cashDrawerPort, setCashDrawerPort] = useState(settings?.cashDrawerPort || '');
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
@@ -177,7 +176,7 @@ export default function SettingsPage() {
       enableEmailReceipts,
       paybillNumber,
       tillNumber,
-      enableCustomerDisplay,
+      enableCustomerDisplay: settings.customerDisplayConfig?.enabled ?? true,
       cashDrawerPort,
       enableAutoStart,
       enableBarcodeScanner,
@@ -188,7 +187,7 @@ export default function SettingsPage() {
     });
 
     try {
-      await invoke('set_customer_screen_enabled', { enabled: enableCustomerDisplay });
+      await invoke('set_customer_screen_enabled', { enabled: settings.customerDisplayConfig?.enabled ?? true });
     } catch (error) {
       console.error("Failed to toggle customer screen:", error);
       toast.error("Failed to toggle customer screen window");
@@ -743,7 +742,10 @@ export default function SettingsPage() {
                     Automatically launch the customer facing window on application startup
                   </p>
                 </div>
-                <Switch checked={enableCustomerDisplay} onCheckedChange={setEnableCustomerDisplay} />
+                <Switch 
+                  checked={settings.customerDisplayConfig?.enabled ?? true} 
+                  onCheckedChange={val => updateCustomerDisplayConfig({ enabled: val })} 
+                />
               </div>
             </Card>
 

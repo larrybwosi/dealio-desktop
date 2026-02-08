@@ -283,6 +283,12 @@ fn get_pos_pricing_command(state: State<'_, PricingState>) -> models::PosPricing
 // --- Command to open/manage the Customer Window ---
 #[tauri::command]
 async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
+    // 0. Check if enabled in state
+    let state = app.state::<CustomerScreenState>();
+    if !state.is_enabled() {
+        return Err("Customer screen is disabled in settings".to_string());
+    }
+
     let window_label = "customer";
 
     // 1. Check if window exists
@@ -912,9 +918,12 @@ pub fn run() {
                         }
                         "customer" => {
                             let app_handle = app.clone();
-                            tauri::async_runtime::spawn(async move {
-                                let _ = open_customer_screen(app_handle).await;
-                            });
+                            let state = app.state::<CustomerScreenState>();
+                            if state.is_enabled() {
+                                tauri::async_runtime::spawn(async move {
+                                    let _ = open_customer_screen(app_handle).await;
+                                });
+                            }
                         }
                         _ => {}
                     }
