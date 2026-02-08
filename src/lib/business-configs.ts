@@ -530,6 +530,8 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: "till-management", label: "Till Management", icon: "Calculator", enabled: true })
   }
 
+  items.push({ id: "pricing", label: "Pricing", icon: "Banknote", enabled: false })
+
   // if (config.features.loyaltyProgram) {
   //   items.push({ id: "loyalty", label: "Loyalty Program", icon: "Gift", enabled: true })
   // }
