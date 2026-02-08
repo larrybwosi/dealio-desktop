@@ -117,8 +117,7 @@ jobs:
         with:
           tagName: app-v__VERSION__ 
           releaseName: 'App v__VERSION__'
-          # USE THE GENERATED NOTES HERE:
           releaseBody: ${{ steps.release_notes.outputs.RELEASE_BODY }}
-          releaseDraft: true
-          prerelease: false
+          releaseDraft: false # <--- CHANGE THIS TO FALSE
+          prerelease: false   # <--- ENSURE THIS IS FALSE
           args: ${{ matrix.args }}
