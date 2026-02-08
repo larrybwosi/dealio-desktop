@@ -58,6 +58,10 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            libpcsclite-dev \
+            pkg-config \
             patchelf
       
       - name: Run Backend Tests

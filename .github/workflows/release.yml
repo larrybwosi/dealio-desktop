@@ -55,7 +55,6 @@ jobs:
           # Added libpcsclite-dev and pkg-config to the end of this list
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev libusb-1.0-0-dev libgtk-3-dev libpcsclite-dev pkg-config
 
-      # --- FIX: Indentation corrected here ---
       - name: Create dummy binaries for macOS/Linux
         if: matrix.platform != 'windows-latest'
         run: |
