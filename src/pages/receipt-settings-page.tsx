@@ -523,6 +523,16 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Item Spacing ({config.itemSpacing}px)</Label>
+                <Slider 
+                  value={[config.itemSpacing || 0]} 
+                  min={0} 
+                  max={20} 
+                  step={1} 
+                  onValueChange={v => updateConfig('itemSpacing', v[0])} 
+                />
+              </div>
             </div>
           </SettingsSection>
 

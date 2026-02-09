@@ -106,7 +106,7 @@ const createStyles = (config: ReceiptConfig) =>
     },
     tableRow: {
       flexDirection: "row",
-      marginBottom: 2,
+      marginBottom: config.itemSpacing !== undefined ? config.itemSpacing : 2,
       alignItems: "flex-start",
     },
     itemName: {

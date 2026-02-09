@@ -163,6 +163,7 @@ export interface ReceiptConfig {
   fontSize: 'small' | 'medium' | 'large';
   textAlignment: 'left' | 'center';
   marginHorizontal: number;
+  itemSpacing: number;
 
   // Content Granularity
   dateFormat: string;
@@ -609,6 +610,7 @@ export const getDefaultReceiptConfig = (): ReceiptConfig => ({
   fontSize: 'medium',
   textAlignment: 'center',
   marginHorizontal: 0,
+  itemSpacing: 2,
 
   // Content Granularity
   dateFormat: 'yyyy-MM-dd HH:mm',

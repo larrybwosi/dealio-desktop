@@ -39,6 +39,7 @@ export interface ReceiptConfig {
   width: number
   padding: number
   spacing: number
+  itemSpacing: number
   backgroundColor: string
   
   // Typography

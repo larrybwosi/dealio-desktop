@@ -145,7 +145,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
     },
     tableRow: {
       flexDirection: 'row',
-      marginBottom: 6,
+      marginBottom: config.itemSpacing !== undefined ? config.itemSpacing : 6,
     },
     // Column Widths
     colItem: { width: '55%' },
