@@ -841,21 +841,22 @@ pub fn run() {
 
             // Start network monitoring
             let auth_state_ref = app.state::<AuthState>();
-            let base_url = {
+            let initial_base_url = {
                 let config_guard = auth_state_ref.device_config.lock().unwrap();
-                config_guard.as_ref().map(|c| c.base_url.clone()).unwrap_or_default()
+                config_guard.as_ref().map(|c| c.base_url.clone())
             };
             
-            if !base_url.is_empty() {
-                let network_state = app.state::<NetworkState>();
-                let network_state_arc = std::sync::Arc::new(network_state.inner().clone());
-                network_monitor::start_network_monitor(
-                    app.handle().clone(),
-                    network_state_arc,
-                    base_url,
-                    30 // Check every 30 seconds
-                );
+            let network_state = app.state::<NetworkState>();
+            if let Some(url) = initial_base_url {
+                network_state.set_base_url(url);
             }
+            
+            let network_state_arc = std::sync::Arc::new(network_state.inner().clone());
+            network_monitor::start_network_monitor(
+                app.handle().clone(),
+                network_state_arc,
+                30 // Check every 30 seconds
+            );
 
             // --- Customer Screen State Loading & Auto-Open ---
             let customer_screen_state = app.state::<CustomerScreenState>();

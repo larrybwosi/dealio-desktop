@@ -173,18 +173,24 @@ struct LoginResponse {
 #[tauri::command]
 pub async fn set_device_config(
     state: State<'_, AuthState>,
+    network_state: State<'_, crate::network_monitor::NetworkState>,
     base_url: String,
     location_id: String,
     device_key: String
 ) -> Result<(), String> {
-    let new_config = DeviceConfig { base_url, location_id, device_key };
+    let new_config = DeviceConfig { base_url: base_url.clone(), location_id, device_key };
     
     // 1. Save to Keyring first (fail early if secure storage fails)
     AuthState::save_to_keyring(&new_config)?;
 
     // 2. Update memory
-    let mut config = state.device_config.lock().map_err(|_| "Lock error")?;
-    *config = Some(new_config);
+    {
+        let mut config = state.device_config.lock().map_err(|_| "Lock error")?;
+        *config = Some(new_config);
+    }
+
+    // 3. Update network monitor
+    network_state.set_base_url(base_url);
     
     Ok(())
 }

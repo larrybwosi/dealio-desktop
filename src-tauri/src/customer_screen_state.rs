@@ -11,7 +11,7 @@ pub struct CustomerScreenConfig {
 
 impl Default for CustomerScreenConfig {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: false }
     }
 }
 

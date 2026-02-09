@@ -8,6 +8,10 @@ jobs:
   # STEP 1: Determine version and create GitHub Release
   release-management:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # Required to push tags and version commits
+      issues: write     # Required to create failure issues (your error log shows this failed)
+      pull-requests: write # Required to comment on PRs
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
