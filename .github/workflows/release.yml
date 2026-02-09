@@ -1,11 +1,39 @@
 name: Release
 on:
   push:
-    tags:
-      - 'v*'
+    branches:
+      - main
 
 jobs:
+  # STEP 1: Determine version and create GitHub Release
+  release-management:
+    runs-on: ubuntu-latest
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'pnpm'
+      - name: Install dependencies
+        run: pnpm install
+      - name: Semantic Release
+        id: semantic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx semantic-release
+
+  # STEP 2: Build the binaries for the version created above
   publish-tauri:
+    needs: release-management
+    if: needs.release-management.outputs.new_release_published == 'true'
     permissions:
       contents: write
     strategy:
@@ -24,19 +52,17 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main # Ensure we have the commit made by Semantic Release
+      
+      - name: Pull latest changes (the version bump)
+        run: git pull origin main
 
-      # IMPORTANT: Fetch all history and tags so we can generate a diff for the changelog
-      - name: Fetch tags for changelog
-        run: git fetch --prune --unshallow --tags
-
-      # 1. Setup pnpm specifically
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9 
-          run_install: false
+          version: 9
 
-      # 2. Setup Node.js with pnpm caching
       - name: setup node
         uses: actions/setup-node@v4
         with:
@@ -52,72 +78,18 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          # Added libpcsclite-dev and pkg-config to the end of this list
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev libusb-1.0-0-dev libgtk-3-dev libpcsclite-dev pkg-config
 
-      - name: Create dummy binaries for macOS/Linux
-        if: matrix.platform != 'windows-latest'
-        run: |
-          mkdir -p src-tauri/binaries
-          
-          # Create dummy files for all targets you build
-          touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
-          touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
-          touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
-          
-          # Make them executable (Aligned correctly now)
-          chmod +x src-tauri/binaries/*
-
-      # 3. Install frontend dependencies using pnpm
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # --- NEW STEP: Generate Release Notes ---
-      # This script finds the previous tag and logs commits between then and now.
-      # It handles the case where there is no previous tag (first release).
-      # Note: We only run this on one matrix job to avoid conflicts or redundant work, 
-      # but since tauri-action runs per matrix, we actually need it available in every runner 
-      # or we need to standardize. 
-      # However, tauri-action is smart enough to append assets to the same release.
-      # The *last* job to finish might overwrite the body, or the first one creates it.
-      # To be safe, we generate it on all, ensuring consistency.
-      - name: Generate Release Notes
-        id: release_notes
-        shell: bash
-        run: |
-          # Get current tag
-          CURRENT_TAG=${GITHUB_REF#refs/tags/}
-          
-          # Try to get the previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 "$CURRENT_TAG^" 2>/dev/null || true)
-          
-          if [ -z "$PREV_TAG" ]; then
-            echo "No previous tag found. Generating notes from start."
-            LOGS=$(git log --pretty=format:"- %s (%h)" "$CURRENT_TAG")
-          else
-            echo "Generating notes from $PREV_TAG to $CURRENT_TAG"
-            LOGS=$(git log --pretty=format:"- %s (%h)" "$PREV_TAG..$CURRENT_TAG")
-          fi
-          
-          # Prepare EOF delimiter for multiline output in GitHub Actions
-          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
-          
-          echo "RELEASE_BODY<<$EOF" >> "$GITHUB_OUTPUT"
-          echo "### Changes in $CURRENT_TAG" >> "$GITHUB_OUTPUT"
-          echo "" >> "$GITHUB_OUTPUT"
-          echo "$LOGS" >> "$GITHUB_OUTPUT"
-          echo "$EOF" >> "$GITHUB_OUTPUT"
-
-      # 4. Build and Publish
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
-          tagName: app-v__VERSION__ 
-          releaseName: 'App v__VERSION__'
-          releaseBody: ${{ steps.release_notes.outputs.RELEASE_BODY }}
-          releaseDraft: false # <--- CHANGE THIS TO FALSE
-          prerelease: false   # <--- ENSURE THIS IS FALSE
+          # Use the version calculated by Semantic Release
+          tagName: v${{ needs.release-management.outputs.new_release_version }}
+          releaseName: 'App v${{ needs.release-management.outputs.new_release_version }}'
+          releaseDraft: false
+          prerelease: false
           args: ${{ matrix.args }}

@@ -6,9 +6,8 @@ use tauri::{AppHandle, Manager};
 use crate::models::{PosProduct, ProductsSyncResponse};
 use anyhow::{Result, Context};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use tokio::fs as async_fs; // Import Tokio FS for async operations
+use tokio::fs as async_fs; 
 
-const STORE_FILENAME: &str = "dealio_products.json";
 const TIMEOUT_SECONDS: u64 = 60; 
 
 // --- State Management ---
