@@ -137,8 +137,8 @@
     "vitest": "^4.0.18"
   },
   "config": {
-  "commitizen": {
-    "path": "./node_modules/cz-conventional-changelog"
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
   }
-}
 }

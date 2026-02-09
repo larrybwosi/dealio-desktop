@@ -7,7 +7,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "pnpm tauri version ${nextRelease.version}"
+        "prepareCmd": "sed -i 's/\"version\": \"[^\"]*\"/\"version\": \"${nextRelease.version}\"/' src-tauri/tauri.conf.json"
       }
     ],
     [
