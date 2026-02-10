@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/axios';
+import { invoke } from '@tauri-apps/api/core';
 import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -28,8 +28,8 @@ function OrderSuccessView({
 
     setIsDownloading(true);
     try {
-      const response = await apiClient.get(invoiceUrl, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const pdfBytes = await invoke<number[]>('get_invoice_blob_command', { url: invoiceUrl });
+      const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
       const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Invoice_${safeOrderNum}.pdf`;
 

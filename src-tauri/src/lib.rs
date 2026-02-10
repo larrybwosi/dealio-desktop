@@ -243,6 +243,64 @@ async fn create_order_command(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn get_invoice_blob_command(
+    auth_state: State<'_, AuthState>,
+    url: String,
+) -> Result<Vec<u8>, String> {
+    let (device_key, token, member_id, base_url) = {
+        let config_guard = auth_state.device_config.lock().map_err(|e| e.to_string())?;
+        let config = config_guard.as_ref().ok_or("Device not initialized")?;
+        
+        let token_guard = auth_state.member_token.lock().map_err(|e| e.to_string())?;
+        let user_guard = auth_state.current_user.lock().map_err(|e| e.to_string())?;
+        
+        (
+            config.device_key.clone(), 
+            token_guard.clone(), 
+            user_guard.as_ref().map(|u| u.id.clone()),
+            config.base_url.clone()
+        )
+    };
+
+    let full_url = if url.starts_with("http") {
+        url
+    } else {
+        format!("{}/{}", base_url.trim_end_matches('/'), url.trim_start_matches('/'))
+    };
+
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert("X-Device-Api-Key", reqwest::header::HeaderValue::from_str(&device_key).map_err(|e| e.to_string())?);
+    
+    if let Some(t) = token {
+        let auth_val = format!("Bearer {}", t);
+        headers.insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?);
+    }
+
+    if let Some(mid) = member_id {
+        headers.insert("X-Member-Id", reqwest::header::HeaderValue::from_str(&mid).map_err(|e| e.to_string())?);
+    }
+
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client.get(&full_url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = resp.status();
+    if !status.is_success() {
+        let error_text = resp.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("Failed to fetch invoice: {} - {}", status, error_text));
+    }
+
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    Ok(bytes.to_vec())
+}
+
 
 
 
@@ -1038,6 +1096,7 @@ pub fn run() {
             delete_sale_command,
             network_monitor::get_network_status_command,
             create_order_command,
+            get_invoice_blob_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

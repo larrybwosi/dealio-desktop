@@ -504,7 +504,7 @@ export default function CreateOrderPage() {
   const { mutate: createOrder, isPending: isSubmitting } = useCreateOrder({
     onSuccess: (data: any) => {
       console.log('API Response:', data);
-      setCreatedOrderId(data?.id || data?.orderId || 'new-order');
+      setCreatedOrderId(data?.number || data?.orderId || 'new-order');
       setCreatedInvoiceUrl(data?.invoiceUrl || null);
       setSubmitStatus('success');
       window.scrollTo({ top: 0, behavior: 'smooth' });
