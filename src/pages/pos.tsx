@@ -14,13 +14,16 @@ import {
   WifiOff,
   Wifi,
   MonitorCheck,
-  CheckCircle2
+  CheckCircle2,
+  LayoutGrid,
+  List
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
+import { ProductListItem } from '@/components/pos/product-list-item';
 import { useDebounce } from 'use-debounce';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import PendingOrdersList from '@/components/orders-list';
@@ -34,6 +37,7 @@ import { invoke } from '@tauri-apps/api/core';
 
 export function POS() {
   const [activeCategory, setActiveCategory] = useState('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [inputValue, setInputValue] = useState('');
   const [knownCategories, setKnownCategories] = useState<Set<string>>(new Set());
   
@@ -342,6 +346,36 @@ export function POS() {
             {/* Quick Actions (Mode & Sync) */}
             <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
                 
+                {/* View Mode Toggle */}
+                <div className="bg-muted/40 p-0.5 rounded-full flex items-center border border-border/60">
+                    <button
+                        onClick={() => setViewMode('grid')}
+                        className={cn(
+                            'p-1.5 rounded-full transition-all duration-200', 
+                            viewMode === 'grid' 
+                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20' 
+                                : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                        )}
+                        title="Grid View"
+                    >
+                        <LayoutGrid className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('list')}
+                        className={cn(
+                            'p-1.5 rounded-full transition-all duration-200', 
+                            viewMode === 'list' 
+                                ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20' 
+                                : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                        )}
+                        title="List View"
+                    >
+                        <List className="w-4 h-4" />
+                    </button>
+                </div>
+
+                <div className="w-px h-6 bg-border/60 mx-1" />
+
                 {/* Table Selector */}
                 {businessConfig.features.tableManagement && (
                     <Button 
@@ -506,17 +540,31 @@ export function POS() {
             {isSyncing && products.length === 0 ? (
               <ProductGridSkeleton />
             ) : (
-              <div className="pb-20 max-w-[2400px] mx-auto">
+              <div className="pb-20">
                 {/* Optimized Grid Layouts */}
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 content-start">
+                <div className={cn(
+                    viewMode === 'grid' 
+                    ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 4xl:grid-cols-7 gap-3 sm:gap-4 md:gap-5 content-start"
+                    : "flex flex-col gap-1.5 w-full"
+                )}>
                   {products.map((product) => (
-                    <ProductCard 
-                      key={product.productId} 
-                      product={product as any} 
-                      onAddToCart={handleAddToCartWrapper}
-                      pricingMode={pricingMode}
-                      customPriceCalculator={handleGetPrice}
-                    />
+                    viewMode === 'grid' ? (
+                        <ProductCard 
+                        key={product.productId} 
+                        product={product as any} 
+                        onAddToCart={handleAddToCartWrapper}
+                        pricingMode={pricingMode}
+                        customPriceCalculator={handleGetPrice}
+                        />
+                    ) : (
+                        <ProductListItem
+                        key={product.productId} 
+                        product={product as any} 
+                        onAddToCart={handleAddToCartWrapper}
+                        pricingMode={pricingMode}
+                        customPriceCalculator={handleGetPrice}
+                        />
+                    )
                   ))}
                 </div>
                 
