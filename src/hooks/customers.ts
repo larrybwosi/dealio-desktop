@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invoke } from '@tauri-apps/api/core';
 import { useCallback } from 'react';
 import { useAuthStore } from '@/store/pos-auth-store';
-// import { API_ENDPOINT } from '@/lib/axios';
-import { apiClient } from "@/lib/axios";
 import { Customer } from "@/types";
 import { useDebounce } from "use-debounce";
 
@@ -33,7 +31,6 @@ interface UsePosCustomersParams {
 export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParams = {}) => {
     const queryClient = useQueryClient();
     
-    // 1. Optimization: Use Selectors to prevent unnecessary re-renders
     // 1. Optimization: Use Selectors to prevent unnecessary re-renders
     const locationId = useAuthStore((state) => state.currentLocation?.id);
 
@@ -88,10 +85,10 @@ export const usePosCustomers = ({ search, enabled = true }: UsePosCustomersParam
 export const useCreateCustomer = () => {
   const queryClient = useQueryClient();
 
-  return useMutation<Customer, Error, any>({
+  return useMutation<PosCustomer, Error, any>({
     mutationFn: async (data) => {
-        const res = await apiClient.post('/api/v1/pos/customers', data);
-        return res.data;
+        const res = await invoke<PosCustomer>('create_customer_command', { data });
+        return res;
     },
     onSuccess: () => {
       // After creating online, we invalidate the query.

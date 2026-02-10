@@ -278,3 +278,78 @@ pub fn get_customers_by_ids(state: &CustomerState, ids: Vec<String>) -> Vec<PosC
         .cloned()
         .collect()
 }
+
+pub async fn create_customer(
+    app: AppHandle,
+    state: &CustomerState,
+    auth_state: &AuthState,
+    payload: serde_json::Value
+) -> Result<PosCustomer> {
+    // 1. Get Config/Auth from State
+    let (base_url, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (config.base_url.clone(), config.device_key.clone())
+    };
+
+    let (member_token, member_id) = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+    };
+
+    let clean_base = base_url.trim_end_matches('/');
+    let target_url = format!("{}/api/v1/pos/customers", clean_base);
+
+    // --- BUILD HEADERS ---
+    let mut headers = HeaderMap::new();
+    
+    let mut val = HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
+    val.set_sensitive(true);
+    headers.insert("X-Device-Api-Key", val);
+
+    if let Some(token) = member_token {
+        let auth_val = format!("Bearer {}", token);
+        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+        val.set_sensitive(true);
+        headers.insert(AUTHORIZATION, val);
+    }
+
+    if let Some(mid) = member_id {
+        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
+        headers.insert("X-Member-Id", val);
+    }
+
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
+        .build()?;
+
+    // --- EXECUTE REQUEST ---
+    let response = client.post(&target_url)
+        .json(&payload)
+        .send()
+        .await
+        .context("Failed to send create customer request")?;
+
+    if !response.status().is_success() {
+        let status = response.status();
+        let err_body = response.text().await.unwrap_or_default();
+        return Err(anyhow::anyhow!("Server error {}: {}", status, err_body));
+    }
+
+    let new_customer: PosCustomer = response.json().await
+        .context("Failed to parse created customer JSON")?;
+
+    // --- UPDATE LOCAL CACHE ---
+    {
+        let mut customers_guard = state.customers.lock().unwrap();
+        customers_guard.push(new_customer.clone());
+        
+        let sync_token = state.last_sync_token.lock().unwrap().clone();
+        let path = get_store_path(&app)?;
+        save_encrypted(path, sync_token, &customers_guard)?;
+    }
+
+    Ok(new_customer)
+}

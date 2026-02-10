@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
-import { apiClient } from '@/lib/axios';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
 import { useCallback, useEffect } from 'react';
@@ -10,7 +9,6 @@ import throttle from 'lodash/throttle';
 // Types for API mutations
 interface CheckInResponse {
   member: Member;
-  token: string;
   restoredSession: boolean;
 }
 
@@ -24,10 +22,9 @@ export function useAuth() {
   const queryClient = useQueryClient();
   
   // Get state and actions directly from the Zustand store
-  const { currentMember,currentLocation, memberToken, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
+  const { currentMember, currentLocation, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
     useAuthStore(state => ({
       currentMember: state.currentMember,
-      memberToken: state.memberToken,
       isRestoredSession: state.isRestoredSession,
       setDeviceKey: state.setDeviceKey,
       setMemberSession: state.setMemberSession,
@@ -39,7 +36,7 @@ export function useAuth() {
    * Derived boolean to check if a member is currently authenticated (checked in).
    * Returns true if both the member object and token exist in the store.
    */
-  const isAuthenticated = !!currentMember && !!memberToken;
+  const isAuthenticated = !!currentMember;
 
   /**
    * Mutation for a member checking IN (logging in)
@@ -50,21 +47,14 @@ export function useAuth() {
     error: checkInError,
   } = useMutation<CheckInResponse, Error, CheckInVariables>({
     mutationFn: variables =>
-      apiClient.post('/api/v1/pos/check-in', { ...variables, locationId: currentLocation?.id, pin: variables.password }).then(res => res.data),
-
+      invoke<CheckInResponse>('login_member', { 
+        cardId: variables.cardId, 
+        pin: variables.password, 
+        locationId: currentLocation?.id 
+      }),
     onSuccess: data => {
-      // On success, update the global store with member, token, AND restoration status
-      setMemberSession(data.member, data.token, data.restoredSession);
-
-      // Sync with Rust Backend
-      invoke('restore_member_session', { 
-        token: data.token, 
-        member: {
-          id: data.member.id,
-          name: data.member.name,
-          role: (data.member as any).role || 'staff' // Fallback if missing
-        } 
-      }).catch((err: unknown) => console.error("Failed to sync session to Rust:", err));
+      // On success, update the global store with member AND restoration status
+      setMemberSession(data.member, data.restoredSession);
 
       // Provide context-aware feedback
       if (data.restoredSession) {
@@ -99,7 +89,7 @@ export function useAuth() {
     isPending: isCheckingOut,
     error: checkOutError,
   } = useMutation<void, Error>({
-    mutationFn: () => apiClient.post('/api/v1/pos/check-out', { locationId: currentLocation?.id }).then(res => res.data),
+    mutationFn: () => invoke('logout_member', { locationId: currentLocation?.id }),
 
     onSuccess: () => {
       // On success, clear the global store
@@ -119,37 +109,17 @@ export function useAuth() {
   });
 
   return {
-    /** The currently logged-in member, or null. */
     currentMember,
-    /** The current session token, or null. */
-    memberToken,
-    /** True if the current session was restored from a previous check-in */
+    memberToken: null,
     isRestoredSession,
-    /** * True if a member is actively authenticated in the POS.
-     * (Derived from having both a currentMember and a memberToken)
-     */
     isAuthenticated,
-
-    // --- Actions (from Zustand) ---
-    /** Call this once on app boot to set the device key. */
     setDeviceKey,
-
-    // --- Check-in Mutation ---
-    /** Function to log a member in. */
     checkIn,
-    /** True if the check-in request is in flight. */
     isCheckingIn,
-    /** The error object if check-in failed. */
     checkInError,
-
-    // --- Check-out Mutation ---
-    /** Function to log the current member out. */
     checkOut,
-    /** True if the check-out request is in flight. */
     isCheckingOut,
-    /** The error object if check-out failed. */
     checkOutError,
-    /** The current operating location. */
     currentLocation,
   };
 }

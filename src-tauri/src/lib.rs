@@ -141,6 +141,18 @@ async fn sync_customers_command(
 }
 
 #[tauri::command]
+async fn create_customer_command(
+    app: AppHandle,
+    state: State<'_, CustomerState>,
+    auth_state: State<'_, AuthState>,
+    data: serde_json::Value
+) -> Result<models::PosCustomer, String> {
+    customer_store::create_customer(app, &state, &auth_state, data)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn search_customers_command(
     state: State<'_, CustomerState>,
     query: String,
@@ -1082,6 +1094,7 @@ pub fn run() {
             auth_store::get_device_config,
             auth_store::restore_member_session,
             auth_store::reset_device_config,
+            auth_store::authenticated_api_request,
             notification_manager::send_native_notification,
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,
@@ -1097,6 +1110,7 @@ pub fn run() {
             network_monitor::get_network_status_command,
             create_order_command,
             get_invoice_blob_command,
+            create_customer_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

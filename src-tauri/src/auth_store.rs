@@ -40,10 +40,11 @@ impl AuthState {
     pub fn new() -> Self {
         // Try keyring first, then file
         let initial_config = Self::load_from_keyring().or_else(|| Self::load_from_file());
+        let initial_token = Self::load_token_from_keyring();
 
         Self {
             device_config: Mutex::new(initial_config),
-            member_token: Mutex::new(None),
+            member_token: Mutex::new(initial_token),
             current_user: Mutex::new(None),
         }
     }
@@ -140,7 +141,7 @@ impl AuthState {
         
         // Add Device Key Header
         if let Ok(val) = HeaderValue::from_str(&config.device_key) {
-            headers.insert("x-device-key", val); // Adjust header name to your API spec
+            headers.insert("X-Device-Api-Key", val);
         }
 
         // Add Bearer Token if logged in
@@ -158,14 +159,40 @@ impl AuthState {
 
         Ok((client, config.base_url.clone()))
     }
+
+    fn load_token_from_keyring() -> Option<String> {
+        let entry = Entry::new(KEYRING_SERVICE, "member-token").ok()?;
+        entry.get_password().ok()
+    }
+
+    fn save_token_to_keyring(token: &str) -> Result<(), String> {
+        let entry = Entry::new(KEYRING_SERVICE, "member-token").map_err(|e| e.to_string())?;
+        entry.set_password(token).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    fn delete_token_from_keyring() -> Result<(), String> {
+        if let Ok(entry) = Entry::new(KEYRING_SERVICE, "member-token") {
+            let _ = entry.delete_password();
+        }
+        Ok(())
+    }
 }
 
 // --- API Response Models ---
 
 #[derive(Deserialize)]
-struct LoginResponse {
+struct ServerLoginResponse {
     token: String,
     member: MemberProfile,
+    #[serde(rename = "restoredSession")]
+    restored_session: Option<bool>,
+}
+
+#[derive(Serialize)]
+pub struct CheckInResult {
+    pub member: MemberProfile,
+    pub restored_session: bool,
 }
 
 // --- Commands ---
@@ -199,14 +226,25 @@ pub async fn set_device_config(
 pub async fn login_member(
     state: State<'_, AuthState>,
     card_id: String,
-    pin: Option<String>
-) -> Result<MemberProfile, String> {
+    pin: Option<String>,
+    location_id: Option<String>,
+) -> Result<CheckInResult, String> {
     // 1. Get Client and URL from state
     let (client, base_url) = state.get_client()?;
-    let url = format!("{}/api/v1/pos/check-in", base_url); // Adjusted endpoint path
+    let url = format!("{}/api/v1/pos/check-in", base_url);
 
     // 2. Perform Request
-    let body = serde_json::json!({ "cardId": card_id, "pin": pin });
+    let device_key = {
+        let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+        config_guard.as_ref().map(|c| c.device_key.clone())
+    };
+
+    let body = serde_json::json!({ 
+        "cardId": card_id, 
+        "pin": pin,
+        "locationId": location_id,
+        "deviceKey": device_key
+    });
     
     let res = client.post(&url)
         .json(&body)
@@ -215,23 +253,50 @@ pub async fn login_member(
         .map_err(|e| format!("Network error: {}", e))?;
 
     if !res.status().is_success() {
-        return Err(format!("Login failed: {}", res.status()));
+        let status = res.status();
+        let error_text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("Login failed: {} - {}", status, error_text));
     }
 
     // 3. Parse and Store Token Internally
-    let data: LoginResponse = res.json().await.map_err(|e| e.to_string())?;
+    let data: ServerLoginResponse = res.json().await.map_err(|e| e.to_string())?;
 
     // CRITICAL: Token stays here, never returned to UI
+    let _ = AuthState::save_token_to_keyring(&data.token);
     *state.member_token.lock().unwrap() = Some(data.token); 
     *state.current_user.lock().unwrap() = Some(data.member.clone());
 
-    Ok(data.member)
+    Ok(CheckInResult {
+        member: data.member,
+        restored_session: data.restored_session.unwrap_or(false),
+    })
 }
 
 #[tauri::command]
-pub async fn logout_member(state: State<'_, AuthState>) -> Result<(), String> {
+pub async fn logout_member(
+    state: State<'_, AuthState>,
+    location_id: Option<String>
+) -> Result<(), String> {
+    // 1. Attempt to notify the server (Best effort)
+    if let Ok((client, base_url)) = state.get_client() {
+        let device_key = {
+            let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+            config_guard.as_ref().map(|c| c.device_key.clone())
+        };
+
+        let url = format!("{}/api/v1/pos/check-out", base_url);
+        let body = serde_json::json!({ 
+            "locationId": location_id,
+            "deviceKey": device_key
+        });
+        let _ = client.post(&url).json(&body).send().await;
+    }
+
+    // 2. Clear local session
+    let _ = AuthState::delete_token_from_keyring();
     *state.member_token.lock().unwrap() = None;
     *state.current_user.lock().unwrap() = None;
+    
     Ok(())
 }
 
@@ -242,14 +307,62 @@ pub async fn get_device_config(state: State<'_, AuthState>) -> Result<Option<Dev
 }
 
 #[tauri::command]
+pub async fn authenticated_api_request(
+    state: State<'_, AuthState>,
+    method: String,
+    path: String,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, String> {
+    // 1. Get Client and Base URL
+    let (client, base_url) = state.get_client()?;
+    
+    // 2. Build full URL
+    let clean_base = base_url.trim_end_matches('/');
+    let clean_path = path.trim_start_matches('/');
+    let url = format!("{}/{}", clean_base, clean_path);
+
+    // 3. Add Member ID header if possible
+    let member_id = {
+        let user_guard = state.current_user.lock().map_err(|_| "Lock error")?;
+        user_guard.as_ref().map(|u| u.id.clone())
+    };
+
+    let mut request = match method.to_uppercase().as_str() {
+        "GET" => client.get(&url),
+        "POST" => client.post(&url),
+        "PUT" => client.put(&url),
+        "DELETE" => client.delete(&url),
+        _ => return Err(format!("Unsupported method: {}", method)),
+    };
+
+    if let Some(m_id) = member_id {
+        request = request.header("X-Member-Id", m_id);
+    }
+
+    if let Some(b) = body {
+        request = request.json(&b);
+    }
+
+    // 4. Send and handle response
+    let res = request.send().await.map_err(|e| format!("Proxy request failed: {}", e))?;
+    
+    let status = res.status();
+    if !status.is_success() {
+        let err_body = res.text().await.unwrap_or_default();
+        return Err(format!("API Error {}: {}", status, err_body));
+    }
+
+    let json_res: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON response: {}", e))?;
+    Ok(json_res)
+}
+
+#[tauri::command]
 pub async fn restore_member_session(
     state: State<'_, AuthState>,
-    token: String,
     member: MemberProfile
 ) -> Result<(), String> {
-    *state.member_token.lock().unwrap() = Some(token);
-    *state.current_user.lock().unwrap() = Some(member.clone());
-    // println!("[AuthStore] Session restored for member: {}", member.name);
+    // If we have a token (loaded from keyring), but no member in memory, sync them
+    *state.current_user.lock().unwrap() = Some(member);
     Ok(())
 }
 

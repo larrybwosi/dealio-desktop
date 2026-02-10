@@ -57,7 +57,6 @@ export type Member = {
 
 interface PosAuthState {
   deviceKey: string | null;
-  memberToken: string | null;
   currentMember: Member | null;
   currentLocation: InventoryLocation | null;
   isRestoredSession: boolean;
@@ -67,7 +66,7 @@ interface PosAuthState {
 
 interface PosAuthActions {
   setDeviceKey: (key: string) => void;
-  setMemberSession: (member: Member, token: string, isRestored?: boolean) => void;
+  setMemberSession: (member: Member, isRestored?: boolean) => void;
   clearMemberSession: () => void;
   setCurrentLocation: (location: InventoryLocation) => void;
   clearCurrentLocation: () => void;
@@ -86,7 +85,6 @@ const STORAGE_KEY = 'pos-auth-storage-v3';
 
 const initialState: PosAuthState = {
   deviceKey: null,
-  memberToken: null,
   currentMember: null,
   currentLocation: null,
   isRestoredSession: false,
@@ -103,10 +101,9 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         set({ deviceKey: key });
       },
 
-      setMemberSession: (member, token, isRestored = false) => {
+      setMemberSession: (member, isRestored = false) => {
         set({
           currentMember: member,
-          memberToken: token,
           isRestoredSession: isRestored,
           sessionUpdatedAt: Date.now(),
         });
@@ -115,7 +112,6 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       clearMemberSession: () => {
         set({
           currentMember: null,
-          memberToken: null,
           isRestoredSession: false,
           sessionUpdatedAt: null,
         });
@@ -181,11 +177,10 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
              set({ isInitialized: true });
              
              // Sync existing session to Rust if present
-             const { memberToken, currentMember } = get();
-             if (memberToken && currentMember) {
+             const { currentMember } = get();
+             if (currentMember) {
                 console.log("[AuthStore] Restoring backend session...");
                 invoke('restore_member_session', { 
-                    token: memberToken, 
                     member: {
                       id: currentMember.id,
                       name: currentMember.name,
@@ -264,9 +259,8 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       storage: createJSONStorage(() => localStorage),
 
       partialize: (state) => ({
-        // REMOVED deviceKey from here for security
+        // REMOVED deviceKey and memberToken from here for security
         currentLocation: state.currentLocation,
-        memberToken: state.memberToken,
         currentMember: state.currentMember,
         isRestoredSession: state.isRestoredSession,
         sessionUpdatedAt: state.sessionUpdatedAt,
