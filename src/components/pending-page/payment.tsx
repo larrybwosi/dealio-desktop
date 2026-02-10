@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { apiClient } from '@/lib/axios';
+import { invoke } from '@tauri-apps/api/core';
 
 type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check';
 
@@ -37,7 +37,7 @@ export function PaymentDialog({ open, onOpenChange, transactionId }: PaymentDial
 
   const paymentMutation = useMutation({
     mutationFn: async (data: any) => {
-      return await apiClient.post('/api/v1/pos/sale/payments', data);
+      return await invoke('record_payment_command', { payload: data });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });

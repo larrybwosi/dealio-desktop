@@ -1,6 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { z } from 'zod';
-import { apiClient } from '@/lib/axios';
+import { invoke } from '@tauri-apps/api/core';
 import { isAxiosError } from 'axios';
 import { AuthOptions, Realtime } from 'ably';
 
@@ -39,7 +39,7 @@ export const useAblyStore = create<AblyState>((set, get) => ({
     // We define the authCallback logic here
     const authCallback: AuthOptions['authCallback'] = async (tokenParams, callback) => {
       try {
-        const { data } = await apiClient.post('/api/v1/pos/ably-auth',{ params: tokenParams });
+        const data = await invoke<any>('get_ably_auth_token_command', { params: tokenParams });
         console.log(data)
         
         // Validate

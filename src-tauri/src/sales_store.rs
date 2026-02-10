@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, State};
 use crate::models::{QueuedSale, SaleStatus, SaleResponse};
 use crate::auth_store::AuthState;
 use crate::shift_store::ShiftState;
@@ -446,6 +446,90 @@ async fn push_single_sale(
             Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
         }
     }
+}
+
+// --- NEW COMMANDS FOR REFACTOR ---
+
+#[tauri::command]
+pub async fn get_sales_history_command(
+    auth_state: State<'_, AuthState>,
+    location_id: Option<String>
+) -> Result<Vec<serde_json::Value>, String> {
+    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
+    
+    // Construct URL with optional locationId
+    let mut url = format!("{}/api/v1/pos/sale", base_url.trim_end_matches('/'));
+    if let Some(loc_id) = location_id {
+        url = format!("{}?locationId={}", url, loc_id);
+    }
+
+    let res = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        return Err(format!("Failed to fetch sales history: {}", res.status()));
+    }
+
+    let sales: Vec<serde_json::Value> = res.json().await.map_err(|e| e.to_string())?;
+    Ok(sales)
+}
+
+#[tauri::command]
+pub async fn record_payment_command(
+    auth_state: State<'_, AuthState>,
+    payload: serde_json::Value
+) -> Result<serde_json::Value, String> {
+    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
+    let url = format!("{}/api/v1/pos/sale/payments", base_url.trim_end_matches('/'));
+
+    let res = client.post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = res.status();
+    if !status.is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(format!("Payment recording failed: {} - {}", status, err_text));
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    Ok(data)
+}
+
+#[tauri::command]
+pub async fn initiate_mpesa_payment_command(
+    auth_state: State<'_, AuthState>,
+    phone_number: String,
+    amount: f64,
+    sale_number: String
+) -> Result<serde_json::Value, String> {
+    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
+    let url = format!("{}/api/mpesa/initiate", base_url.trim_end_matches('/'));
+
+    let payload = serde_json::json!({
+        "phoneNumber": phone_number,
+        "amount": amount,
+        "saleNumber": sale_number
+    });
+
+    let res = client.post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let status = res.status();
+    if !status.is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(format!("M-Pesa initiation failed: {} - {}", status, err_text));
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    Ok(data)
 }
 
 pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {

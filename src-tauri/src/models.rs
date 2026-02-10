@@ -168,7 +168,7 @@ pub struct PosCustomer {
     
     // Complex nested fields
     pub addresses: Option<Vec<CustomerAddress>>,
-    pub updated_at: String,
+    pub updated_at: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

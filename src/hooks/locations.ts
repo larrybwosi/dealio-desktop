@@ -1,6 +1,6 @@
 // hooks/use-pos-config.ts
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '@/lib/axios';
+import { invoke } from '@tauri-apps/api/core';
 
 type LocationType = 'warehouse' | 'store' | 'branch';
 
@@ -24,7 +24,10 @@ export function usePosLocations() {
    */
   const { data, isLoading, error, refetch } = useQuery<LocationsResponse, Error>({
     queryKey: ['pos-locations'],
-    queryFn: () => apiClient.get('/api/v1/pos/locations').then(res => res.data),
+    queryFn: async () => {
+      const result = await invoke<LocationsResponse>('get_locations_command');
+      return result;
+    },
     // Only run this query if we are on the client (avoids SSR issues with localStorage)
     enabled: typeof window !== 'undefined',
     staleTime: 1000 * 60 * 60, // Cache for 1 hour (locations rarely change)

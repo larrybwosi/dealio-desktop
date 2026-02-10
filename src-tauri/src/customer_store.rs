@@ -338,8 +338,18 @@ pub async fn create_customer(
         return Err(anyhow::anyhow!("Server error {}: {}", status, err_body));
     }
 
-    let new_customer: PosCustomer = response.json().await
+    // --- PARSE RESPONSE ---
+    // The server might return { data: PosCustomer } or just PosCustomer
+    let raw_val: serde_json::Value = response.json().await
         .context("Failed to parse created customer JSON")?;
+
+    let new_customer: PosCustomer = if raw_val.get("data").is_some() {
+        serde_json::from_value(raw_val["data"].clone())
+            .context("Failed to parse 'data' field into PosCustomer")?
+    } else {
+        serde_json::from_value(raw_val)
+            .context("Failed to parse response into PosCustomer")?
+    };
 
     // --- UPDATE LOCAL CACHE ---
     {
@@ -347,8 +357,9 @@ pub async fn create_customer(
         customers_guard.push(new_customer.clone());
         
         let sync_token = state.last_sync_token.lock().unwrap().clone();
-        let path = get_store_path(&app)?;
-        save_encrypted(path, sync_token, &customers_guard)?;
+        if let Ok(path) = get_store_path(&app) {
+            let _ = save_encrypted(path, sync_token, &customers_guard);
+        }
     }
 
     Ok(new_customer)

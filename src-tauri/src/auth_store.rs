@@ -394,3 +394,57 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
     println!("[AuthStore] Device configuration reset complete.");
     Ok(())
 }
+
+// --- NEW COMMANDS FOR REFACTOR ---
+
+#[tauri::command]
+pub async fn get_locations_command(
+    state: State<'_, AuthState>
+) -> Result<serde_json::Value, String> {
+    let (client, base_url) = state.get_client()?;
+    let url = format!("{}/api/v1/pos/locations", base_url.trim_end_matches('/'));
+
+    let res = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = res.status();
+    if !status.is_success() {
+        let err_body = res.text().await.unwrap_or_default();
+        return Err(format!("Failed to fetch locations: {} - {}", status, err_body));
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON: {}", e))?;
+    Ok(data)
+}
+
+#[tauri::command]
+pub async fn get_ably_auth_token_command(
+    state: State<'_, AuthState>,
+    params: Option<serde_json::Value>
+) -> Result<serde_json::Value, String> {
+    let (client, base_url) = state.get_client()?;
+    let url = format!("{}/api/v1/pos/ably-auth", base_url.trim_end_matches('/'));
+
+    let mut req = client.post(&url);
+    
+    // If params are provided, send them as query parameters or in the body
+    // Based on the original axios call, it seems params were sent as URL params
+    if let Some(p) = params {
+        req = req.json(&serde_json::json!({ "params": p }));
+    }
+
+    let res = req.send()
+        .await
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    let status = res.status();
+    if !status.is_success() {
+        let err_body = res.text().await.unwrap_or_default();
+        return Err(format!("Ably auth failed: {} - {}", status, err_body));
+    }
+
+    let data: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON: {}", e))?;
+    Ok(data)
+}

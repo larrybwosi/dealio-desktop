@@ -1,6 +1,6 @@
 import { Message } from 'ably';
 import { ably } from './ably';
-import { apiClient } from './axios';
+import { invoke } from '@tauri-apps/api/core';
 
 interface InitiateMpesaPaymentParams {
   phoneNumber: string;
@@ -66,19 +66,13 @@ export async function initiateMpesaPayment({
   orderId,
 }: InitiateMpesaPaymentParams): Promise<MpesaResponse> {
   try {
-    const response = await apiClient.post('/api/mpesa/initiate', {
+    const response = await invoke<MpesaResponse>('initiate_mpesa_payment_command', {
       phoneNumber,
       amount,
       saleNumber: orderId,
     });
 
-    const data = await response.data;
-
-    if (!response.data) {
-      throw new Error(data.message || 'Failed to initiate payment');
-    }
-
-    return data;
+    return response;
   } catch (error) {
     console.error('Error initiating M-Pesa payment:', error);
     throw error;

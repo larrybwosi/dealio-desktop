@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { invoke } from '@tauri-apps/api/core';
 import { 
   Plus, 
   Search, 
@@ -19,7 +20,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiClient } from '@/lib/axios';
 import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
 import { DispatchDialog } from '@/components/pending-page/dispatch-dialog';
@@ -31,14 +31,13 @@ import { Transaction } from '@/types';
 
 // --- Fetch Functions ---
 const fetchTransactions = async (locationId?: string) => {
-  const params = locationId ? { locationId } : {};
-  const { data } = await apiClient.get<Transaction[]>('/api/v1/pos/sale', { params });
+  const data = await invoke<Transaction[]>('get_sales_history_command', { locationId });
   return data;
 };
 
 // Fetch drivers function
-const fetchDrivers = async () => {
-  const { data } = await apiClient.get('/api/v1/drivers');
+const fetchDrivers = async (): Promise<DriverOption[]> => {
+  const data = await invoke<DriverOption[]>('get_drivers_command');
   return data;
 };
 
@@ -142,12 +141,13 @@ export default function PendingTransactionsPage() {
     });
 
     try {
-      const response = await apiClient.get(tx.invoiceLink, { responseType: 'blob' });
-      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const blob = await invoke<number[]>('get_invoice_blob_command', { url: tx.invoiceLink });
+      const uint8Array = new Uint8Array(blob);
+      const blobObj = new Blob([uint8Array], { type: 'application/pdf' });
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Invoice_${safeOrderNum}.pdf`;
 
-      await processFileDownload(blob, fileName, loadingToastId);
+      await processFileDownload(blobObj, fileName, loadingToastId);
     } catch (error) {
       console.error('Download error:', error);
       toast.error('Failed to save invoice', {
@@ -179,15 +179,17 @@ export default function PendingTransactionsPage() {
 
     try {
       // Request waybill based on fulfillment ID
-      const response = await apiClient.get(`/api/v1/pos/waybill/${tx.id}`, { responseType: 'blob' });
+      const url = `/api/v1/pos/waybill/${tx.id}`;
+      const blob = await invoke<number[]>('get_invoice_blob_command', { url });
+      const uint8Array = new Uint8Array(blob);
+      const blobObj = new Blob([uint8Array], { type: 'application/pdf' });
       // NEXT VERSION
       // const response = await apiClient.get(`/api/v1/fulfillment/${tx.fulfillmentId}/waybill`, { responseType: 'blob' });
       
-      const blob = new Blob([response.data], { type: 'application/pdf' });
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Waybill_${safeOrderNum}.pdf`;
 
-      await processFileDownload(blob, fileName, loadingToastId);
+      await processFileDownload(blobObj, fileName, loadingToastId);
     } catch (error) {
       console.error('Waybill download error:', error);
       toast.error('Failed to save waybill', {

@@ -48,6 +48,8 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+mod delivery_store;
+
 #[cfg(test)]
 mod test_utils;
 
@@ -1111,6 +1113,17 @@ pub fn run() {
             create_order_command,
             get_invoice_blob_command,
             create_customer_command,
+            // New delivery commands
+            delivery_store::get_drivers_command,
+            delivery_store::dispatch_order_command,
+            delivery_store::reconcile_delivery_command,
+            // New sales commands
+            sales_store::get_sales_history_command,
+            sales_store::record_payment_command,
+            sales_store::initiate_mpesa_payment_command,
+            // New auth commands
+            auth_store::get_locations_command,
+            auth_store::get_ably_auth_token_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
