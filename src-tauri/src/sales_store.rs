@@ -632,3 +632,78 @@ pub fn search_local(state: &SalesState, query: String) -> Vec<QueuedSale> {
         .cloned()
         .collect()
 }
+
+// --- CREATE ORDER (Online Orders / Special Orders) ---
+pub async fn create_order(
+    auth_state: &AuthState,
+    location_id: String,
+    order_payload: serde_json::Value,
+) -> Result<serde_json::Value> {
+    let (base_url, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (config.base_url.clone(), config.device_key.clone())
+    };
+
+    let (token, member_id) = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+    };
+
+    let clean_base = base_url.trim_end_matches('/');
+    let url = format!("{}/api/v1/pos/orders?locationId={}", clean_base, location_id);
+
+    // --- BUILD HEADERS ---
+    let mut headers = HeaderMap::new();
+    
+    let mut val = HeaderValue::from_str(&device_key).map_err(|_| SalesError::AuthError("Invalid Device Key chars".into()))?;
+    val.set_sensitive(true);
+    headers.insert("X-Device-Api-Key", val);
+
+    if let Some(t) = token {
+        let auth_val = format!("Bearer {}", t);
+        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| SalesError::AuthError("Invalid Token chars".into()))?;
+        val.set_sensitive(true);
+        headers.insert(AUTHORIZATION, val);
+    }
+
+    if let Some(mid) = member_id {
+        let val = HeaderValue::from_str(&mid).map_err(|_| SalesError::AuthError("Invalid Member ID chars".into()))?;
+        headers.insert("X-Member-Id", val);
+    }
+
+    // Build client
+    let client = reqwest::Client::builder()
+        .default_headers(headers)
+        .timeout(Duration::from_secs(30))
+        .build()?;
+
+    let resp = client.post(&url)
+        .json(&order_payload)
+        .send()
+        .await
+        .map_err(|e| SalesError::NetworkError(e.to_string()))?;
+    
+    let status = resp.status();
+
+    if status.is_success() {
+        let body: serde_json::Value = resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
+        return Ok(body);
+    }
+
+    // Error Handling
+    let error_body = resp.text().await.unwrap_or_default();
+    
+    match status {
+        StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
+            Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into())
+        },
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+            Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
+        },
+        _ => {
+            Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
+        }
+    }
+}

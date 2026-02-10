@@ -367,15 +367,20 @@ export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
 
   return useMutation({
     mutationFn: async (newOrder: OrderFormValues) => {
-      const response = await apiClient.post(`/api/v1/pos/orders?locationId=${locationId}`, newOrder);
-      return response.data;
+      if (!locationId) throw new Error("Location ID is missing");
+      
+      const response = await invoke<any>('create_order_command', {
+        locationId,
+        order: newOrder
+      });
+      return response;
     },
     onSuccess: (data) => {
       options.onSuccess?.(data);
     },
     onError: (error) => {
       console.error('Failed to create order:', error);
-      options.onError?.(error);
+      options.onError?.(error as Error);
     },
     onSettled: options.onSettled,
   });

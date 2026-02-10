@@ -232,6 +232,18 @@ async fn scan_transaction_code(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn create_order_command(
+    auth_state: State<'_, AuthState>,
+    location_id: String,
+    order: serde_json::Value
+) -> Result<serde_json::Value, String> {
+    sales_store::create_order(&auth_state, location_id, order)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+
 
 
 // --- PRICING COMMANDS ---
@@ -1025,6 +1037,7 @@ pub fn run() {
             check_failed_sales_command,
             delete_sale_command,
             network_monitor::get_network_status_command,
+            create_order_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

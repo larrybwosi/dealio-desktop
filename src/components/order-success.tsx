@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { processFileDownload } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card'; // Assuming you have a Card component
+import { Card, CardContent } from '@/components/ui/card';
 
 function OrderSuccessView({ 
   orderId, 
@@ -31,7 +31,7 @@ function OrderSuccessView({
       const response = await apiClient.get(invoiceUrl, { responseType: 'blob' });
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
-      const fileName = `Receipt_${safeOrderNum}.pdf`;
+      const fileName = `Invoice_${safeOrderNum}.pdf`;
 
       await processFileDownload(blob, fileName, loadingToastId);
     } catch (error) {
