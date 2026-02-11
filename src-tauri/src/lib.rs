@@ -52,6 +52,8 @@ mod delivery_store;
 
 #[cfg(test)]
 mod test_utils;
+#[cfg(test)]
+mod pricing_tests;
 
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {

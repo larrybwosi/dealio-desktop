@@ -1,17 +1,21 @@
+'use client';
+
 import { useState, useEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Loader2, RefreshCw, Search, Tag, Users, List, AlertCircle } from 'lucide-react';
+import {
+    Loader2, RefreshCw, Search, Tag, Users, List,
+    AlertCircle, TrendingUp, ChevronRight, Activity,
+    Package, Globe, Clock
+} from 'lucide-react';
 import { useFormattedCurrency } from '@/lib/utils';
 import { format } from 'date-fns';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
 import { PosProduct } from '@/hooks/products';
 import { PosCustomer } from '@/hooks/customers';
+import { cn } from '@/lib/utils';
 
 interface ClientPriceList {
     id: string;
@@ -40,39 +44,208 @@ interface PosPricingData {
     allocations: Record<string, string[]>;
 }
 
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+
+interface StatCardProps {
+    label: string;
+    value: number | string | undefined;
+    icon: React.ReactNode;
+    accent: string;
+    sublabel?: string;
+}
+
+function StatCard({ label, value, icon, accent, sublabel }: StatCardProps) {
+    return (
+        <div className={cn(
+            "relative overflow-hidden rounded-2xl border bg-white dark:bg-zinc-900",
+            "border-zinc-200/80 dark:border-zinc-800 shadow-sm",
+            "transition-all duration-300 hover:shadow-md hover:-translate-y-0.5"
+        )}>
+            {/* Accent bar */}
+            <div className={cn("absolute inset-x-0 top-0 h-0.5", accent)} />
+            <div className="p-6">
+                <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                        <p className="text-xs font-medium uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                            {label}
+                        </p>
+                        <p className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                            {value ?? '—'}
+                        </p>
+                        {sublabel && (
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{sublabel}</p>
+                        )}
+                    </div>
+                    <div className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-xl",
+                        "bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400"
+                    )}>
+                        {icon}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Price List Card ──────────────────────────────────────────────────────────
+
+interface PriceListCardProps {
+    list: ClientPriceList;
+    items: ClientPriceListItem[];
+    lookups: { productMap: Map<string, string>; customerMap: Map<string, string> };
+    formatCurrency: (n: number) => string;
+}
+
+function PriceListCard({ list, items, lookups, formatCurrency }: PriceListCardProps) {
+    const [expanded, setExpanded] = useState(true);
+
+    return (
+        <div className={cn(
+            "rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900",
+            "shadow-sm overflow-hidden transition-all duration-300"
+        )}>
+            {/* Header */}
+            <div
+                className="flex items-center justify-between px-5 py-4 cursor-pointer select-none hover:bg-zinc-50/80 dark:hover:bg-zinc-800/50 transition-colors"
+                onClick={() => setExpanded(v => !v)}
+            >
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold",
+                        list.isActive
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                            : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                    )}>
+                        P{list.priority}
+                    </div>
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-zinc-900 dark:text-zinc-50 tracking-tight">
+                                {list.code}
+                            </span>
+                            {list.isGlobal && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-800">
+                                    <Globe className="h-2.5 w-2.5" /> Global
+                                </span>
+                            )}
+                            <span className={cn(
+                                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border",
+                                list.isActive
+                                    ? "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800"
+                                    : "bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"
+                            )}>
+                                <Activity className="h-2.5 w-2.5" />
+                                {list.isActive ? 'Active' : 'Inactive'}
+                            </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500">
+                            <span className="flex items-center gap-1">
+                                <Clock className="h-2.5 w-2.5" />
+                                {list.validFrom ? format(new Date(list.validFrom), 'dd MMM yy') : 'No start'}
+                                {' → '}
+                                {list.validTo ? format(new Date(list.validTo), 'dd MMM yy') : 'No end'}
+                            </span>
+                            <span className="font-mono">{list.id.slice(0, 8)}…</span>
+                        </div>
+                    </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0 ml-4">
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                        {items.length} item{items.length !== 1 ? 's' : ''}
+                    </span>
+                    <ChevronRight className={cn(
+                        "h-4 w-4 text-zinc-400 transition-transform duration-200",
+                        expanded && "rotate-90"
+                    )} />
+                </div>
+            </div>
+
+            {/* Table */}
+            {expanded && (
+                <div className="border-t border-zinc-100 dark:border-zinc-800">
+                    {items.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 text-zinc-400 dark:text-zinc-500 gap-2">
+                            <Package className="h-6 w-6 opacity-40" />
+                            <p className="text-sm">No items defined in this list</p>
+                        </div>
+                    ) : (
+                        <div className="max-h-72 overflow-auto">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/40">
+                                        <th className="text-left py-2.5 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 w-[45%]">Product / Variant</th>
+                                        <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Unit</th>
+                                        <th className="text-left py-2.5 px-4 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Min Qty</th>
+                                        <th className="text-right py-2.5 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
+                                    {items.map(item => {
+                                        const productName = lookups.productMap.get(item.variantId);
+                                        return (
+                                            <tr key={item.id} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                                                <td className="py-3 px-5">
+                                                    {productName ? (
+                                                        <span className="font-medium text-zinc-800 dark:text-zinc-200 text-[13px]">{productName}</span>
+                                                    ) : (
+                                                        <span className="font-mono text-xs text-amber-600 dark:text-amber-400">Product not found</span>
+                                                    )}
+                                                    <div className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">{item.variantId}</div>
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    {item.sellingUnitId
+                                                        ? <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">{item.sellingUnitId}</span>
+                                                        : <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Base</span>
+                                                    }
+                                                </td>
+                                                <td className="py-3 px-4">
+                                                    <span className="tabular-nums text-zinc-700 dark:text-zinc-300 text-[13px]">{item.minQuantity}</span>
+                                                </td>
+                                                <td className="py-3 px-5 text-right">
+                                                    <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-50 text-[13px]">
+                                                        {formatCurrency(parseFloat(item.price))}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function PricingViewPage() {
     const [data, setData] = useState<PosPricingData | null>(null);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('');
     const formatCurrency = useFormattedCurrency();
     const { triggerSync, isSyncing } = usePosPricingSync();
-
-    // Local state for raw data
     const [products, setProducts] = useState<PosProduct[]>([]);
     const [customers, setCustomers] = useState<PosCustomer[]>([]);
 
-    // OPTIMIZATION: Create Lookup Maps for O(1) access
-    // This solves the issue of iterating through arrays for every table row
     const lookups = useMemo(() => {
         const productMap = new Map<string, string>();
         const customerMap = new Map<string, string>();
 
-        // Index Products by Variant ID
         products.forEach((p: any) => {
-            // Check for 'name' (from Rust serde rename) OR 'productName' (legacy/types)
-            const pName = p.name || p.productName || "Unknown Product"; 
-            
+            const pName = p.name || p.productName || "Unknown Product";
             p.variants.forEach((v: any) => {
                 const vName = v.name || v.variantName || "Unknown Variant";
-                const fullName = vName === "Default" || vName === pName 
-                    ? pName 
+                const fullName = vName === "Default" || vName === pName
+                    ? pName
                     : `${pName} - ${vName}`;
-                
                 productMap.set(v.variantId, fullName);
             });
         });
 
-        // Index Customers by ID
         customers.forEach((c: any) => {
             const cName = c.name || c.company || "Unknown Customer";
             customerMap.set(c.id, cName);
@@ -87,24 +260,18 @@ export default function PricingViewPage() {
             const pricingData = await invoke<PosPricingData>('get_pos_pricing_command');
             setData(pricingData);
 
-            // 1. Collect IDs
             const variantIds = new Set<string>();
             pricingData.items.forEach(i => variantIds.add(i.variantId));
-            
             const customerIds = new Set<string>();
             Object.keys(pricingData.allocations).forEach(id => customerIds.add(id));
 
-            // 2. Fetch Metadata
-            // Note: Ensure your backend 'get_products_by_ids_command' can handle the IDs being passed 
-            // (e.g. if you pass variant IDs, it should find the parent products).
             const [fetchedProducts, fetchedCustomers] = await Promise.all([
-                 invoke<PosProduct[]>('get_products_by_ids_command', { ids: Array.from(variantIds) }),
-                 invoke<PosCustomer[]>('get_customers_by_ids_command', { ids: Array.from(customerIds) })
+                invoke<PosProduct[]>('get_products_by_ids_command', { ids: Array.from(variantIds) }),
+                invoke<PosCustomer[]>('get_customers_by_ids_command', { ids: Array.from(customerIds) })
             ]);
 
             setProducts(fetchedProducts || []);
             setCustomers(fetchedCustomers || []);
-
         } catch (error) {
             console.error("Failed to fetch pricing:", error);
         } finally {
@@ -114,232 +281,226 @@ export default function PricingViewPage() {
 
     const handleRefresh = async () => {
         try {
-             await triggerSync();
-             await fetchData();
+            await triggerSync();
+            await fetchData();
         } catch (error) {
-            console.error("Failed to refresh:", error); 
+            console.error("Failed to refresh:", error);
         }
-    }
+    };
 
-    useEffect(() => {
-        fetchData();
-    }, []);
+    useEffect(() => { fetchData(); }, []);
 
-    const filteredLists = data?.lists.filter(l => 
-        l.code.toLowerCase().includes(filter.toLowerCase()) || 
+    const filteredLists = data?.lists.filter(l =>
+        l.code.toLowerCase().includes(filter.toLowerCase()) ||
         l.id.toLowerCase().includes(filter.toLowerCase())
     ) || [];
 
-    const getItemsForList = (listId: string) => {
-        return data?.items.filter(i => i.priceListId === listId) || [];
-    };
+    const activeCount = data?.lists.filter(l => l.isActive).length ?? 0;
+    const globalCount = data?.lists.filter(l => l.isGlobal).length ?? 0;
+    const allocationCount = Object.keys(data?.allocations || {}).length;
 
     if (loading && !data) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+            <div className="flex h-screen flex-col items-center justify-center gap-3 bg-zinc-50 dark:bg-zinc-950">
+                <Loader2 className="h-7 w-7 animate-spin text-zinc-400" />
+                <p className="text-sm text-zinc-400 dark:text-zinc-500 tracking-wide">Loading pricing data…</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-zinc-50/50 dark:bg-zinc-950 p-8 font-sans">
-            <div className="mx-auto max-w-7xl space-y-8">
-                
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-bold tracking-tight">Pricing Engine</h1>
-                        <p className="text-zinc-500">View active price lists, items, and customer rules.</p>
+        <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 font-sans">
+            {/* Top bar */}
+            <div className="sticky top-0 z-10 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md">
+                <div className="mx-auto px-6 py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-900 dark:bg-zinc-100">
+                            <TrendingUp className="h-4 w-4 text-white dark:text-zinc-900" />
+                        </div>
+                        <div>
+                            <h1 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50 leading-none">
+                                Pricing Engine
+                            </h1>
+                            <p className="text-[11px] text-zinc-400 dark:text-zinc-500 mt-0.5 leading-none">
+                                Price lists, items & customer rules
+                            </p>
+                        </div>
                     </div>
-                    <Button onClick={handleRefresh} disabled={loading || isSyncing} variant="outline" size="sm">
-                        {isSyncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                        {isSyncing ? 'Syncing...' : 'Refresh'}
+                    <Button
+                        onClick={handleRefresh}
+                        disabled={loading || isSyncing}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1.5 border-zinc-200 dark:border-zinc-700"
+                    >
+                        {isSyncing
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            : <RefreshCw className="h-3.5 w-3.5" />
+                        }
+                        {isSyncing ? 'Syncing…' : 'Refresh'}
                     </Button>
                 </div>
+            </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Lists</CardTitle>
-                            <List className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{data?.lists.length}</div>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-                            <Tag className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{data?.items.length}</div>
-                        </CardContent>
-                    </Card>
-                     <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Allocations</CardTitle>
-                            <Users className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{Object.keys(data?.allocations || {}).length}</div>
-                        </CardContent>
-                    </Card>
+            <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <StatCard
+                        label="Price Lists"
+                        value={data?.lists.length}
+                        icon={<List className="h-4 w-4" />}
+                        accent="bg-violet-500"
+                        sublabel={`${activeCount} active`}
+                    />
+                    <StatCard
+                        label="Line Items"
+                        value={data?.items.length}
+                        icon={<Tag className="h-4 w-4" />}
+                        accent="bg-sky-500"
+                        sublabel="across all lists"
+                    />
+                    <StatCard
+                        label="Allocations"
+                        value={allocationCount}
+                        icon={<Users className="h-4 w-4" />}
+                        accent="bg-amber-500"
+                        sublabel="customer rules"
+                    />
+                    <StatCard
+                        label="Global Lists"
+                        value={globalCount}
+                        icon={<Globe className="h-4 w-4" />}
+                        accent="bg-emerald-500"
+                        sublabel="apply to all"
+                    />
                 </div>
 
+                {/* Tabs */}
                 <Tabs defaultValue="lists" className="w-full">
-                    <TabsList>
-                        <TabsTrigger value="lists">Price Lists</TabsTrigger>
-                        <TabsTrigger value="allocations">Customer Allocations</TabsTrigger>
-                        <TabsTrigger value="debug">Raw Data</TabsTrigger>
-                    </TabsList>
+                    <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+                        <TabsList className="h-9 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl p-1">
+                            <TabsTrigger value="lists" className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm">
+                                Price Lists
+                            </TabsTrigger>
+                            <TabsTrigger value="allocations" className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm">
+                                Allocations
+                            </TabsTrigger>
+                            <TabsTrigger value="debug" className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm">
+                                Raw Data
+                            </TabsTrigger>
+                        </TabsList>
 
-                    <TabsContent value="lists" className="space-y-4">
-                        <div className="flex items-center space-x-2">
-                            <Search className="h-4 w-4 text-zinc-500" />
-                            <Input 
-                                placeholder="Filter lists..." 
-                                value={filter} 
+                        {/* Filter — only shown on lists tab visually but always mounted */}
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400" />
+                            <Input
+                                placeholder="Filter lists…"
+                                value={filter}
                                 onChange={(e) => setFilter(e.target.value)}
-                                className="max-w-sm h-8"
+                                className="pl-8 h-9 text-xs w-52 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 rounded-xl focus-visible:ring-1 focus-visible:ring-zinc-400"
                             />
                         </div>
+                    </div>
 
-                        {filteredLists.map(list => (
-                            <Card key={list.id} className="overflow-hidden">
-                                <CardHeader className="bg-zinc-50 dark:bg-zinc-900 border-b py-3">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <div className="font-semibold text-lg">{list.code}</div>
-                                            {list.isGlobal && <Badge variant="secondary">Global</Badge>}
-                                            {list.isActive ? <Badge className="bg-emerald-600">Active</Badge> : <Badge variant="destructive">Inactive</Badge>}
-                                            <Badge variant="outline">Priority: {list.priority}</Badge>
-                                        </div>
-                                        <div className="text-xs text-zinc-500">
-                                            ID: {list.id}
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-4 text-xs text-zinc-500 mt-1">
-                                        <span>From: {list.validFrom ? format(new Date(list.validFrom), 'PPP') : 'N/A'}</span>
-                                        <span>To: {list.validTo ? format(new Date(list.validTo), 'PPP') : 'N/A'}</span>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <div className="max-h-[300px] overflow-auto">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-[400px]">Product / Variant</TableHead>
-                                                    <TableHead>Unit ID</TableHead>
-                                                    <TableHead>Min Qty</TableHead>
-                                                    <TableHead className="text-right">Price</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {getItemsForList(list.id).map(item => {
-                                                    const productName = lookups.productMap.get(item.variantId);
-                                                    
-                                                    return (
-                                                        <TableRow key={item.id}>
-                                                            <TableCell>
-                                                                <div className="flex flex-col">
-                                                                    {/* Display Name if found, otherwise show "Loading/Unknown" style */}
-                                                                    <span className={productName ? "font-medium text-sm" : "font-mono text-xs text-red-500"}>
-                                                                        {productName || "Product not found"}
-                                                                    </span>
-                                                                    {/* Keep ID small for reference */}
-                                                                    <span className="text-[10px] text-zinc-400 font-mono">{item.variantId}</span>
-                                                                </div>
-                                                            </TableCell>
-                                                            <TableCell className="font-mono text-xs text-zinc-600">
-                                                                {item.sellingUnitId || <span className="text-zinc-400 italic">Base Unit</span>}
-                                                            </TableCell>
-                                                            <TableCell>{item.minQuantity}</TableCell>
-                                                            <TableCell className="text-right font-medium">{formatCurrency(parseFloat(item.price))}</TableCell>
-                                                        </TableRow>
-                                                    );
-                                                })}
-                                                {getItemsForList(list.id).length === 0 && (
-                                                    <TableRow>
-                                                        <TableCell colSpan={4} className="text-center text-zinc-500 py-4">No items defined in this list</TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                    {/* Price Lists Tab */}
+                    <TabsContent value="lists" className="mt-0 space-y-3">
+                        {filteredLists.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 py-16 flex flex-col items-center justify-center text-zinc-400 gap-2">
+                                <List className="h-7 w-7 opacity-40" />
+                                <p className="text-sm">No price lists match your filter</p>
+                            </div>
+                        ) : (
+                            filteredLists.map(list => (
+                                <PriceListCard
+                                    key={list.id}
+                                    list={list}
+                                    items={data?.items.filter(i => i.priceListId === list.id) || []}
+                                    lookups={lookups}
+                                    formatCurrency={formatCurrency}
+                                />
+                            ))
+                        )}
                     </TabsContent>
 
-                    <TabsContent value="allocations">
-                         <Card>
-                            <CardHeader>
-                                <CardTitle>Customer Rules</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Customer</TableHead>
-                                            <TableHead>Assigned Price Lists</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
+                    {/* Allocations Tab */}
+                    <TabsContent value="allocations" className="mt-0">
+                        <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
+                                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Customer Rules</h2>
+                                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Price lists assigned per customer</p>
+                            </div>
+                            {allocationCount === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-16 gap-2 text-zinc-400">
+                                    <Users className="h-7 w-7 opacity-40" />
+                                    <p className="text-sm">No customer allocations found</p>
+                                </div>
+                            ) : (
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="border-b border-zinc-100 dark:border-zinc-800 bg-zinc-50/60 dark:bg-zinc-800/40">
+                                            <th className="text-left py-2.5 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500 w-1/3">Customer</th>
+                                            <th className="text-left py-2.5 px-5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">Assigned Price Lists</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60">
                                         {Object.entries(data?.allocations || {}).map(([custId, lists]) => {
                                             const customerName = lookups.customerMap.get(custId);
                                             return (
-                                            <TableRow key={custId}>
-                                                <TableCell>
-                                                    <div className="flex flex-col">
-                                                         <span className={customerName ? "font-medium text-sm" : "font-mono text-xs text-red-500"}>
-                                                             {customerName || "Customer not found"}
-                                                         </span>
-                                                         <span className="text-[10px] text-zinc-400 font-mono">{custId}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {lists.map(lid => {
-                                                            const listName = data?.lists.find(l => l.id === lid)?.code || lid;
-                                                            return <Badge key={lid} variant="outline" className="text-xs">{listName}</Badge>
-                                                        })}
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        )})}
-                                         {Object.keys(data?.allocations || {}).length === 0 && (
-                                            <TableRow>
-                                                <TableCell colSpan={2} className="text-center text-zinc-500 py-8">No specific customer allocations found</TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
+                                                <tr key={custId} className="hover:bg-zinc-50/50 dark:hover:bg-zinc-800/30 transition-colors">
+                                                    <td className="py-3.5 px-5">
+                                                        {customerName ? (
+                                                            <span className="font-medium text-[13px] text-zinc-800 dark:text-zinc-200">{customerName}</span>
+                                                        ) : (
+                                                            <span className="font-mono text-xs text-amber-600 dark:text-amber-400">Unknown customer</span>
+                                                        )}
+                                                        <div className="font-mono text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">{custId}</div>
+                                                    </td>
+                                                    <td className="py-3.5 px-5">
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {lists.map(lid => {
+                                                                const listName = data?.lists.find(l => l.id === lid)?.code || lid.slice(0, 8) + '…';
+                                                                return (
+                                                                    <span key={lid} className="inline-flex items-center rounded-full bg-zinc-100 dark:bg-zinc-800 px-2.5 py-0.5 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 border border-zinc-200 dark:border-zinc-700">
+                                                                        {listName}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </div>
                     </TabsContent>
 
-                    <TabsContent value="debug">
-                         <Card>
-                            <CardHeader>
-                                <CardTitle>Raw JSON Data</CardTitle>
-                            </CardHeader>
-                             <CardContent>
-                                <div className="space-y-4">
-                                    <div className="flex items-center gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 rounded text-sm">
-                                        <AlertCircle className="h-4 w-4" />
-                                        <span>Verify that <strong>get_products_by_ids_command</strong> returns products when passed Variant IDs. If names are still missing, the backend query might require Product IDs.</span>
-                                    </div>
-                                    <pre className="bg-zinc-100 dark:bg-zinc-900 p-4 rounded text-xs overflow-auto max-h-[500px]">
-                                        {JSON.stringify({ 
-                                            lookups,
-                                            products: products.slice(0, 3), 
-                                            customers: customers.slice(0, 3) 
-                                        }, null, 2)}
-                                    </pre>
+                    {/* Debug Tab */}
+                    <TabsContent value="debug" className="mt-0">
+                        <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+                            <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
+                                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Raw JSON Data</h2>
+                                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Inspect resolved lookups and raw records</p>
+                            </div>
+                            <div className="p-5 space-y-4">
+                                <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 p-3.5 text-xs text-amber-800 dark:text-amber-300">
+                                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+                                    <p>
+                                        Verify that <code className="font-mono font-semibold">get_products_by_ids_command</code> returns products when passed Variant IDs.
+                                        If names are missing, the backend query may require Product IDs instead.
+                                    </p>
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <pre className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl p-4 text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-300 overflow-auto max-h-[480px] font-mono">
+                                    {JSON.stringify({
+                                        lookups,
+                                        products: products.slice(0, 3),
+                                        customers: customers.slice(0, 3)
+                                    }, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>

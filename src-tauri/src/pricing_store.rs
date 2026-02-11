@@ -51,8 +51,10 @@ fn save_encrypted(path: PathBuf, sync_at: Option<String>, data: &PosPricingData)
     let data_wrapper = (sync_at, data);
     let json_data = serde_json::to_string(&data_wrapper)?;
 
-    // 2. Encrypt
-    let key = get_cipher_key();
+    // 2. Encrypt with Secure Key from Keyring
+    let key = crate::security::get_or_create_key("pricing_store_key")
+         .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
+    
     let cipher = Aes256Gcm::new(&key.into());
     
     // Generate a random 96-bit nonce
@@ -72,7 +74,7 @@ fn save_encrypted(path: PathBuf, sync_at: Option<String>, data: &PosPricingData)
 }
 
 fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
-    let file_bytes = fs::read(path).context("Failed to read secure file")?;
+    let file_bytes = fs::read(&path).context("Failed to read secure file")?;
     
     if file_bytes.len() < 12 {
         return Err(anyhow::anyhow!("File corrupted or too short"));
@@ -85,15 +87,31 @@ fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
-    // 2. Decrypt
-    let key = get_cipher_key();
-    let cipher = Aes256Gcm::new(&key.into());
+    // 2a. Try Secure Key
+    if let Ok(key) = crate::security::get_or_create_key("pricing_store_key") {
+        let cipher = Aes256Gcm::new(&key.into());
+        if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
+             let data = serde_json::from_slice(&plaintext)?;
+             return Ok(data);
+        }
+    }
+
+    // 2b. Try Legacy Key (Migration)
+    println!("[PricingStore] Decryption with secure key failed. Attempting legacy migration...");
+    let legacy_key = get_cipher_key();
+    let cipher = Aes256Gcm::new(&legacy_key.into());
 
     let plaintext = cipher.decrypt(&nonce, ciphertext)
         .map_err(|_| anyhow::anyhow!("Decryption failed - Invalid Key or Corrupted Data"))?;
 
-    // 3. Parse JSON
-    let data = serde_json::from_slice(&plaintext)?;
+    let data: (Option<String>, PosPricingData) = serde_json::from_slice(&plaintext)?;
+    
+    // Re-save immediately with new secure key
+    println!("[PricingStore] Legacy migration successful. Re-saving with secure key...");
+    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1) {
+        eprintln!("[PricingStore] Migration save failed: {}", e);
+    }
+
     Ok(data)
 }
 
@@ -201,44 +219,37 @@ pub async fn run_sync(
         .context("Failed to parse server response JSON")?;
 
     let metadata = res_body.metadata;
+    let server_data = res_body.data;
     
-    // Transform Server Nested Data -> Client Flat Data
+    // Transform Server Data -> Client Flat Data
     let mut flat_lists = Vec::new();
-    let mut flat_items = Vec::new();
-
-    for slist in res_body.price_lists {
-        // Create Client List
-        let clist = ClientPriceList {
-            id: slist.id.clone(),
-            code: slist.code.clone(),
+    for slist in server_data.lists {
+        flat_lists.push(ClientPriceList {
+            id: slist.id,
+            code: slist.code,
             priority: slist.priority,
             is_global: slist.is_global,
             is_active: slist.is_active,
             valid_from: slist.valid_from,
             valid_to: slist.valid_to,
-            updated_at: slist.updated_at.clone(),
-        };
-        flat_lists.push(clist);
-
-        // Process Items
-        for sitem in slist.items {
-            let citem = ClientPriceListItem {
-                // If ID is missing, generate deterministic ID: ListID_VariantID_UnitID
-                id: sitem.id.unwrap_or_else(|| {
-                    format!("{}_{}_{}", slist.id, sitem.variant_id, sitem.selling_unit_id.clone().unwrap_or("base".to_string()))
-                }),
-                price_list_id: slist.id.clone(),
-                variant_id: sitem.variant_id,
-                selling_unit_id: sitem.selling_unit_id,
-                min_quantity: sitem.min_quantity,
-                price: sitem.price,
-                updated_at: Utc::now().to_rfc3339(), // or slist.updated_at
-            };
-            flat_items.push(citem);
-        }
+            updated_at: slist.updated_at,
+        });
     }
 
-    let customer_allocations = res_body.customer_allocations.unwrap_or_default();
+    let mut flat_items = Vec::new();
+    for sitem in server_data.items {
+        flat_items.push(ClientPriceListItem {
+            id: sitem.id,
+            price_list_id: sitem.price_list_id,
+            variant_id: sitem.variant_id,
+            selling_unit_id: sitem.selling_unit_id,
+            min_quantity: sitem.min_quantity,
+            price: sitem.price,
+            updated_at: sitem.updated_at,
+        });
+    }
+
+    let customer_allocations = server_data.customer_allocations.unwrap_or_default();
 
 
     // Idempotency check
@@ -251,13 +262,14 @@ pub async fn run_sync(
     // --- MERGE LOGIC ---
     let mut data_guard = state.data.lock().unwrap();
     
-    if !metadata.is_delta {
+    if !metadata.is_delta || metadata.temp_full_sync {
         // Full Sync - Overwrite
         *data_guard = PosPricingData {
             lists: flat_lists,
             items: flat_items,
             allocations: customer_allocations,
         };
+        println!("[PricingStore] Performed full sync. Items: {}", data_guard.items.len());
     } else {
         // Delta Sync - Merge
         // 1. Lists
@@ -269,11 +281,11 @@ pub async fn run_sync(
 
         // 2. Items
         let mut item_map: HashMap<String, ClientPriceListItem> = data_guard.items.drain(..).map(|i| (i.id.clone(), i)).collect();
-        // Remove deleted - TODO: ServerResponse doesn't seem to have deleted_item_ids in your snippet?
-        // If it's a full sync usually we don't need deleted IDs. 
-        // For now, if we assume FULL sync for this structure, we handle it above. 
-        // If delta, we need a way to know deletions. 
-        // The snippet didn't show 'deletedItemIds', so I'll comment this out or assume empty for now.
+        
+        // Remove deleted items if list provided
+        for deleted_id in server_data.deleted_item_ids {
+            item_map.remove(&deleted_id);
+        }
         
         // Add/Update new
         for item in flat_items {
@@ -285,6 +297,7 @@ pub async fn run_sync(
         for (cust_id, lists) in customer_allocations {
             data_guard.allocations.insert(cust_id, lists);
         }
+        println!("[PricingStore] Performed delta sync. Active Items: {}", data_guard.items.len());
     }
 
     // --- SAVE TO DISK SECURELY ---

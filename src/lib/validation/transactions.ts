@@ -12,6 +12,7 @@ export const OrderItemSchema = z.object({
   quantity: z.number().int().positive('Quantity must be a positive integer'),
   unitPrice: z.number().nonnegative('Price cannot be negative').optional(),
   _maxStock: z.number().optional(),
+  _availableUnits: z.array(z.any()).optional(),
 }).refine((data) => {
   if (data._maxStock !== undefined && data.quantity > data._maxStock) {
     return false;

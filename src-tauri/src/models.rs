@@ -234,6 +234,7 @@ pub struct ClientPriceListItem {
     pub variant_id: String,
     pub selling_unit_id: Option<String>,
     pub min_quantity: i32,
+    #[serde(deserialize_with = "deserialize_price_to_string")]
     pub price: String, // Keep as string to match API/Frontend precision if needed
     pub updated_at: String,
 }
@@ -243,9 +244,11 @@ pub struct ClientPriceListItem {
 pub struct PricingMetadata {
     pub synced_at: String,
     
-    // Add #[serde(default)] to handle the missing field
     #[serde(default)] 
     pub is_delta: bool,
+
+    #[serde(default)]
+    pub temp_full_sync: bool,
 }
 
 // --- SERVER RESPONSE STRUCTS (Nested) ---
@@ -253,8 +256,17 @@ pub struct PricingMetadata {
 #[serde(rename_all = "camelCase")]
 pub struct ServerPricingResponse {
     pub metadata: PricingMetadata,
-    pub price_lists: Vec<ServerPriceList>,
-    pub customer_allocations: Option<std::collections::HashMap<String, Vec<String>>>, // Optional in case empty
+    pub data: ServerPricingData,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerPricingData {
+    pub lists: Vec<ServerPriceList>,
+    pub items: Vec<ServerPriceListItem>,
+    pub customer_allocations: Option<std::collections::HashMap<String, Vec<String>>>,
+    #[serde(default)]
+    pub deleted_item_ids: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -264,14 +276,12 @@ pub struct ServerPriceList {
     pub code: String,
     pub priority: i32,
     pub is_global: bool,
-    // Provide default for isActive since it wasn't in your snippet but is in ClientPriceList
     #[serde(default = "default_true")] 
     pub is_active: bool, 
     pub valid_from: Option<String>,
     pub valid_to: Option<String>,
     #[serde(default)]
-    pub updated_at: String, // Might be missing or different
-    pub items: Vec<ServerPriceListItem>,
+    pub updated_at: String, 
 }
 
 fn default_true() -> bool { true }
@@ -279,19 +289,27 @@ fn default_true() -> bool { true }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerPriceListItem {
-    // ID might be missing in your snippet? No, usually items have IDs. 
-    // If variantId IS the logical ID, we might need to handle that. 
-    // Looking at snippet: "variantId": "...", "sellingUnitId": null, "minQuantity": 1, "price": "300"
-    // There is NO "id" field in the item snippet you gave!
-    // We might need to generate one or use variantId + unitId as key.
-    // Let's assume for now we might map variantId to id if needed, or check if id exists but was hidden.
-    // Actually, ClientPriceListItem needs 'id'.
-    // If server doesn't send 'id' for item, we can construct one.
-    pub id: Option<String>, 
+    pub id: String, 
+    pub price_list_id: String,
     pub variant_id: String,
     pub selling_unit_id: Option<String>,
     pub min_quantity: i32,
+    #[serde(deserialize_with = "deserialize_price_to_string")]
     pub price: String, 
+    #[serde(default)]
+    pub updated_at: String,
+}
+
+fn deserialize_price_to_string<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let v: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
+    match v {
+        serde_json::Value::String(s) => Ok(s),
+        serde_json::Value::Number(n) => Ok(n.to_string()),
+        _ => Err(serde::de::Error::custom("Expected string or number for price")),
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
