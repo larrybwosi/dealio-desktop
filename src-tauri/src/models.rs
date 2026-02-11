@@ -240,28 +240,12 @@ pub struct ClientPriceListItem {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub struct PricingSyncResponse {
-    pub metadata: PricingMetadata,
-    pub data: PricingData,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct PricingMetadata {
     pub synced_at: String,
     
     // Add #[serde(default)] to handle the missing field
     #[serde(default)] 
     pub is_delta: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PricingData {
-    pub lists: Vec<ClientPriceList>,
-    pub items: Vec<ClientPriceListItem>,
-    pub customer_allocations: std::collections::HashMap<String, Vec<String>>,
-    pub deleted_item_ids: Option<Vec<String>>, // Make optional to be safe
 }
 
 // --- SERVER RESPONSE STRUCTS (Nested) ---

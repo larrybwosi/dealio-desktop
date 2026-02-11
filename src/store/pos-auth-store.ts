@@ -97,8 +97,17 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
     (set, get) => ({
       ...initialState,
 
-      setDeviceKey: (key) => {
-        set({ deviceKey: key });
+      setDeviceKey: async (key) => {
+        try {
+          await invoke('start_device_setup_command', {
+            baseUrl: API_ENDPOINT,
+            deviceKey: key
+          });
+          set({ deviceKey: key });
+        } catch (error) {
+          console.error("Failed to set device key in backend:", error);
+          throw error;
+        }
       },
 
       setMemberSession: (member, isRestored = false) => {
@@ -154,21 +163,13 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
              // If currentLocation is not already hydrated from localStorage, fetch it
              const { currentLocation } = get();
              if (!currentLocation?.id && config.location_id) {
-               console.log("[AuthStore] Fetching location from API...");
+               console.log("[AuthStore] Fetching location from API via backend...");
                try {
-                 const response = await fetch(`${API_ENDPOINT}/api/v1/pos/locations`, {
-                   headers: {
-                     'Content-Type': 'application/json',
-                     'X-Device-Api-Key': config.device_key,
-                   },
-                 });
-                 if (response.ok) {
-                   const data = await response.json();
-                   const location = data.locations?.find((loc: { id: string }) => loc.id === config.location_id);
-                   if (location) {
-                     set({ currentLocation: location });
-                     console.log("[AuthStore] Location restored from API");
-                   }
+                 const data = await invoke<{ locations: InventoryLocation[] }>('get_locations_command');
+                 const location = data.locations?.find((loc) => loc.id === config.location_id);
+                 if (location) {
+                   set({ currentLocation: location });
+                   console.log("[AuthStore] Location restored from API");
                  }
                } catch (fetchError) {
                  console.error("[AuthStore] Failed to fetch location:", fetchError);

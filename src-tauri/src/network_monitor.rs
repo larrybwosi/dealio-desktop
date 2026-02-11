@@ -28,8 +28,8 @@ impl NetworkState {
 
 /// Check if the API endpoint or the base URL is reachable
 pub async fn check_network_status(base_url: &str) -> bool {
-    let clean_base = base_url.trim_end_matches('/');
-    let health_url = format!("{}/api/health", clean_base);
+    let clean_base = base_url.trim_end_matches("/api/v1/health");
+    let health_url = format!("{}/api/v1/health", clean_base);
     
     // Try a simple GET request with short timeout
     let client = reqwest::Client::builder()

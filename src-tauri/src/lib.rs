@@ -1124,6 +1124,7 @@ pub fn run() {
             // New auth commands
             auth_store::get_locations_command,
             auth_store::get_ably_auth_token_command,
+            auth_store::start_device_setup_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

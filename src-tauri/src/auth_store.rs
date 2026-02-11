@@ -398,6 +398,28 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
 // --- NEW COMMANDS FOR REFACTOR ---
 
 #[tauri::command]
+pub async fn start_device_setup_command(
+    state: State<'_, AuthState>,
+    network_state: State<'_, crate::network_monitor::NetworkState>,
+    base_url: String,
+    device_key: String
+) -> Result<(), String> {
+    // We store a partial config (no location_id yet) in memory
+    // This allows get_locations_command to work using get_client
+    let mut config = state.device_config.lock().map_err(|_| "Lock error")?;
+    *config = Some(DeviceConfig {
+        base_url: base_url.clone(),
+        location_id: String::new(), // Empty for now
+        device_key,
+    });
+
+    // Update network monitor
+    network_state.set_base_url(base_url);
+    
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn get_locations_command(
     state: State<'_, AuthState>
 ) -> Result<serde_json::Value, String> {

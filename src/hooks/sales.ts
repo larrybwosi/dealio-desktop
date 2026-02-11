@@ -1,6 +1,5 @@
 import { toast } from 'sonner';
 import { isAxiosError } from 'axios';
-import { apiClient } from '@/lib/axios';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { ProcessSaleInput } from '@/lib/validation/transactions';
 import { invoke } from '@tauri-apps/api/core';
@@ -352,13 +351,6 @@ export const useOldSalesCheck = () => {
       unlistenFailed.then(fn => fn());
     };
   }, []);
-};
-
-
-//For manual sales (Direct API - Deprecated for POS, used for online orders/fallback)
-export const processSaleApi = async (data: ProcessSaleInput, locationId: string) => {
-  const response = await apiClient.post(`/api/v1/pos/sale/process?locationId=${locationId}&enableStockTracking=true`, data);
-  return response.data;
 };
 
 export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
