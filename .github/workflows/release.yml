@@ -19,32 +19,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
+      # DEBUG STEP: Check the logs for this step to see if a bad config file exists
+      - name: Debug - List all files
+        run: |
+          echo "=== Current working directory: $(pwd) ==="
+          ls -la
+          echo "=== Searching for release config files ==="
+          find . -maxdepth 2 -name "*release*"
+
       - uses: pnpm/action-setup@v4
         with:
           version: 9
-          
+
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
           cache: 'pnpm'
-          
+
       - name: Install dependencies
         run: pnpm install
 
-      # FIX 1: Use the action wrapper to get outputs easily
       - name: Semantic Release
         id: semantic
         uses: cycjimmy/semantic-release-action@v4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          semantic_version: 19 # Or whichever version of semantic-release you prefer
+          semantic_version: 19
 
   # STEP 2: Build the binaries for the version created above
   publish-tauri:
     needs: release-management
-    # Only run if a new release was actually published
     if: needs.release-management.outputs.new_release_published == 'true'
     permissions:
       contents: write
@@ -66,7 +72,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main 
-      
+
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
@@ -92,26 +98,24 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # FIX 2: Manually set the version in tauri.conf.json/package.json 
-      # This ensures the binary knows its own version, even if git pull didn't grab the semantic-release commit yet.
+      # Manually set the version using the output from Job 1
       - name: Update Version for Build
         shell: bash
         run: |
+          echo "Bumping version to ${{ needs.release-management.outputs.new_release_version }}"
           npm version ${{ needs.release-management.outputs.new_release_version }} --no-git-tag-version --allow-same-version
-          # If you use jq (available on all runners), update tauri.conf.json safely:
+          
+          # Safely update tauri.conf.json with jq
           jq '.package.version = "${{ needs.release-management.outputs.new_release_version }}"' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # FIX 3: Point to the tag created by the previous job
+          # Point to the tag created by semantic-release in the previous job
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           
-          # IMPORTANT: We REMOVE 'releaseName', 'releaseBody', etc.
-          # We let semantic-release handle the text. 
-          # tauri-action will simply find the existing tag and attach assets.
-          
+          # Do not overwrite the Release Name or Body (let semantic-release handle that)
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
