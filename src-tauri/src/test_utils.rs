@@ -26,6 +26,6 @@ pub fn create_mock_customer(id: &str) -> PosCustomer {
         loyalty_points: Some(0.0),
         primary_address: None,
         addresses: None,
-        updated_at: chrono::Utc::now().to_rfc3339(),
+        updated_at: Some(chrono::Utc::now().to_rfc3339()),
     }
 }

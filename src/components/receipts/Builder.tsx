@@ -131,7 +131,8 @@ const DEFAULT_CONFIG: ReceiptConfig = {
   instructionsTitle: "Instructions",
   promoCodeText: "Promo Code Applied",
   thankYouMessage: "Thank you for dining with us!",
-  footerText: "Powered by NeoReceipts"
+  footerText: "Powered by NeoReceipts",
+  itemSpacing: 5,
 };
 
 const DEFAULT_ORG: OrganizationData = {
@@ -142,13 +143,6 @@ const DEFAULT_ORG: OrganizationData = {
   website: "www.acmebistro.com",
   tagline: "Taste the Excellence"
 };
-
-// const DEFAULT_ITEMS: CartItem[] = [
-//   { id: '1', name: "Truffle Burger", price: 18.50, quantity: 1, variant: "Medium Rare", notes: "No onions" },
-//   { id: '2', name: "Sweet Potato Fries", price: 6.00, quantity: 2 },
-//   { id: '3', name: "Craft Cola", price: 3.50, quantity: 2 },
-//   { id: '4', name: "Cheesecake", price: 8.00, quantity: 1, addition: "Strawberry Sauce" }
-// ];
 
 const DEFAULT_PAYMENT: PaymentData = {
   orderId: "ORD-2023-8492",

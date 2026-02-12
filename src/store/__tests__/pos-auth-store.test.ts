@@ -26,8 +26,8 @@ describe('PosAuthStore', () => {
     expect(state.isInitialized).toBe(false);
   });
 
-  it('should set device key', () => {
-    useAuthStore.getState().setDeviceKey('test-key');
+  it('should set device key', async () => {
+    await useAuthStore.getState().setDeviceKey('test-key');
     expect(useAuthStore.getState().deviceKey).toBe('test-key');
   });
 
@@ -54,10 +54,9 @@ describe('PosAuthStore', () => {
         currentAttendanceLogId: null
     };
     
-    useAuthStore.getState().setMemberSession(member, 'token-123');
+    useAuthStore.getState().setMemberSession(member);
     
     expect(useAuthStore.getState().currentMember).toEqual(member);
-    expect(useAuthStore.getState().memberToken).toBe('token-123');
     expect(useAuthStore.getState().sessionUpdatedAt).toBeDefined();
   });
 
@@ -70,11 +69,10 @@ describe('PosAuthStore', () => {
         isActive: true,
         image: ''
     } as any;
-    useAuthStore.getState().setMemberSession(member, 'token-123');
+    useAuthStore.getState().setMemberSession(member);
     useAuthStore.getState().clearMemberSession();
 
     expect(useAuthStore.getState().currentMember).toBeNull();
-    expect(useAuthStore.getState().memberToken).toBeNull();
     expect(useAuthStore.getState().sessionUpdatedAt).toBeNull();
   });
 
