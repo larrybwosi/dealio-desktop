@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { invoke } from '@tauri-apps/api/core';
 import { isAxiosError } from 'axios';
 import { AuthOptions, Realtime } from 'ably';
+import { useAuthStore } from './pos-auth-store';
 
 const AblyConfigSchema = z.object({
   tokenRequest: z.object({
@@ -72,10 +73,33 @@ export const useAblyStore = create<AblyState>((set, get) => ({
       // Optional: autoConnect: false (if you want more control)
     });
 
-    // Listen to connection state changes (Important for UI feedback)
+    // Listen to connection state changes (Important for UI feedback and backend sync)
     client.connection.on((stateChange) => {
-      set({ connectionState: stateChange.current });
-      if (stateChange.current === 'failed') {
+      const state = stateChange.current;
+      set({ connectionState: state });
+
+      // Notify backend about network status
+      if (state === 'connected') {
+        invoke('update_network_status_command', { isOnline: true }).catch(console.error);
+        
+        // Enter Presence
+        const authStore = useAuthStore.getState();
+        const locationId = authStore.currentLocation?.id;
+        const member = authStore.currentMember;
+
+        if (locationId && member) {
+          const presenceChannel = client.channels.get(`presence:${locationId}`);
+          presenceChannel.presence.enter({
+            id: member.id,
+            name: member.name,
+            lastSeen: new Date().toISOString()
+          }).catch(err => console.error("Error entering presence:", err));
+        }
+      } else if (['disconnected', 'suspended', 'failed', 'closed'].includes(state)) {
+        invoke('update_network_status_command', { isOnline: false }).catch(console.error);
+      }
+
+      if (state === 'failed') {
           console.error("Ably connection failed");
       }
     });

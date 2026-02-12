@@ -69,6 +69,8 @@ pub fn start_network_monitor(
     check_interval_secs: u64,
 ) {
     tauri::async_runtime::spawn(async move {
+        // We still keep the interval but maybe make it less aggressive or 
+        // use it as a fallback if Ably isn't active.
         let mut interval = tokio::time::interval(Duration::from_secs(check_interval_secs));
         
         loop {
@@ -79,37 +81,60 @@ pub fn start_network_monitor(
                 guard.clone()
             };
 
+            // If we are already online (e.g., via Ably), we might skip the ping to save resources,
+            // but a periodic health check isn't bad as a fallback.
             let is_online = if let Some(url) = base_url {
                 check_network_status(&url).await
             } else {
                 false
             };
             
-            let mut current_status = network_state.is_online.lock().unwrap();
-            let previous_status = *current_status;
-            *current_status = is_online;
-            drop(current_status);
-            
-            // Update last check time
-            *network_state.last_check.lock().unwrap() = std::time::Instant::now();
-            
-            // Emit event if status changed
-            if previous_status != is_online {
-                info!("[NetworkMonitor] Status changed: {} -> {}", 
-                    if previous_status { "Online" } else { "Offline" },
-                    if is_online { "Online" } else { "Offline" }
-                );
-                
-                let _ = app.emit("network-status-changed", is_online);
-                
-                // If we just came online, trigger sync
-                if is_online && !previous_status {
-                    info!("[NetworkMonitor] Connection restored. Triggering sales sync...");
-                    let _ = app.emit("trigger-sales-sync", ());
-                }
-            }
+            update_internal_status(&app, &network_state, is_online);
         }
     });
+}
+
+/// Internal helper to update status and emit events
+fn update_internal_status(app: &AppHandle, network_state: &Arc<NetworkState>, is_online: bool) {
+    let mut current_status = network_state.is_online.lock().unwrap();
+    let previous_status = *current_status;
+    
+    if previous_status == is_online {
+        // Update last check time even if status didn't change
+        *network_state.last_check.lock().unwrap() = std::time::Instant::now();
+        return;
+    }
+
+    *current_status = is_online;
+    drop(current_status);
+    
+    // Update last check time
+    *network_state.last_check.lock().unwrap() = std::time::Instant::now();
+    
+    // Emit event if status changed
+    info!("[NetworkMonitor] Status changed: {} -> {}", 
+        if previous_status { "Online" } else { "Offline" },
+        if is_online { "Online" } else { "Offline" }
+    );
+    
+    let _ = app.emit("network-status-changed", is_online);
+    
+    // If we just came online, trigger sync
+    if is_online && !previous_status {
+        info!("[NetworkMonitor] Connection restored. Triggering sales sync...");
+        let _ = app.emit("trigger-sales-sync", ());
+    }
+}
+
+/// Tauri command to manually update network status (e.g., from Ably events)
+#[tauri::command]
+pub fn update_network_status_command(
+    app: AppHandle,
+    state: tauri::State<'_, NetworkState>,
+    is_online: bool
+) {
+    let network_state = Arc::new(state.inner().clone());
+    update_internal_status(&app, &network_state, is_online);
 }
 
 /// Tauri command to get current network status

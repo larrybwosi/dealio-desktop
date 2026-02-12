@@ -20,6 +20,7 @@ import CustomerDisplay from '@/pages/customer-display';
 import PricingViewPage from '@/pages/pricing-view-page';
 import NotFound from '@/pages/not-found';
 import ShiftManager from './components/shift-manager';
+import StockDeliveryPage from './pages/stock-acceptance';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -71,6 +72,7 @@ const AppRoutes = () => {
         <Route path="/create-order" element={<CreateOrderPage />} />
         <Route path="/pricing" element={<PricingViewPage />} />
         <Route path="/shift-manager" element={<ShiftManager />} />
+        <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
       </Route>
       
       {/* Routes without AppLayout */}

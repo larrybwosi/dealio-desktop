@@ -49,6 +49,7 @@ mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
 mod delivery_store;
+mod stock_acceptance;
 
 #[cfg(test)]
 mod test_utils;
@@ -857,7 +858,6 @@ async fn sync_shifts_command(
     shift_store::sync_pending_shifts(&state, &auth_state).await
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1112,6 +1112,7 @@ pub fn run() {
             check_failed_sales_command,
             delete_sale_command,
             network_monitor::get_network_status_command,
+            network_monitor::update_network_status_command,
             create_order_command,
             get_invoice_blob_command,
             create_customer_command,
@@ -1127,6 +1128,8 @@ pub fn run() {
             auth_store::get_locations_command,
             auth_store::get_ably_auth_token_command,
             auth_store::start_device_setup_command,
+            stock_acceptance::save_document_locally,
+            stock_acceptance::submit_delivery,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

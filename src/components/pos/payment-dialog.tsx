@@ -450,6 +450,16 @@ const PaymentModal = ({
       change: 0,
       mpesaType: MpesaFlowType.STK_PUSH,
       mpesaPhoneNumber: normalizePhoneNumber(mpesaPhone, PHONE_CONFIG),
+      payments: [
+        {
+          method: PaymentMethod.MPESA,
+          amount: amount,
+          meta: {
+            mpesaType: MpesaFlowType.STK_PUSH,
+            mpesaPhoneNumber: normalizePhoneNumber(mpesaPhone, PHONE_CONFIG),
+          },
+        },
+      ],
     };
     try {
       await createSale(payload);
