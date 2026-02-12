@@ -68,7 +68,6 @@ function useStableItems(items: PricingItem[]): [PricingItem[], string] {
     // When currentKey changes, we return the new 'items' array.
     // When currentKey is stable, we return the cached 'items' array from the previous run.
     const stableItems = useMemo(() => items, [currentKey]); // eslint-disable-line react-hooks/exhaustive-deps
-    console.log("stableItems", stableItems);
 
     return [stableItems, currentKey];
 }

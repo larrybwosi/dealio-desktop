@@ -50,6 +50,7 @@ use customer_screen_state::CustomerScreenState;
 
 mod delivery_store;
 mod stock_acceptance;
+mod http_server;
 
 #[cfg(test)]
 mod test_utils;
@@ -1130,6 +1131,7 @@ pub fn run() {
             auth_store::start_device_setup_command,
             stock_acceptance::save_document_locally,
             stock_acceptance::submit_delivery,
+            http_server::start_file_server,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
