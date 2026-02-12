@@ -46,7 +46,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          semantic_version: 19
+          semantic_version: 25
 
   # STEP 2: Build the binaries for the version created above
   publish-tauri:
@@ -106,7 +106,7 @@ jobs:
           npm version ${{ needs.release-management.outputs.new_release_version }} --no-git-tag-version --allow-same-version
           
           # Safely update tauri.conf.json with jq
-          jq '.package.version = "${{ needs.release-management.outputs.new_release_version }}"' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq '.version = "${{ needs.release-management.outputs.new_release_version }}"' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
       - uses: tauri-apps/tauri-action@v0
         env:
