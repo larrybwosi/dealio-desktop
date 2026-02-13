@@ -1,3 +1,10 @@
+# [2.3.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.2.0...v2.3.0) (2026-02-13)
+
+
+### Features
+
+* **stock acceptance:** accepting stock from branches and suppliers with quality checks ([16e72db](https://github.com/larrybwosi/dealio-desktop/commit/16e72db81a103a179d37e25dcbf54c6a5c77dadf))
+
 # [2.2.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.1.0...v2.2.0) (2026-02-12)
 
 
