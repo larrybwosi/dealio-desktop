@@ -1,322 +1,201 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { Camera, Upload, Plus, Check, X, FileText, Save, AlertCircle, Package, Truck, Calendar, Building2, Edit2, Trash2, Eye } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { 
+  Check, 
+  X, 
+  AlertCircle, 
+  Search, 
+  Filter, 
+  RefreshCw,
+  ArrowRight
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { convertFileSrc, invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { FileReceiveDialog } from '@/components/file-receive';
-import { downloadDir, join } from '@tauri-apps/api/path';
 
-interface DeliveryItem {
-  id: string;
-  productId: string;
-  productName: string;
+// --- Types matching Rust Backend ---
+
+interface StockBatchProduct {
+  name: string;
   sku: string;
-  expectedQuantity: number;
-  receivedQuantity: number;
-  unitPrice: number;
-  qualityStatus: 'pending' | 'approved' | 'rejected' | 'partial';
-  qualityNotes: string;
-  rejectedQuantity: number;
-  expiryDate?: string;
-  batchNumber?: string;
 }
 
-interface UploadedDocument {
+interface StockBatchVariant {
+  product: StockBatchProduct;
+}
+
+interface StockBatch {
   id: string;
-  name: string;
-  type: string;
-  url: string;
-  size: number;
-  uploadedAt: Date;
+  organizationId: string;
+  locationId: string;
+  qualityCheckStatus: 'PENDING' | 'PASSED' | 'FAILED';
+  receivedDate: string;
+  initialQuantity: string; 
+  currentQuantity: string; 
+  variant: StockBatchVariant;
 }
 
-interface Supplier {
-  id: string;
-  name: string;
-  code: string;
+interface StockBatchResponse {
+  data: StockBatch[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
 }
 
-export default function StockDeliveryPage() {
-  const [deliveryReference, setDeliveryReference] = useState('');
-  const [selectedSupplier, setSelectedSupplier] = useState<string>('');
-  const [deliveryDate, setDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
-  const [deliveryItems, setDeliveryItems] = useState<DeliveryItem[]>([]);
-  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
-  const [generalNotes, setGeneralNotes] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  
-  // Dialog state
-  const [isItemDialogOpen, setIsItemDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<DeliveryItem | null>(null);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [viewingItem, setViewingItem] = useState<DeliveryItem | null>(null);
-  
+interface StockProcessRequest {
+  batchId: string;
+  locationId: string;
+  action: 'ACCEPT' | 'REJECT' | 'PARTIAL';
+  acceptedQuantity?: number;
+  rejectedQuantity?: number;
+  reason?: string;
+  notes?: string;
+}
+
+export default function StockAcceptancePage() {
   const { currentLocation } = useAuthStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [batches, setBatches] = useState<StockBatch[]>([]);
   
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  // Processing State
+  const [selectedBatch, setSelectedBatch] = useState<StockBatch | null>(null);
+  const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false);
+  
+  // Form State for QC
+  const [qcAction, setQcAction] = useState<'ACCEPT' | 'REJECT' | 'PARTIAL'>('ACCEPT');
+  const [acceptedQty, setAcceptedQty] = useState<string>('');
+  const [rejectedQty, setRejectedQty] = useState<string>('');
+  const [qcNotes, setQcNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Mock suppliers
-  const suppliers: Supplier[] = [
-    { id: '1', name: 'ABC Wholesale Ltd', code: 'ABC001' },
-    { id: '2', name: 'Premium Suppliers Inc', code: 'PREM002' },
-    { id: '3', name: 'Fresh Goods Co', code: 'FG003' },
-  ];
-
-  // Mock products
-  const availableProducts = [
-    { id: 'p1', name: 'Product A', sku: 'SKU001' },
-    { id: 'p2', name: 'Product B', sku: 'SKU002' },
-    { id: 'p3', name: 'Product C', sku: 'SKU003' },
-  ];
-
-  const openAddItemDialog = () => {
-    setEditingItem({
-      id: `item-${Date.now()}`,
-      productId: '',
-      productName: '',
-      sku: '',
-      expectedQuantity: 0,
-      receivedQuantity: 0,
-      unitPrice: 0,
-      qualityStatus: 'pending',
-      qualityNotes: '',
-      rejectedQuantity: 0,
-      expiryDate: '',
-      batchNumber: '',
-    });
-    setIsItemDialogOpen(true);
-  };
-
-  const openEditItemDialog = (item: DeliveryItem) => {
-    setEditingItem({ ...item });
-    setIsItemDialogOpen(true);
-  };
-
-  const openViewItemDialog = (item: DeliveryItem) => {
-    setViewingItem(item);
-    setIsViewDialogOpen(true);
-  };
-
-  const handleSaveItem = () => {
-    if (!editingItem) return;
-
-    // Validation
-    if (!editingItem.productId) {
-      toast.error('Please select a product');
-      return;
+  // Initial Data Fetch
+  useEffect(() => {
+    if (currentLocation?.id) {
+      fetchPendingStock();
     }
-    if (editingItem.receivedQuantity <= 0) {
-      toast.error('Received quantity must be greater than 0');
-      return;
-    }
-    if (editingItem.qualityStatus === 'pending') {
-      toast.error('Please complete the quality check');
-      return;
-    }
+  }, [currentLocation]);
 
-    const existingIndex = deliveryItems.findIndex(item => item.id === editingItem.id);
+  const fetchPendingStock = async () => {
+    if (!currentLocation?.id) return;
     
-    if (existingIndex >= 0) {
-      // Update existing item
-      setDeliveryItems(deliveryItems.map(item => 
-        item.id === editingItem.id ? editingItem : item
-      ));
-      toast.success('Item updated successfully');
-    } else {
-      // Add new item
-      setDeliveryItems([...deliveryItems, editingItem]);
-      toast.success('Item added successfully');
-    }
-
-    setIsItemDialogOpen(false);
-    setEditingItem(null);
-  };
-
-  const removeDeliveryItem = (id: string) => {
-    setDeliveryItems(deliveryItems.filter(item => item.id !== id));
-    toast.success('Item removed');
-  };
-
-  const updateEditingItem = (updates: Partial<DeliveryItem>) => {
-    if (editingItem) {
-      setEditingItem({ ...editingItem, ...updates });
-    }
-  };
-
-  const handleProductSelect = (productId: string) => {
-    const product = availableProducts.find(p => p.id === productId);
-    if (product) {
-      updateEditingItem({
-        productId: product.id,
-        productName: product.name,
-        sku: product.sku,
-      });
-    }
-  };
-
-  const handleQualityCheck = (status: 'approved' | 'rejected' | 'partial') => {
-    if (!editingItem) return;
-
-    let updates: Partial<DeliveryItem> = { qualityStatus: status };
-
-    if (status === 'approved') {
-      updates.rejectedQuantity = 0;
-    } else if (status === 'rejected') {
-      updates.rejectedQuantity = editingItem.receivedQuantity;
-    }
-
-    updateEditingItem(updates);
-  };
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files) return;
-
-    Array.from(files).forEach(file => {
-      const mockUrl = URL.createObjectURL(file);
-      
-      const newDocument: UploadedDocument = {
-        id: `doc-${Date.now()}-${Math.random()}`,
-        name: file.name,
-        type: file.type,
-        url: mockUrl,
-        size: file.size,
-        uploadedAt: new Date(),
-      };
-
-      setDocuments(prev => [...prev, newDocument]);
-    });
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleCameraCapture = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleFileUpload(event);
-  };
-
-  const removeDocument = (id: string) => {
-    setDocuments(documents.filter(doc => doc.id !== id));
-  };
-
-  const calculateTotals = () => {
-    const totalExpected = deliveryItems.reduce((sum, item) => sum + item.expectedQuantity, 0);
-    const totalReceived = deliveryItems.reduce((sum, item) => sum + item.receivedQuantity, 0);
-    const totalRejected = deliveryItems.reduce((sum, item) => sum + item.rejectedQuantity, 0);
-    const totalValue = deliveryItems.reduce((sum, item) => 
-      sum + (item.receivedQuantity - item.rejectedQuantity) * item.unitPrice, 0
-    );
-
-    return { totalExpected, totalReceived, totalRejected, totalValue };
-  };
-
-  const validateDelivery = (): string[] => {
-    const errors: string[] = [];
-
-    if (!deliveryReference.trim()) {
-      errors.push('Delivery reference is required');
-    }
-    if (!selectedSupplier) {
-      errors.push('Supplier must be selected');
-    }
-    if (deliveryItems.length === 0) {
-      errors.push('At least one item must be added');
-    }
-
-    return errors;
-  };
-
-  const handlePhoneFile = async (fileName: string) => {
-    const downloadPath = await downloadDir();
-    const filePath = await join(downloadPath, fileName);
-    const assetUrl = convertFileSrc(filePath);
-    const newDoc: UploadedDocument = {
-      id: crypto.randomUUID(), 
-      name: fileName,
-      type: 'image/jpeg',      
-      size: 0,       
-      url: assetUrl,          
-      uploadedAt: new Date(),
-    };
-
-    // @ts-ignore
-    setDocuments(prev => [...prev, newDoc]);
-    toast.success(`Received ${fileName} from phone`);
-  };
-
-  const handleSaveDelivery = async () => {
-    const errors = validateDelivery();
-    
-    if (errors.length > 0) {
-      toast.error(errors.join(', '));
-      return;
-    }
-
-    setIsSaving(true);
-
-    const filePaths = documents.map(doc => doc.url.replace('asset://', '')); 
-    
+    setIsLoading(true);
     try {
-      const deliveryData = {
-        supplierId: selectedSupplier,
-        purchaseId: undefined,
-        locationId: currentLocation?.id,
-        notes: generalNotes,
-        receivedDate: new Date(deliveryDate).toISOString(), 
-        filePaths,
-        items: deliveryItems.map(item => ({
-          variantId: item.productId,
-          quantity: item.receivedQuantity - item.rejectedQuantity,
-          unitCost: item.unitPrice,
-          batchNumber: item.batchNumber || undefined,
-          expiryDate: item.expiryDate ? new Date(item.expiryDate).toISOString() : undefined,
-        }))
+      const response = await invoke<StockBatchResponse>('fetch_pending_stock', {
+        locationId: currentLocation.id,
+        page: 1,
+        limit: 50
+      });
+      setBatches(response.data);
+    } catch (error) {
+      console.error('Failed to fetch stock:', error);
+      toast.error('Failed to load pending stock items');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const openProcessDialog = (batch: StockBatch) => {
+    setSelectedBatch(batch);
+    // Reset form defaults
+    setQcAction('ACCEPT');
+    setAcceptedQty(batch.currentQuantity); // Default to full acceptance
+    setRejectedQty('0');
+    setQcNotes('');
+    setIsProcessDialogOpen(true);
+  };
+
+  const handleActionChange = (action: 'ACCEPT' | 'REJECT' | 'PARTIAL') => {
+    setQcAction(action);
+    if (!selectedBatch) return;
+
+    const total = parseFloat(selectedBatch.currentQuantity);
+
+    if (action === 'ACCEPT') {
+      setAcceptedQty(total.toString());
+      setRejectedQty('0');
+    } else if (action === 'REJECT') {
+      setAcceptedQty('0');
+      setRejectedQty(total.toString());
+    } else {
+      // Partial: reset to force user entry or keep previous valid values
+      setAcceptedQty('');
+      setRejectedQty('');
+    }
+  };
+
+  const validateSubmission = (): boolean => {
+    if (!selectedBatch) return false;
+    
+    const total = parseFloat(selectedBatch.currentQuantity);
+    const acc = parseFloat(acceptedQty) || 0;
+    const rej = parseFloat(rejectedQty) || 0;
+
+    if (acc < 0 || rej < 0) {
+      toast.error('Quantities cannot be negative');
+      return false;
+    }
+
+    // Floating point comparison tolerance
+    if (Math.abs((acc + rej) - total) > 0.001) {
+      toast.error(`Total quantity (${acc + rej}) must equal batch quantity (${total})`);
+      return false;
+    }
+
+    if (qcAction === 'REJECT' && !qcNotes.trim()) {
+      toast.error('Please provide a reason/note for rejection');
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmitProcess = async () => {
+    if (!selectedBatch || !currentLocation?.id) return;
+    if (!validateSubmission()) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const payload: StockProcessRequest = {
+        batchId: selectedBatch.id,
+        locationId: currentLocation.id,
+        action: qcAction,
+        acceptedQuantity: parseFloat(acceptedQty) || 0,
+        rejectedQuantity: parseFloat(rejectedQty) || 0,
+        notes: qcNotes,
+        reason: qcAction !== 'ACCEPT' ? 'Quality Check' : undefined
       };
 
-      await invoke('submit_delivery', { payload: deliveryData });
-      toast.success('Delivery saved successfully!');
-      resetForm();
+      await invoke('submit_stock_process', { payload });
+      
+      toast.success('Stock processed successfully');
+      setIsProcessDialogOpen(false);
+      fetchPendingStock(); // Refresh list
     } catch (error) {
-      console.error('Error saving delivery:', error);
-      toast.error('Failed to save delivery. Please try again.');
+      console.error('Process error:', error);
+      toast.error('Failed to process stock batch');
     } finally {
-      setIsSaving(false);
+      setIsSubmitting(false);
     }
   };
 
-  const resetForm = () => {
-    setDeliveryReference('');
-    setSelectedSupplier('');
-    setDeliveryDate(new Date().toISOString().split('T')[0]);
-    setDeliveryItems([]);
-    setDocuments([]);
-    setGeneralNotes('');
-  };
-
-  const totals = calculateTotals();
-
-  const getQualityBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'approved': return 'default';
-      case 'rejected': return 'destructive';
-      case 'partial': return 'secondary';
-      default: return 'outline';
-    }
+  // Helper to safely display decimals
+  const formatQty = (qty: string | number) => {
+    const num = typeof qty === 'string' ? parseFloat(qty) : qty;
+    return isNaN(num) ? '0' : num.toString();
   };
 
   return (
@@ -324,629 +203,210 @@ export default function StockDeliveryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Stock Delivery</h1>
-          <p className="text-muted-foreground mt-1">Record and verify incoming stock from suppliers</p>
+          <h1 className="text-3xl font-bold tracking-tight">Stock Acceptance</h1>
+          <p className="text-muted-foreground mt-1">Review and process pending inventory deliveries</p>
         </div>
-        <Package className="w-12 h-12 text-muted-foreground opacity-20" />
+        <Button variant="outline" size="icon" onClick={fetchPendingStock} disabled={isLoading}>
+          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        </Button>
       </div>
 
-      {/* Delivery Information */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Truck className="w-5 h-5 text-primary" />
-            <CardTitle>Delivery Information</CardTitle>
-          </div>
-          <CardDescription>Enter the basic details of the stock delivery</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-2">
-              <Label htmlFor="reference" className="flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Delivery Reference *
-              </Label>
+      {/* Main Content Area */}
+      <div className="grid gap-6">
+        {/* Filters / Search Bar (Placeholder for future expansion) */}
+        <Card className="bg-muted/40 border-none shadow-none">
+          <CardContent className="p-4 flex gap-4 items-center">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                id="reference"
-                placeholder="e.g., DEL-2024-001"
-                value={deliveryReference}
-                onChange={(e) => setDeliveryReference(e.target.value)}
+                type="search"
+                placeholder="Search by SKU or Product Name..."
+                className="pl-8 bg-background"
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="supplier" className="flex items-center gap-2">
-                <Building2 className="w-4 h-4" />
-                Supplier *
-              </Label>
-              <Select value={selectedSupplier} onValueChange={setSelectedSupplier}>
-                <SelectTrigger id="supplier">
-                  <SelectValue placeholder="Select supplier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier.id} value={supplier.id}>
-                      {supplier.name} ({supplier.code})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="ml-auto flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">Showing pending items for <strong>{currentLocation?.name || 'Unknown Location'}</strong></span>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="space-y-2">
-              <Label htmlFor="date" className="flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                Delivery Date *
-              </Label>
-              <Input
-                id="date"
-                type="date"
-                value={deliveryDate}
-                onChange={(e) => setDeliveryDate(e.target.value)}
-              />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Delivery Items */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-primary" />
-                <CardTitle>Delivery Items</CardTitle>
+        {/* Pending Stock Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Quality Checks</CardTitle>
+            <CardDescription>
+              {batches.length === 0 
+                ? "No pending items found." 
+                : `${batches.length} batch${batches.length === 1 ? '' : 'es'} waiting for approval.`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {batches.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="bg-green-50 p-4 rounded-full mb-4">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold">All Caught Up!</h3>
+                <p className="text-muted-foreground">There are no pending stock items to review.</p>
               </div>
-              <CardDescription className="mt-1">
-                {deliveryItems.length === 0 
-                  ? 'No items added yet' 
-                  : `${deliveryItems.length} item${deliveryItems.length !== 1 ? 's' : ''} added`}
-              </CardDescription>
-            </div>
-            <Button onClick={openAddItemDialog}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Item
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {deliveryItems.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-lg">
-              <Package className="w-12 h-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground font-medium">No items added yet</p>
-              <p className="text-sm text-muted-foreground mt-1">Click "Add Item" to start adding products</p>
-            </div>
-          ) : (
-            <div className="border rounded-lg">
+            ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead className="text-center">Expected</TableHead>
-                    <TableHead className="text-center">Received</TableHead>
-                    <TableHead className="text-center">Rejected</TableHead>
-                    <TableHead className="text-center">Accepted</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Value</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead>Received Date</TableHead>
+                    <TableHead>Product Details</TableHead>
+                    <TableHead className="text-center">Initial Qty</TableHead>
+                    <TableHead className="text-center">Current Qty</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {deliveryItems.map((item) => (
-                    <TableRow key={item.id}>
+                  {batches.map((batch) => (
+                    <TableRow key={batch.id}>
+                      <TableCell className="font-medium">
+                        {new Date(batch.receivedDate).toLocaleDateString()}
+                      </TableCell>
                       <TableCell>
-                        <div>
-                          <p className="font-medium">{item.productName}</p>
-                          <p className="text-sm text-muted-foreground">{item.sku}</p>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{batch.variant.product.name}</span>
+                          <span className="text-xs text-muted-foreground">SKU: {batch.variant.product.sku}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">{item.expectedQuantity}</TableCell>
-                      <TableCell className="text-center">
-                        <span className={item.receivedQuantity !== item.expectedQuantity ? 'text-yellow-600 font-semibold' : ''}>
-                          {item.receivedQuantity}
-                        </span>
+                      <TableCell className="text-center text-muted-foreground">
+                        {formatQty(batch.initialQuantity)}
+                      </TableCell>
+                      <TableCell className="text-center font-bold text-lg">
+                        {formatQty(batch.currentQuantity)}
                       </TableCell>
                       <TableCell className="text-center">
-                        {item.rejectedQuantity > 0 && (
-                          <span className="text-destructive font-semibold">{item.rejectedQuantity}</span>
-                        )}
-                        {item.rejectedQuantity === 0 && '-'}
-                      </TableCell>
-                      <TableCell className="text-center font-semibold">
-                        {item.receivedQuantity - item.rejectedQuantity}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={getQualityBadgeVariant(item.qualityStatus)}>
-                          {item.qualityStatus}
+                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                          {batch.qualityCheckStatus}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right font-medium">
-                        ${((item.receivedQuantity - item.rejectedQuantity) * item.unitPrice).toFixed(2)}
-                      </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openViewItemDialog(item)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openEditItemDialog(item)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeDeliveryItem(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-destructive" />
-                          </Button>
-                        </div>
+                        <Button size="sm" onClick={() => openProcessDialog(batch)}>
+                          Process
+                          <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Documents */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-primary" />
-            <CardTitle>Supporting Documents</CardTitle>
-          </div>
-          <CardDescription>Upload delivery notes, invoices, or other supporting documents</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Files
-            </Button>
-            
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => cameraInputRef.current?.click()}
-            >
-              <Camera className="w-4 h-4 mr-2" />
-              Scan Document
-            </Button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept="image/*,.pdf,.doc,.docx"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleCameraCapture}
-              className="hidden"
-            />
-
-            <Separator className="my-2" />
-            
-            <FileReceiveDialog onFileReceived={handlePhoneFile} />
-          </div>
-
-          {documents.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {documents.map(doc => (
-                <Card key={doc.id} className="p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="p-2 bg-muted rounded-lg">
-                        <FileText className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{doc.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(doc.size / 1024).toFixed(1)} KB
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeDocument(doc.id)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Additional Notes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Additional Notes</CardTitle>
-          <CardDescription>Any special instructions or observations about this delivery</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Textarea
-            value={generalNotes}
-            onChange={(e) => setGeneralNotes(e.target.value)}
-            placeholder="Enter any additional notes about this delivery..."
-            rows={4}
-            className="resize-none"
-          />
-        </CardContent>
-      </Card>
-
-      {/* Summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Delivery Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Expected Items</p>
-              <p className="text-3xl font-bold">{totals.totalExpected}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Received Items</p>
-              <p className="text-3xl font-bold text-blue-600">{totals.totalReceived}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Rejected Items</p>
-              <p className="text-3xl font-bold text-destructive">{totals.totalRejected}</p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-3xl font-bold text-green-600">${totals.totalValue.toFixed(2)}</p>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button variant="outline" onClick={resetForm} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveDelivery} disabled={isSaving} size="lg">
-            {isSaving ? (
-              <>Saving...</>
-            ) : (
-              <>
-                <Save className="w-4 h-4 mr-2" />
-                Save Delivery
-              </>
             )}
-          </Button>
-        </CardFooter>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
-      {/* Add/Edit Item Dialog */}
-      <Dialog open={isItemDialogOpen} onOpenChange={setIsItemDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      {/* Quality Check / Processing Dialog */}
+      <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {editingItem && deliveryItems.find(i => i.id === editingItem.id) ? 'Edit Item' : 'Add Item'}
-            </DialogTitle>
+            <DialogTitle>Process Stock</DialogTitle>
             <DialogDescription>
-              Enter the details of the product being delivered
+              Verify quality and quantity for <strong>{selectedBatch?.variant.product.name}</strong>
             </DialogDescription>
           </DialogHeader>
 
-          {editingItem && (
+          {selectedBatch && (
             <div className="space-y-6 py-4">
-              {/* Product Selection */}
-              <div className="space-y-2">
-                <Label>Product *</Label>
-                <Select
-                  value={editingItem.productId}
-                  onValueChange={handleProductSelect}
+              {/* Action Selector */}
+              <div className="grid grid-cols-3 gap-3">
+                <button
+                  onClick={() => handleActionChange('ACCEPT')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                    qcAction === 'ACCEPT' 
+                      ? 'border-green-600 bg-green-50 text-green-700' 
+                      : 'border-muted hover:border-green-200'
+                  }`}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableProducts.map(product => (
-                      <SelectItem key={product.id} value={product.id}>
-                        {product.name} ({product.sku})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  <Check className="h-6 w-6 mb-2" />
+                  <span className="text-sm font-semibold">Accept All</span>
+                </button>
+
+                <button
+                  onClick={() => handleActionChange('PARTIAL')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                    qcAction === 'PARTIAL' 
+                      ? 'border-orange-500 bg-orange-50 text-orange-700' 
+                      : 'border-muted hover:border-orange-200'
+                  }`}
+                >
+                  <AlertCircle className="h-6 w-6 mb-2" />
+                  <span className="text-sm font-semibold">Partial</span>
+                </button>
+
+                <button
+                  onClick={() => handleActionChange('REJECT')}
+                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
+                    qcAction === 'REJECT' 
+                      ? 'border-red-600 bg-red-50 text-red-700' 
+                      : 'border-muted hover:border-red-200'
+                  }`}
+                >
+                  <X className="h-6 w-6 mb-2" />
+                  <span className="text-sm font-semibold">Reject All</span>
+                </button>
               </div>
 
               <Separator />
 
-              {/* Quantities */}
+              {/* Quantity Inputs */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Expected Quantity</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={editingItem.expectedQuantity}
-                    onChange={(e) => updateEditingItem({
-                      expectedQuantity: parseInt(e.target.value) || 0
-                    })}
+                  <Label className="text-green-700">Accepted Quantity</Label>
+                  <Input 
+                    type="number" 
+                    value={acceptedQty}
+                    onChange={(e) => setAcceptedQty(e.target.value)}
+                    disabled={qcAction === 'ACCEPT' || qcAction === 'REJECT'}
+                    className={qcAction === 'ACCEPT' ? 'bg-green-50 font-bold' : ''}
                   />
                 </div>
-
                 <div className="space-y-2">
-                  <Label>Received Quantity *</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={editingItem.receivedQuantity}
-                    onChange={(e) => updateEditingItem({
-                      receivedQuantity: parseInt(e.target.value) || 0
-                    })}
+                  <Label className="text-red-700">Rejected Quantity</Label>
+                  <Input 
+                    type="number" 
+                    value={rejectedQty}
+                    onChange={(e) => setRejectedQty(e.target.value)}
+                    disabled={qcAction === 'ACCEPT' || qcAction === 'REJECT'}
+                    className={qcAction === 'REJECT' ? 'bg-red-50 font-bold' : ''}
                   />
                 </div>
               </div>
 
-              {/* Pricing and Details */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Unit Price</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editingItem.unitPrice}
-                    onChange={(e) => updateEditingItem({
-                      unitPrice: parseFloat(e.target.value) || 0
-                    })}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Batch Number</Label>
-                  <Input
-                    value={editingItem.batchNumber}
-                    onChange={(e) => updateEditingItem({
-                      batchNumber: e.target.value
-                    })}
-                    placeholder="Optional"
-                  />
-                </div>
+              {/* Validation Feedback */}
+              <div className="text-sm text-center text-muted-foreground">
+                Total available: <span className="font-medium">{formatQty(selectedBatch.currentQuantity)}</span> units
               </div>
 
+              {/* Notes */}
               <div className="space-y-2">
-                <Label>Expiry Date</Label>
-                <Input
-                  type="date"
-                  value={editingItem.expiryDate}
-                  onChange={(e) => updateEditingItem({
-                    expiryDate: e.target.value
-                  })}
+                <Label>Notes / Reason {qcAction === 'REJECT' && <span className="text-red-500">*</span>}</Label>
+                <Textarea 
+                  placeholder={qcAction === 'REJECT' ? "Reason for rejection is required..." : "Optional notes..."}
+                  value={qcNotes}
+                  onChange={(e) => setQcNotes(e.target.value)}
+                  className="resize-none"
+                  rows={3}
                 />
               </div>
-
-              <Separator />
-
-              {/* Quality Check */}
-              <div className="space-y-4">
-                <Label>Quality Check *</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button
-                    type="button"
-                    variant={editingItem.qualityStatus === 'approved' ? 'default' : 'outline'}
-                    onClick={() => handleQualityCheck('approved')}
-                    className="w-full"
-                  >
-                    <Check className="w-4 h-4 mr-2" />
-                    Approve
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={editingItem.qualityStatus === 'partial' ? 'default' : 'outline'}
-                    onClick={() => handleQualityCheck('partial')}
-                    className="w-full"
-                  >
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Partial
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={editingItem.qualityStatus === 'rejected' ? 'destructive' : 'outline'}
-                    onClick={() => handleQualityCheck('rejected')}
-                    className="w-full"
-                  >
-                    <X className="w-4 h-4 mr-2" />
-                    Reject
-                  </Button>
-                </div>
-
-                {editingItem.qualityStatus !== 'pending' && (
-                  <>
-                    {(editingItem.qualityStatus === 'partial' || editingItem.qualityStatus === 'rejected') && (
-                      <div className="space-y-2">
-                        <Label>Rejected Quantity</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          max={editingItem.receivedQuantity}
-                          value={editingItem.rejectedQuantity}
-                          onChange={(e) => {
-                            const rejected = parseInt(e.target.value) || 0;
-                            updateEditingItem({
-                              rejectedQuantity: Math.min(rejected, editingItem.receivedQuantity)
-                            });
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      <Label>Quality Notes</Label>
-                      <Textarea
-                        value={editingItem.qualityNotes}
-                        onChange={(e) => updateEditingItem({
-                          qualityNotes: e.target.value
-                        })}
-                        placeholder="Enter any quality issues or notes..."
-                        rows={3}
-                      />
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Summary */}
-              {editingItem.receivedQuantity > 0 && editingItem.qualityStatus !== 'pending' && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    <div className="space-y-1">
-                      <p><strong>Accepted:</strong> {editingItem.receivedQuantity - editingItem.rejectedQuantity} units</p>
-                      {editingItem.rejectedQuantity > 0 && (
-                        <p><strong>Rejected:</strong> {editingItem.rejectedQuantity} units</p>
-                      )}
-                      {editingItem.unitPrice > 0 && (
-                        <p><strong>Value:</strong> ${((editingItem.receivedQuantity - editingItem.rejectedQuantity) * editingItem.unitPrice).toFixed(2)}</p>
-                      )}
-                    </div>
-                  </AlertDescription>
-                </Alert>
-              )}
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsItemDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsProcessDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button onClick={handleSaveItem}>
-              <Check className="w-4 h-4 mr-2" />
-              Save Item
+            <Button 
+              onClick={handleSubmitProcess} 
+              disabled={isSubmitting}
+              className={qcAction === 'REJECT' ? 'bg-destructive hover:bg-destructive/90' : ''}
+            >
+              {isSubmitting ? 'Processing...' : 'Confirm Decision'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Item Dialog */}
-      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Item Details</DialogTitle>
-            <DialogDescription>View complete information about this delivery item</DialogDescription>
-          </DialogHeader>
-
-          {viewingItem && (
-            <div className="space-y-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Product</p>
-                  <p className="font-medium">{viewingItem.productName}</p>
-                  <p className="text-sm text-muted-foreground">{viewingItem.sku}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Status</p>
-                  <Badge variant={getQualityBadgeVariant(viewingItem.qualityStatus)} className="mt-1">
-                    {viewingItem.qualityStatus}
-                  </Badge>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Expected</p>
-                  <p className="text-2xl font-bold">{viewingItem.expectedQuantity}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Received</p>
-                  <p className="text-2xl font-bold">{viewingItem.receivedQuantity}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Accepted</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {viewingItem.receivedQuantity - viewingItem.rejectedQuantity}
-                  </p>
-                </div>
-              </div>
-
-              {viewingItem.rejectedQuantity > 0 && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Rejected Quantity</p>
-                    <p className="text-2xl font-bold text-destructive">{viewingItem.rejectedQuantity}</p>
-                  </div>
-                </>
-              )}
-
-              <Separator />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">Unit Price</p>
-                  <p className="font-medium">${viewingItem.unitPrice.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Value</p>
-                  <p className="font-medium text-green-600">
-                    ${((viewingItem.receivedQuantity - viewingItem.rejectedQuantity) * viewingItem.unitPrice).toFixed(2)}
-                  </p>
-                </div>
-              </div>
-
-              {(viewingItem.batchNumber || viewingItem.expiryDate) && (
-                <>
-                  <Separator />
-                  <div className="grid grid-cols-2 gap-4">
-                    {viewingItem.batchNumber && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Batch Number</p>
-                        <p className="font-medium">{viewingItem.batchNumber}</p>
-                      </div>
-                    )}
-                    {viewingItem.expiryDate && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Expiry Date</p>
-                        <p className="font-medium">
-                          {new Date(viewingItem.expiryDate).toLocaleDateString()}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {viewingItem.qualityNotes && (
-                <>
-                  <Separator />
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Quality Notes</p>
-                    <p className="text-sm">{viewingItem.qualityNotes}</p>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button onClick={() => setIsViewDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
