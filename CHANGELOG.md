@@ -1,3 +1,10 @@
+# [2.4.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.3.0...v2.4.0) (2026-02-13)
+
+
+### Features
+
+* **stock transfer:** created the logic and page to create transfers ([59ae5b5](https://github.com/larrybwosi/dealio-desktop/commit/59ae5b56b7e3451ef8b63c696da7704a67145420))
+
 # [2.3.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.2.0...v2.3.0) (2026-02-13)
 
 
