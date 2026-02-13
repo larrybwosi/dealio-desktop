@@ -130,7 +130,6 @@ pub fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Resul
             Ok((token, customers)) => {
                 *state.last_sync_token.lock().unwrap() = token;
                 *state.customers.lock().unwrap() = customers;
-                println!("[SecureStore] Loaded {} customers successfully.", state.customers.lock().unwrap().len());
             },
             Err(e) => eprintln!("[SecureStore] Failed to load customers: {}", e),
         }

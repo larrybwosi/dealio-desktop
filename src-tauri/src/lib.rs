@@ -47,6 +47,7 @@ use customer_screen_state::CustomerScreenState;
 
 mod delivery_store;
 mod stock_acceptance;
+pub mod stock_transfer;
 mod http_server;
 
 mod scanner_manager; 
@@ -994,6 +995,7 @@ pub fn run() {
             stock_acceptance::submit_delivery,
             stock_acceptance::fetch_pending_stock,
             stock_acceptance::submit_stock_process,
+            stock_transfer::submit_stock_transfer,
             http_server::start_file_server,
         ])
         .run(tauri::generate_context!())

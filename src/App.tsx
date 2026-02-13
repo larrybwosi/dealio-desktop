@@ -21,6 +21,7 @@ import PricingViewPage from '@/pages/pricing-view-page';
 import NotFound from '@/pages/not-found';
 import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
+import StockTransferCreate from './pages/stock-transfers';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -73,6 +74,7 @@ const AppRoutes = () => {
         <Route path="/pricing" element={<PricingViewPage />} />
         <Route path="/shift-manager" element={<ShiftManager />} />
         <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
+        <Route path="/stock-transfer" element={<StockTransferCreate />} />
       </Route>
       
       {/* Routes without AppLayout */}

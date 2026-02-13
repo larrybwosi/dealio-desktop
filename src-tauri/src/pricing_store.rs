@@ -133,7 +133,6 @@ pub fn load_pricing_from_disk(app: &AppHandle, state: &PricingState) -> Result<(
             Ok((sync_at, data)) => {
                 *state.last_sync_at.lock().unwrap() = sync_at;
                 *state.data.lock().unwrap() = data;
-                println!("[SecureStore] Loaded Pricing Schema successfully.");
             },
             Err(e) => eprintln!("[SecureStore] Failed to load pricing: {}", e),
         }

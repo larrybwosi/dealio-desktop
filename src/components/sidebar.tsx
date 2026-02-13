@@ -138,6 +138,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
               { id: 'create-order', label: 'Create Order', icon: Plus, route: '/create-order' },
               { id: 'cash-drawer', label: 'Cash Drawer', icon: Wallet, route: '/cash-drawer' },
               { id: 'stock-acceptance', label: 'Stock Acceptance', icon: Package, route: '/stock-acceptance' },
+              { id: 'stock-transfer', label: 'Stock Transfer', icon: Package, route: '/stock-transfer' },
             ].map((item) => {
               const isActive = isRouteActive(item.route);
               return (

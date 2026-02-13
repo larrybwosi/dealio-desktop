@@ -5,405 +5,380 @@ import {
   Check, 
   X, 
   AlertCircle, 
-  Search, 
-  Filter, 
   RefreshCw,
-  ArrowRight
+  Package,
+  ArrowRight,
+  FileText,
+  X as XIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogFooter, 
+  DialogHeader, 
+  DialogTitle
+} from '@/components/ui/dialog';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { FileReceiveDialog } from '@/components/file-receive';
 
-// --- Types matching Rust Backend ---
-
+// --- Interfaces ---
 interface StockBatchProduct {
+  id: string;
   name: string;
   sku: string;
+  imageUrls: string[];
 }
-
 interface StockBatchVariant {
   product: StockBatchProduct;
 }
-
+interface StockBatchSource {
+  type: string;
+  reference: string;
+  name: string;
+}
 interface StockBatch {
   id: string;
-  organizationId: string;
   locationId: string;
   qualityCheckStatus: 'PENDING' | 'PASSED' | 'FAILED';
   receivedDate: string;
-  initialQuantity: string; 
-  currentQuantity: string; 
+  initialQuantity: string;
+  currentQuantity: string;
   variant: StockBatchVariant;
+  source: StockBatchSource;
+  batchNumber?: string;
+  expiryDate?: string;
 }
-
 interface StockBatchResponse {
   data: StockBatch[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
-}
-
-interface StockProcessRequest {
-  batchId: string;
-  locationId: string;
-  action: 'ACCEPT' | 'REJECT' | 'PARTIAL';
-  acceptedQuantity?: number;
-  rejectedQuantity?: number;
-  reason?: string;
-  notes?: string;
+  meta: { total: number; page: number; limit: number; totalPages: number };
 }
 
 export default function StockAcceptancePage() {
   const { currentLocation } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(false);
+  const locationId = currentLocation?.id;
+
   const [batches, setBatches] = useState<StockBatch[]>([]);
+  const [loading, setLoading] = useState(false);
   
-  // Processing State
+  // Dialog State
   const [selectedBatch, setSelectedBatch] = useState<StockBatch | null>(null);
   const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false);
-  
-  // Form State for QC
   const [qcAction, setQcAction] = useState<'ACCEPT' | 'REJECT' | 'PARTIAL'>('ACCEPT');
-  const [acceptedQty, setAcceptedQty] = useState<string>('');
-  const [rejectedQty, setRejectedQty] = useState<string>('');
   const [qcNotes, setQcNotes] = useState('');
+  const [acceptedQty, setAcceptedQty] = useState('');
+  const [rejectedQty, setRejectedQty] = useState('');
+  
+  // File State
+  const [qcFiles, setQcFiles] = useState<string[]>([]);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Initial Data Fetch
   useEffect(() => {
-    if (currentLocation?.id) {
-      fetchPendingStock();
+    if (locationId) {
+      fetchBatches();
     }
-  }, [currentLocation]);
+  }, [locationId]);
 
-  const fetchPendingStock = async () => {
-    if (!currentLocation?.id) return;
-    
-    setIsLoading(true);
+  // Reset form when dialog opens/closes
+  useEffect(() => {
+    if (selectedBatch) {
+      setQcAction('ACCEPT');
+      setQcNotes('');
+      setAcceptedQty(selectedBatch.currentQuantity);
+      setRejectedQty('0');
+      setQcFiles([]); // Reset files
+    }
+  }, [selectedBatch, isProcessDialogOpen]);
+
+  const fetchBatches = async () => {
+    if (!locationId) return;
+    setLoading(true);
     try {
       const response = await invoke<StockBatchResponse>('fetch_pending_stock', {
-        locationId: currentLocation.id,
+        locationId,
         page: 1,
         limit: 50
       });
       setBatches(response.data);
     } catch (error) {
-      console.error('Failed to fetch stock:', error);
-      toast.error('Failed to load pending stock items');
+      console.error("Fetch error:", error);
+      toast.error("Failed to load pending stock");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
   };
 
   const openProcessDialog = (batch: StockBatch) => {
     setSelectedBatch(batch);
-    // Reset form defaults
-    setQcAction('ACCEPT');
-    setAcceptedQty(batch.currentQuantity); // Default to full acceptance
-    setRejectedQty('0');
-    setQcNotes('');
     setIsProcessDialogOpen(true);
   };
 
-  const handleActionChange = (action: 'ACCEPT' | 'REJECT' | 'PARTIAL') => {
-    setQcAction(action);
-    if (!selectedBatch) return;
-
-    const total = parseFloat(selectedBatch.currentQuantity);
-
-    if (action === 'ACCEPT') {
-      setAcceptedQty(total.toString());
-      setRejectedQty('0');
-    } else if (action === 'REJECT') {
-      setAcceptedQty('0');
-      setRejectedQty(total.toString());
-    } else {
-      // Partial: reset to force user entry or keep previous valid values
-      setAcceptedQty('');
-      setRejectedQty('');
+  const handleFileReceived = (path: string) => {
+    if(!qcFiles.includes(path)) {
+        setQcFiles(prev => [...prev, path]);
+        toast.success("Document attached");
     }
   };
 
-  const validateSubmission = (): boolean => {
-    if (!selectedBatch) return false;
-    
-    const total = parseFloat(selectedBatch.currentQuantity);
-    const acc = parseFloat(acceptedQty) || 0;
-    const rej = parseFloat(rejectedQty) || 0;
-
-    if (acc < 0 || rej < 0) {
-      toast.error('Quantities cannot be negative');
-      return false;
-    }
-
-    // Floating point comparison tolerance
-    if (Math.abs((acc + rej) - total) > 0.001) {
-      toast.error(`Total quantity (${acc + rej}) must equal batch quantity (${total})`);
-      return false;
-    }
-
-    if (qcAction === 'REJECT' && !qcNotes.trim()) {
-      toast.error('Please provide a reason/note for rejection');
-      return false;
-    }
-
-    return true;
+  const removeFile = (path: string) => {
+    setQcFiles(prev => prev.filter(p => p !== path));
   };
 
   const handleSubmitProcess = async () => {
-    if (!selectedBatch || !currentLocation?.id) return;
-    if (!validateSubmission()) return;
+    if (!selectedBatch || !locationId) return;
+
+    if (qcAction === 'PARTIAL') {
+      const acc = parseFloat(acceptedQty || '0');
+      const rej = parseFloat(rejectedQty || '0');
+      const total = parseFloat(selectedBatch.currentQuantity);
+      if (acc + rej !== total) {
+        toast.error(`Quantities must sum to ${total}`);
+        return;
+      }
+    }
+
+    if (qcAction === 'REJECT' && !qcNotes) {
+        toast.error("Please provide a reason for rejection");
+        return;
+    }
 
     setIsSubmitting(true);
-
     try {
-      const payload: StockProcessRequest = {
-        batchId: selectedBatch.id,
-        locationId: currentLocation.id,
-        action: qcAction,
-        acceptedQuantity: parseFloat(acceptedQty) || 0,
-        rejectedQuantity: parseFloat(rejectedQty) || 0,
-        notes: qcNotes,
-        reason: qcAction !== 'ACCEPT' ? 'Quality Check' : undefined
-      };
-
-      await invoke('submit_stock_process', { payload });
-      
+      await invoke('submit_stock_process', {
+        payload: {
+          batchId: selectedBatch.id,
+          locationId,
+          action: qcAction,
+          acceptedQuantity: qcAction === 'PARTIAL' ? parseFloat(acceptedQty) : undefined,
+          rejectedQuantity: qcAction === 'PARTIAL' ? parseFloat(rejectedQty) : undefined,
+          reason: qcAction !== 'ACCEPT' ? qcNotes : undefined,
+          notes: qcNotes,
+          documents: qcFiles.length > 0 ? qcFiles : undefined // Send files
+        }
+      });
       toast.success('Stock processed successfully');
       setIsProcessDialogOpen(false);
-      fetchPendingStock(); // Refresh list
-    } catch (error) {
+      fetchBatches();
+    } catch (error: any) {
       console.error('Process error:', error);
-      toast.error('Failed to process stock batch');
+      toast.error('Failed to process stock', { description: error.message });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Helper to safely display decimals
-  const formatQty = (qty: string | number) => {
-    const num = typeof qty === 'string' ? parseFloat(qty) : qty;
-    return isNaN(num) ? '0' : num.toString();
-  };
-
   return (
-    <div className="container mx-auto p-6 max-w-7xl space-y-6">
-      {/* Header */}
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Stock Acceptance</h1>
-          <p className="text-muted-foreground mt-1">Review and process pending inventory deliveries</p>
+          <p className="text-muted-foreground mt-1">Review and accept incoming inventory</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchPendingStock} disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+        <Button variant="outline" size="icon" onClick={fetchBatches} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
 
-      {/* Main Content Area */}
-      <div className="grid gap-6">
-        {/* Filters / Search Bar (Placeholder for future expansion) */}
-        <Card className="bg-muted/40 border-none shadow-none">
-          <CardContent className="p-4 flex gap-4 items-center">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="search"
-                placeholder="Search by SKU or Product Name..."
-                className="pl-8 bg-background"
-              />
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">Showing pending items for <strong>{currentLocation?.name || 'Unknown Location'}</strong></span>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Pending Stock Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Quality Checks</CardTitle>
-            <CardDescription>
-              {batches.length === 0 
-                ? "No pending items found." 
-                : `${batches.length} batch${batches.length === 1 ? '' : 'es'} waiting for approval.`}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {batches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="bg-green-50 p-4 rounded-full mb-4">
-                  <Check className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold">All Caught Up!</h3>
-                <p className="text-muted-foreground">There are no pending stock items to review.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Received Date</TableHead>
-                    <TableHead>Product Details</TableHead>
-                    <TableHead className="text-center">Initial Qty</TableHead>
-                    <TableHead className="text-center">Current Qty</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {batches.map((batch) => (
-                    <TableRow key={batch.id}>
-                      <TableCell className="font-medium">
-                        {new Date(batch.receivedDate).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" /> Pending Review
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Received</TableHead>
+                <TableHead>Source</TableHead>
+                <TableHead>Item</TableHead>
+                <TableHead>Qty</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {batches.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
+                    No pending stock to review
+                  </TableCell>
+                </TableRow>
+              ) : (
+                batches.map((batch) => (
+                  <TableRow key={batch.id}>
+                    <TableCell>
                         <div className="flex flex-col">
-                          <span className="font-semibold">{batch.variant.product.name}</span>
-                          <span className="text-xs text-muted-foreground">SKU: {batch.variant.product.sku}</span>
+                            <span>{new Date(batch.receivedDate).toLocaleDateString()}</span>
+                            <span className="text-xs text-muted-foreground">{new Date(batch.receivedDate).toLocaleTimeString()}</span>
                         </div>
-                      </TableCell>
-                      <TableCell className="text-center text-muted-foreground">
-                        {formatQty(batch.initialQuantity)}
-                      </TableCell>
-                      <TableCell className="text-center font-bold text-lg">
-                        {formatQty(batch.currentQuantity)}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                          {batch.qualityCheckStatus}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{batch.source.name}</span>
+                        <Badge variant="secondary" className="w-fit text-[10px] mt-1">
+                          {batch.source.reference}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button size="sm" onClick={() => openProcessDialog(batch)}>
-                          Process
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="font-medium">{batch.variant.product.name}</div>
+                      <div className="text-xs text-muted-foreground">SKU: {batch.variant.product.sku}</div>
+                    </TableCell>
+                    <TableCell className="font-mono">{batch.currentQuantity}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" onClick={() => openProcessDialog(batch)}>
+                        Process
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-      {/* Quality Check / Processing Dialog */}
+      {/* Process Dialog */}
       <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Process Stock</DialogTitle>
-            <DialogDescription>
-              Verify quality and quantity for <strong>{selectedBatch?.variant.product.name}</strong>
-            </DialogDescription>
           </DialogHeader>
-
+          
           {selectedBatch && (
-            <div className="space-y-6 py-4">
-              {/* Action Selector */}
-              <div className="grid grid-cols-3 gap-3">
-                <button
-                  onClick={() => handleActionChange('ACCEPT')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
-                    qcAction === 'ACCEPT' 
-                      ? 'border-green-600 bg-green-50 text-green-700' 
-                      : 'border-muted hover:border-green-200'
-                  }`}
-                >
-                  <Check className="h-6 w-6 mb-2" />
-                  <span className="text-sm font-semibold">Accept All</span>
-                </button>
-
-                <button
-                  onClick={() => handleActionChange('PARTIAL')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
-                    qcAction === 'PARTIAL' 
-                      ? 'border-orange-500 bg-orange-50 text-orange-700' 
-                      : 'border-muted hover:border-orange-200'
-                  }`}
-                >
-                  <AlertCircle className="h-6 w-6 mb-2" />
-                  <span className="text-sm font-semibold">Partial</span>
-                </button>
-
-                <button
-                  onClick={() => handleActionChange('REJECT')}
-                  className={`flex flex-col items-center justify-center p-3 rounded-lg border-2 transition-all ${
-                    qcAction === 'REJECT' 
-                      ? 'border-red-600 bg-red-50 text-red-700' 
-                      : 'border-muted hover:border-red-200'
-                  }`}
-                >
-                  <X className="h-6 w-6 mb-2" />
-                  <span className="text-sm font-semibold">Reject All</span>
-                </button>
-              </div>
-
-              <Separator />
-
-              {/* Quantity Inputs */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-green-700">Accepted Quantity</Label>
-                  <Input 
-                    type="number" 
-                    value={acceptedQty}
-                    onChange={(e) => setAcceptedQty(e.target.value)}
-                    disabled={qcAction === 'ACCEPT' || qcAction === 'REJECT'}
-                    className={qcAction === 'ACCEPT' ? 'bg-green-50 font-bold' : ''}
-                  />
+            <div className="space-y-6 py-2">
+              <div className="bg-muted p-3 rounded-lg space-y-2">
+                <div className="flex justify-between font-medium">
+                    <span>{selectedBatch.variant.product.name}</span>
+                    <span>x{selectedBatch.currentQuantity}</span>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-red-700">Rejected Quantity</Label>
-                  <Input 
-                    type="number" 
-                    value={rejectedQty}
-                    onChange={(e) => setRejectedQty(e.target.value)}
-                    disabled={qcAction === 'ACCEPT' || qcAction === 'REJECT'}
-                    className={qcAction === 'REJECT' ? 'bg-red-50 font-bold' : ''}
-                  />
+                <div className="text-xs text-muted-foreground flex justify-between">
+                    <span>From: {selectedBatch.source.name}</span>
+                    <span>Ref: {selectedBatch.source.reference}</span>
                 </div>
               </div>
 
-              {/* Validation Feedback */}
-              <div className="text-sm text-center text-muted-foreground">
-                Total available: <span className="font-medium">{formatQty(selectedBatch.currentQuantity)}</span> units
+              {/* Action Selection */}
+              <div className="grid grid-cols-3 gap-2">
+                <Button 
+                  variant={qcAction === 'ACCEPT' ? 'default' : 'outline'}
+                  className={qcAction === 'ACCEPT' ? 'bg-green-600 hover:bg-green-700' : ''}
+                  onClick={() => setQcAction('ACCEPT')}
+                >
+                  <Check className="mr-2 h-4 w-4" /> Accept
+                </Button>
+                <Button 
+                   variant={qcAction === 'PARTIAL' ? 'default' : 'outline'}
+                   className={qcAction === 'PARTIAL' ? 'bg-orange-500 hover:bg-orange-600' : ''}
+                   onClick={() => setQcAction('PARTIAL')}
+                >
+                  <AlertCircle className="mr-2 h-4 w-4" /> Partial
+                </Button>
+                <Button 
+                   variant={qcAction === 'REJECT' ? 'default' : 'outline'}
+                   className={qcAction === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : ''}
+                   onClick={() => setQcAction('REJECT')}
+                >
+                   <X className="mr-2 h-4 w-4" /> Reject
+                </Button>
               </div>
 
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label>Notes / Reason {qcAction === 'REJECT' && <span className="text-red-500">*</span>}</Label>
-                <Textarea 
-                  placeholder={qcAction === 'REJECT' ? "Reason for rejection is required..." : "Optional notes..."}
-                  value={qcNotes}
-                  onChange={(e) => setQcNotes(e.target.value)}
-                  className="resize-none"
-                  rows={3}
-                />
+              {/* Dynamic Form Based on Action */}
+              <div className="space-y-4 border p-4 rounded-md">
+                {qcAction === 'PARTIAL' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Accepted Qty</Label>
+                      <Input 
+                        type="number" 
+                        value={acceptedQty}
+                        onChange={(e) => setAcceptedQty(e.target.value)}
+                        className="border-green-200 focus:ring-green-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Rejected Qty</Label>
+                      <Input 
+                        type="number" 
+                        value={rejectedQty}
+                        onChange={(e) => setRejectedQty(e.target.value)}
+                        className="border-red-200 focus:ring-red-500"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>
+                    {qcAction === 'REJECT' ? 'Rejection Reason (Required)' : 'Notes (Optional)'}
+                  </Label>
+                  <Textarea 
+                    placeholder={qcAction === 'REJECT' ? "e.g., Damaged packaging, Expired..." : "Any observations..."}
+                    value={qcNotes}
+                    onChange={(e) => setQcNotes(e.target.value)}
+                    className="resize-none"
+                    rows={3}
+                  />
+                </div>
+
+                {/* File Attachment Section */}
+                <div className="space-y-2">
+                    <Label className="flex justify-between items-center">
+                        <span>Attachments</span>
+                        <span className="text-xs text-muted-foreground">{qcFiles.length} file(s)</span>
+                    </Label>
+                    
+                    {/* File List */}
+                    <div className="space-y-2">
+                        {qcFiles.map((file, i) => (
+                            <div key={i} className="flex justify-between items-center bg-muted p-2 rounded text-xs">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <FileText className="h-3 w-3 flex-shrink-0" />
+                                    <span className="truncate">{file.split(/[\\/]/).pop()}</span>
+                                </div>
+                                <Button size="icon" variant="ghost" className="h-5 w-5 flex-shrink-0" onClick={() => removeFile(file)}>
+                                    <XIcon className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Mobile Upload Dialog Nested */}
+                    <FileReceiveDialog onFileReceived={handleFileReceived} />
+                </div>
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsProcessDialogOpen(false)} disabled={isSubmitting}>
+            <Button variant="ghost" onClick={() => setIsProcessDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button 
               onClick={handleSubmitProcess} 
               disabled={isSubmitting}
-              className={qcAction === 'REJECT' ? 'bg-destructive hover:bg-destructive/90' : ''}
+              className={
+                qcAction === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : 
+                qcAction === 'PARTIAL' ? 'bg-orange-600 hover:bg-orange-700' : 
+                'bg-green-600 hover:bg-green-700'
+              }
             >
               {isSubmitting ? 'Processing...' : 'Confirm Decision'}
             </Button>

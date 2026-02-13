@@ -1,4 +1,4 @@
-// hooks/use-pos-config.ts
+// hooks/locations.ts
 import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 

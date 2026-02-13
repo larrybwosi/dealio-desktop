@@ -1,486 +1,523 @@
 "use client"
 
-import * as React from "react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  ArrowRight, 
-  Package, 
-  Plus, 
-  Trash2, 
+import { Input } from "@/components/ui/input"
+import {
+  Package,
+  Trash2,
   Send,
-  Search,
-  AlertCircle,
   Building2,
-  Calendar
+  Loader2,
+  X,
+  Search,
+  PackageSearch,
+  ArrowRightLeft,
+  Store,
+  Layers
 } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { useAuthStore } from "@/store/pos-auth-store"
+import { invoke } from "@tauri-apps/api/core"
+import { toast } from "sonner"
+
+// --- Custom Hooks ---
+import { usePosLocations } from "@/hooks/locations"
+import { FileReceiveDialog } from "@/components/file-receive"
+import { PosProduct, usePosProducts } from "@/hooks/products"
+
+// --- Interfaces ---
+
+interface ProductVariant {
+  variantId: string;
+  variantName: string;
+  sku: string;
+  barcode?: string;
+  stock: number;
+  price?: number;
+}
 
 interface TransferItem {
   id: string
+  variantId: string
   productId: string
   productName: string
+  variantName?: string | null
   sku: string
   currentStock: number
   quantity: number
   unit: string
+  isDefaultVariant: boolean
 }
 
-interface Branch {
-  id: string
-  name: string
-  code: string
-  address: string
+// --- Helper Functions ---
+
+const isDefaultVariant = (variantName?: string | null): boolean => {
+  return !variantName || variantName === 'Default' || variantName === 'default';
 }
 
-interface Product {
-  id: string
-  name: string
-  sku: string
-  stock: number
-  unit: string
+const getProductDisplayName = (productName: string, variantName?: string | null): string => {
+  if (variantName && !isDefaultVariant(variantName)) {
+    return `${productName} - ${variantName}`;
+  }
+  return productName;
 }
 
-export function StockTransferCreate() {
-  const [fromBranch, setFromBranch] = useState<string>("")
+export default function StockTransferCreate() {
+  const { currentLocation } = useAuthStore();
+  const { locations, isLoading: isLoadingLocations } = usePosLocations();
+
+  // Search State
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showResults, setShowResults] = useState(false);
+  const { products: searchResults, isLoading: isLoadingProducts } = usePosProducts({
+    search: searchTerm,
+    category: "all",
+    enabled: searchTerm.length >= 2 
+  });
+
+  // Form State
   const [toBranch, setToBranch] = useState<string>("")
-  const [transferDate, setTransferDate] = useState<string>(
-    new Date().toISOString().split('T')[0]
-  )
   const [notes, setNotes] = useState<string>("")
   const [items, setItems] = useState<TransferItem[]>([])
-  const [open, setOpen] = useState(false)
+  const [attachedFiles, setAttachedFiles] = useState<string[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Mock data - replace with your actual data fetching
-  const branches: Branch[] = [
-    { id: "1", name: "Main Warehouse", code: "MWH", address: "123 Main St, City" },
-    { id: "2", name: "Downtown Store", code: "DWN", address: "456 Downtown Ave" },
-    { id: "3", name: "North Branch", code: "NTH", address: "789 North Rd" },
-    { id: "4", name: "East Branch", code: "EST", address: "321 East Blvd" },
-  ]
+  const availableDestinations = locations.filter(
+    loc => loc.id !== currentLocation?.id
+  );
 
-  const products: Product[] = [
-    { id: "1", name: "Wireless Mouse", sku: "WM-001", stock: 150, unit: "pcs" },
-    { id: "2", name: "USB Cable", sku: "UC-002", stock: 300, unit: "pcs" },
-    { id: "3", name: "Keyboard", sku: "KB-003", stock: 85, unit: "pcs" },
-    { id: "4", name: "Monitor 24\"", sku: "MN-004", stock: 45, unit: "pcs" },
-    { id: "5", name: "Laptop Stand", sku: "LS-005", stock: 120, unit: "pcs" },
-  ]
+  // --- Logic to normalize variants from a product ---
+  const getProductVariants = (product: PosProduct): ProductVariant[] => {
+    // Handle potential snake_case if backend isn't strictly typed
+    const rawVariants = product.variants || (product as any).variants || [];
+    
+    // Map existing variants
+    let variants: ProductVariant[] = rawVariants.map((v: any) => ({
+      variantId: v.variantId || v.variant_id,
+      variantName: v.variantName || v.variant_name || 'Default',
+      barcode: v.barcode,
+      sku: v.sku || '',
+      stock: typeof v.stock === 'number' ? v.stock : 0,
+      price: v.price
+    }));
 
-  const addItem = (product: Product) => {
-    const existingItem = items.find(item => item.productId === product.id)
-    if (existingItem) {
-      return
+    // If no variants found, treat product as single variant
+    if (variants.length === 0) {
+      variants.push({
+        variantId: product.variantId || `${product.productId}-default`,
+        variantName: product.variantName || 'Default',
+        sku: product.sku || '',
+        stock: product.stock ?? 0,
+        barcode: product.barcode,
+        price: (product as any).price
+      });
     }
+
+    return variants;
+  };
+
+  const addItem = (product: PosProduct, specificVariantId?: string) => {
+    const allVariants = getProductVariants(product);
+    
+    // Handle Product Name Safely (fallback for snake_case or missing)
+    const safeProductName = product.productName || (product as any).product_name || "Unknown Product";
+
+    // Find selected variant
+    let selectedVariant: ProductVariant | null = null;
+    if (specificVariantId) {
+      selectedVariant = allVariants.find(v => v.variantId === specificVariantId) || null;
+    } else {
+      selectedVariant = allVariants.find(v => isDefaultVariant(v.variantName)) || allVariants[0];
+    }
+
+    if (!selectedVariant) {
+      toast.error("Could not determine product variant details");
+      return;
+    }
+
+    const finalVariantId = selectedVariant.variantId;
+
+    // Check duplicates
+    if (items.some(item => item.variantId === finalVariantId)) {
+      const displayName = getProductDisplayName(safeProductName, selectedVariant.variantName);
+      toast.info(`${displayName} is already in the list`);
+      return;
+    }
+
+    // Determine unit
+    const baseUnit = product.sellableUnits?.find(u => u.isBaseUnit) || product.sellableUnits?.[0];
+    const unitName = baseUnit ? baseUnit.unitName : 'unit';
 
     const newItem: TransferItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      productId: product.id,
-      productName: product.name,
-      sku: product.sku,
-      currentStock: product.stock,
+      id: Math.random().toString(36).substring(2, 9),
+      variantId: finalVariantId,
+      productId: product.productId,
+      productName: safeProductName, // Use safe name
+      variantName: selectedVariant.variantName,
+      sku: selectedVariant.sku || selectedVariant.variantName || '',
+      currentStock: selectedVariant.stock,
       quantity: 1,
-      unit: product.unit,
-    }
-
-    setItems([...items, newItem])
-    setOpen(false)
-  }
+      unit: unitName,
+      isDefaultVariant: isDefaultVariant(selectedVariant.variantName)
+    };
+    
+    setItems([...items, newItem]);
+    setSearchTerm("");
+    setShowResults(false);
+    
+    toast.success("Item added to transfer");
+  };
 
   const updateQuantity = (id: string, quantity: number) => {
     setItems(items.map(item => 
       item.id === id ? { ...item, quantity: Math.max(0, quantity) } : item
-    ))
-  }
+    ));
+  };
 
   const removeItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id))
-  }
+    setItems(items.filter(item => item.id !== id));
+  };
 
-  const handleSubmit = () => {
-    if (!fromBranch || !toBranch || items.length === 0) {
-      return
+  // --- File Handling ---
+  const handleFileReceived = (filePath: string) => {
+    if (!attachedFiles.includes(filePath)) {
+      setAttachedFiles(prev => [...prev, filePath]);
+      toast.success("File attached successfully");
     }
+  };
 
-    const transfer = {
-      fromBranch,
-      toBranch,
-      transferDate,
-      notes,
-      items,
-      status: "pending",
-      createdAt: new Date().toISOString(),
+  const removeFile = (pathToRemove: string) => {
+    setAttachedFiles(prev => prev.filter(p => p !== pathToRemove));
+  };
+
+  // --- Submission ---
+  const handleSubmit = async () => {
+    if (!toBranch || items.length === 0) return;
+
+    try {
+      setIsSubmitting(true);
+
+      const payload = {
+        toLocationId: toBranch,
+        items: items.map(item => ({
+          variantId: item.variantId,
+          quantity: item.quantity
+        })),
+        notes: notes || undefined,
+        documents: attachedFiles.length > 0 ? attachedFiles : undefined
+      };
+
+      await invoke('submit_stock_transfer', { payload });
+
+      toast.success("Stock transfer created successfully");
+      
+      // Reset
+      setItems([]);
+      setNotes("");
+      setToBranch("");
+      setAttachedFiles([]);
+      setSearchTerm("");
+      setShowResults(false);
+
+    } catch (error: any) {
+      console.error("Failed to create transfer:", error);
+      toast.error("Failed to create transfer request", {
+        description: error.message || "Unknown error occurred"
+      });
+    } finally {
+      setIsSubmitting(false);
     }
+  };
 
-    console.log("Creating transfer:", transfer)
-    // Implement your API call here
-  }
-
-  const getTotalItems = () => {
-    return items.reduce((sum, item) => sum + item.quantity, 0)
-  }
-
-  const hasStockIssues = () => {
-    return items.some(item => item.quantity > item.currentStock)
-  }
-
-  const selectedFromBranch = branches.find(b => b.id === fromBranch)
-  const selectedToBranch = branches.find(b => b.id === toBranch)
+  const getTotalItems = () => items.reduce((sum, item) => sum + item.quantity, 0);
+  const selectedToBranch = locations.find(b => b.id === toBranch);
+  const isFormReady = toBranch && items.length > 0 && !isSubmitting;
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Create Stock Transfer</h1>
-          <p className="text-muted-foreground mt-1">
-            Transfer inventory between branches
-          </p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-tight">Create Stock Transfer</h1>
+            <Badge variant="secondary" className="text-xs">
+              {items.length} {items.length === 1 ? 'item' : 'items'}
+            </Badge>
+          </div>
+          <p className="text-muted-foreground mt-1">Transfer inventory between your business locations</p>
         </div>
-        <Badge variant="outline" className="text-sm px-4 py-2">
-          Draft
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="px-3 py-1.5">
+            <Store className="h-3.5 w-3.5 mr-1.5" />
+            {currentLocation?.name || 'Current Location'}
+          </Badge>
+          <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
+          <Badge variant="outline" className="px-3 py-1.5">
+            {selectedToBranch?.name || 'Destination'}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main Form */}
+        
+        {/* Main Form Area */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Branch Selection */}
+          
+          {/* Destination Selector */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Transfer Route
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Building2 className="h-5 w-5" /> 
+                Destination Location
               </CardTitle>
-              <CardDescription>
-                Select source and destination branches
-              </CardDescription>
+              <CardDescription>Select the branch receiving the stock</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="from-branch">From Branch *</Label>
-                  <Select value={fromBranch} onValueChange={setFromBranch}>
-                    <SelectTrigger id="from-branch">
-                      <SelectValue placeholder="Select source branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branches
-                        .filter(b => b.id !== toBranch)
-                        .map(branch => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-xs">
-                                {branch.code}
-                              </Badge>
-                              {branch.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedFromBranch && (
-                    <p className="text-xs text-muted-foreground">
-                      {selectedFromBranch.address}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="to-branch">To Branch *</Label>
-                  <Select value={toBranch} onValueChange={setToBranch}>
-                    <SelectTrigger id="to-branch">
-                      <SelectValue placeholder="Select destination branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {branches
-                        .filter(b => b.id !== fromBranch)
-                        .map(branch => (
-                          <SelectItem key={branch.id} value={branch.id}>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="secondary" className="text-xs">
-                                {branch.code}
-                              </Badge>
-                              {branch.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                  {selectedToBranch && (
-                    <p className="text-xs text-muted-foreground">
-                      {selectedToBranch.address}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {fromBranch && toBranch && (
-                <div className="flex items-center justify-center py-2">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Badge variant="outline">{selectedFromBranch?.code}</Badge>
-                    <ArrowRight className="h-4 w-4" />
-                    <Badge variant="outline">{selectedToBranch?.code}</Badge>
-                  </div>
-                </div>
-              )}
-
+            <CardContent>
               <div className="space-y-2">
-                <Label htmlFor="transfer-date" className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  Transfer Date *
-                </Label>
-                <Input
-                  id="transfer-date"
-                  type="date"
-                  value={transferDate}
-                  onChange={(e) => setTransferDate(e.target.value)}
-                />
+                <Label htmlFor="to-branch">To Branch *</Label>
+                <Select value={toBranch} onValueChange={setToBranch} disabled={isSubmitting}>
+                  <SelectTrigger id="to-branch" className="w-full">
+                    <SelectValue placeholder={isLoadingLocations ? "Loading..." : "Choose destination"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableDestinations.map(loc => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        <div className="flex items-center gap-2">
+                          <div className="h-2 w-2 rounded-full bg-green-500" />
+                          <span>{loc.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </CardContent>
           </Card>
 
-          {/* Items */}
+          {/* Item Selection */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5" />
-                    Transfer Items
-                  </CardTitle>
-                  <CardDescription>
-                    Add products to transfer
-                  </CardDescription>
-                </div>
-                <Popover open={open} onOpenChange={setOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Item
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Package className="h-5 w-5" /> 
+                Transfer Items
+              </CardTitle>
+              <CardDescription>Search and add products</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              {/* Search Bar */}
+              <div className="space-y-2 relative">
+                <Label htmlFor="product-search">Find Products</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="product-search"
+                    type="search"
+                    placeholder="Search name, SKU, or barcode..."
+                    className="pl-9 pr-10"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setShowResults(true);
+                    }}
+                    onFocus={() => setShowResults(true)}
+                  />
+                  {searchTerm && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+                      onClick={() => { setSearchTerm(""); setShowResults(false); }}
+                    >
+                      <X className="h-4 w-4" />
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="end">
-                    <Command>
-                      <CommandInput placeholder="Search products..." />
-                      <CommandEmpty>No products found.</CommandEmpty>
-                      <CommandGroup>
-                        <ScrollArea className="h-[300px]">
-                          {products.map((product) => (
-                            <CommandItem
-                              key={product.id}
-                              onSelect={() => addItem(product)}
-                              disabled={items.some(item => item.productId === product.id)}
-                            >
-                              <div className="flex items-center justify-between w-full">
-                                <div className="flex flex-col">
-                                  <span className="font-medium">{product.name}</span>
-                                  <span className="text-xs text-muted-foreground">
-                                    SKU: {product.sku}
-                                  </span>
-                                </div>
-                                <Badge variant="secondary" className="text-xs">
-                                  {product.stock} {product.unit}
-                                </Badge>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </ScrollArea>
-                      </CommandGroup>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {items.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <Package className="h-12 w-12 text-muted-foreground mb-4" />
-                  <p className="text-sm text-muted-foreground">
-                    No items added yet. Click "Add Item" to get started.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {hasStockIssues() && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        Some items exceed available stock. Please adjust quantities.
-                      </AlertDescription>
-                    </Alert>
                   )}
-                  
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead className="text-center">Available</TableHead>
-                          <TableHead className="text-center">Quantity</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {items.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{item.productName}</span>
-                                <span className="text-xs text-muted-foreground">
-                                  SKU: {item.sku}
-                                </span>
+                </div>
+
+                {/* Search Results Dropdown */}
+                {showResults && searchTerm.length >= 2 && (
+                  <div className="absolute top-full left-0 right-0 z-50 border rounded-lg shadow-xl mt-1 bg-popover overflow-hidden">
+                    {isLoadingProducts ? (
+                      <div className="flex justify-center p-8"><Loader2 className="animate-spin" /></div>
+                    ) : searchResults.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground">No products found</div>
+                    ) : (
+                      <ScrollArea className="max-h-[400px]">
+                        <div className="divide-y">
+                          {searchResults.map((product) => {
+                            const variants = getProductVariants(product);
+                            const availableVariants = variants.filter(v => v.stock > 0);
+                            const safeProductName = product.productName || (product as any).product_name || "Unknown Product";
+
+                            // Case 1: Out of Stock (Render Parent with Key)
+                            if (availableVariants.length === 0) {
+                              return (
+                                <div key={product.productId} className="p-3 opacity-60">
+                                  <div className="flex justify-between items-center">
+                                    <span className="font-medium text-sm">{safeProductName}</span>
+                                    <span className="text-xs text-destructive font-medium">Out of Stock</span>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            // Case 2: Multi-Variant (Render Parent with Key)
+                            if (availableVariants.length > 1) {
+                              return (
+                                <div key={product.productId} className="divide-y">
+                                  <div className="p-2 bg-muted/30 flex items-center gap-2">
+                                    <Layers className="h-3 w-3 text-muted-foreground" />
+                                    <span className="text-xs font-semibold">{safeProductName}</span>
+                                  </div>
+                                  {availableVariants.map((variant) => (
+                                    <div 
+                                      key={variant.variantId}
+                                      className="flex justify-between items-center p-3 pl-6 hover:bg-accent cursor-pointer"
+                                      onClick={() => addItem(product, variant.variantId)}
+                                    >
+                                      <div>
+                                        <p className="text-sm font-medium">{variant.variantName}</p>
+                                        <p className="text-xs text-muted-foreground">Stock: {variant.stock}</p>
+                                      </div>
+                                      <Button size="sm" variant="secondary" className="h-7 text-xs">Add</Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+
+                            // Case 3: Single Variant (Render Parent with Key = ProductID)
+                            // We use product.productId here to avoid collisions if variantId is generic like 'default'
+                            const variant = availableVariants[0];
+                            const displayName = getProductDisplayName(safeProductName, variant.variantName);
+                            
+                            return (
+                              <div 
+                                key={product.productId} 
+                                className="flex justify-between items-center p-3 hover:bg-accent cursor-pointer"
+                                onClick={() => addItem(product, variant.variantId)}
+                              >
+                                <div>
+                                  <p className="text-sm font-medium">{displayName}</p>
+                                  <div className="flex gap-2 text-xs text-muted-foreground">
+                                    <span>Stock: {variant.stock}</span>
+                                    {variant.sku && <span>SKU: {variant.sku}</span>}
+                                  </div>
+                                </div>
+                                <Button size="sm" variant="default" className="h-8">Add</Button>
                               </div>
-                            </TableCell>
-                            <TableCell className="text-center">
-                              <Badge 
-                                variant={item.quantity > item.currentStock ? "destructive" : "secondary"}
-                                className="text-xs"
-                              >
-                                {item.currentStock} {item.unit}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                type="number"
-                                min="0"
-                                max={item.currentStock}
-                                value={item.quantity}
-                                onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 0)}
-                                className={`w-24 text-center ${
-                                  item.quantity > item.currentStock ? 'border-destructive' : ''
-                                }`}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeItem(item.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
                   </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Notes */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Additional Notes</CardTitle>
-              <CardDescription>
-                Add any relevant information about this transfer
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                placeholder="Enter notes or special instructions..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                rows={4}
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Summary Sidebar */}
-        <div className="lg:col-span-1">
-          <Card className="sticky top-6">
-            <CardHeader>
-              <CardTitle>Transfer Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">From:</span>
-                  <span className="font-medium">
-                    {selectedFromBranch?.name || "-"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">To:</span>
-                  <span className="font-medium">
-                    {selectedToBranch?.name || "-"}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Date:</span>
-                  <span className="font-medium">{transferDate}</span>
-                </div>
-                <Separator />
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Items:</span>
-                  <span className="font-medium">{items.length}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Total Quantity:</span>
-                  <span className="font-medium">{getTotalItems()}</span>
-                </div>
+                )}
               </div>
 
               <Separator />
 
-              <div className="space-y-2">
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleSubmit}
-                  disabled={!fromBranch || !toBranch || items.length === 0 || hasStockIssues()}
-                >
-                  <Send className="h-4 w-4 mr-2" />
-                  Create Transfer
-                </Button>
-                <Button variant="outline" className="w-full">
-                  Save as Draft
-                </Button>
+              {/* Selected Items List */}
+              <div className="space-y-4">
+                 {items.length === 0 ? (
+                    <div className="text-center py-10 border-2 border-dashed rounded-lg bg-muted/10">
+                      <PackageSearch className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                      <p className="text-sm text-muted-foreground">Search products above to build your transfer list</p>
+                    </div>
+                 ) : (
+                    <ScrollArea className="h-[400px] pr-4">
+                      <div className="space-y-3">
+                        {items.map((item) => (
+                          <div key={item.id} className="flex flex-col sm:flex-row items-center justify-between p-3 border rounded-lg bg-card gap-3">
+                            <div className="flex-1 text-left w-full">
+                              <div className="font-medium text-sm">{getProductDisplayName(item.productName, item.variantName)}</div>
+                              <div className="text-xs text-muted-foreground">
+                                Available: {item.currentStock} | SKU: {item.sku}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center border rounded-md h-8">
+                                <Button 
+                                  variant="ghost" size="icon" className="h-8 w-8 rounded-none"
+                                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                >-</Button>
+                                <div className="w-12 text-center text-sm">{item.quantity}</div>
+                                <Button 
+                                  variant="ghost" size="icon" className="h-8 w-8 rounded-none"
+                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  disabled={item.quantity >= item.currentStock}
+                                >+</Button>
+                              </div>
+                              <Button 
+                                variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                                onClick={() => removeItem(item.id)}
+                              ><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                 )}
               </div>
 
-              {(!fromBranch || !toBranch || items.length === 0) && (
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription className="text-xs">
-                    Please select branches and add items to continue.
-                  </AlertDescription>
-                </Alert>
-              )}
             </CardContent>
           </Card>
         </div>
+
+        {/* Sidebar Summary */}
+        <div className="space-y-6">
+          <Card className="sticky top-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Transfer Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-muted/50 p-4 rounded-lg text-center">
+                <div className="text-2xl font-bold">{getTotalItems()}</div>
+                <div className="text-xs text-muted-foreground">Total Units</div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notes</Label>
+                <Textarea 
+                  placeholder="Optional notes..." 
+                  value={notes} 
+                  onChange={e => setNotes(e.target.value)}
+                  className="resize-none"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Attachments ({attachedFiles.length})</Label>
+                {attachedFiles.map(file => (
+                   <div key={file} className="flex justify-between items-center text-xs bg-muted p-2 rounded">
+                      <span className="truncate max-w-[150px]">{file.split(/[\\/]/).pop()}</span>
+                      <X className="h-3 w-3 cursor-pointer" onClick={() => removeFile(file)} />
+                   </div>
+                ))}
+                <FileReceiveDialog onFileReceived={handleFileReceived} />
+              </div>
+
+              <Button 
+                className="w-full" 
+                size="lg" 
+                onClick={handleSubmit} 
+                disabled={!isFormReady}
+              >
+                {isSubmitting ? <Loader2 className="animate-spin h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Confirm Transfer
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
       </div>
     </div>
   )
