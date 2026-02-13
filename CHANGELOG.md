@@ -1,3 +1,10 @@
+# [2.5.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.4.0...v2.5.0) (2026-02-13)
+
+
+### Features
+
+* **binary:** new build ([66bcb57](https://github.com/larrybwosi/dealio-desktop/commit/66bcb573376f7ab29baabdc7c34b5ed5547a8e03))
+
 # [2.4.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.3.0...v2.4.0) (2026-02-13)
 
 
