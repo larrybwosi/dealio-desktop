@@ -1,3 +1,10 @@
+# [2.6.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.5.0...v2.6.0) (2026-02-13)
+
+
+### Features
+
+* **build:** to triger a build ([04a576d](https://github.com/larrybwosi/dealio-desktop/commit/04a576d8ca778e77972f5b60c89335dd0a735b19))
+
 # [2.5.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.4.0...v2.5.0) (2026-02-13)
 
 
