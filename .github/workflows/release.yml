@@ -119,7 +119,6 @@ jobs:
           # Point to the tag created by semantic-release in the previous job
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           
-          # Do not overwrite the Release Name or Body (let semantic-release handle that)
           releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
