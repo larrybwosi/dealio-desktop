@@ -49,6 +49,7 @@ mod delivery_store;
 mod stock_acceptance;
 pub mod stock_transfer;
 mod http_server;
+mod stock_acceptance_models;
 
 mod scanner_manager; 
 
@@ -992,8 +993,9 @@ pub fn run() {
             auth_store::get_ably_auth_token_command,
             auth_store::start_device_setup_command,
             stock_acceptance::save_document_locally,
-            stock_acceptance::submit_delivery,
-            stock_acceptance::fetch_pending_stock,
+            stock_acceptance::fetch_incoming_shipments,
+            stock_acceptance::receive_purchase_order,
+            stock_acceptance::receive_stock_transfer,
             stock_acceptance::submit_stock_process,
             stock_transfer::submit_stock_transfer,
             http_server::start_file_server,

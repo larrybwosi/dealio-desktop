@@ -1,182 +1,32 @@
 use std::fs;
+use std::path::Path;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State}; 
 use crate::auth_store::AuthState; 
+use crate::stock_acceptance_models::{
+    DeliveryItem, DocumentMetadata, IncomingResponse, 
+    ReceivePurchaseRequest, ReceiveTransferRequest, 
+    StockProcessRequest, CommandError, ErrorKind
+};
 use anyhow::Context; 
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use reqwest::multipart::Form; 
-use serde::{Deserialize, Serialize};
+use reqwest::multipart::{Form, Part};
 use base64::{Engine as _, engine::general_purpose};
 use uuid::Uuid;
-use log::{info, error};
+use log::{info, error, warn};
 
-// --- Error Handling Structures ---
+// --- Constants ---
 
-#[derive(Debug, Serialize)]
-pub enum ErrorKind {
-    Authentication,
-    Network,
-    FileSystem,
-    Serialization,
-    Server,
-    Validation,
-    Configuration,
-    Unknown,
-}
+const MAX_FILE_SIZE: u64 = 20 * 1024 * 1024; // 20 MB in bytes
 
-#[derive(Debug, Serialize)]
-pub struct CommandError {
-    pub kind: ErrorKind,
-    pub message: String,
-    pub details: Option<String>,
-}
+// --- Error Handling Implementation ---
 
-impl CommandError {
-    pub fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
-            details: None,
-        }
-    }
-
-    pub fn with_details(mut self, details: impl Into<String>) -> Self {
-        self.details = Some(details.into());
-        self
-    }
-}
-
-// Helper to map anyhow errors to CommandError
 impl From<anyhow::Error> for CommandError {
     fn from(err: anyhow::Error) -> Self {
         error!("Internal Error: {:?}", err);
         CommandError::new(ErrorKind::Unknown, err.to_string())
     }
 }
-
-// --- Data Structures ---
-
-// Existing Delivery Structures (For submitting new receipts)
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DeliveryItem {
-    pub variant_id: String,
-    pub quantity: i32,
-    pub unit_cost: f64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batch_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expiry_date: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DocumentMetadata {
-    pub id: String,
-    pub name: String,
-    pub doc_type: String, 
-    pub path: String,
-    pub size: u64,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DeliveryPayload {
-    pub supplier_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub purchase_id: Option<String>,
-    pub location_id: String,
-    pub received_date: String,
-    pub items: Vec<DeliveryItem>,
-    pub notes: String,
-}
-
-// --- UPDATED: Stock Acceptance Structures ---
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchProduct {
-    pub id: String,
-    pub name: String,
-    pub sku: String,
-    #[serde(default)]
-    pub image_urls: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchVariant {
-    pub product: StockBatchProduct,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchSource {
-    #[serde(rename = "type")]
-    pub source_type: String, // "PURCHASE_ORDER", "STOCK_TRANSFER", "DIRECT_RECEIPT"
-    pub reference: String,   // e.g., "PO-001" or "Transfer In"
-    pub name: String,        // Supplier Name or Source Location Name
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatch {
-    pub id: String,
-    pub organization_id: String,
-    pub location_id: String,
-    pub quality_check_status: String, // "PENDING", "PASSED", "FAILED"
-    pub received_date: String,
-    
-    // Quantities come as Strings from Prisma Decimal, usually safe to parse or keep as string for display
-    pub initial_quantity: String, 
-    pub current_quantity: String,
-    
-    pub variant: StockBatchVariant,
-    
-    // The normalized source info from the API
-    pub source: StockBatchSource,
-    
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batch_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expiry_date: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchMeta {
-    pub total: i32,
-    pub page: i32,
-    pub limit: i32,
-    pub total_pages: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchResponse {
-    pub data: Vec<StockBatch>,
-    pub meta: StockBatchMeta,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockProcessRequest {
-    pub batch_id: String,
-    pub location_id: String,
-    pub action: String, // "ACCEPT", "REJECT", "PARTIAL"
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub accepted_quantity: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub rejected_quantity: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub reason: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notes: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub documents: Option<Vec<String>>,
-}
-
-// --- Internal Helpers ---
 
 fn build_client(
     auth_state: &State<'_, AuthState>,
@@ -229,14 +79,14 @@ fn build_client(
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
-        .timeout(Duration::from_secs(60))
+        .timeout(Duration::from_secs(120)) // Increased timeout for file uploads
         .build()
         .map_err(|e| CommandError::new(ErrorKind::Configuration, format!("Failed to build HTTP client: {}", e)))?;
 
     Ok((client, clean_base))
 }
 
-async fn handle_response<T: for<'de> Deserialize<'de>>(
+async fn handle_response<T: for<'de> serde::Deserialize<'de>>(
     response: reqwest::Response, 
     context: &str
 ) -> Result<T, CommandError> {
@@ -256,6 +106,7 @@ async fn handle_response<T: for<'de> Deserialize<'de>>(
     match status.as_u16() {
         401 | 403 => Err(CommandError::new(ErrorKind::Authentication, "Session expired or unauthorized")
             .with_details(error_body)),
+        413 => Err(CommandError::new(ErrorKind::Validation, "File upload too large (Max 20MB)")),
         400 | 422 => Err(CommandError::new(ErrorKind::Validation, "Invalid request data")
             .with_details(error_body)),
         404 => Err(CommandError::new(ErrorKind::Server, "Resource not found")
@@ -269,7 +120,7 @@ async fn handle_response<T: for<'de> Deserialize<'de>>(
     }
 }
 
-// --- Public Functions ---
+// --- Public Commands ---
 
 #[tauri::command]
 pub fn save_document_locally(
@@ -324,63 +175,6 @@ pub fn save_document_locally(
     })
 }
 
-#[tauri::command]
-pub async fn submit_delivery(
-    auth_state: State<'_, AuthState>,
-    payload: DeliveryPayload
-) -> Result<serde_json::Value, CommandError> { 
-    
-    let (client, base_url) = build_client(&auth_state)?;
-    // Ensure this matches your API route for creating new delivery batches
-    let url = format!("{}/api/v1/pos/inventory/delivery", base_url); 
-
-    let mut form = Form::new();
-    let json_part = serde_json::to_string(&payload)
-        .map_err(|e| CommandError::new(ErrorKind::Serialization, "Failed to prepare delivery data").with_details(e.to_string()))?;
-    
-    form = form.text("data", json_part);
-
-    info!("[DeliveryStore] Uploading delivery for supplier {}...", payload.supplier_id);
-
-    let resp = client.post(&url)
-        .multipart(form) 
-        .send()
-        .await
-        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to connect to server").with_details(e.to_string()))?;
-    
-    handle_response(resp, "SubmitDelivery").await
-}
-
-#[tauri::command]
-pub async fn fetch_pending_stock(
-    auth_state: State<'_, AuthState>,
-    location_id: String,
-    page: Option<i32>,
-    limit: Option<i32>
-) -> Result<StockBatchResponse, CommandError> {
-
-    let (client, base_url) = build_client(&auth_state)?;
-    let url = format!("{}/api/v1/pos/inventory/pending", base_url);
-
-    let page_str = page.unwrap_or(1).to_string();
-    let limit_str = limit.unwrap_or(50).to_string();
-
-    let params = [
-        ("locationId", &location_id),
-        ("page", &page_str),
-        ("limit", &limit_str),
-    ];
-
-    info!("[StockAcceptance] Fetching pending batches for location {}", location_id);
-
-    let resp = client.get(&url)
-        .query(&params)
-        .send()
-        .await
-        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to retrieve stock list").with_details(e.to_string()))?;
-
-    handle_response(resp, "FetchPendingStock").await
-}
 
 #[tauri::command]
 pub async fn submit_stock_process(
@@ -400,4 +194,171 @@ pub async fn submit_stock_process(
         .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to submit decision").with_details(e.to_string()))?;
 
     handle_response(resp, "SubmitStockProcess").await
+}
+
+#[tauri::command]
+pub async fn fetch_incoming_shipments(
+    auth_state: State<'_, AuthState>,
+    location_id: String,
+) -> Result<IncomingResponse, CommandError> {
+    
+    let (client, base_url) = build_client(&auth_state)?;
+    let url = format!("{}/api/v1/pos/incoming", base_url);
+
+    info!("[StockAcceptance] Fetching incoming shipments for location: {}", location_id);
+
+    let resp = client.get(&url)
+        .query(&[("locationId", &location_id)])
+        .send()
+        .await
+        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to connect to server").with_details(e.to_string()))?;
+
+    handle_response(resp, "FetchIncomingShipments").await
+}
+
+/// Submits a Purchase Order receipt with optional file attachments.
+/// Enforces a 20MB limit per file.
+#[tauri::command]
+pub async fn receive_purchase_order(
+    auth_state: State<'_, AuthState>,
+    purchase_id: String,
+    payload: ReceivePurchaseRequest,
+    file_paths: Option<Vec<String>>,
+) -> Result<serde_json::Value, CommandError> {
+
+    let (client, base_url) = build_client(&auth_state)?;
+    let url = format!("{}/api/v1/pos/purchases/{}/receive", base_url, purchase_id);
+
+    info!("[StockAcceptance] Submitting Receipt for PO: {}", purchase_id);
+
+    // 1. Serialize the JSON payload
+    let json_data = serde_json::to_string(&payload).map_err(|e| {
+        CommandError::new(ErrorKind::Serialization, "Failed to serialize request data")
+            .with_details(e.to_string())
+    })?;
+
+    // 2. Build the Multipart Form
+    // Note: The API expects the JSON body in a field named "data"
+    let mut form = Form::new().text("data", json_data);
+
+    // 3. Process Files (if any)
+    if let Some(paths) = file_paths {
+        for path_str in paths {
+            let path = Path::new(&path_str);
+            
+            // Safety Check: Validate File Size
+            match fs::metadata(path) {
+                Ok(metadata) => {
+                    if metadata.len() > MAX_FILE_SIZE {
+                        let msg = format!("File '{}' exceeds the 20MB upload limit.", path_str);
+                        warn!("[StockAcceptance] {}", msg);
+                        return Err(CommandError::new(ErrorKind::Validation, "File too large")
+                            .with_details(msg));
+                    }
+                },
+                Err(e) => {
+                    return Err(CommandError::new(ErrorKind::FileSystem, "Failed to check file size")
+                        .with_details(format!("File: {}, Error: {}", path_str, e)));
+                }
+            }
+
+            let filename = path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            // Read file content
+            match tokio::fs::read(&path_str).await {
+                Ok(bytes) => {
+                    let part = Part::bytes(bytes).file_name(filename);
+                    form = form.part("files", part);
+                },
+                Err(e) => {
+                    error!("Failed to read file {}: {}", path_str, e);
+                    return Err(CommandError::new(ErrorKind::FileSystem, "Failed to read attachment")
+                        .with_details(format!("File: {}, Error: {}", path_str, e)));
+                }
+            }
+        }
+    }
+
+    // 4. Send Request
+    let resp = client.post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to submit purchase receipt").with_details(e.to_string()))?;
+
+    handle_response(resp, "ReceivePurchaseOrder").await
+}
+
+#[tauri::command]
+pub async fn receive_stock_transfer(
+    auth_state: State<'_, AuthState>,
+    transfer_id: String,
+    payload: ReceiveTransferRequest,
+    file_paths: Option<Vec<String>>,
+) -> Result<serde_json::Value, CommandError> {
+
+    let (client, base_url) = build_client(&auth_state)?;
+    let url = format!("{}/api/v1/pos/inventory/transfers/{}/receive", base_url, transfer_id);
+
+    info!("[StockAcceptance] Submitting Receipt for Transfer: {}", transfer_id);
+
+    // 1. Serialize the JSON payload
+    let json_data = serde_json::to_string(&payload).map_err(|e| {
+        CommandError::new(ErrorKind::Serialization, "Failed to serialize request data")
+            .with_details(e.to_string())
+    })?;
+
+    // 2. Build the Multipart Form
+    let mut form = Form::new().text("data", json_data);
+
+    // 3. Process Files (if any)
+    if let Some(paths) = file_paths {
+        for path_str in paths {
+            let path = Path::new(&path_str);
+            
+            match fs::metadata(path) {
+                Ok(metadata) => {
+                    if metadata.len() > MAX_FILE_SIZE {
+                        let msg = format!("File '{}' exceeds the 20MB upload limit.", path_str);
+                        warn!("[StockAcceptance] {}", msg);
+                        return Err(CommandError::new(ErrorKind::Validation, "File too large")
+                            .with_details(msg));
+                    }
+                },
+                Err(e) => {
+                    return Err(CommandError::new(ErrorKind::FileSystem, "Failed to check file size")
+                        .with_details(format!("File: {}, Error: {}", path_str, e)));
+                }
+            }
+
+            let filename = path.file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+                .to_string();
+
+            match tokio::fs::read(&path_str).await {
+                Ok(bytes) => {
+                    let part = Part::bytes(bytes).file_name(filename);
+                    form = form.part("files", part);
+                },
+                Err(e) => {
+                    error!("Failed to read file {}: {}", path_str, e);
+                    return Err(CommandError::new(ErrorKind::FileSystem, "Failed to read attachment")
+                        .with_details(format!("File: {}, Error: {}", path_str, e)));
+                }
+            }
+        }
+    }
+
+    // 4. Send Request
+    let resp = client.post(&url)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to submit transfer receipt").with_details(e.to_string()))?;
+
+    handle_response(resp, "ReceiveStockTransfer").await
 }

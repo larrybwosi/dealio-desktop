@@ -26,72 +26,18 @@ impl NetworkState {
     }
 }
 
-/// Check if the API endpoint or the base URL is reachable
-pub async fn check_network_status(base_url: &str) -> bool {
-    let clean_base = base_url.trim_end_matches("/api/v1/health");
-    let health_url = format!("{}/api/v1/health", clean_base);
-    
-    // Try a simple GET request with short timeout
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(5))
-        .build();
-    
-    let client = match client {
-        Ok(c) => c,
-        Err(_) => return false,
-    };
-
-    // 1. Try health endpoint
-    match client.get(&health_url).send().await {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                return true;
-            }
-            // If 404 or 405, it might just be that the endpoint isn't implemented.
-            // Proceed to check the base URL.
-        },
-        Err(_) => {
-            // Transient network error or host unreachable
-        }
-    }
-
-    // 2. Fallback: Try base URL
-    match client.get(clean_base).send().await {
-        Ok(resp) => resp.status().is_success() || resp.status().is_redirection(),
-        Err(_) => false,
-    }
-}
-
 /// Start periodic network monitoring
+///
+/// NOTE: Polling has been removed in favor of Ably-driven status updates.
+/// This function is kept to maintain the existing signature for now.
 pub fn start_network_monitor(
-    app: AppHandle,
-    network_state: Arc<NetworkState>,
-    check_interval_secs: u64,
+    _app: AppHandle,
+    _network_state: Arc<NetworkState>,
+    _check_interval_secs: u64,
 ) {
-    tauri::async_runtime::spawn(async move {
-        // We still keep the interval but maybe make it less aggressive or 
-        // use it as a fallback if Ably isn't active.
-        let mut interval = tokio::time::interval(Duration::from_secs(check_interval_secs));
-        
-        loop {
-            interval.tick().await;
-            
-            let base_url = {
-                let guard = network_state.base_url.lock().unwrap();
-                guard.clone()
-            };
-
-            // If we are already online (e.g., via Ably), we might skip the ping to save resources,
-            // but a periodic health check isn't bad as a fallback.
-            let is_online = if let Some(url) = base_url {
-                check_network_status(&url).await
-            } else {
-                false
-            };
-            
-            update_internal_status(&app, &network_state, is_online);
-        }
-    });
+    // No-op: Network status is now driven by the frontend (Ably)
+    // calling `update_network_status_command`.
+    info!("[NetworkMonitor] Started (passive mode, waiting for Ably updates)");
 }
 
 /// Internal helper to update status and emit events

@@ -39,11 +39,77 @@ async fn handle_upload(
                     let _ = state.app.emit("file-received", &file_name);
                     // Return a simple success page for the phone
                     return Html(r#"
-                        <div style="font-family: sans-serif; text-align: center; padding: 2rem;">
-                            <h1 style="color: green;">Success!</h1>
-                            <p>File sent to desktop.</p>
-                            <a href="/" style="display: inline-block; padding: 10px 20px; background: #000; color: white; text-decoration: none; border-radius: 5px;">Send Another</a>
-                        </div>
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <title>Success</title>
+                            <style>
+                                * { margin: 0; padding: 0; box-sizing: border-box; }
+                                body {
+                                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                                    background: #0f172a;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    min-height: 100vh;
+                                    padding: 20px;
+                                }
+                                .container {
+                                    background: #1e293b;
+                                    border: 1px solid #334155;
+                                    padding: 3rem;
+                                    border-radius: 20px;
+                                    text-align: center;
+                                    max-width: 400px;
+                                    width: 100%;
+                                }
+                                .icon {
+                                    width: 80px;
+                                    height: 80px;
+                                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                                    border-radius: 50%;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin: 0 auto 1.5rem;
+                                    font-size: 2.5rem;
+                                }
+                                h1 {
+                                    color: #f8fafc;
+                                    font-size: 1.75rem;
+                                    margin-bottom: 0.5rem;
+                                }
+                                p {
+                                    color: #cbd5e1;
+                                    margin-bottom: 2rem;
+                                }
+                                a {
+                                    display: inline-block;
+                                    background: #3b82f6;
+                                    color: white;
+                                    padding: 1rem 2rem;
+                                    border-radius: 10px;
+                                    text-decoration: none;
+                                    font-weight: 600;
+                                    transition: all 0.2s;
+                                }
+                                a:hover {
+                                    background: #2563eb;
+                                    transform: translateY(-1px);
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="container">
+                                <div class="icon">✓</div>
+                                <h1>Success!</h1>
+                                <p>File sent to desktop</p>
+                                <a href="/">Send Another</a>
+                            </div>
+                        </body>
+                        </html>
                     "#);
                 }
             }
@@ -60,14 +126,17 @@ async fn show_upload_page() -> Html<&'static str> {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Tauri File Transfer</title>
+            <title>File Transfer</title>
             <style>
                 :root {
-                    --gradient-start: #667eea;
-                    --gradient-end: #764ba2;
-                    --shadow-sm: 0 10px 40px rgba(0,0,0,0.1);
-                    --shadow-lg: 0 20px 60px rgba(102, 126, 234, 0.25);
-                    --border-radius: 24px;
+                    --primary: #0f172a;
+                    --primary-light: #1e293b;
+                    --accent: #3b82f6;
+                    --accent-hover: #2563eb;
+                    --text-primary: #f8fafc;
+                    --text-secondary: #cbd5e1;
+                    --border: #334155;
+                    --success: #10b981;
                 }
                 
                 * {
@@ -77,158 +146,315 @@ async fn show_upload_page() -> Html<&'static str> {
                 }
                 
                 body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-                    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+                    background: var(--primary);
                     display: flex;
                     align-items: center;
                     justify-content: center;
                     min-height: 100vh;
-                    margin: 0;
                     padding: 20px;
-                }
-                
-                .card {
-                    background: rgba(255, 255, 255, 0.95);
-                    backdrop-filter: blur(10px);
-                    padding: 3rem 2.5rem;
-                    border-radius: var(--border-radius);
-                    box-shadow: var(--shadow-sm);
-                    text-align: center;
-                    max-width: 450px;
-                    width: 100%;
-                    transition: transform 0.3s ease, box-shadow 0.3s ease;
-                    border: 1px solid rgba(255, 255, 255, 0.5);
-                }
-                
-                .card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: var(--shadow-lg);
-                }
-                
-                h2 {
-                    color: #2d3748;
-                    margin-bottom: 0.75rem;
-                    font-size: 2rem;
-                    font-weight: 600;
-                    letter-spacing: -0.02em;
-                }
-                
-                .subtitle {
-                    color: #718096;
-                    margin-bottom: 2.5rem;
-                    font-size: 1rem;
-                    line-height: 1.5;
-                }
-                
-                .file-input-wrapper {
-                    margin-bottom: 2rem;
                     position: relative;
+                    overflow: hidden;
                 }
                 
-                input[type="file"] {
+                body::before {
+                    content: '';
+                    position: absolute;
+                    width: 500px;
+                    height: 500px;
+                    background: radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, transparent 70%);
+                    top: -250px;
+                    right: -250px;
+                    pointer-events: none;
+                }
+                
+                body::after {
+                    content: '';
+                    position: absolute;
+                    width: 400px;
+                    height: 400px;
+                    background: radial-gradient(circle, rgba(59, 130, 246, 0.08) 0%, transparent 70%);
+                    bottom: -200px;
+                    left: -200px;
+                    pointer-events: none;
+                }
+                
+                .container {
+                    background: var(--primary-light);
+                    border: 1px solid var(--border);
+                    padding: 3rem;
+                    border-radius: 20px;
+                    max-width: 480px;
                     width: 100%;
-                    padding: 1rem;
-                    border: 2px dashed #e2e8f0;
+                    position: relative;
+                    z-index: 1;
+                    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+                }
+                
+                .header {
+                    text-align: center;
+                    margin-bottom: 2.5rem;
+                }
+                
+                .icon-wrapper {
+                    width: 64px;
+                    height: 64px;
+                    background: linear-gradient(135deg, var(--accent) 0%, #6366f1 100%);
                     border-radius: 16px;
-                    background: #f8fafc;
-                    color: #2d3748;
-                    font-size: 0.95rem;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                }
-                
-                input[type="file"]:hover {
-                    border-color: var(--gradient-start);
-                    background: white;
-                }
-                
-                input[type="file"]::file-selector-button {
-                    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
-                    color: white;
-                    border: none;
-                    padding: 0.5rem 1rem;
-                    border-radius: 8px;
-                    font-size: 0.9rem;
-                    font-weight: 500;
-                    margin-right: 1rem;
-                    cursor: pointer;
-                    transition: opacity 0.2s ease;
-                }
-                
-                input[type="file"]::file-selector-button:hover {
-                    opacity: 0.9;
-                }
-                
-                button {
-                    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
-                    color: white;
-                    border: none;
-                    padding: 1rem 2rem;
-                    border-radius: 12px;
-                    font-size: 1.1rem;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: all 0.3s ease;
-                    width: 100%;
-                    letter-spacing: 0.5px;
-                    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.35);
-                }
-                
-                button:hover {
-                    transform: scale(1.02);
-                    box-shadow: 0 7px 20px rgba(102, 126, 234, 0.4);
-                }
-                
-                button:active {
-                    transform: scale(0.98);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    margin: 0 auto 1.5rem;
+                    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
                 }
                 
                 .icon {
-                    font-size: 3rem;
+                    font-size: 2rem;
+                }
+                
+                h1 {
+                    color: var(--text-primary);
+                    font-size: 1.75rem;
+                    font-weight: 700;
+                    margin-bottom: 0.5rem;
+                    letter-spacing: -0.03em;
+                }
+                
+                .subtitle {
+                    color: var(--text-secondary);
+                    font-size: 0.95rem;
+                    line-height: 1.5;
+                }
+                
+                .upload-area {
+                    position: relative;
+                    margin-bottom: 1.5rem;
+                }
+                
+                .file-input-wrapper {
+                    position: relative;
+                    border: 2px dashed var(--border);
+                    border-radius: 12px;
+                    padding: 2.5rem 1.5rem;
+                    text-align: center;
+                    background: rgba(59, 130, 246, 0.03);
+                    transition: all 0.3s ease;
+                    cursor: pointer;
+                }
+                
+                .file-input-wrapper:hover {
+                    border-color: var(--accent);
+                    background: rgba(59, 130, 246, 0.08);
+                }
+                
+                .file-input-wrapper.drag-over {
+                    border-color: var(--accent);
+                    background: rgba(59, 130, 246, 0.12);
+                    border-style: solid;
+                }
+                
+                input[type="file"] {
+                    position: absolute;
+                    opacity: 0;
+                    width: 100%;
+                    height: 100%;
+                    top: 0;
+                    left: 0;
+                    cursor: pointer;
+                }
+                
+                .upload-icon {
+                    font-size: 2.5rem;
                     margin-bottom: 1rem;
-                    display: inline-block;
-                    background: linear-gradient(135deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
-                    -webkit-background-clip: text;
-                    -webkit-text-fill-color: transparent;
+                    opacity: 0.6;
+                }
+                
+                .upload-text {
+                    color: var(--text-primary);
+                    font-weight: 600;
+                    margin-bottom: 0.25rem;
+                }
+                
+                .upload-hint {
+                    color: var(--text-secondary);
+                    font-size: 0.875rem;
+                }
+                
+                .file-name {
+                    margin-top: 1rem;
+                    padding: 0.75rem 1rem;
+                    background: rgba(59, 130, 246, 0.1);
+                    border-radius: 8px;
+                    color: var(--accent);
+                    font-size: 0.9rem;
+                    word-break: break-all;
+                    display: none;
+                }
+                
+                .file-name.show {
+                    display: block;
+                }
+                
+                button {
+                    width: 100%;
+                    background: var(--accent);
+                    color: white;
+                    border: none;
+                    padding: 1rem 2rem;
+                    border-radius: 10px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+                }
+                
+                button:hover {
+                    background: var(--accent-hover);
+                    transform: translateY(-1px);
+                    box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+                }
+                
+                button:active {
+                    transform: translateY(0);
+                }
+                
+                button:disabled {
+                    opacity: 0.5;
+                    cursor: not-allowed;
+                }
+                
+                .features {
+                    display: flex;
+                    justify-content: center;
+                    gap: 1.5rem;
+                    margin-top: 2rem;
+                    padding-top: 2rem;
+                    border-top: 1px solid var(--border);
+                }
+                
+                .feature {
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    color: var(--text-secondary);
+                    font-size: 0.875rem;
+                }
+                
+                .feature-icon {
+                    font-size: 1rem;
                 }
                 
                 @media (max-width: 480px) {
-                    .card {
+                    .container {
                         padding: 2rem 1.5rem;
                     }
                     
-                    h2 {
-                        font-size: 1.75rem;
+                    h1 {
+                        font-size: 1.5rem;
                     }
-                }
-                
-                @keyframes float {
-                    0%, 100% { transform: translateY(0px); }
-                    50% { transform: translateY(-10px); }
-                }
-                
-                .floating {
-                    animation: float 3s ease-in-out infinite;
+                    
+                    .features {
+                        flex-direction: column;
+                        gap: 0.75rem;
+                        align-items: center;
+                    }
                 }
             </style>
         </head>
         <body>
-            <div class="card">
-                <div class="icon floating">📱 → 💻</div>
-                <h2>Send to Desktop</h2>
-                <p class="subtitle">Select a file to transfer instantly</p>
-                <form action="/upload" method="post" enctype="multipart/form-data">
-                    <div class="file-input-wrapper">
-                        <input type="file" name="file" required>
+            <div class="container">
+                <div class="header">
+                    <div class="icon-wrapper">
+                        <div class="icon">⚡</div>
                     </div>
-                    <button type="submit">
-                        Send File
+                    <h1>File Transfer</h1>
+                    <p class="subtitle">Send files to your desktop instantly</p>
+                </div>
+                
+                <form action="/upload" method="post" enctype="multipart/form-data" id="uploadForm">
+                    <div class="upload-area">
+                        <div class="file-input-wrapper" id="dropZone">
+                            <input type="file" name="file" id="fileInput" required>
+                            <div class="upload-icon">📎</div>
+                            <div class="upload-text">Click to browse</div>
+                            <div class="upload-hint">or drag and drop your file here</div>
+                        </div>
+                        <div class="file-name" id="fileName"></div>
+                    </div>
+                    <button type="submit" id="submitBtn">
+                        <span id="btnText">Send File</span>
                     </button>
                 </form>
-                <p style="margin-top: 1.5rem; font-size: 0.85rem; color: #a0aec0;">
-                    Secure • Fast • Private
-                </p>
+                
+                <div class="features">
+                    <div class="feature">
+                        <span class="feature-icon">🔒</span>
+                        <span>Secure</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">⚡</span>
+                        <span>Instant</span>
+                    </div>
+                    <div class="feature">
+                        <span class="feature-icon">🔐</span>
+                        <span>Private</span>
+                    </div>
+                </div>
             </div>
+            
+            <script>
+                const fileInput = document.getElementById('fileInput');
+                const fileName = document.getElementById('fileName');
+                const dropZone = document.getElementById('dropZone');
+                const form = document.getElementById('uploadForm');
+                const submitBtn = document.getElementById('submitBtn');
+                const btnText = document.getElementById('btnText');
+                
+                fileInput.addEventListener('change', function(e) {
+                    if (this.files.length > 0) {
+                        fileName.textContent = '📄 ' + this.files[0].name;
+                        fileName.classList.add('show');
+                    }
+                });
+                
+                ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, preventDefaults, false);
+                });
+                
+                function preventDefaults(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                
+                ['dragenter', 'dragover'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.add('drag-over');
+                    });
+                });
+                
+                ['dragleave', 'drop'].forEach(eventName => {
+                    dropZone.addEventListener(eventName, () => {
+                        dropZone.classList.remove('drag-over');
+                    });
+                });
+                
+                dropZone.addEventListener('drop', function(e) {
+                    const dt = e.dataTransfer;
+                    const files = dt.files;
+                    fileInput.files = files;
+                    
+                    if (files.length > 0) {
+                        fileName.textContent = '📄 ' + files[0].name;
+                        fileName.classList.add('show');
+                    }
+                });
+                
+                form.addEventListener('submit', function() {
+                    submitBtn.disabled = true;
+                    btnText.textContent = 'Sending...';
+                });
+            </script>
         </body>
         </html>
     "#)

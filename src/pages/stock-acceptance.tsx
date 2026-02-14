@@ -3,18 +3,18 @@
 import { useState, useEffect } from 'react';
 import { 
   Check, 
-  X, 
-  AlertCircle, 
   RefreshCw,
   Package,
   ArrowRight,
   FileText,
   X as XIcon,
+  Truck,
+  Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -22,7 +22,8 @@ import {
   DialogContent, 
   DialogFooter, 
   DialogHeader, 
-  DialogTitle
+  DialogTitle,
+  DialogDescription
 } from '@/components/ui/dialog';
 import { 
   Table, 
@@ -32,152 +33,249 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
+import { format } from 'date-fns';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { FileReceiveDialog } from '@/components/file-receive';
 
-// --- Interfaces ---
-interface StockBatchProduct {
+// --- Interfaces matching Rust Data Structures ---
+
+interface IncomingVariant {
   id: string;
   name: string;
   sku: string;
-  imageUrls: string[];
+  displayName: string;
 }
-interface StockBatchVariant {
-  product: StockBatchProduct;
-}
-interface StockBatchSource {
-  type: string;
-  reference: string;
-  name: string;
-}
-interface StockBatch {
+
+interface IncomingItem {
   id: string;
-  locationId: string;
-  qualityCheckStatus: 'PENDING' | 'PASSED' | 'FAILED';
-  receivedDate: string;
-  initialQuantity: string;
-  currentQuantity: string;
-  variant: StockBatchVariant;
-  source: StockBatchSource;
+  quantity: string; // Updated to match Rust struct
+  variant: IncomingVariant;
+  unitCost?: number; // Check if this is also a string in Rust (it appears to be Option<String>)
+}
+
+interface IncomingShipment {
+  id: string;
+  type: 'PURCHASE_ORDER' | 'STOCK_TRANSFER';
+  referenceNumber: string;
+  source: string;
+  date: string;
+  status: string;
+  itemCount: number;
+  items: IncomingItem[];
+  receiveApiUrl: string;
+}
+
+interface IncomingResponse {
+  data: IncomingShipment[];
+}
+
+// Payload Interfaces
+interface DeliveryItem {
+  variantId: string;
+  quantity: number;      
+  receivedQuantity?: number;
+  unitCost?: number;
+  purchaseItemId?: string;
+  acceptedQuantity?: number;
+  rejectedQuantity?: number;
+  rejectionReason?: string;
   batchNumber?: string;
   expiryDate?: string;
+  notes?: string;
 }
-interface StockBatchResponse {
-  data: StockBatch[];
-  meta: { total: number; page: number; limit: number; totalPages: number };
+
+// Local State for Form Inputs
+interface ItemInputState {
+  receivedQty: string;
+  rejectedQty: string;
+  rejectionReason: string;
+  notes: string;
+  batchNumber: string;
+  expiryDate: Date | undefined;
 }
 
 export default function StockAcceptancePage() {
   const { currentLocation } = useAuthStore();
   const locationId = currentLocation?.id;
 
-  const [batches, setBatches] = useState<StockBatch[]>([]);
+  const [shipments, setShipments] = useState<IncomingShipment[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Dialog State
-  const [selectedBatch, setSelectedBatch] = useState<StockBatch | null>(null);
-  const [isProcessDialogOpen, setIsProcessDialogOpen] = useState(false);
-  const [qcAction, setQcAction] = useState<'ACCEPT' | 'REJECT' | 'PARTIAL'>('ACCEPT');
-  const [qcNotes, setQcNotes] = useState('');
-  const [acceptedQty, setAcceptedQty] = useState('');
-  const [rejectedQty, setRejectedQty] = useState('');
+  // Selection & Dialog State
+  const [selectedShipment, setSelectedShipment] = useState<IncomingShipment | null>(null);
+  const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
   
-  // File State
-  const [qcFiles, setQcFiles] = useState<string[]>([]);
-  
+  // Form State
+  const [itemInputs, setItemInputs] = useState<Record<string, ItemInputState>>({});
+  const [globalNotes, setGlobalNotes] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Initialize data
   useEffect(() => {
     if (locationId) {
-      fetchBatches();
+      fetchShipments();
     }
   }, [locationId]);
 
-  // Reset form when dialog opens/closes
+  // Reset form when opening dialog
   useEffect(() => {
-    if (selectedBatch) {
-      setQcAction('ACCEPT');
-      setQcNotes('');
-      setAcceptedQty(selectedBatch.currentQuantity);
-      setRejectedQty('0');
-      setQcFiles([]); // Reset files
+    if (selectedShipment) {
+      const initialInputs: Record<string, ItemInputState> = {};
+      selectedShipment.items.forEach(item => {
+        initialInputs[item.id] = {
+          receivedQty: item.quantity.toString(), // Default to expected
+          rejectedQty: '0',
+          rejectionReason: '',
+          notes: '',
+          batchNumber: '',
+          expiryDate: undefined
+        };
+      });
+      setItemInputs(initialInputs);
+      setGlobalNotes('');
+      setAttachedFiles([]);
     }
-  }, [selectedBatch, isProcessDialogOpen]);
+  }, [selectedShipment]);
 
-  const fetchBatches = async () => {
+  const fetchShipments = async () => {
     if (!locationId) return;
     setLoading(true);
     try {
-      const response = await invoke<StockBatchResponse>('fetch_pending_stock', {
-        locationId,
-        page: 1,
-        limit: 50
+      const response = await invoke<IncomingResponse>('fetch_incoming_shipments', {
+        locationId
       });
-      setBatches(response.data);
+      setShipments(response.data);
     } catch (error) {
       console.error("Fetch error:", error);
-      toast.error("Failed to load pending stock");
+      toast.error("Failed to load incoming shipments");
     } finally {
       setLoading(false);
     }
   };
 
-  const openProcessDialog = (batch: StockBatch) => {
-    setSelectedBatch(batch);
-    setIsProcessDialogOpen(true);
+  const handleOpenReceive = (shipment: IncomingShipment) => {
+    setSelectedShipment(shipment);
+    setIsReceiveDialogOpen(true);
+  };
+
+  const handleInputChange = (itemId: string, field: keyof ItemInputState, value: string | Date | undefined) => {
+    setItemInputs(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value
+      }
+    }));
   };
 
   const handleFileReceived = (path: string) => {
-    if(!qcFiles.includes(path)) {
-        setQcFiles(prev => [...prev, path]);
+    if(!attachedFiles.includes(path)) {
+        setAttachedFiles(prev => [...prev, path]);
         toast.success("Document attached");
     }
   };
 
   const removeFile = (path: string) => {
-    setQcFiles(prev => prev.filter(p => p !== path));
+    setAttachedFiles(prev => prev.filter(p => p !== path));
   };
 
-  const handleSubmitProcess = async () => {
-    if (!selectedBatch || !locationId) return;
+  const calculateStats = (itemId: string) => {
+    const input = itemInputs[itemId];
+    if (!input) return { accepted: 0, valid: true };
 
-    if (qcAction === 'PARTIAL') {
-      const acc = parseFloat(acceptedQty || '0');
-      const rej = parseFloat(rejectedQty || '0');
-      const total = parseFloat(selectedBatch.currentQuantity);
-      if (acc + rej !== total) {
-        toast.error(`Quantities must sum to ${total}`);
+    const total = parseFloat(input.receivedQty || '0');
+    const rejected = parseFloat(input.rejectedQty || '0');
+    const accepted = total - rejected;
+    
+    return { 
+      accepted: accepted >= 0 ? accepted : 0,
+      valid: accepted >= 0
+    };
+  };
+
+  const handleSubmitReceipt = async () => {
+    if (!selectedShipment || !locationId) return;
+
+    // Validate inputs
+    for (const item of selectedShipment.items) {
+      const stats = calculateStats(item.id);
+      if (!stats.valid) {
+        toast.error(`Invalid quantities for ${item.variant.sku}`);
+        return;
+      }
+      const input = itemInputs[item.id];
+      if (parseFloat(input.rejectedQty) > 0 && !input.rejectionReason) {
+        toast.error(`Rejection reason required for ${item.variant.sku}`);
         return;
       }
     }
 
-    if (qcAction === 'REJECT' && !qcNotes) {
-        toast.error("Please provide a reason for rejection");
-        return;
-    }
-
     setIsSubmitting(true);
     try {
-      await invoke('submit_stock_process', {
-        payload: {
-          batchId: selectedBatch.id,
-          locationId,
-          action: qcAction,
-          acceptedQuantity: qcAction === 'PARTIAL' ? parseFloat(acceptedQty) : undefined,
-          rejectedQuantity: qcAction === 'PARTIAL' ? parseFloat(rejectedQty) : undefined,
-          reason: qcAction !== 'ACCEPT' ? qcNotes : undefined,
-          notes: qcNotes,
-          documents: qcFiles.length > 0 ? qcFiles : undefined // Send files
-        }
-      });
-      toast.success('Stock processed successfully');
-      setIsProcessDialogOpen(false);
-      fetchBatches();
+      // Map inputs to DeliveryItem payload
+      const itemsPayload: DeliveryItem[] = selectedShipment.items.map(item => {
+        const input = itemInputs[item.id];
+        const received = parseFloat(input.receivedQty || '0');
+        const rejected = parseFloat(input.rejectedQty || '0');
+        const accepted = received - rejected;
+
+        return {
+          variantId: item.variant.id,
+          quantity: typeof item.quantity === 'string' ? parseInt(item.quantity, 10) : item.quantity,
+          receivedQuantity: received, 
+          unitCost: typeof item.unitCost === 'string' ? parseFloat(item.unitCost) : item.unitCost,
+          purchaseItemId: selectedShipment.type === 'PURCHASE_ORDER' ? item.id : undefined,
+          acceptedQuantity: accepted,
+          rejectedQuantity: rejected > 0 ? rejected : undefined,
+          rejectionReason: rejected > 0 ? input.rejectionReason : undefined,
+          batchNumber: input.batchNumber || undefined,
+          expiryDate: input.expiryDate ? format(input.expiryDate, 'yyyy-MM-dd') : undefined,
+          notes: input.notes || undefined
+        };
+      }).filter(i => i.receivedQuantity > 0); // Filter based on received, not just expected
+
+      if (itemsPayload.length === 0) {
+        toast.error("No items marked as received");
+        setIsSubmitting(false);
+        return;
+      }
+
+      const commonPayload = {
+        locationId,
+        items: itemsPayload,
+        notes: globalNotes || undefined,
+      };
+
+      if (selectedShipment.type === 'PURCHASE_ORDER') {
+        await invoke('receive_purchase_order', {
+          purchaseId: selectedShipment.id,
+          payload: commonPayload,
+          filePaths: attachedFiles.length > 0 ? attachedFiles : undefined
+        });
+      } else {
+        await invoke('receive_stock_transfer', {
+          transferId: selectedShipment.id,
+          payload: commonPayload,
+          filePaths: attachedFiles.length > 0 ? attachedFiles : undefined
+        });
+      }
+
+      toast.success('Shipment received successfully');
+      setIsReceiveDialogOpen(false);
+      fetchShipments(); // Refresh list
     } catch (error: any) {
-      console.error('Process error:', error);
-      toast.error('Failed to process stock', { description: error.message });
+      console.error('Receipt error:', error);
+      toast.error('Failed to submit receipt', { description: error.message });
     } finally {
       setIsSubmitting(false);
     }
@@ -187,10 +285,10 @@ export default function StockAcceptancePage() {
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Stock Acceptance</h1>
-          <p className="text-muted-foreground mt-1">Review and accept incoming inventory</p>
+          <h1 className="text-3xl font-bold tracking-tight">Incoming Shipments</h1>
+          <p className="text-muted-foreground mt-1">Receive Purchase Orders and Stock Transfers</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchBatches} disabled={loading}>
+        <Button variant="outline" size="icon" onClick={fetchShipments} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
         </Button>
       </div>
@@ -198,52 +296,58 @@ export default function StockAcceptancePage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Package className="h-5 w-5" /> Pending Review
+            <Truck className="h-5 w-5" /> Expected Deliveries
           </CardTitle>
+          <CardDescription>
+            Select a shipment to verify contents and record receipt.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Received</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Reference</TableHead>
                 <TableHead>Source</TableHead>
-                <TableHead>Item</TableHead>
-                <TableHead>Qty</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Items</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batches.length === 0 ? (
+              {shipments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center h-32 text-muted-foreground">
-                    No pending stock to review
+                  <TableCell colSpan={6} className="text-center h-32 text-muted-foreground">
+                    No incoming shipments found for this location.
                   </TableCell>
                 </TableRow>
               ) : (
-                batches.map((batch) => (
-                  <TableRow key={batch.id}>
-                    <TableCell>
-                        <div className="flex flex-col">
-                            <span>{new Date(batch.receivedDate).toLocaleDateString()}</span>
-                            <span className="text-xs text-muted-foreground">{new Date(batch.receivedDate).toLocaleTimeString()}</span>
+                shipments.map((shipment) => (
+                  <TableRow key={shipment.id}>
+                    <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {new Date(shipment.date).toLocaleDateString()}
                         </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{batch.source.name}</span>
-                        <Badge variant="secondary" className="w-fit text-[10px] mt-1">
-                          {batch.source.reference}
+                        <span className="font-mono">{shipment.referenceNumber}</span>
+                    </TableCell>
+                    <TableCell>{shipment.source}</TableCell>
+                    <TableCell>
+                        <Badge variant={shipment.type === 'PURCHASE_ORDER' ? 'default' : 'secondary'}>
+                            {shipment.type === 'PURCHASE_ORDER' ? 'Purchase Order' : 'Transfer'}
                         </Badge>
-                      </div>
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{batch.variant.product.name}</div>
-                      <div className="text-xs text-muted-foreground">SKU: {batch.variant.product.sku}</div>
+                        <div className="flex items-center gap-1">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span>{shipment.itemCount}</span>
+                        </div>
                     </TableCell>
-                    <TableCell className="font-mono">{batch.currentQuantity}</TableCell>
                     <TableCell className="text-right">
-                      <Button size="sm" onClick={() => openProcessDialog(batch)}>
-                        Process
+                      <Button size="sm" onClick={() => handleOpenReceive(shipment)}>
+                        Receive
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </TableCell>
@@ -255,99 +359,137 @@ export default function StockAcceptancePage() {
         </CardContent>
       </Card>
 
-      {/* Process Dialog */}
-      <Dialog open={isProcessDialogOpen} onOpenChange={setIsProcessDialogOpen}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      {/* Receive Dialog */}
+      <Dialog open={isReceiveDialogOpen} onOpenChange={setIsReceiveDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
           <DialogHeader>
-            <DialogTitle>Process Stock</DialogTitle>
+            <DialogTitle>Receive Shipment: {selectedShipment?.referenceNumber}</DialogTitle>
+            <DialogDescription>
+                From {selectedShipment?.source} • {new Date(selectedShipment?.date || '').toLocaleDateString()}
+            </DialogDescription>
           </DialogHeader>
           
-          {selectedBatch && (
-            <div className="space-y-6 py-2">
-              <div className="bg-muted p-3 rounded-lg space-y-2">
-                <div className="flex justify-between font-medium">
-                    <span>{selectedBatch.variant.product.name}</span>
-                    <span>x{selectedBatch.currentQuantity}</span>
-                </div>
-                <div className="text-xs text-muted-foreground flex justify-between">
-                    <span>From: {selectedBatch.source.name}</span>
-                    <span>Ref: {selectedBatch.source.reference}</span>
+          {selectedShipment && (
+            <div className="flex-1 space-y-6 py-4">
+              
+              {/* Items List */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground">Items ({selectedShipment.items.length})</h3>
+                <div className="grid gap-4">
+                    {selectedShipment.items.map((item) => {
+                        const input = itemInputs[item.id] || {};
+                        const { accepted, valid } = calculateStats(item.id);
+
+                        return (
+                            <Card key={item.id} className="p-4 border-l-4 border-l-primary/20">
+                                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                    {/* Item Info */}
+                                    <div className="md:col-span-4 space-y-1">
+                                        <div className="font-medium">{item.variant.displayName}</div>
+                                        <div className="text-xs text-muted-foreground font-mono">{item.variant.sku}</div>
+                                        <Badge variant="outline" className="mt-1">
+                                            Expected: {item.quantity}
+                                        </Badge>
+                                    </div>
+
+                                    {/* Inputs */}
+                                    <div className="md:col-span-8 space-y-3">
+                                        <div className="grid grid-cols-3 gap-3">
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Received Qty</Label>
+                                                <Input 
+                                                    type="number" 
+                                                    min="0"
+                                                    value={input.receivedQty}
+                                                    onChange={(e) => handleInputChange(item.id, 'receivedQty', e.target.value)}
+                                                    className="h-8"
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Rejected Qty</Label>
+                                                <Input 
+                                                    type="number" 
+                                                    min="0"
+                                                    value={input.rejectedQty}
+                                                    onChange={(e) => handleInputChange(item.id, 'rejectedQty', e.target.value)}
+                                                    className={`h-8 ${parseFloat(input.rejectedQty) > 0 ? 'border-red-300 bg-red-50' : ''}`}
+                                                />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <Label className="text-xs text-green-600">Accepted</Label>
+                                                <div className={`h-8 px-3 flex items-center border rounded-md bg-muted ${!valid ? 'text-red-500 font-bold' : ''}`}>
+                                                    {valid ? accepted : 'Error'}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Optional Details Collapsible or Inline */}
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <Input 
+                                                placeholder="Batch Number (Optional)" 
+                                                className="h-8 text-xs"
+                                                value={input.batchNumber}
+                                                onChange={(e) => handleInputChange(item.id, 'batchNumber', e.target.value)}
+                                            />
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        variant="outline"
+                                                        className={cn(
+                                                            "h-8 justify-start text-left font-normal",
+                                                            !input.expiryDate && "text-muted-foreground"
+                                                        )}
+                                                    >
+                                                        <Calendar className="mr-2 h-3 w-3" />
+                                                        {input.expiryDate ? format(input.expiryDate, "PPP") : <span>Expiry Date</span>}
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <CalendarComponent
+                                                        mode="single"
+                                                        selected={input.expiryDate}
+                                                        onSelect={(date) => handleInputChange(item.id, 'expiryDate', date)}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
+                                        </div>
+
+                                        {/* Rejection Reason - Conditional */}
+                                        {parseFloat(input.rejectedQty) > 0 && (
+                                            <Input 
+                                                placeholder="Reason for rejection (Required)" 
+                                                className="h-8 text-xs border-red-200"
+                                                value={input.rejectionReason}
+                                                onChange={(e) => handleInputChange(item.id, 'rejectionReason', e.target.value)}
+                                            />
+                                        )}
+                                        
+                                        <Input 
+                                            placeholder="Notes..." 
+                                            className="h-8 text-xs"
+                                            value={input.notes}
+                                            onChange={(e) => handleInputChange(item.id, 'notes', e.target.value)}
+                                        />
+                                    </div>
+                                </div>
+                            </Card>
+                        );
+                    })}
                 </div>
               </div>
 
-              {/* Action Selection */}
-              <div className="grid grid-cols-3 gap-2">
-                <Button 
-                  variant={qcAction === 'ACCEPT' ? 'default' : 'outline'}
-                  className={qcAction === 'ACCEPT' ? 'bg-green-600 hover:bg-green-700' : ''}
-                  onClick={() => setQcAction('ACCEPT')}
-                >
-                  <Check className="mr-2 h-4 w-4" /> Accept
-                </Button>
-                <Button 
-                   variant={qcAction === 'PARTIAL' ? 'default' : 'outline'}
-                   className={qcAction === 'PARTIAL' ? 'bg-orange-500 hover:bg-orange-600' : ''}
-                   onClick={() => setQcAction('PARTIAL')}
-                >
-                  <AlertCircle className="mr-2 h-4 w-4" /> Partial
-                </Button>
-                <Button 
-                   variant={qcAction === 'REJECT' ? 'default' : 'outline'}
-                   className={qcAction === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : ''}
-                   onClick={() => setQcAction('REJECT')}
-                >
-                   <X className="mr-2 h-4 w-4" /> Reject
-                </Button>
-              </div>
-
-              {/* Dynamic Form Based on Action */}
-              <div className="space-y-4 border p-4 rounded-md">
-                {qcAction === 'PARTIAL' && (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Accepted Qty</Label>
-                      <Input 
-                        type="number" 
-                        value={acceptedQty}
-                        onChange={(e) => setAcceptedQty(e.target.value)}
-                        className="border-green-200 focus:ring-green-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Rejected Qty</Label>
-                      <Input 
-                        type="number" 
-                        value={rejectedQty}
-                        onChange={(e) => setRejectedQty(e.target.value)}
-                        className="border-red-200 focus:ring-red-500"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <div className="space-y-2">
-                  <Label>
-                    {qcAction === 'REJECT' ? 'Rejection Reason (Required)' : 'Notes (Optional)'}
-                  </Label>
-                  <Textarea 
-                    placeholder={qcAction === 'REJECT' ? "e.g., Damaged packaging, Expired..." : "Any observations..."}
-                    value={qcNotes}
-                    onChange={(e) => setQcNotes(e.target.value)}
-                    className="resize-none"
-                    rows={3}
-                  />
-                </div>
-
-                {/* File Attachment Section */}
-                <div className="space-y-2">
-                    <Label className="flex justify-between items-center">
-                        <span>Attachments</span>
-                        <span className="text-xs text-muted-foreground">{qcFiles.length} file(s)</span>
+              {/* Footer Section: Files & Global Notes */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
+                 {/* Files */}
+                 <div className="space-y-3">
+                    <Label className="flex justify-between">
+                        <span>Documents (Invoice, Delivery Note)</span>
+                        <span className="text-xs text-muted-foreground">{attachedFiles.length} attached</span>
                     </Label>
                     
-                    {/* File List */}
-                    <div className="space-y-2">
-                        {qcFiles.map((file, i) => (
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {attachedFiles.map((file, i) => (
                             <div key={i} className="flex justify-between items-center bg-muted p-2 rounded text-xs">
                                 <div className="flex items-center gap-2 overflow-hidden">
                                     <FileText className="h-3 w-3 flex-shrink-0" />
@@ -359,28 +501,44 @@ export default function StockAcceptancePage() {
                             </div>
                         ))}
                     </div>
-
-                    {/* Mobile Upload Dialog Nested */}
                     <FileReceiveDialog onFileReceived={handleFileReceived} />
-                </div>
+                 </div>
+
+                 {/* Global Notes */}
+                 <div className="space-y-3">
+                    <Label>Receipt Notes</Label>
+                    <Textarea 
+                        placeholder="General notes about this delivery..."
+                        value={globalNotes}
+                        onChange={(e) => setGlobalNotes(e.target.value)}
+                        className="resize-none h-32"
+                    />
+                 </div>
               </div>
+
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsProcessDialogOpen(false)} disabled={isSubmitting}>
+          <DialogFooter className="mt-6 border-t pt-4">
+            <Button variant="outline" onClick={() => setIsReceiveDialogOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
             <Button 
-              onClick={handleSubmitProcess} 
+              onClick={handleSubmitReceipt} 
               disabled={isSubmitting}
-              className={
-                qcAction === 'REJECT' ? 'bg-red-600 hover:bg-red-700' : 
-                qcAction === 'PARTIAL' ? 'bg-orange-600 hover:bg-orange-700' : 
-                'bg-green-600 hover:bg-green-700'
-              }
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isSubmitting ? 'Processing...' : 'Confirm Decision'}
+              {isSubmitting ? (
+                <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Processing...
+                </>
+              ) : (
+                <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Confirm Receipt
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
