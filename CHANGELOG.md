@@ -1,3 +1,15 @@
+# [2.7.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.6.0...v2.7.0) (2026-02-14)
+
+
+### Bug Fixes
+
+* **linux build:** added the linux and mac build dummy sumatra files ([0aa57fa](https://github.com/larrybwosi/dealio-desktop/commit/0aa57fa86423b5b979d05c73a0c46accbd9411aa))
+
+
+### Features
+
+* **stock transfers acceptance and qc:** transfers between locations and quality checking logic ([c3dd6c2](https://github.com/larrybwosi/dealio-desktop/commit/c3dd6c257c930dbfc7dd42504d8b8edec5474025))
+
 # [2.6.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.5.0...v2.6.0) (2026-02-13)
 
 
