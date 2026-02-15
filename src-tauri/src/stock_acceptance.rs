@@ -4,7 +4,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager, State}; 
 use crate::auth_store::AuthState; 
 use crate::stock_acceptance_models::{
-    DeliveryItem, DocumentMetadata, IncomingResponse, 
+    DocumentMetadata, IncomingResponse, 
     ReceivePurchaseRequest, ReceiveTransferRequest, 
     StockProcessRequest, CommandError, ErrorKind
 };

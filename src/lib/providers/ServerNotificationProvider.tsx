@@ -1,8 +1,8 @@
 import { createContext, useContext, useCallback, useState, useEffect } from "react"
 import { ServerNotification } from "@/types/notifications"
 import { useAuthStore } from "@/store/pos-auth-store"
-import { ably } from "../ably"
 import { notificationService } from "@/lib/notification-service"
+import { useAblyStore } from "@/store/ablyStore"
 
 interface ServerNotificationContextType {
   lastNotification: ServerNotification | null;
@@ -15,6 +15,7 @@ const ServerNotificationContext = createContext<ServerNotificationContextType | 
 export function ServerNotificationProvider({ children }: { children: React.ReactNode }) {
   const [history, setHistory] = useState<ServerNotification[]>([])
   const [lastNotification, setLastNotification] = useState<ServerNotification | null>(null)
+  const ably = useAblyStore((state) => state.client);
   
   // Get the ably instance directly
   const { currentLocation } = useAuthStore();
@@ -22,6 +23,7 @@ export function ServerNotificationProvider({ children }: { children: React.React
 
   // Handle Incoming Message Logic
   const handleIncomingMessage = useCallback(async (msg: any) => {
+    console.log('Incoming message:', msg);
     const notification: ServerNotification = msg.data;
 
     // 1. Update State
@@ -53,16 +55,16 @@ export function ServerNotificationProvider({ children }: { children: React.React
 
   }, [])
 
-  // --- Manual Subscription via useEffect ---
   useEffect(() => {
     // 1. Guard clauses: Ensure ably and storeId exist before subscribing
     if (!ably || !storeId) return;
+    console.log('Subscribing to Ably channels', storeId);
 
     // 2. Get Channel instances
     const storeChannel = ably.channels.get(`store:${storeId}`);
     const systemChannel = ably.channels.get(`system:global`);
 
-    // 3. Subscribe
+    // 3. Subscribe 
     storeChannel.subscribe(handleIncomingMessage);
     systemChannel.subscribe(handleIncomingMessage);
 

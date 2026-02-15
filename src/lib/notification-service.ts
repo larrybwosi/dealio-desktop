@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { listen } from '@tauri-apps/api/event';
+import { v4 as uuidv4 } from 'uuid';
 
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'sale' | 'sync' | 'system';
 export type NotificationPriority = 'low' | 'medium' | 'high';
@@ -96,11 +97,17 @@ class NotificationService {
    * Send a notification
    */
   async send(options: NotificationOptions): Promise<string> {
-    const notification: Partial<AppNotification> = {
+    const id = uuidv4();
+    const timestamp = new Date().toISOString();
+    
+    const notification: AppNotification = {
+      id,
       notificationType: options.type || 'info',
       priority: options.priority || 'medium',
       title: options.title,
       body: options.body,
+      timestamp,
+      read: false,
       persistent: options.persistent !== undefined ? options.persistent : true,
       action: options.action,
       soundEnabled: options.soundEnabled !== undefined ? options.soundEnabled : true,
@@ -108,11 +115,11 @@ class NotificationService {
 
     try {
       // Send to backend
-      const id = await invoke<string>('send_native_notification', { notification });
+      await invoke<string>('send_native_notification', { notification });
       
       // If window is visible, also show in-app toast
       if (this.isWindowVisible) {
-        this.showInAppToast(notification as AppNotification);
+        this.showInAppToast(notification);
       }
 
       return id;

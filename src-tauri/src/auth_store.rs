@@ -446,24 +446,55 @@ pub async fn get_ably_auth_token_command(
     state: State<'_, AuthState>,
     params: Option<serde_json::Value>
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = state.get_client()?;
+    println!("[AuthStore] get_ably_auth_token_command called");
+    let (client, base_url) = match state.get_client() {
+        Ok(res) => res,
+        Err(e) => {
+            println!("[AuthStore] Failed to get client: {}", e);
+            return Err(e);
+        }
+    };
+    
     let url = format!("{}/api/v1/pos/ably-auth", base_url.trim_end_matches('/'));
+    println!("[AuthStore] Ably Auth URL: {}", url);
+
+    // Get member ID for header
+    let member_id = {
+        let user_guard = state.current_user.lock().map_err(|_| "Failed to lock user")?;
+        user_guard.as_ref().map(|u| u.id.clone())
+    };
+    println!("[AuthStore] Member ID present: {}", member_id.is_some());
 
     let mut req = client.post(&url);
+
+    // Add Member ID Header
+    if let Some(mid) = member_id {
+       req = req.header("X-Member-Id", mid);
+    }
     
-    // If params are provided, send them as query parameters or in the body
-    // Based on the original axios call, it seems params were sent as URL params
+    // If params are provided, send them in body
     if let Some(p) = params {
+        println!("[AuthStore] Params provided: yes");
         req = req.json(&serde_json::json!({ "params": p }));
+    } else {
+        println!("[AuthStore] Params provided: no");
+        // Ensure we send an empty JSON object if server expects JSON
+        req = req.json(&serde_json::json!({}));
     }
 
     let res = req.send()
         .await
-        .map_err(|e| format!("Network error: {}", e))?;
+        .map_err(|e| {
+            println!("[AuthStore] Network request failed: {}", e);
+            format!("Network error: {}", e)
+        })?;
 
     let status = res.status();
+    println!("[AuthStore] Response Status: {}", status);
+    
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();
+        println!("[AuthStore] Error Body: {}", err_body);
         return Err(format!("Ably auth failed: {} - {}", status, err_body));
     }
 

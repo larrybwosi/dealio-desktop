@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use log::info;
 
@@ -24,20 +23,6 @@ impl NetworkState {
         let mut base = self.base_url.lock().unwrap();
         *base = Some(url);
     }
-}
-
-/// Start periodic network monitoring
-///
-/// NOTE: Polling has been removed in favor of Ably-driven status updates.
-/// This function is kept to maintain the existing signature for now.
-pub fn start_network_monitor(
-    _app: AppHandle,
-    _network_state: Arc<NetworkState>,
-    _check_interval_secs: u64,
-) {
-    // No-op: Network status is now driven by the frontend (Ably)
-    // calling `update_network_status_command`.
-    info!("[NetworkMonitor] Started (passive mode, waiting for Ably updates)");
 }
 
 /// Internal helper to update status and emit events

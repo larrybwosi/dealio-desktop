@@ -141,6 +141,26 @@ export const UpdaterProvider = ({
     await processUpdate(update);
   }, [update, processUpdate]);
 
+
+
+  // Helper to fetch release notes from GitHub if missing
+  const fetchReleaseNotes = async (version: string): Promise<string | null> => {
+    try {
+        // Remove 'v' prefix if present to ensure clean version number for tag construction
+        const tagVersion = version.startsWith('v') ? version : `v${version}`;
+        const response = await fetch(`https://api.github.com/repos/larrybwosi/dealio-desktop/releases/tags/${tagVersion}`);
+        if (!response.ok) {
+            console.warn(`Failed to fetch release notes from GitHub: ${response.statusText}`);
+            return null;
+        }
+        const data = await response.json();
+        return data.body || null;
+    } catch (error) {
+        console.error('Error fetching release notes:', error);
+        return null;
+    }
+  };
+
   const checkForUpdates = useCallback(async () => {
     setStatus('CHECKING');
     setError(null);
@@ -161,13 +181,24 @@ export const UpdaterProvider = ({
       if (updateResult) {
         setUpdate(updateResult);
         setIsUpdateAvailable(true);
-        setReleaseNotes(updateResult.body || '');
+        
+        let notes = updateResult.body;
+        // Fallback: Fetch from GitHub if notes are missing
+        if (!notes) {
+            console.log('Release notes missing in update metadata, fetching from GitHub...');
+            const fetchedNotes = await fetchReleaseNotes(updateResult.version);
+            if (fetchedNotes) {
+                notes = fetchedNotes;
+            }
+        }
+
+        setReleaseNotes(notes || '');
         setReleaseDate(updateResult.date || null);
         setStatus('PENDING');
 
         // --- DEPRECATION LOGIC ---
         let critical = false;
-        if (updateResult.body && updateResult.body.includes('[CRITICAL]')) {
+        if (notes && notes.includes('[CRITICAL]')) {
             critical = true;
         }
         if (updateResult.date) {

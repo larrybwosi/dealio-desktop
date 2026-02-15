@@ -32,16 +32,17 @@ export const useAblyStore = create<AblyState>((set, get) => ({
   error: null,
 
   initializeAbly: () => {
-    // Prevent multiple initializations
-    if (get().client) return; 
+    // Prevent multiple initializations 
+    if (get().client) return;  
 
-    set({ status: 'loading' });
+    set({ status: 'loading' }); 
 
     // We define the authCallback logic here
     const authCallback: AuthOptions['authCallback'] = async (tokenParams, callback) => {
       try {
+        console.log('Init call')
         const data = await invoke<any>('get_ably_auth_token_command', { params: tokenParams });
-        console.log(data)
+        console.log('Api response data', data)
         
         // Validate
         const parsedData = AblyConfigSchema.parse(data);

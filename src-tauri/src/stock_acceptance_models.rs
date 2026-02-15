@@ -46,51 +46,9 @@ pub struct DocumentMetadata {
     pub size: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct DeliveryPayload {
-    pub supplier_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub purchase_id: Option<String>,
-    pub location_id: String,
-    pub received_date: String,
-    pub items: Vec<DeliveryItem>,
-    pub notes: String,
-}
 
 // --- Stock Batch / Inventory Models ---
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatch {
-    pub id: String,
-    pub organization_id: String,
-    pub location_id: String,
-    pub quality_check_status: String,
-    pub received_date: String,
-    pub initial_quantity: String, 
-    pub current_quantity: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub batch_number: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub expiry_date: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchMeta {
-    pub total: i32,
-    pub page: i32,
-    pub limit: i32,
-    pub total_pages: i32,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct StockBatchResponse {
-    pub data: Vec<StockBatch>,
-    pub meta: StockBatchMeta,
-}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

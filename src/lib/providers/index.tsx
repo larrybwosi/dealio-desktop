@@ -8,7 +8,7 @@ import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { UpdaterProvider } from "@/lib/providers/UpdateProvider"
 import AblyInitializer from "@/lib/providers/AblyProvider"
-// import { ServerNotificationProvider } from "@/lib/providers/ServerNotificationProvider"
+import { ServerNotificationProvider } from "@/lib/providers/ServerNotificationProvider"
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const themeConfig = usePosStore((state) => state.settings.themeConfig)
@@ -104,9 +104,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <NotificationToast />
       <QueryClientProvider client={queryClient}>
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
-          {/* <ServerNotificationProvider> */}
+          <ServerNotificationProvider>
             {children}
-          {/* </ServerNotificationProvider> */}
+          </ServerNotificationProvider>
         </UpdaterProvider>
       </QueryClientProvider>
       
@@ -121,10 +121,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         theme={themeConfig.mode === "dark" ? "dark" : "light"}
         offset={16}
         toastOptions={{
-          // Adds clearer borders and shadows for better visibility on busy screens
           className: "border border-border shadow-lg font-medium",
           style: {
-             // Ensures toasts are readable even if tailwind classes fail to load
              minWidth: '300px',
           }
         }}

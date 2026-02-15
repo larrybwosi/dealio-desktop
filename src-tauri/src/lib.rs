@@ -800,13 +800,6 @@ pub fn run() {
             if let Some(url) = initial_base_url {
                 network_state.set_base_url(url);
             }
-            
-            let network_state_arc = std::sync::Arc::new(network_state.inner().clone());
-            network_monitor::start_network_monitor(
-                app.handle().clone(),
-                network_state_arc,
-                30 // Check every 30 seconds
-            );
 
             // --- Customer Screen State Loading & Auto-Open ---
             let customer_screen_state = app.state::<CustomerScreenState>();
