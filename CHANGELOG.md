@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.7.0...v2.8.0) (2026-02-15)
+
+
+### Features
+
+* **server sent notifications:** notification processing ([39cab55](https://github.com/larrybwosi/dealio-desktop/commit/39cab559c1dba7f5e262bb717a41428f58150c8b))
+
 # [2.7.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.6.0...v2.7.0) (2026-02-14)
 
 
