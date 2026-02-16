@@ -370,9 +370,12 @@ pub async fn sync_pending_sales(
     }
 
     if success_count > 0 || !ids_to_remove.is_empty() {
-        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.retain(|s| !ids_to_remove.contains(&s.id));
-        let _ = save_queue_encrypted(&app, &q).await;
+        let queue_copy = {
+            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+            q.retain(|s| !ids_to_remove.contains(&s.id));
+            q.clone()
+        };
+        let _ = save_queue_encrypted(&app, &queue_copy).await;
     }
 
     Ok(success_count)
@@ -541,23 +544,29 @@ pub async fn retry_single_sale(
         Ok(_) => {
             info!("[SalesStore] Sale {} retried successfully.", sale_id);
             // Remove from queue
-            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-            q.retain(|s| s.id != sale_id);
-            let _ = save_queue_encrypted(&app, &q);
+            let queue_copy = {
+                let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+                q.retain(|s| s.id != sale_id);
+                q.clone()
+            };
+            let _ = save_queue_encrypted(&app, &queue_copy).await;
             Ok(true)
         },
         Err(e) => {
             warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
             // Update retry count
-            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-            if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
-                item.retry_count += 1;
-                item.last_error = Some(e.to_string());
-                if item.retry_count > 10 {
-                    item.status = SaleStatus::Failed;
+            let queue_copy = {
+                let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
+                    item.retry_count += 1;
+                    item.last_error = Some(e.to_string());
+                    if item.retry_count > 10 {
+                        item.status = SaleStatus::Failed;
+                    }
                 }
-            }
-            let _ = save_queue_encrypted(&app, &q);
+                q.clone()
+            };
+            let _ = save_queue_encrypted(&app, &queue_copy).await;
             Err(e)
         }
     }

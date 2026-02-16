@@ -23,7 +23,6 @@ import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
-// import { usePDF } from '@react-pdf/renderer'; 
 import { cn } from '@/lib/utils';
 import { ReceiptPreviewWrapper } from './pos/receipt-preview-wrapper';
 
