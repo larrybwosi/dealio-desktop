@@ -1,3 +1,10 @@
+## [2.9.2](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.1...v2.9.2) (2026-02-16)
+
+
+### Bug Fixes
+
+* **receipt barcode:** enabled barcode display ([b859181](https://github.com/larrybwosi/dealio-desktop/commit/b85918174d009b1e01cb8db91c07996fa15e69ce))
+
 ## [2.9.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.0...v2.9.1) (2026-02-16)
 
 
