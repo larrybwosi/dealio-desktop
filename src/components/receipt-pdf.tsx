@@ -6,20 +6,27 @@ import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/
 import { format } from 'date-fns';
 import type { Order, ReceiptConfig } from '@/store/store';
 
+const getFontUrl = (path: string) => {
+  if (typeof window !== 'undefined') {
+    return `${window.location.origin}${path}`;
+  }
+  return path;
+};
+
 Font.register({
   family: 'Roboto',
   fonts: [
-    { src: '/fonts/Roboto-Regular.ttf' },
-    { src: '/fonts/Roboto-Bold.ttf', fontWeight: 'bold' },
-    { src: '/fonts/Roboto-Italic.ttf', fontStyle: 'italic' }
+    { src: getFontUrl('/fonts/Roboto-Regular.ttf') },
+    { src: getFontUrl('/fonts/Roboto-Bold.ttf'), fontWeight: 'bold' },
+    { src: getFontUrl('/fonts/Roboto-Italic.ttf'), fontStyle: 'italic' }
   ]
 });
 
 Font.register({
   family: 'CourierPrime',
   fonts: [
-    { src: '/fonts/CourierPrime-Regular.ttf' },
-    { src: '/fonts/CourierPrime-Bold.ttf', fontWeight: 'bold' }
+    { src: getFontUrl('/fonts/CourierPrime-Regular.ttf') },
+    { src: getFontUrl('/fonts/CourierPrime-Bold.ttf'), fontWeight: 'bold' }
   ]
 });
 
@@ -37,6 +44,7 @@ interface ReceiptPdfProps {
     [key: string]: any;
   };
   qrCodeUrl?: string;
+  barcodeUrl?: string;
   branchName?: string;
 }
 
@@ -46,7 +54,7 @@ const formatCurrency = (amount: number, _currency: string) => {
 };
 
 // --- 4. COMPONENT ---
-export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: ReceiptPdfProps) => {
+export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, branchName }: ReceiptPdfProps) => {
   const config = settings.receiptConfig || {};
   
   // PDF Defaults to 80mm thermal if not specified, or A4 if specified
@@ -268,11 +276,12 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: R
     ].filter(Boolean).length;
     height += contactLines * 12 + 10;
 
-    // Title & Meta
-    height += 100; // Receipt Title + Meta block
-    if (config.showCustomerName && order.customerName) height += 12;
-    if (config.showOrderType && order.orderType) height += 12;
-    if (config.showCashier && order.cashierName) height += 12;
+    // Title & Meta (Significantly reduced)
+    height += 10; // Base spacing for meta
+    height += 24; // Row 1 (Time | Branch) - approx 12px font + margins
+    height += 24; // Row 2 (Served By | Customer) - approx 12px font + margins
+    if (config.showOrderNumber !== false) height += 14; 
+    // Removed customer/cashier/orderType incremental additions as they are now in fixed rows or conditionally rendered within the fixed height blocks above.
 
     // Items
     height += 30; // Table header
@@ -289,8 +298,8 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: R
     if (config.showSavingsTotal && order.discount > 0) height += 15;
     height += 25; // Grand total + margins
 
-    // Payment
-    height += 40; 
+    // Payment (Compacted to 1 line)
+    height += 20; 
 
     // Footer
     height += 60; // Base footer margin + message
@@ -300,11 +309,12 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: R
     if (config.showReturnPolicy) height += 25;
     if (config.showLegalDisclaimer) height += 25;
     if (config.showQrCode && qrCodeUrl) height += 60;
+    if (config.showBarcode && barcodeUrl) height += 50;
     if (config.showSurveyQr) height += 20;
     if (config.showSocialMedia) height += 20;
     
-    // Buffer for safety
-    return height + 50; 
+    // Buffer for safety (Reduced)
+    return height + 20; 
   };
 
   const pageSize =
@@ -335,8 +345,8 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: R
           {config.showAddress && settings.address && (
             <Text style={styles.contactInfo}>{settings.address}</Text>
           )}
-          {(config.showPhone || settings.phone) && (
-            <Text style={styles.contactInfo}>Tel: {settings.phone}</Text>
+          {(config.showPhone || config.phone || settings.phone) && (
+            <Text style={styles.contactInfo}>Tel: {config.phone || settings.phone}</Text>
           )}
           {(settings.email) && (
             <Text style={styles.contactInfo}>Email: {settings.email}</Text>
@@ -533,6 +543,13 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: R
 
           {config.showSocialMedia && config.socialMediaHandle && (
             <Text style={[styles.footerContact, { fontWeight: 'bold' }]}>Connect: {config.socialMediaHandle}</Text>
+          )}
+          
+          {config.showBarcode && barcodeUrl && (
+             <View style={{ alignItems: 'center', marginTop: 10 }}>
+               <Image src={barcodeUrl} style={{ width: isThermal ? 140 : 180, height: 40, objectFit: 'contain' }} />
+               <Text style={{ fontSize: baseFontSize - 4, marginTop: 2 }}>{order.orderNumber}</Text>
+             </View>
           )}
 
           <Text style={styles.footerKeepRecord}>Keep this receipt for your records</Text>

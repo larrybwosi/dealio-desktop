@@ -12,6 +12,7 @@ import {
   Wallet 
 } from 'lucide-react';
 import QRCode from 'qrcode'; 
+import bwipjs from 'bwip-js';
 
 // UI Components
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -205,6 +206,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
   const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
   const [qrCodePdfUrl, setQrCodePdfUrl] = useState<string>('');
+  const [barcodeUrl, setBarcodeUrl] = useState<string>('');
 
   // Map Data
   const formattedOrder = useMemo(() => {
@@ -232,11 +234,35 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
     }
   }, [formattedOrder, receiptConfig]);
 
+  // Generate Barcode for PDF
+  useEffect(() => {
+    if (formattedOrder && receiptConfig?.showBarcode) {
+      try {
+        const canvas = document.createElement('canvas');
+        bwipjs.toCanvas(canvas, {
+          bcid: 'code128',
+          text: formattedOrder.orderNumber,
+          scale: 3,
+          height: 10,
+          includetext: false,
+        });
+        setBarcodeUrl(canvas.toDataURL('image/png'));
+      } catch (e) {
+        console.error('Barcode generation failed', e);
+      }
+    }
+  }, [formattedOrder, receiptConfig]);
+
   // Document Instance
   const DocumentInstance = useMemo(() => {
-    if (!formattedOrder) return null;
-    return <ReceiptPdfDocument order={formattedOrder} settings={settings} qrCodeUrl={qrCodePdfUrl} branchName={useAuthStore.getState().currentLocation?.name} />;
-  }, [formattedOrder, settings, qrCodePdfUrl]);
+    return <ReceiptPdfDocument 
+      order={formattedOrder!} 
+      settings={settings} 
+      qrCodeUrl={qrCodePdfUrl} 
+      barcodeUrl={barcodeUrl}
+      branchName={useAuthStore.getState().currentLocation?.name} 
+    />;
+  }, [formattedOrder, settings, qrCodePdfUrl, barcodeUrl]);
 
   if (!formattedOrder) return null;
   const safeOrderNum = formattedOrder.orderNumber.replace(/[^a-z0-9]/gi, '_');

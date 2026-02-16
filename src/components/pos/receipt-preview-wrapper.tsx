@@ -5,7 +5,7 @@ import { Loader2 } from 'lucide-react';
 
 // IMPORTANT: Configure the worker for production
 // Using unpkg is the easiest way to ensure the worker loads correctly in Tauri without complex build config
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 // Setup styles for react-pdf to ensure the canvas fits the container
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -63,7 +63,7 @@ export const ReceiptPreviewWrapper = ({ document }: { document: React.ReactEleme
             pageNumber={1} 
             renderTextLayer={false} 
             renderAnnotationLayer={false}
-            scale={1.0} 
+            scale={2.0} 
             className="rounded-lg overflow-hidden border border-border"
           />
         </Document>

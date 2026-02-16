@@ -24,6 +24,7 @@ import {
   Globe, CreditCard, Utensils, Bell, Tag, Building2, Scale
 } from 'lucide-react';
 import QRCode from 'qrcode';
+import bwipjs from 'bwip-js';
 import { cn } from '@/lib/utils';
 import { ReceiptPreviewWrapper } from '@/components/pos/receipt-preview-wrapper';
 
@@ -185,6 +186,7 @@ export default function ReceiptSettingsPage() {
 
   const [mode, setMode] = useState<'receipt' | 'kitchen'>('receipt');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const [barcodeUrl, setBarcodeUrl] = useState<string>('');
   const [previewScale, setPreviewScale] = useState([90]);
   const [previewBg, setPreviewBg] = useState<'light' | 'dark'>('dark');
 
@@ -229,6 +231,27 @@ export default function ReceiptSettingsPage() {
       QRCode.toDataURL('https://example.com/order/847', { width: 100, margin: 1 }).then(setQrCodeDataUrl);
     }
   }, [config.showQrCode]);
+
+  // Generate Barcode for Preview
+  useEffect(() => {
+    if (config.showBarcode) {
+      try {
+        const canvas = document.createElement('canvas');
+        bwipjs.toCanvas(canvas, {
+          bcid: 'code128',
+          text: sampleOrder.orderNumber,
+          scale: 3,
+          height: 10,
+          includetext: false,
+        });
+        setBarcodeUrl(canvas.toDataURL('image/png'));
+      } catch (e) {
+        console.error('Barcode generation failed', e);
+      }
+    } else {
+      setBarcodeUrl('');
+    }
+  }, [config.showBarcode, sampleOrder.orderNumber]);
 
   return (
     <div className="flex h-full w-full bg-background overflow-hidden">
@@ -343,7 +366,7 @@ export default function ReceiptSettingsPage() {
             size="sm" 
             disabled={isPrinting || isDownloading} 
             onClick={() => mode === 'receipt' 
-              ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />, 'receipt-test')
+              ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />, 'receipt-test')
               : handlePrint(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
             className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
@@ -355,7 +378,7 @@ export default function ReceiptSettingsPage() {
             variant="secondary"
             disabled={isPrinting || isDownloading} 
             onClick={() => mode === 'receipt' 
-              ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />, 'receipt-test')
+              ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />, 'receipt-test')
               : handleDownload(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
             className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
@@ -369,7 +392,7 @@ export default function ReceiptSettingsPage() {
           {mode === 'receipt' ? (
              <div className="w-full h-full max-w-[500px] shadow-2xl rounded-lg overflow-hidden border border-white/10 relative">
                <ReceiptPreviewWrapper 
-                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />}
+                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />}
                />
              </div>
           ) : (
