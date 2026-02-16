@@ -746,26 +746,32 @@ pub fn run() {
                 let config_guard = auth_state_init.device_config.lock().unwrap_or_else(|e| e.into_inner());
                 config_guard.as_ref().map(|c| c.location_id.clone())
             } {
-                if let Err(e) = product_store::load_products_from_disk(app.handle(), &state, &location_id) {
+                if let Err(e) = tauri::async_runtime::block_on(product_store::load_products_from_disk(app.handle(), &state, &location_id)) {
                     eprintln!("Failed to load initial data for location {}: {}", location_id, e);
                 }
             }
 
             let cust_state = app.state::<CustomerState>();
-            if let Err(e) = customer_store::load_customers_from_disk(app.handle(), &cust_state) {
+            if let Err(e) = tauri::async_runtime::block_on(customer_store::load_customers_from_disk(app.handle(), &cust_state)) {
                 eprintln!("Failed to load initial customer data: {}", e);
             }
 
             let sales_state = app.state::<SalesState>();
-            sales_store::init_state(app.handle(), &sales_state);
+            tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
 
             let pricing_state = app.state::<PricingState>();
-            if let Err(e) = pricing_store::load_pricing_from_disk(app.handle(), &pricing_state) {
+            if let Err(e) = tauri::async_runtime::block_on(pricing_store::load_pricing_from_disk(app.handle(), &pricing_state)) {
                 eprintln!("Failed to load initial pricing data: {}", e);
             }
 
             let notification_state = app.state::<NotificationState>();
             notification_manager::init_notification_state(app.handle(), &notification_state);
+
+            // Customer Screen State Loading
+            let customer_screen_state = app.state::<CustomerScreenState>();
+            if let Err(e) = tauri::async_runtime::block_on(customer_screen_state.load_from_store(app.handle())) {
+                eprintln!("Failed to load customer screen state: {}", e);
+            }
 
             // Check for old pending sales and notify user
             let old_sales = sales_store::check_old_pending_sales(&sales_state, 3);
@@ -801,13 +807,8 @@ pub fn run() {
                 network_state.set_base_url(url);
             }
 
-            // --- Customer Screen State Loading & Auto-Open ---
+            // --- Customer Screen Auto-Open ---
             let customer_screen_state = app.state::<CustomerScreenState>();
-            
-            // Load saved state from disk
-            if let Err(e) = customer_screen_state.load_from_store(app.handle()) {
-                eprintln!("Failed to load customer screen state: {}", e);
-            }
             
             // Auto-open customer screen if enabled
             if customer_screen_state.is_enabled() {

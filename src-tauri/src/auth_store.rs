@@ -80,6 +80,13 @@ impl AuthState {
         }
     }
 
+    async fn save_to_file_async(config: &DeviceConfig) -> Result<(), String> {
+        let path = Self::get_config_path().ok_or("Could not determine config path")?;
+        let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
+        tokio::fs::write(&path, json).await.map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     fn save_to_file(config: &DeviceConfig) -> Result<(), String> {
         let path = Self::get_config_path().ok_or("Could not determine config path")?;
 
@@ -114,6 +121,25 @@ impl AuthState {
                 None
             }
         }
+    }
+
+    async fn save_to_keyring_async(config: &DeviceConfig) -> Result<(), String> {
+        // 1. Try Keyring
+        let keyring_result = {
+            let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
+            let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
+            entry.set_password(&json).map_err(|e| e.to_string())?;
+            Ok(())
+        };
+
+        if let Err(e) = keyring_result {
+            eprintln!("[AuthStore] Keyring save failed: {}. Falling back to file.", e);
+        }
+
+        // 2. ALWAYS Save to File as Backup
+        Self::save_to_file_async(config).await?;
+        
+        Ok(())
     }
 
     fn save_to_keyring(config: &DeviceConfig) -> Result<(), String> {
@@ -260,7 +286,7 @@ pub async fn set_device_config(
     let new_config = DeviceConfig { base_url: base_url.clone(), location_id, device_key };
     
     // 1. Save to Keyring first (fail early if secure storage fails)
-    AuthState::save_to_keyring(&new_config)?;
+    AuthState::save_to_keyring_async(&new_config).await?;
 
     // 2. Update memory
     {
@@ -434,7 +460,7 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
     // 2. Clear File
     if let Some(path) = AuthState::get_config_path() {
         if path.exists() {
-             let _ = std::fs::remove_file(path);
+             let _ = tokio::fs::remove_file(path).await;
         }
     }
 

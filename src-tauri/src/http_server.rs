@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use tokio::io::AsyncWriteExt;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
 use local_ip_address::local_ip;
 use std::{fs::File, io::Write, net::SocketAddr, path::PathBuf, sync::OnceLock};
@@ -31,9 +32,9 @@ async fn handle_upload(
     
     if let Some(save_dir) = DOWNLOAD_PATH.get() {
         let path = save_dir.join(&file_name);
-        match File::create(&path) {
+        match tokio::fs::File::create(&path).await {
             Ok(mut f) => {
-                if let Ok(_) = f.write_all(&file.contents) {
+                if let Ok(_) = f.write_all(&file.contents).await {
                     println!("File saved to: {:?}", path);
                     // Emit event to frontend
                     let _ = state.app.emit("file-received", &file_name);
@@ -491,7 +492,7 @@ pub async fn start_file_server(app: AppHandle) -> Result<String, String> {
         let router = Router::new()
             .route("/", get(show_upload_page))
             .route("/upload", post(handle_upload))
-            .layer(DefaultBodyLimit::disable()) // Allow large files
+            .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB limit for security
             .with_state(state);
 
         println!("File server running on http://{}:{}", ip, port);

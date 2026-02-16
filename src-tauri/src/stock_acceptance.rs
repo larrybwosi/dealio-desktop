@@ -123,55 +123,43 @@ async fn handle_response<T: for<'de> serde::Deserialize<'de>>(
 // --- Public Commands ---
 
 #[tauri::command]
-pub fn save_document_locally(
+pub async fn save_document_locally(
     app: AppHandle,
     filename: String, 
     file_type: String, 
     base64_data: String
 ) -> Result<DocumentMetadata, CommandError> {
     
-    let run_save = || -> anyhow::Result<DocumentMetadata> {
-        let app_dir = app.path().app_data_dir()
-            .context("Could not resolve App Data Directory")?;
-        
-        let docs_dir = app_dir.join("documents");
-        
-        if !docs_dir.exists() {
-            fs::create_dir_all(&docs_dir)
-                .context("Failed to create documents directory")?;
-        }
+    let app_dir = app.path().app_data_dir()
+        .map_err(|e| CommandError::new(ErrorKind::Storage, format!("AppData folder error: {}", e)))?;
+    
+    let docs_dir = app_dir.join("documents");
+    
+    if !docs_dir.exists() {
+        tokio::fs::create_dir_all(&docs_dir).await
+            .map_err(|e| CommandError::new(ErrorKind::Storage, format!("Failed to create docs folder: {}", e)))?;
+    }
 
         let unique_id = Uuid::now_v7().to_string();
         let sanitized_name = filename.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-', "_");
         let safe_filename = format!("{}_{}", unique_id, sanitized_name);
         let file_path = docs_dir.join(&safe_filename);
 
-        let bytes = general_purpose::STANDARD
-            .decode(&base64_data)
-            .map_err(|e| anyhow::anyhow!("Invalid Base64 data: {}", e))?;
+    let bytes = general_purpose::STANDARD
+        .decode(&base64_data)
+        .map_err(|e| CommandError::new(ErrorKind::Validation, format!("Invalid Base64 data: {}", e)))?;
 
-        fs::write(&file_path, &bytes)
-            .with_context(|| format!("Failed to write file to {:?}", file_path))?;
+    tokio::fs::write(&file_path, &bytes).await
+        .map_err(|e| CommandError::new(ErrorKind::Storage, format!("Failed to save file: {}", e)))?;
 
         info!("[DeliveryStore] Saved document: {}", safe_filename);
 
-        Ok(DocumentMetadata {
-            id: unique_id,
-            name: filename,
-            doc_type: file_type,
-            path: file_path.to_string_lossy().to_string(),
-            size: bytes.len() as u64,
-        })
-    };
-
-    run_save().map_err(|e| {
-        error!("[SaveDocument] Error: {:?}", e);
-        let msg = e.to_string();
-        if msg.contains("Base64") {
-            CommandError::new(ErrorKind::Validation, "File encoding error").with_details(msg)
-        } else {
-            CommandError::new(ErrorKind::FileSystem, "Failed to save file locally").with_details(msg)
-        }
+    Ok(DocumentMetadata {
+        id: unique_id,
+        name: filename,
+        doc_type: file_type,
+        path: file_path.to_string_lossy().to_string(),
+        size: bytes.len() as u64,
     })
 }
 
@@ -247,7 +235,7 @@ pub async fn receive_purchase_order(
             let path = Path::new(&path_str);
             
             // Safety Check: Validate File Size
-            match fs::metadata(path) {
+            match tokio::fs::metadata(path).await {
                 Ok(metadata) => {
                     if metadata.len() > MAX_FILE_SIZE {
                         let msg = format!("File '{}' exceeds the 20MB upload limit.", path_str);
@@ -319,7 +307,7 @@ pub async fn receive_stock_transfer(
         for path_str in paths {
             let path = Path::new(&path_str);
             
-            match fs::metadata(path) {
+            match tokio::fs::metadata(path).await {
                 Ok(metadata) => {
                     if metadata.len() > MAX_FILE_SIZE {
                         let msg = format!("File '{}' exceeds the 20MB upload limit.", path_str);

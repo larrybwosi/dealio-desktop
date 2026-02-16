@@ -57,7 +57,7 @@ fn get_legacy_key() -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> {
+async fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> {
     let json_data = serde_json::to_string(queue)?;
     
     // Use secure key from keyring
@@ -77,17 +77,17 @@ fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> 
     final_payload.extend_from_slice(&ciphertext);
 
     let path = get_store_path(app)?;
-    fs::write(path, final_payload).context("Failed to write sales queue")?;
+    tokio::fs::write(path, final_payload).await.context("Failed to write sales queue")?;
     Ok(())
 }
 
-fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
+async fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
     let path = get_store_path(app)?;
     if !path.exists() {
         return Ok(Vec::new());
     }
 
-    let file_bytes = fs::read(&path)?;
+    let file_bytes = tokio::fs::read(&path).await?;
     if file_bytes.len() < 12 { return Ok(Vec::new()); }
 
     let (nonce_slice, ciphertext) = file_bytes.split_at(12);
@@ -118,7 +118,7 @@ fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
              info!("[SalesStore] Legacy decryption successful. Migrating data to secure key...");
              
              // Re-encrypt immediately with new safe key
-             if let Err(e) = save_queue_encrypted(app, &queue) {
+             if let Err(e) = save_queue_encrypted(app, &queue).await {
                  error!("[SalesStore] Failed to migrate updated data: {}", e);
              } else {
                  info!("[SalesStore] Data successfully migrated to secure storage.");
@@ -140,8 +140,8 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
 
 // --- Public Methods ---
 
-pub fn init_state(app: &AppHandle, state: &SalesState) {
-    match load_queue_encrypted(app) {
+pub async fn init_state(app: &AppHandle, state: &SalesState) {
+    match load_queue_encrypted(app).await {
         Ok(q) => {
             *state.queue.lock().unwrap_or_else(|e| e.into_inner()) = q;
             info!("[SalesStore] Loaded pending sales queue.");
@@ -236,7 +236,7 @@ pub async fn process_sale(
     {
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.push(new_sale.clone());
-        if let Err(e) = save_queue_encrypted(&app, &q) {
+        if let Err(e) = save_queue_encrypted(&app, &q).await {
             error!("CRITICAL: Failed to persist sales queue: {}", e);
             return Err(SalesError::StorageError(e.to_string()).into());
         }
@@ -267,7 +267,7 @@ pub async fn process_sale(
                 info!("[Background] Sale {} synced successfully.", sale_id_clone);
                 if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
                     q.remove(pos);
-                    let _ = save_queue_encrypted(&app_handle, &q); 
+                    let _ = save_queue_encrypted(&app_handle, &q).await; 
                 }
             },
             Err(e) => {
@@ -277,7 +277,7 @@ pub async fn process_sale(
                     item.retry_count += 1;
                     // Logic to mark as FAILED if retries > 10 could go here
                 }
-                let _ = save_queue_encrypted(&app_handle, &q);
+                let _ = save_queue_encrypted(&app_handle, &q).await;
             }
         }
     });
@@ -326,7 +326,7 @@ pub async fn sync_pending_sales(
         // Enterprise: Exponential Backoff (Basic Implementation)
         // If retry_count is high, delay briefly (in a real queue, this would be scheduled)
         if sale.retry_count > 5 {
-            std::thread::sleep(Duration::from_millis(100 * (sale.retry_count as u64)));
+            tokio::time::sleep(Duration::from_millis(100 * (sale.retry_count as u64))).await;
         }
 
         match push_single_sale(

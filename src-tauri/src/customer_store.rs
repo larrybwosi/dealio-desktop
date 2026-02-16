@@ -39,7 +39,7 @@ fn get_legacy_key() -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn save_encrypted(path: PathBuf, sync_token: Option<String>, customers: &Vec<PosCustomer>) -> Result<()> {
+async fn save_encrypted(path: PathBuf, sync_token: Option<String>, customers: &Vec<PosCustomer>) -> Result<()> {
     // 1. Serialize data to JSON
     let data_wrapper = (sync_token, customers);
     let json_data = serde_json::to_string(&data_wrapper)?;
@@ -64,12 +64,12 @@ fn save_encrypted(path: PathBuf, sync_token: Option<String>, customers: &Vec<Pos
     let mut final_payload = nonce_bytes.to_vec();
     final_payload.extend_from_slice(&ciphertext);
 
-    fs::write(path, final_payload).context("Failed to write secure file")?;
+    tokio::fs::write(path, final_payload).await.context("Failed to write secure file")?;
     Ok(())
 }
 
-fn load_encrypted(path: PathBuf) -> Result<(Option<String>, Vec<PosCustomer>)> {
-    let file_bytes = fs::read(&path).context("Failed to read secure file")?;
+async fn load_encrypted(path: PathBuf) -> Result<(Option<String>, Vec<PosCustomer>)> {
+    let file_bytes = tokio::fs::read(&path).await.context("Failed to read secure file")?;
     
     if file_bytes.len() < 12 {
         return Err(anyhow::anyhow!("File corrupted or too short"));
@@ -103,7 +103,7 @@ fn load_encrypted(path: PathBuf) -> Result<(Option<String>, Vec<PosCustomer>)> {
     
     // Re-save immediately with new secure key
     println!("[CustomerStore] Legacy decryption successful. Migrating data to secure key...");
-    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1) {
+    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1).await {
         eprintln!("[CustomerStore] Failed to migrate data: {}", e);
     } else {
         println!("[CustomerStore] Data successfully migrated to secure storage.");
@@ -122,11 +122,11 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
 }
 
 // --- 1. Load Data on Startup ---
-pub fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Result<()> {
+pub async fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Result<()> {
     let path = get_store_path(app)?;
     
     if path.exists() {
-        match load_encrypted(path) {
+        match load_encrypted(path).await {
             Ok((token, customers)) => {
                 *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = token;
                 *state.customers.lock().unwrap_or_else(|e| e.into_inner()) = customers;
@@ -239,7 +239,7 @@ pub async fn run_sync(
     *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_token.clone());
 
     let path = get_store_path(&app)?;
-    save_encrypted(path, Some(new_token), &updated_list)?;
+    save_encrypted(path, Some(new_token), &updated_list).await?;
 
     Ok(incoming_count)
 }
@@ -355,9 +355,9 @@ pub async fn create_customer(
         let mut customers_guard = state.customers.lock().unwrap();
         customers_guard.push(new_customer.clone());
         
-        let sync_token = state.last_sync_token.lock().unwrap().clone();
+        let sync_token = state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()).clone();
         if let Ok(path) = get_store_path(&app) {
-            let _ = save_encrypted(path, sync_token, &customers_guard);
+            let _ = save_encrypted(path, sync_token, &customers_guard).await;
         }
     }
 

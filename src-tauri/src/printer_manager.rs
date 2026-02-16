@@ -43,10 +43,11 @@ pub async fn get_system_printers() -> Result<Vec<String>, String> {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        let output = Command::new("powershell")
+        let output = tokio::process::Command::new("powershell")
             .args(&["-Command", "Get-Printer | Select-Object -ExpandProperty Name"])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
+            .await
             .map_err(|e| e.to_string())?;
 
         if !output.status.success() {
@@ -65,10 +66,10 @@ pub async fn get_system_printers() -> Result<Vec<String>, String> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        // Linux/macOS usually use lpstat
-        let output = Command::new("lpstat")
-            .arg("-e") // -e lists all available printers
+        let output = tokio::process::Command::new("lpstat")
+            .arg("-e")
             .output()
+            .await
             .map_err(|e| e.to_string())?;
 
         let text = String::from_utf8_lossy(&output.stdout);
@@ -91,11 +92,11 @@ pub async fn save_printer_config(
     
     // Ensure the directory exists
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
     }
 
     let json = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-    fs::write(path, json).map_err(|e| e.to_string())?;
+    tokio::fs::write(path, json).await.map_err(|e| e.to_string())?;
     
     Ok(())
 }
@@ -108,7 +109,7 @@ pub async fn get_printer_config(app: AppHandle) -> Result<PrinterSettings, Strin
         return Ok(PrinterSettings::default());
     }
 
-    let data = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    let data = tokio::fs::read_to_string(path).await.map_err(|e| e.to_string())?;
     let config: PrinterSettings = serde_json::from_str(&data).map_err(|e| e.to_string())?;
     
     Ok(config)

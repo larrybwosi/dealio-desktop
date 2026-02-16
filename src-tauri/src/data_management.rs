@@ -8,7 +8,7 @@ use crate::product_store::ProductState;
 use crate::customer_store::CustomerState;
 
 #[tauri::command]
-pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
+pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     println!("[DangerZone] Starting full data wipe...");
 
     // 1. Wipe App Data Directory Files
@@ -26,7 +26,7 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
             for file in files_to_delete {
                 let path = app_dir.join(file);
                 if path.exists() {
-                    if let Err(e) = fs::remove_file(&path) {
+                    if let Err(e) = tokio::fs::remove_file(&path).await {
                         eprintln!("[DangerZone] Failed to delete file {:?}: {}", path, e);
                     } else {
                         println!("[DangerZone] Deleted: {:?}", file);
@@ -37,7 +37,7 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
             // Delete product images directory
             let images_dir = app_dir.join("product_images");
             if images_dir.exists() {
-                if let Err(e) = fs::remove_dir_all(&images_dir) {
+                if let Err(e) = tokio::fs::remove_dir_all(&images_dir).await {
                     eprintln!("[DangerZone] Failed to delete images directory: {}", e);
                 } else {
                     println!("[DangerZone] Deleted: product_images directory");
@@ -51,7 +51,7 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
         let config_dir = proj_dirs.config_dir();
         let device_config_path = config_dir.join("device.json");
         if device_config_path.exists() {
-            if let Err(e) = fs::remove_file(&device_config_path) {
+            if let Err(e) = tokio::fs::remove_file(&device_config_path).await {
                 eprintln!("[DangerZone] Failed to delete device config: {}", e);
             } else {
                 println!("[DangerZone] Deleted: device.json");
@@ -78,18 +78,22 @@ pub fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
 
     // 4. Reset In-Memory State
     let product_state = app.state::<ProductState>();
-    if let Ok(mut products_map) = product_state.products_by_location.lock() {
+    {
+        let mut products_map = product_state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
         products_map.clear();
     }
-    if let Ok(mut sync_map) = product_state.last_sync_by_location.lock() {
+    {
+        let mut sync_map = product_state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner());
         sync_map.clear();
     }
 
     let customer_state = app.state::<CustomerState>();
-    if let Ok(mut customers) = customer_state.customers.lock() {
+    {
+        let mut customers = customer_state.customers.lock().unwrap_or_else(|e| e.into_inner());
         customers.clear();
     }
-    if let Ok(mut last_sync) = customer_state.last_sync_token.lock() {
+    {
+        let mut last_sync = customer_state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner());
         *last_sync = None;
     }
 

@@ -27,23 +27,23 @@ impl ProductState {
 }
 
 // --- Helper: File Paths ---
-fn get_store_path(app: &AppHandle, location_id: &str) -> Result<PathBuf> {
+async fn get_store_path(app: &AppHandle, location_id: &str) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
     
     if !app_dir.exists() {
-        fs::create_dir_all(&app_dir).context("Failed to create App Data Directory")?;
+        tokio::fs::create_dir_all(&app_dir).await.context("Failed to create App Data Directory")?;
     }
     
     // Location-specific filename
     Ok(app_dir.join(format!("products_loc_{}.json", location_id)))
 }
 
-fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
+async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
     let images_dir = app_dir.join("product_images");
 
     if !images_dir.exists() {
-        fs::create_dir_all(&images_dir).context("Failed to create Images Directory")?;
+        tokio::fs::create_dir_all(&images_dir).await.context("Failed to create Images Directory")?;
     }
     
     Ok(images_dir)
@@ -69,7 +69,7 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
         format!("{}.jpg", clean_name)
     };
 
-    let images_dir = match get_images_dir(app) {
+    let images_dir = match get_images_dir(app).await {
         Ok(d) => d,
         Err(e) => {
             eprintln!("Failed to get image dir: {}", e);
@@ -83,9 +83,9 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     // 2. Check if file already exists locally AND has content
     if file_path.exists() {
         // Integrity check: If file is 0 bytes, it's corrupt/empty.
-        if let Ok(metadata) = fs::metadata(&file_path) {
+        if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
              if metadata.len() > 0 {
-                 return Some(file_path_str);
+                  return Some(file_path_str);
              }
         }
         // If we reach here, file exists but is invalid (0 bytes). Remove it.
@@ -105,7 +105,7 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
                         }
 
                         // Verify write success (double check)
-                        if let Ok(metadata) = fs::metadata(&file_path) {
+                        if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
                             if metadata.len() > 0 {
                                 return Some(file_path_str);
                             }
@@ -126,11 +126,11 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 }
 
 // --- 1. Load Data on Startup (Synchronous is fine here) ---
-pub fn load_products_from_disk(app: &AppHandle, state: &ProductState, location_id: &str) -> Result<()> {
-    let path = get_store_path(app, location_id)?;
+pub async fn load_products_from_disk(app: &AppHandle, state: &ProductState, location_id: &str) -> Result<()> {
+    let path = get_store_path(app, location_id).await?;
     
     if path.exists() {
-        let content = fs::read_to_string(path).context("Failed to read store file")?;
+        let content = tokio::fs::read_to_string(path).await.context("Failed to read store file")?;
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
         if let Ok((last_sync, products)) = data {
@@ -295,7 +295,7 @@ pub async fn run_sync(
         serde_json::to_string(&file_data)
     }).await??;
     
-    let path = get_store_path(&app, &location_id)?;
+    let path = get_store_path(&app, &location_id).await?;
     async_fs::write(path, json).await.context("Failed to write to disk")?;
 
     Ok(incoming_count)
@@ -357,7 +357,7 @@ pub async fn switch_location(
     new_location_id: String,
 ) -> Result<Vec<PosProduct>, String> {
     // 1. Load cached products for this location (instant response)
-    load_products_from_disk(&app, &state, &new_location_id)
+    load_products_from_disk(&app, &state, &new_location_id).await
         .map_err(|e| e.to_string())?;
     
     // 2. Return cached products immediately (even if empty)

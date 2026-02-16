@@ -46,7 +46,7 @@ fn get_cipher_key() -> [u8; 32] {
     hasher.finalize().into()
 }
 
-fn save_encrypted(path: PathBuf, sync_at: Option<String>, data: &PosPricingData) -> Result<()> {
+async fn save_encrypted(path: PathBuf, sync_at: Option<String>, data: &PosPricingData) -> Result<()> {
     // 1. Serialize data to JSON
     let data_wrapper = (sync_at, data);
     let json_data = serde_json::to_string(&data_wrapper)?;
@@ -69,12 +69,12 @@ fn save_encrypted(path: PathBuf, sync_at: Option<String>, data: &PosPricingData)
     let mut final_payload = nonce_bytes.to_vec();
     final_payload.extend_from_slice(&ciphertext);
 
-    fs::write(path, final_payload).context("Failed to write secure file")?;
+    tokio::fs::write(path, final_payload).await.context("Failed to write secure file")?;
     Ok(())
 }
 
-fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
-    let file_bytes = fs::read(&path).context("Failed to read secure file")?;
+async fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
+    let file_bytes = tokio::fs::read(&path).await.context("Failed to read secure file")?;
     
     if file_bytes.len() < 12 {
         return Err(anyhow::anyhow!("File corrupted or too short"));
@@ -108,7 +108,7 @@ fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
     
     // Re-save immediately with new secure key
     println!("[PricingStore] Legacy migration successful. Re-saving with secure key...");
-    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1) {
+    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1).await {
         eprintln!("[PricingStore] Migration save failed: {}", e);
     }
 
@@ -125,11 +125,11 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
 }
 
 // --- 1. Load Data on Startup ---
-pub fn load_pricing_from_disk(app: &AppHandle, state: &PricingState) -> Result<()> {
+pub async fn load_pricing_from_disk(app: &AppHandle, state: &PricingState) -> Result<()> {
     let path = get_store_path(app)?;
     
     if path.exists() {
-        match load_encrypted(path) {
+        match load_encrypted(path).await {
             Ok((sync_at, data)) => {
                 *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = sync_at;
                 *state.data.lock().unwrap_or_else(|e| e.into_inner()) = data;
@@ -304,7 +304,7 @@ pub async fn run_sync(
     *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_time.clone());
 
     let path = get_store_path(&app)?;
-    save_encrypted(path, Some(new_time.clone()), &data_guard)?;
+    save_encrypted(path, Some(new_time.clone()), &data_guard).await?;
 
     Ok(new_time)
 }

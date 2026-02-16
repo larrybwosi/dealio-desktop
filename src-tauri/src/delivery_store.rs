@@ -85,7 +85,7 @@ pub async fn reconcile_delivery_command(
     // For now, let's assume we might receive a file path from the Tauri dialog.
     if let Some(path) = file_path {
         // Read file content
-        match std::fs::read(&path) {
+        match tokio::fs::read(&path).await {
             Ok(file_bytes) => {
                  let part = reqwest::multipart::Part::bytes(file_bytes)
                      .file_name(std::path::Path::new(&path).file_name().unwrap_or_default().to_string_lossy().to_string())
