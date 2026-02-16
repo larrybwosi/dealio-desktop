@@ -1,3 +1,10 @@
+## [2.9.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.0...v2.9.1) (2026-02-16)
+
+
+### Bug Fixes
+
+* **build error fix:** fixed the build error fix ([0953002](https://github.com/larrybwosi/dealio-desktop/commit/09530020812803bd11b559daf5d99ab817db7701))
+
 # [2.9.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.8.0...v2.9.0) (2026-02-16)
 
 
