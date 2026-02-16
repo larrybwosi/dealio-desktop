@@ -7,7 +7,7 @@ use axum::{
 use tokio::io::AsyncWriteExt;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
 use local_ip_address::local_ip;
-use std::{fs::File, io::Write, net::SocketAddr, path::PathBuf, sync::OnceLock};
+use std::{net::SocketAddr, path::PathBuf, sync::OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
 
 static DOWNLOAD_PATH: OnceLock<PathBuf> = OnceLock::new();
@@ -33,6 +33,19 @@ async fn handle_upload(
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("uploaded_file.bin");
+
+    // Basic Content Type Validation
+    if let Some(content_type) = &file.metadata.content_type {
+       // Block executable types
+       if content_type.contains("application/x-msdownload") || 
+          content_type.contains("application/x-executable") ||
+          file_name.ends_with(".exe") || 
+          file_name.ends_with(".bat") ||
+          file_name.ends_with(".cmd") ||
+          file_name.ends_with(".sh") {
+            return Html("<h1>Upload Failed: File type not allowed</h1>");
+       }
+    }
     
     if let Some(save_dir) = DOWNLOAD_PATH.get() {
         let path = save_dir.join(safe_file_name);
@@ -496,7 +509,7 @@ pub async fn start_file_server(app: AppHandle) -> Result<String, String> {
         let router = Router::new()
             .route("/", get(show_upload_page))
             .route("/upload", post(handle_upload))
-            .layer(DefaultBodyLimit::max(1024 * 1024 * 1024)) // 1GB limit for security
+            .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB liimit
             .with_state(state);
 
         println!("File server running on http://{}:{}", ip, port);
