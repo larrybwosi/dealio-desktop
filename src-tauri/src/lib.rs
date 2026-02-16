@@ -85,7 +85,7 @@ fn search_products_command(
 ) -> Vec<models::PosProduct> {
     // Get current location from auth state
     let location_id = {
-        let config_guard = auth_state.device_config.lock().unwrap();
+        let config_guard = auth_state.device_config.lock().unwrap_or_else(|e| e.into_inner());
         config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
     };
     product_store::search_local(&state, &location_id, query, category)
@@ -101,7 +101,7 @@ fn search_global_command(
 ) -> models::GlobalSearchResult {
     // 1. Search Products
     let location_id = {
-        let config_guard = auth_state.device_config.lock().unwrap();
+        let config_guard = auth_state.device_config.lock().unwrap_or_else(|e| e.into_inner());
         config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
     };
     
@@ -638,7 +638,7 @@ fn get_products_by_ids_command(
 ) -> Vec<models::PosProduct> {
     // Get current location from auth state
     let location_id = {
-        let config_guard = auth_state.device_config.lock().unwrap();
+        let config_guard = auth_state.device_config.lock().unwrap_or_else(|e| e.into_inner());
         config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_default()
     };
     product_store::get_products_by_ids(&state, &location_id, ids)
@@ -743,7 +743,7 @@ pub fn run() {
             // Try to load products for the configured location if available
             let auth_state_init = app.state::<AuthState>();
             if let Some(location_id) = {
-                let config_guard = auth_state_init.device_config.lock().unwrap();
+                let config_guard = auth_state_init.device_config.lock().unwrap_or_else(|e| e.into_inner());
                 config_guard.as_ref().map(|c| c.location_id.clone())
             } {
                 if let Err(e) = product_store::load_products_from_disk(app.handle(), &state, &location_id) {
@@ -792,7 +792,7 @@ pub fn run() {
             // Start network monitoring
             let auth_state_ref = app.state::<AuthState>();
             let initial_base_url = {
-                let config_guard = auth_state_ref.device_config.lock().unwrap();
+                let config_guard = auth_state_ref.device_config.lock().unwrap_or_else(|e| e.into_inner());
                 config_guard.as_ref().map(|c| c.base_url.clone())
             };
             

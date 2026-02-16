@@ -131,8 +131,8 @@ pub fn load_pricing_from_disk(app: &AppHandle, state: &PricingState) -> Result<(
     if path.exists() {
         match load_encrypted(path) {
             Ok((sync_at, data)) => {
-                *state.last_sync_at.lock().unwrap() = sync_at;
-                *state.data.lock().unwrap() = data;
+                *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = sync_at;
+                *state.data.lock().unwrap_or_else(|e| e.into_inner()) = data;
             },
             Err(e) => eprintln!("[SecureStore] Failed to load pricing: {}", e),
         }
@@ -168,7 +168,7 @@ pub async fn run_sync(
     let clean_base_url = base_url.trim_end_matches('/');
     // Endpoint: /api/v1/pos/pricing OR /api/v1/pos/pricing/sync
     
-    let last_sync = state.last_sync_at.lock().unwrap().clone();
+    let last_sync = state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()).clone();
     
     let target_url = if last_sync.is_some() {
         format!("{}/api/v1/pos/pricing/sync", clean_base_url)
@@ -259,7 +259,7 @@ pub async fn run_sync(
     }
 
     // --- MERGE LOGIC ---
-    let mut data_guard = state.data.lock().unwrap();
+    let mut data_guard = state.data.lock().unwrap_or_else(|e| e.into_inner());
     
     if !metadata.is_delta || metadata.temp_full_sync {
         // Full Sync - Overwrite
@@ -301,7 +301,7 @@ pub async fn run_sync(
 
     // --- SAVE TO DISK SECURELY ---
     let new_time = metadata.synced_at;
-    *state.last_sync_at.lock().unwrap() = Some(new_time.clone());
+    *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_time.clone());
 
     let path = get_store_path(&app)?;
     save_encrypted(path, Some(new_time.clone()), &data_guard)?;
@@ -317,7 +317,7 @@ pub fn resolve_price(
     unit_id: Option<String>, // Explicit Unit ID or None (for base unit implicit)
     is_base_unit: bool
 ) -> Option<f64> {
-    let data = state.data.lock().unwrap();
+    let data = state.data.lock().unwrap_or_else(|e| e.into_inner());
     
     // 1. Identify Applicable Price Lists
     let mut applicable_list_ids = HashSet::new();
@@ -397,5 +397,5 @@ pub fn resolve_price(
 
 // --- 4. Data Access ---
 pub fn get_all_pricing(state: &PricingState) -> PosPricingData {
-    state.data.lock().unwrap().clone()
+    state.data.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }

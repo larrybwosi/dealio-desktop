@@ -85,7 +85,7 @@ impl NotificationState {
     }
 
     pub fn add_notification(&self, notification: AppNotification) {
-        let mut notifications = self.notifications.lock().unwrap();
+        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
         
         // Auto-clear old notifications before adding new one
         self.auto_clear_old(&mut notifications);
@@ -100,7 +100,7 @@ impl NotificationState {
     }
 
     pub fn get_all(&self) -> Vec<AppNotification> {
-        self.notifications.lock().unwrap().iter().cloned().collect()
+        self.notifications.lock().unwrap_or_else(|e| e.into_inner()).iter().cloned().collect()
     }
 
     pub fn get_unread_count(&self) -> usize {
@@ -113,7 +113,7 @@ impl NotificationState {
     }
 
     pub fn mark_read(&self, id: &str) -> bool {
-        let mut notifications = self.notifications.lock().unwrap();
+        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(notification) = notifications.iter_mut().find(|n| n.id == id) {
             notification.read = true;
             return true;
@@ -122,14 +122,14 @@ impl NotificationState {
     }
 
     pub fn mark_all_read(&self) {
-        let mut notifications = self.notifications.lock().unwrap();
+        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
         for notification in notifications.iter_mut() {
             notification.read = true;
         }
     }
 
     pub fn delete_notification(&self, id: &str) -> bool {
-        let mut notifications = self.notifications.lock().unwrap();
+        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(pos) = notifications.iter().position(|n| n.id == id) {
             notifications.remove(pos);
             return true;
@@ -138,7 +138,7 @@ impl NotificationState {
     }
 
     pub fn clear_all(&self) {
-        let mut notifications = self.notifications.lock().unwrap();
+        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
         notifications.clear();
     }
 
@@ -150,7 +150,7 @@ impl NotificationState {
         
         if let Some(value) = store.get("notifications") {
             if let Ok(loaded_notifications) = serde_json::from_value::<Vec<AppNotification>>(value.clone()) {
-                let mut notifications = self.notifications.lock().unwrap();
+                let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
                 notifications.clear();
                 notifications.extend(loaded_notifications);
             }

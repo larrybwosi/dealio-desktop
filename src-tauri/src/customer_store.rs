@@ -128,8 +128,8 @@ pub fn load_customers_from_disk(app: &AppHandle, state: &CustomerState) -> Resul
     if path.exists() {
         match load_encrypted(path) {
             Ok((token, customers)) => {
-                *state.last_sync_token.lock().unwrap() = token;
-                *state.customers.lock().unwrap() = customers;
+                *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = token;
+                *state.customers.lock().unwrap_or_else(|e| e.into_inner()) = customers;
             },
             Err(e) => eprintln!("[SecureStore] Failed to load customers: {}", e),
         }
@@ -168,7 +168,7 @@ pub async fn run_sync(
 
     let clean_base_url = base_url.trim_end_matches('/');
     let target_url = format!("{}/api/v1/pos/customers", clean_base_url);
-    let last_token = state.last_sync_token.lock().unwrap().clone();
+    let last_token = state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()).clone();
     
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
@@ -218,7 +218,7 @@ pub async fn run_sync(
         .context("Failed to parse server response JSON")?;
 
     // --- MERGE LOGIC ---
-    let mut customers_guard = state.customers.lock().unwrap();
+    let mut customers_guard = state.customers.lock().unwrap_or_else(|e| e.into_inner());
     
     let mut customer_map: HashMap<String, PosCustomer> = customers_guard
         .drain(..)
@@ -236,7 +236,7 @@ pub async fn run_sync(
 
     // --- SAVE TO DISK SECURELY ---
     let new_token = res_body.next_sync_token;
-    *state.last_sync_token.lock().unwrap() = Some(new_token.clone());
+    *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_token.clone());
 
     let path = get_store_path(&app)?;
     save_encrypted(path, Some(new_token), &updated_list)?;

@@ -8,6 +8,7 @@ fn test_auth_state_manual_initialization() {
         device_config: Mutex::new(None),
         member_token: Mutex::new(None),
         current_user: Mutex::new(None),
+        client: reqwest::Client::new(),
     };
     
     assert!(state.device_config.lock().unwrap().is_none());
@@ -20,6 +21,7 @@ fn test_get_client_without_config_fails() {
         device_config: Mutex::new(None),
         member_token: Mutex::new(None),
         current_user: Mutex::new(None),
+        client: reqwest::Client::new(),
     };
     
     let result = state.get_client();
@@ -39,6 +41,7 @@ fn test_get_client_with_config_succeeds() {
         device_config: Mutex::new(Some(config)),
         member_token: Mutex::new(None),
         current_user: Mutex::new(None),
+        client: reqwest::Client::new(),
     };
     
     let result = state.get_client();
@@ -59,6 +62,7 @@ fn test_get_client_includes_token() {
         device_config: Mutex::new(Some(config)),
         member_token: Mutex::new(Some("secret-token".to_string())),
         current_user: Mutex::new(None),
+        client: reqwest::Client::new(),
     };
     
     let result = state.get_client();

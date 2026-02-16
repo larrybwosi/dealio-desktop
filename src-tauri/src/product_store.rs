@@ -134,8 +134,8 @@ pub fn load_products_from_disk(app: &AppHandle, state: &ProductState, location_i
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
         if let Ok((last_sync, products)) = data {
-            let mut products_map = state.products_by_location.lock().unwrap();
-            let mut sync_map = state.last_sync_by_location.lock().unwrap();
+            let mut products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
+            let mut sync_map = state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner());
             
             products_map.insert(location_id.to_string(), products);
             sync_map.insert(location_id.to_string(), last_sync);
@@ -181,7 +181,7 @@ pub async fn run_sync(
     let last_sync_time = if force_full_sync {
         None
     } else {
-        state.last_sync_by_location.lock().unwrap()
+        state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner())
             .get(&location_id)
             .and_then(|opt| opt.clone())
     };
@@ -258,7 +258,7 @@ pub async fn run_sync(
 
     // --- MERGE LOGIC FOR THIS LOCATION ---
     let updated_list = {
-        let mut products_map_guard = state.products_by_location.lock().unwrap();
+        let mut products_map_guard = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
         
         // Get existing products for this location, or empty vec
         let existing_products = products_map_guard
@@ -286,7 +286,7 @@ pub async fn run_sync(
     let new_sync_time = sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
     
     // Update sync timestamp for this location
-    state.last_sync_by_location.lock().unwrap()
+    state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner())
         .insert(location_id.clone(), Some(new_sync_time.clone()));
 
     let file_data = (Some(new_sync_time), updated_list);
@@ -304,7 +304,7 @@ pub async fn run_sync(
 // --- 3. Search Logic ---
 // Helper to get products for current location from auth state
 pub fn search_local(state: &ProductState, location_id: &str, query: String, category: String) -> Vec<PosProduct> {
-    let products_map = state.products_by_location.lock().unwrap();
+    let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
     let products = products_map.get(location_id).cloned().unwrap_or_default();
     let query = query.trim().to_lowercase();
     let filter_category = category != "all" && !category.is_empty();
@@ -333,7 +333,7 @@ pub fn search_local(state: &ProductState, location_id: &str, query: String, cate
 }
 
 pub fn get_products_by_ids(state: &ProductState, location_id: &str, ids: Vec<String>) -> Vec<PosProduct> {
-    let products_map = state.products_by_location.lock().unwrap();
+    let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
     let products = products_map.get(location_id).cloned().unwrap_or_default();
     if ids.is_empty() {
         return Vec::new();
@@ -362,7 +362,7 @@ pub async fn switch_location(
     
     // 2. Return cached products immediately (even if empty)
     let cached = {
-        let products_map = state.products_by_location.lock().unwrap();
+        let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
         products_map.get(&new_location_id).cloned().unwrap_or_default()
     };
     

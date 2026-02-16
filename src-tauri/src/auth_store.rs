@@ -31,6 +31,7 @@ pub struct AuthState {
     pub device_config: Mutex<Option<DeviceConfig>>, 
     pub member_token: Mutex<Option<String>>,
     pub current_user: Mutex<Option<MemberProfile>>,
+    pub client: reqwest::Client,
 }
 
 const KEYRING_SERVICE: &str = "dealio-desktop";
@@ -42,10 +43,16 @@ impl AuthState {
         let initial_config = Self::load_from_keyring().or_else(|| Self::load_from_file());
         let initial_token = Self::load_token_from_keyring();
 
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .unwrap_or_default();
+
         Self {
             device_config: Mutex::new(initial_config),
             member_token: Mutex::new(initial_token),
             current_user: Mutex::new(None),
+            client,
         }
     }
 
@@ -130,6 +137,50 @@ impl AuthState {
 
     // --- Helper to get a configured HTTP Client ---
     // This replaces creating Axios instances in React
+
+    pub fn build_request(&self, method: reqwest::Method, path: &str) -> Result<reqwest::RequestBuilder, String> {
+        let (base_url, device_key) = {
+            let config_guard = self.device_config.lock().map_err(|_| "Failed to lock device config")?;
+            let config = config_guard.as_ref().ok_or("Device not configured")?;
+            (config.base_url.clone(), config.device_key.clone())
+        };
+
+        let token = {
+            self.member_token.lock().map_err(|_| "Failed to lock token store")?.clone()
+        };
+
+        let member_id = {
+             let user_guard = self.current_user.lock().map_err(|_| "Failed to lock user store")?;
+             user_guard.as_ref().map(|u| u.id.clone())
+        };
+
+        let full_url = if path.starts_with("http") {
+             path.to_string()
+        } else {
+             format!("{}/{}", base_url.trim_end_matches('/'), path.trim_start_matches('/'))
+        };
+
+        let mut request_builder = self.client.request(method, &full_url);
+        
+        let mut key_val = HeaderValue::from_str(&device_key).map_err(|e| e.to_string())?;
+        key_val.set_sensitive(true);
+        request_builder = request_builder.header("X-Device-Api-Key", key_val);
+
+        if let Some(t) = token {
+             let auth_val = format!("Bearer {}", t);
+             let mut val = HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?;
+             val.set_sensitive(true);
+             request_builder = request_builder.header(AUTHORIZATION, val);
+        }
+
+        if let Some(mid) = member_id {
+             let val = HeaderValue::from_str(&mid).map_err(|e| e.to_string())?;
+             request_builder = request_builder.header("X-Member-Id", val);
+        }
+
+        Ok(request_builder)
+    }
+
     pub fn get_client(&self) -> Result<(reqwest::Client, String), String> {
         let config_guard = self.device_config.lock().map_err(|_| "Failed to lock config")?;
         let config = config_guard.as_ref().ok_or("Device not initialized")?;
@@ -139,26 +190,27 @@ impl AuthState {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
         
-        // Add Device Key Header
         if let Ok(val) = HeaderValue::from_str(&config.device_key) {
             headers.insert("X-Device-Api-Key", val);
         }
 
-        // Add Bearer Token if logged in
         if let Some(token) = token_guard.as_ref() {
             let auth_val = format!("Bearer {}", token);
             if let Ok(val) = HeaderValue::from_str(&auth_val) {
                 headers.insert(AUTHORIZATION, val);
             }
         }
-
+        
+        // Return a fresh client for backward compatibility, but strictly calls should migrate to build_request
         let client = reqwest::Client::builder()
             .default_headers(headers)
+            .timeout(std::time::Duration::from_secs(30))
             .build()
             .map_err(|e| e.to_string())?;
 
         Ok((client, config.base_url.clone()))
     }
+
 
     fn load_token_from_keyring() -> Option<String> {
         let entry = Entry::new(KEYRING_SERVICE, "member-token").ok()?;

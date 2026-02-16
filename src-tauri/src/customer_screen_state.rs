@@ -27,16 +27,16 @@ impl CustomerScreenState {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.config.lock().unwrap().enabled
+        self.config.lock().unwrap_or_else(|e| e.into_inner()).enabled
     }
 
     pub fn set_enabled(&self, enabled: bool) {
-        let mut config = self.config.lock().unwrap();
+        let mut config = self.config.lock().unwrap_or_else(|e| e.into_inner());
         config.enabled = enabled;
     }
 
     pub fn get_config(&self) -> CustomerScreenConfig {
-        self.config.lock().unwrap().clone()
+        self.config.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     fn get_store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -79,7 +79,7 @@ impl CustomerScreenState {
         let config: CustomerScreenConfig = serde_json::from_str(&json)
             .map_err(|e| format!("Failed to deserialize config: {}", e))?;
 
-        let mut current_config = self.config.lock().unwrap();
+        let mut current_config = self.config.lock().unwrap_or_else(|e| e.into_inner());
         *current_config = config;
 
         Ok(())

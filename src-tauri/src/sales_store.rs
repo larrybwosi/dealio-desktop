@@ -7,7 +7,6 @@ use crate::models::{QueuedSale, SaleStatus, SaleResponse};
 use crate::auth_store::AuthState;
 use crate::shift_store::ShiftState;
 use anyhow::{Result, Context};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use reqwest::StatusCode;
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
@@ -144,7 +143,7 @@ fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
 pub fn init_state(app: &AppHandle, state: &SalesState) {
     match load_queue_encrypted(app) {
         Ok(q) => {
-            *state.queue.lock().unwrap() = q;
+            *state.queue.lock().unwrap_or_else(|e| e.into_inner()) = q;
             info!("[SalesStore] Loaded pending sales queue.");
         }
         Err(e) => error!("[SalesStore] Failed to load queue: {}", e),
@@ -200,7 +199,7 @@ pub async fn process_sale(
     if is_interactive_payment {
         info!("[SalesStore] Attempting immediate sync for interactive payment: {}", payment_method);
         
-        match push_single_sale(&base_url, &location_id, &payload, Some(device_key.clone()), token.clone(), member_id.clone()).await {
+        match push_single_sale(auth_state, &location_id, &payload).await {
             Ok(server_resp) => {
                 // Success! Return the server response so the UI can show Paybill/Till instructions
                 return Ok(SaleResponse {
@@ -235,7 +234,7 @@ pub async fn process_sale(
     };
 
     {
-        let mut q = state.queue.lock().unwrap();
+        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.push(new_sale.clone());
         if let Err(e) = save_queue_encrypted(&app, &q) {
             error!("CRITICAL: Failed to persist sales queue: {}", e);
@@ -252,16 +251,16 @@ pub async fn process_sale(
     tauri::async_runtime::spawn(async move {
         info!("[Background] Starting sync for sale: {}", sale_id_clone);
         
+        // Re-acquire auth_state from app handle
+        let auth_state = app_handle.state::<AuthState>();
+
         let sync_result = push_single_sale(
-            &base_url, 
+            &auth_state,
             &location_id, 
-            &payload_clone, 
-            Some(device_key),
-            token,
-            member_id
+            &payload_clone
         ).await;
 
-        let mut q = queue_ref.lock().unwrap();
+        let mut q = queue_ref.lock().unwrap_or_else(|e| e.into_inner());
         
         match sync_result {
             Ok(_) => {
@@ -296,26 +295,21 @@ pub async fn sync_pending_sales(
     state: &SalesState,
     auth_state: &AuthState
 ) -> Result<usize> {
-    let (base_url, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        match config_guard.as_ref() {
-            Some(c) => (c.base_url.clone(), Some(c.device_key.clone())),
-            None => (String::new(), None)
-        }
+    // Simplified: No longer need to pre-extract auth data here for push_single_sale
+    // but preserving strict checks for base_url logic if needed by other parts, 
+    // although push_single_sale handles it internally now.
+    // We'll keep the empty check optimization but use the helper accessor.
+    
+    let has_config = {
+        auth_state.device_config.lock().map_or(false, |c| c.is_some())
     };
 
-    let (token, member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
-    };
-
-    if base_url.is_empty() || device_key.is_none() {
+    if !has_config {
         return Ok(0);
     }
 
     let pending_items: Vec<QueuedSale> = {
-        let q = state.queue.lock().unwrap();
+        let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.iter()
             .filter(|s| s.status != SaleStatus::Failed && s.retry_count < 20) // Enterprise: Max Retry Limit
             .cloned()
@@ -336,12 +330,9 @@ pub async fn sync_pending_sales(
         }
 
         match push_single_sale(
-            &base_url, 
+            auth_state,
             &sale.location_id, 
-            &sale.transaction_data, 
-            device_key.clone(), 
-            token.clone(),
-            member_id.clone()
+            &sale.transaction_data
         ).await {
             Ok(_) => {
                 ids_to_remove.push(sale.id);
@@ -353,7 +344,7 @@ pub async fn sync_pending_sales(
                     Some(SalesError::ValidationError(_)) => {
                         // Fatal error: Mark as failed so we stop retrying
                         error!("[Sync] Fatal validation error for {}: {}. Marking FAILED.", sale.id, e);
-                        let mut q = state.queue.lock().unwrap();
+                        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
                          if let Some(item) = q.iter_mut().find(|x| x.id == sale.id) {
                             item.status = SaleStatus::Failed;
                             item.last_error = Some(format!("Fatal: {}", e));
@@ -366,7 +357,7 @@ pub async fn sync_pending_sales(
     }
 
     if success_count > 0 || !ids_to_remove.is_empty() {
-        let mut q = state.queue.lock().unwrap();
+        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.retain(|s| !ids_to_remove.contains(&s.id));
         let _ = save_queue_encrypted(&app, &q);
     }
@@ -376,47 +367,24 @@ pub async fn sync_pending_sales(
 
 // --- Helper: Network Request ---
 async fn push_single_sale(
-    base_url: &str, 
+    auth_state: &AuthState,
     location_id: &str, 
-    payload: &serde_json::Value, 
-    device_key: Option<String>,
-    token: Option<String>,
-    member_id: Option<String> 
+    payload: &serde_json::Value
 ) -> Result<serde_json::Value> {
     
-    let clean_base = base_url.trim_end_matches('/');
-    // Check if this is an M-Pesa sale to adjust timeout
-    let url = format!("{}/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", clean_base, location_id);
+    // Check if this is an M-Pesa sale to adjust timeout (handled by shared client timeout)
+    let url_path = format!("/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", location_id);
 
-    // --- BUILD HEADERS ---
-    let mut headers = HeaderMap::new();
+    // Build request using shared client
+    // Note: SalesError::AuthError mapping
+    let req = auth_state.build_request(reqwest::Method::POST, &url_path)
+        .map_err(|e| SalesError::AuthError(e))?
+        .json(payload);
     
-    if let Some(key) = device_key {
-        let mut val = HeaderValue::from_str(&key).map_err(|_| SalesError::AuthError("Invalid Device Key chars".into()))?;
-        val.set_sensitive(true);
-        headers.insert("X-Device-Api-Key", val);
-    }
-
-    if let Some(t) = token {
-        let auth_val = format!("Bearer {}", t);
-        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| SalesError::AuthError("Invalid Token chars".into()))?;
-        val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
-    }
-
-    if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| SalesError::AuthError("Invalid Member ID chars".into()))?;
-        headers.insert("X-Member-Id", val);
-    }
-
-    // Build client
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
-        .timeout(Duration::from_secs(45)) 
-        .build()?;
-
-    let resp = client.post(&url)
-        .json(payload)
+    // We specifically want a longer timeout for sales processing if needed, 
+    // but the shared client has 30s. If we need 45s, we might need a per-request timeout override
+    // which reqwest supports on the RequestBuilder.
+    let resp = req.timeout(Duration::from_secs(45))
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;
@@ -455,15 +423,14 @@ pub async fn get_sales_history_command(
     auth_state: State<'_, AuthState>,
     location_id: Option<String>
 ) -> Result<Vec<serde_json::Value>, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
-    
     // Construct URL with optional locationId
-    let mut url = format!("{}/api/v1/pos/sale", base_url.trim_end_matches('/'));
+    let mut url_path = "/api/v1/pos/sale".to_string();
     if let Some(loc_id) = location_id {
-        url = format!("{}?locationId={}", url, loc_id);
+        url_path = format!("{}?locationId={}", url_path, loc_id);
     }
 
-    let res = client.get(&url)
+    let res = auth_state.build_request(reqwest::Method::GET, &url_path)
+        .map_err(|e| e)?
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -481,10 +448,10 @@ pub async fn record_payment_command(
     auth_state: State<'_, AuthState>,
     payload: serde_json::Value
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
-    let url = format!("{}/api/v1/pos/sale/payments", base_url.trim_end_matches('/'));
+    let url_path = "/api/v1/pos/sale/payments";
 
-    let res = client.post(&url)
+    let res = auth_state.build_request(reqwest::Method::POST, url_path)
+        .map_err(|e| e)?
         .json(&payload)
         .send()
         .await
@@ -507,8 +474,7 @@ pub async fn initiate_mpesa_payment_command(
     amount: f64,
     sale_number: String
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e: String| e)?;
-    let url = format!("{}/api/mpesa/initiate", base_url.trim_end_matches('/'));
+    let url_path = "/api/mpesa/initiate";
 
     let payload = serde_json::json!({
         "phoneNumber": phone_number,
@@ -516,7 +482,8 @@ pub async fn initiate_mpesa_payment_command(
         "saleNumber": sale_number
     });
 
-    let res = client.post(&url)
+    let res = auth_state.build_request(reqwest::Method::POST, url_path)
+        .map_err(|e| e)?
         .json(&payload)
         .send()
         .await
@@ -533,7 +500,7 @@ pub async fn initiate_mpesa_payment_command(
 }
 
 pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
-    state.queue.lock().unwrap().clone()
+    state.queue.lock().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 /// Retry a single sale by ID
@@ -543,23 +510,11 @@ pub async fn retry_single_sale(
     auth_state: &AuthState,
     sale_id: String,
 ) -> Result<bool> {
-    let (base_url, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        match config_guard.as_ref() {
-            Some(c) => (c.base_url.clone(), Some(c.device_key.clone())),
-            None => return Err(anyhow::anyhow!("Device not configured")),
-        }
-    };
-
-    let (token, member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
-    };
+    // Find the sale in the queue
 
     // Find the sale in the queue
     let sale_data = {
-        let q = state.queue.lock().unwrap();
+        let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.iter().find(|s| s.id == sale_id).cloned()
     };
 
@@ -567,17 +522,14 @@ pub async fn retry_single_sale(
 
     // Attempt to sync
     match push_single_sale(
-        &base_url,
+        auth_state,
         &sale.location_id,
         &sale.transaction_data,
-        device_key,
-        token,
-        member_id,
     ).await {
         Ok(_) => {
             info!("[SalesStore] Sale {} retried successfully.", sale_id);
             // Remove from queue
-            let mut q = state.queue.lock().unwrap();
+            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
             q.retain(|s| s.id != sale_id);
             let _ = save_queue_encrypted(&app, &q);
             Ok(true)
@@ -585,7 +537,7 @@ pub async fn retry_single_sale(
         Err(e) => {
             warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
             // Update retry count
-            let mut q = state.queue.lock().unwrap();
+            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
             if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
                 item.retry_count += 1;
                 item.last_error = Some(e.to_string());
@@ -601,7 +553,7 @@ pub async fn retry_single_sale(
 
 /// Check for sales older than specified days
 pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap();
+    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -617,7 +569,7 @@ pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<Q
 
 /// Check for repeatedly failed sales
 pub fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap();
+    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     q.iter()
         .filter(|s| s.retry_count >= retry_threshold)
         .cloned()
@@ -626,7 +578,7 @@ pub fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<Queue
 
 /// Delete a sale from the queue
 pub fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -> Result<bool> {
-    let mut q = state.queue.lock().unwrap();
+    let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     let initial_len = q.len();
     q.retain(|s| s.id != sale_id);
     
@@ -644,51 +596,16 @@ pub async fn scan_transaction_qr(
     auth_state: &AuthState,
     qr_code: String,
 ) -> Result<serde_json::Value> {
-    let (base_url, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
-        (config.base_url.clone(), config.device_key.clone())
-    };
+    // Url match: /api/v1/pos/transaction/scan
+    let url_path = "/api/v1/pos/transaction/scan";
 
-    let (token, member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
-    };
-
-    let clean_base = base_url.trim_end_matches('/');
-    // Url match: /api/v1/pos/transaction/scan (Correcting 'transation' to 'transaction')
-    let url = format!("{}/api/v1/pos/transaction/scan", clean_base);
-
-    // --- BUILD HEADERS ---
-    let mut headers = HeaderMap::new();
-    
-    let mut val = HeaderValue::from_str(&device_key).map_err(|_| SalesError::AuthError("Invalid Device Key chars".into()))?;
-    val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
-
-    if let Some(t) = token {
-        let auth_val = format!("Bearer {}", t);
-        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| SalesError::AuthError("Invalid Token chars".into()))?;
-        val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
-    }
-
-    if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| SalesError::AuthError("Invalid Member ID chars".into()))?;
-        headers.insert("X-Member-Id", val);
-    }
-
-    // Build client
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
-        .timeout(Duration::from_secs(30)) 
-        .build()?;
+    let req = auth_state.build_request(reqwest::Method::POST, url_path)
+        .map_err(|e| SalesError::AuthError(e))?;
 
     let payload = serde_json::json!({ "code": qr_code });
 
-    let resp = client.post(&url)
-        .json(&payload)
+    let resp = req.json(&payload)
+        .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;
@@ -705,7 +622,7 @@ pub async fn scan_transaction_qr(
 }
 
 pub fn search_local(state: &SalesState, query: String) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap();
+    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     let lower_query = query.to_lowercase();
     
     q.iter()
@@ -723,48 +640,13 @@ pub async fn create_order(
     location_id: String,
     order_payload: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let (base_url, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
-        (config.base_url.clone(), config.device_key.clone())
-    };
+    let url_path = format!("/api/v1/pos/orders?locationId={}", location_id);
 
-    let (token, member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
-    };
+    let req = auth_state.build_request(reqwest::Method::POST, &url_path)
+        .map_err(|e| SalesError::AuthError(e))?;
 
-    let clean_base = base_url.trim_end_matches('/');
-    let url = format!("{}/api/v1/pos/orders?locationId={}", clean_base, location_id);
-
-    // --- BUILD HEADERS ---
-    let mut headers = HeaderMap::new();
-    
-    let mut val = HeaderValue::from_str(&device_key).map_err(|_| SalesError::AuthError("Invalid Device Key chars".into()))?;
-    val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
-
-    if let Some(t) = token {
-        let auth_val = format!("Bearer {}", t);
-        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| SalesError::AuthError("Invalid Token chars".into()))?;
-        val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
-    }
-
-    if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| SalesError::AuthError("Invalid Member ID chars".into()))?;
-        headers.insert("X-Member-Id", val);
-    }
-
-    // Build client
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
+    let resp = req.json(&order_payload)
         .timeout(Duration::from_secs(30))
-        .build()?;
-
-    let resp = client.post(&url)
-        .json(&order_payload)
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;

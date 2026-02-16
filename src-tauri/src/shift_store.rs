@@ -114,7 +114,7 @@ pub fn close_current_shift(state: &ShiftState, actual_count: f64) -> Result<Shif
 }
 
 pub fn get_shift_status(state: &ShiftState) -> Option<Shift> {
-    let lock = state.current_shift.lock().unwrap();
+    let lock = state.current_shift.lock().unwrap_or_else(|e| e.into_inner());
     lock.clone()
 }
 
@@ -180,7 +180,7 @@ pub async fn sync_pending_shifts(
     };
 
     let shift_opt = {
-        let lock = state.current_shift.lock().unwrap();
+        let lock = state.current_shift.lock().unwrap_or_else(|e| e.into_inner());
         lock.clone()
     };
 
