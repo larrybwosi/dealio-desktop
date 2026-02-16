@@ -26,7 +26,7 @@ export function usePdfActions() {
                 } else {
                     toast.error('Pop-up blocked. Please allow pop-ups to print.');
                 }
-            } catch (e) {
+            } catch {
                 toast.error('Failed to generate web print preview');
             }
             return;

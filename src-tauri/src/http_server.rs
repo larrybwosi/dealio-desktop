@@ -52,7 +52,7 @@ async fn handle_upload(
         let path = save_dir.join(safe_file_name);
         match tokio::fs::File::create(&path).await {
             Ok(mut f) => {
-                if let Ok(_) = f.write_all(&file.contents).await {
+                if f.write_all(&file.contents).await.is_ok() {
                     info!("File saved to: {:?}", path);
                     // Emit event to frontend
                     let _ = state.app.emit("file-received", &file_name);

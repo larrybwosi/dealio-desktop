@@ -40,7 +40,7 @@ const KEYRING_USER: &str = "device-config";
 impl AuthState {
     pub fn new() -> Self {
         // Try keyring first, then file
-        let initial_config = Self::load_from_keyring().or_else(|| Self::load_from_file());
+        let initial_config = Self::load_from_keyring().or_else(Self::load_from_file);
         let initial_token = Self::load_token_from_keyring();
 
         let client = reqwest::Client::builder()
@@ -87,13 +87,6 @@ impl AuthState {
         Ok(())
     }
 
-    fn save_to_file(config: &DeviceConfig) -> Result<(), String> {
-        let path = Self::get_config_path().ok_or("Could not determine config path")?;
-
-        let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
-        std::fs::write(&path, json).map_err(|e| e.to_string())?;
-        Ok(())
-    }
 
     fn load_from_keyring() -> Option<DeviceConfig> {
         let entry = match Entry::new(KEYRING_SERVICE, KEYRING_USER) {
@@ -142,24 +135,6 @@ impl AuthState {
         Ok(())
     }
 
-    fn save_to_keyring(config: &DeviceConfig) -> Result<(), String> {
-        // 1. Try Keyring
-        let keyring_result = (|| -> Result<(), String> {
-            let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
-            let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
-            entry.set_password(&json).map_err(|e| e.to_string())?;
-            Ok(())
-        })();
-
-        if let Err(e) = keyring_result {
-            eprintln!("[AuthStore] Keyring save failed: {}. Falling back to file.", e);
-        }
-
-        // 2. ALWAYS Save to File as Backup
-        Self::save_to_file(config)?;
-        
-        Ok(())
-    }
 
     // --- Helper to get a configured HTTP Client ---
     // This replaces creating Axios instances in React

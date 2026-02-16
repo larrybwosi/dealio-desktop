@@ -23,8 +23,9 @@ import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
-import { usePDF } from '@react-pdf/renderer'; 
+// import { usePDF } from '@react-pdf/renderer'; 
 import { cn } from '@/lib/utils';
+import { ReceiptPreviewWrapper } from './pos/receipt-preview-wrapper';
 
 // --- Types ---
 interface ReceiptDialogProps {
@@ -198,44 +199,6 @@ const ActionPanel = ({
   );
 };
 
-// --- Sub-component: Receipt Preview Wrapper ---
-// Uses usePDF hook for better control over loading state and to prevent glitches.
-// We render an iframe with the blob URL.
-const ReceiptPreviewWrapper = ({ document }: { document: React.ReactElement<any> | null }) => {
-  const [instance, update] = usePDF({ document: document as any });
-
-  useEffect(() => {
-    update(document as any);
-  }, [document, update]);
-
-  if (instance.loading) {
-    return (
-      <div className="flex h-full items-center justify-center flex-col gap-3 animate-pulse">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <p className="text-sm text-muted-foreground font-medium">Generating Preview...</p>
-      </div>
-    );
-  }
-
-  if (instance.error) {
-    return (
-      <div className="flex h-full items-center justify-center flex-col gap-2 text-destructive">
-        <p className="font-bold">Error generating PDF preview</p>
-        <p className="text-xs max-w-[200px] text-center">{instance.error}</p>
-      </div>
-    );
-  }
-
-  return (
-    <iframe
-      src={instance.url || ''}
-      className="w-full h-full shadow-2xl rounded-lg border border-border/50 bg-white"
-      title="Receipt Preview"
-      style={{ border: 'none' }}
-    />
-  );
-};
-
 // --- Main Component ---
 export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: ReceiptDialogProps) {
   const settings = usePosStore(state => state.settings);
@@ -313,10 +276,6 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             </div>
 
             <div className="flex-1 w-full h-full relative p-6 flex items-center justify-center">
-               {/* 
-                 Using usePDF hook for better control over loading state and to prevent glitches.
-                 We render an iframe with the blob URL.
-               */}
                <ReceiptPreviewWrapper 
                  document={DocumentInstance} 
                />

@@ -1,5 +1,3 @@
-use std::fs;
-use std::process::Command;
 use tauri::{AppHandle, Manager, Runtime};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -8,22 +6,11 @@ use crate::models::PrinterError;
 // use crate::print_system_receipt;
 
 // Define the jobs you want to support
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PrinterSettings {
     pub receipt_printer: Option<String>,
     pub kitchen_printer: Option<String>,
     pub bar_printer: Option<String>,
-}
-
-
-impl Default for PrinterSettings {
-    fn default() -> Self {
-        Self {
-            receipt_printer: None,
-            kitchen_printer: None,
-            bar_printer: None,
-        }
-    }
 }
 
 // Helper to get the path where we save settings
@@ -40,11 +27,10 @@ fn get_settings_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
 pub async fn get_system_printers() -> Result<Vec<String>, String> {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
         let output = tokio::process::Command::new("powershell")
-            .args(&["-Command", "Get-Printer | Select-Object -ExpandProperty Name"])
+            .args(["-Command", "Get-Printer | Select-Object -ExpandProperty Name"])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .await
@@ -128,7 +114,7 @@ pub async fn print_job(
     // but we need 'app' again for step 3.
     let config = get_printer_config(app.clone()) 
         .await
-        .map_err(|e| PrinterError::SystemError(e))?;
+        .map_err(PrinterError::SystemError)?;
     
     // 2. Determine which printer to use based on job_type
     let target_printer = match job_type.as_str() {

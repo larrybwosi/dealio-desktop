@@ -67,8 +67,8 @@ pub fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<St
 
                         if string_buffer.contains('\n') {
                             let parts: Vec<&str> = string_buffer.split('\n').collect();
-                            for i in 0..parts.len() - 1 {
-                                let code = parts[i].trim();
+                            for part in parts.iter().take(parts.len() - 1) {
+                                let code = part.trim();
                                 if !code.is_empty() {
                                     println!("[Scanner] Code detected: {}", code);
                                     let _ = app.emit("scanner-data", ScanPayload { message: code.to_string() });

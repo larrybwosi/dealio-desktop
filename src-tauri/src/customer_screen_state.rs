@@ -1,18 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CustomerScreenConfig {
     pub enabled: bool,
-}
-
-impl Default for CustomerScreenConfig {
-    fn default() -> Self {
-        Self { enabled: false }
-    }
 }
 
 pub struct CustomerScreenState {

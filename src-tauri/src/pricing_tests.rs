@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::models::{ServerPricingResponse, ServerPriceListItem};
+    use crate::models::ServerPricingResponse;
     use serde_json::json;
 
     #[test]

@@ -96,7 +96,7 @@ export default function StockTransferCreate() {
   // --- Logic to normalize variants from a product ---
   const getProductVariants = (product: PosProduct): ProductVariant[] => {
     // Handle potential snake_case if backend isn't strictly typed
-    const rawVariants = product.variants || (product as any).variants || [];
+    const rawVariants = product.variants || [];
     
     // Map existing variants
     let variants: ProductVariant[] = rawVariants.map((v: any) => ({

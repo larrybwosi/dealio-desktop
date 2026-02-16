@@ -490,7 +490,7 @@ fn open_cash_drawer(port_name: String) -> Result<String, String> {
     {
         Ok(mut port) => {
             // Write the kick code to the printer
-            match port.write(&kick_code) {
+            match port.write_all(&kick_code) {
                 Ok(_) => Ok("Drawer signal sent".into()),
                 Err(e) => Err(format!("Failed to write to printer: {}", e)),
             }

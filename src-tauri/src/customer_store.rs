@@ -263,9 +263,9 @@ pub fn search_local(state: &CustomerState, query: String) -> Vec<PosCustomer> {
 
     customers.iter().filter(|c| {
         let matches_name = c.name.to_lowercase().contains(&query);
-        let matches_phone = c.phone.as_ref().map_or(false, |p| p.contains(&query));
-        let matches_email = c.email.as_ref().map_or(false, |e| e.to_lowercase().contains(&query));
-        let matches_company = c.company.as_ref().map_or(false, |comp| comp.to_lowercase().contains(&query));
+        let matches_phone = c.phone.as_ref().is_some_and(|p| p.contains(&query));
+        let matches_email = c.email.as_ref().is_some_and(|e| e.to_lowercase().contains(&query));
+        let matches_company = c.company.as_ref().is_some_and(|comp| comp.to_lowercase().contains(&query));
 
         matches_name || matches_phone || matches_email || matches_company
     })

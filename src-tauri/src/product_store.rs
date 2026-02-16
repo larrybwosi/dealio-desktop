@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs; // Keep std::fs for synchronous startup logic
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
@@ -322,7 +321,7 @@ pub fn search_local(state: &ProductState, location_id: &str, query: String, cate
         let matches_variant = p.variants.iter().any(|v| {
             v.sku.to_lowercase().contains(&query) || 
             v.variant_name.to_lowercase().contains(&query) ||
-            v.barcode.as_ref().map_or(false, |b| b.to_lowercase().contains(&query))
+            v.barcode.as_ref().is_some_and(|b| b.to_lowercase().contains(&query))
         });
 
         matches_product_name || matches_variant

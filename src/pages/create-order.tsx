@@ -597,8 +597,7 @@ export default function CreateOrderPage() {
       .filter((i): i is { variantId: string; unitId: string | null; isBaseUnit: boolean } => i !== null);
   }, [items]);
 
-  //@ts-expect-error isLoading is not used
-  const { priceMap, isLoading: isPriceMapLoading, isFetching: isPriceMapFetching } = useBatchPricing(
+  const { priceMap, isFetching: isPriceMapFetching } = useBatchPricing(
     batchPricingItems,
     customerId
   );

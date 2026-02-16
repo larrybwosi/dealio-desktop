@@ -34,7 +34,7 @@ function OrderSuccessView({
       const fileName = `Invoice_${safeOrderNum}.pdf`;
 
       await processFileDownload(blob, fileName, loadingToastId);
-    } catch (error) {
+    } catch {
       toast.error('Download failed', {
         description: 'Please try again or contact support.',
         id: loadingToastId

@@ -27,7 +27,7 @@ pub fn get_or_create_key(key_name: &str) -> Result<[u8; 32], String> {
             let mut new_key = [0u8; 32];
             rand::thread_rng().fill_bytes(&mut new_key);
             
-            let encoded_key = general_purpose::STANDARD.encode(&new_key);
+            let encoded_key = general_purpose::STANDARD.encode(new_key);
             
             entry.set_password(&encoded_key).map_err(|e| e.to_string())?;
             

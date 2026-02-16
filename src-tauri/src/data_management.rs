@@ -1,4 +1,3 @@
-use std::fs;
 use tauri::{AppHandle, Manager};
 use keyring::Entry;
 use log::{info, error, warn};

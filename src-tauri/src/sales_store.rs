@@ -16,7 +16,6 @@ use sha2::{Sha256, Digest};
 use rand::RngCore;
 use log::{info, error, warn}; // Enterprise logging
 use thiserror::Error; // For custom error types
-use urlencoding;
 
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
 static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
@@ -315,7 +314,7 @@ pub async fn sync_pending_sales(
     // We'll keep the empty check optimization but use the helper accessor.
     
     let has_config = {
-        auth_state.device_config.lock().map_or(false, |c| c.is_some())
+        auth_state.device_config.lock().is_ok_and(|c| c.is_some())
     };
 
     if !has_config {
@@ -373,7 +372,7 @@ pub async fn sync_pending_sales(
     if success_count > 0 || !ids_to_remove.is_empty() {
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.retain(|s| !ids_to_remove.contains(&s.id));
-        let _ = save_queue_encrypted(&app, &q);
+        let _ = save_queue_encrypted(&app, &q).await;
     }
 
     Ok(success_count)
@@ -393,7 +392,7 @@ async fn push_single_sale(
     // Build request using shared client
     // Note: SalesError::AuthError mapping
     let req = auth_state.build_request(reqwest::Method::POST, &url_path)
-        .map_err(|e| SalesError::AuthError(e))?
+        .map_err(SalesError::AuthError)?
         .json(payload);
     
     // We specifically want a longer timeout for sales processing if needed, 
@@ -445,8 +444,7 @@ pub async fn get_sales_history_command(
         url_path = format!("{}?locationId={}", url_path, encoded_loc);
     }
 
-    let res = auth_state.build_request(reqwest::Method::GET, &url_path)
-        .map_err(|e| e)?
+    let res = auth_state.build_request(reqwest::Method::GET, &url_path)?
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -466,8 +464,7 @@ pub async fn record_payment_command(
 ) -> Result<serde_json::Value, String> {
     let url_path = "/api/v1/pos/sale/payments";
 
-    let res = auth_state.build_request(reqwest::Method::POST, url_path)
-        .map_err(|e| e)?
+    let res = auth_state.build_request(reqwest::Method::POST, url_path)?
         .json(&payload)
         .send()
         .await
@@ -498,8 +495,7 @@ pub async fn initiate_mpesa_payment_command(
         "saleNumber": sale_number
     });
 
-    let res = auth_state.build_request(reqwest::Method::POST, url_path)
-        .map_err(|e| e)?
+    let res = auth_state.build_request(reqwest::Method::POST, url_path)?
         .json(&payload)
         .send()
         .await
@@ -623,7 +619,7 @@ pub async fn scan_transaction_qr(
     let url_path = "/api/v1/pos/transaction/scan";
 
     let req = auth_state.build_request(reqwest::Method::POST, url_path)
-        .map_err(|e| SalesError::AuthError(e))?;
+        .map_err(SalesError::AuthError)?;
 
     let payload = serde_json::json!({ "code": qr_code });
 
@@ -667,7 +663,7 @@ pub async fn create_order(
     let url_path = format!("/api/v1/pos/orders?locationId={}", encoded_loc);
 
     let req = auth_state.build_request(reqwest::Method::POST, &url_path)
-        .map_err(|e| SalesError::AuthError(e))?;
+        .map_err(SalesError::AuthError)?;
 
     let resp = req.json(&order_payload)
         .timeout(Duration::from_secs(30))

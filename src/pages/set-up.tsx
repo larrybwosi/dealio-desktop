@@ -109,7 +109,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
       await setDeviceKey(apiKey);
       setIsValidating(false);
       onNext(apiKey);
-    } catch (err) {
+    } catch {
       setIsValidating(false);
       setError('Failed to initialize connection');
     }
