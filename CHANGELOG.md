@@ -1,3 +1,15 @@
+# [2.9.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.8.0...v2.9.0) (2026-02-16)
+
+
+### Bug Fixes
+
+* **backend vulnerability:** shared HTTP Client and Mutex Poisoning ([aeea3cc](https://github.com/larrybwosi/dealio-desktop/commit/aeea3ccd8be6a59bef5c3faa5453d28063018ee0))
+
+
+### Features
+
+* **receipt preview:** updated the receipt review to use react pdf for this to work in prod ([a91502e](https://github.com/larrybwosi/dealio-desktop/commit/a91502ef5ce7d8f6671736cb53421e8f4d0fa6bd))
+
 # [2.8.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.7.0...v2.8.0) (2026-02-15)
 
 
