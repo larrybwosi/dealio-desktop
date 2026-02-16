@@ -235,7 +235,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   // Document Instance
   const DocumentInstance = useMemo(() => {
     if (!formattedOrder) return null;
-    return <ReceiptPdfDocument order={formattedOrder} settings={settings} qrCodeUrl={qrCodePdfUrl} />;
+    return <ReceiptPdfDocument order={formattedOrder} settings={settings} qrCodeUrl={qrCodePdfUrl} branchName={useAuthStore.getState().currentLocation?.name} />;
   }, [formattedOrder, settings, qrCodePdfUrl]);
 
   if (!formattedOrder) return null;

@@ -8,17 +8,17 @@ const createStyles = (config: ReceiptConfig) =>
     page: {
       flexDirection: "column",
       backgroundColor: config.backgroundColor,
-      padding: config.padding,
+      padding: config.padding * 0.5, // Reduced padding
       width: config.width,
       minHeight: "auto",
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2, // Reduced base font size
       fontFamily: "Helvetica",
     },
     header: {
       alignItems: config.logoPosition === "left" ? "flex-start" : 
                 config.logoPosition === "right" ? "flex-end" : "center",
-      marginBottom: config.spacing * 2,
-      paddingBottom: config.spacing,
+      marginBottom: config.spacing, // Reduced spacing
+      paddingBottom: config.spacing * 0.5,
       ...(config.showDivider && {
         borderBottomWidth: config.dividerWidth,
         borderBottomColor: config.primaryColor,
@@ -26,62 +26,62 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     companyName: {
-      fontSize: config.titleSize,
+      fontSize: config.titleSize - 2,
       fontWeight: "bold",
       color: config.primaryColor,
-      marginBottom: 2,
+      marginBottom: 1,
       textAlign: config.logoPosition,
       fontFamily: "Helvetica-Bold",
     },
     companyDetails: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       textAlign: config.logoPosition,
       marginBottom: 1,
     },
     invoiceTitle: {
-      fontSize: config.headerSize,
+      fontSize: config.headerSize - 2,
       fontWeight: "bold",
       color: config.primaryColor,
-      marginTop: config.spacing,
-      marginBottom: config.spacing,
+      marginTop: config.spacing * 0.5,
+      marginBottom: config.spacing * 0.5,
       textAlign: config.logoPosition,
       fontFamily: "Helvetica-Bold",
     },
     invoiceDetails: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       marginBottom: 1,
       textAlign: config.logoPosition,
     },
     section: {
-      marginBottom: config.spacing * 1.5,
+      marginBottom: config.spacing,
     },
     sectionTitle: {
-      fontSize: config.headerSize - 2,
+      fontSize: config.headerSize - 4,
       fontWeight: "bold",
       color: config.primaryColor,
-      marginBottom: config.spacing,
+      marginBottom: config.spacing * 0.5,
       textAlign: "left",
       textTransform: "uppercase",
       fontFamily: "Helvetica-Bold",
     },
     customerInfo: {
-      marginBottom: config.spacing,
+      marginBottom: config.spacing * 0.5,
     },
     customerRow: {
       flexDirection: "row",
-      marginBottom: 2,
+      marginBottom: 1,
     },
     customerLabel: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       fontWeight: "bold",
-      width: 50,
+      width: 40,
       color: config.primaryColor,
       fontFamily: "Helvetica-Bold",
     },
     customerValue: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       flex: 1,
     },
@@ -90,8 +90,8 @@ const createStyles = (config: ReceiptConfig) =>
     },
     tableHeader: {
       flexDirection: "row",
-      paddingBottom: 2,
-      marginBottom: 2,
+      paddingBottom: 1,
+      marginBottom: 1,
       ...(config.showDivider && {
         borderBottomWidth: config.dividerWidth * 0.5,
         borderBottomColor: config.secondaryColor,
@@ -99,43 +99,43 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     tableHeaderCell: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       fontWeight: "bold",
       color: config.primaryColor,
       fontFamily: "Helvetica-Bold",
     },
     tableRow: {
       flexDirection: "row",
-      marginBottom: config.itemSpacing !== undefined ? config.itemSpacing : 2,
+      marginBottom: 1,
       alignItems: "flex-start",
     },
     itemName: {
-      width: "50%",
-      fontSize: config.bodySize,
+      width: "55%", // Slightly wider for name
+      fontSize: config.bodySize - 2,
       color: config.primaryColor,
     },
     itemQty: {
-      width: "15%",
-      fontSize: config.bodySize,
+      width: "10%",
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       textAlign: "center",
     },
     itemPrice: {
       width: "17.5%",
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       textAlign: "right",
     },
     itemTotal: {
       width: "17.5%",
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.primaryColor,
       textAlign: "right",
     },
     itemVariant: {
-      fontSize: config.bodySize - 1,
+      fontSize: config.bodySize - 3,
       color: config.secondaryColor,
-      marginTop: 1,
+      marginTop: 0, 
     },
     divider: {
       ...(config.showDivider && {
@@ -143,30 +143,30 @@ const createStyles = (config: ReceiptConfig) =>
         borderTopColor: config.primaryColor,
         borderTopStyle: "solid",
       }),
-      marginVertical: config.spacing,
+      marginVertical: config.spacing * 0.5,
     },
     totalsSection: {
-      marginTop: config.spacing,
+      marginTop: config.spacing * 0.5,
     },
     totalsRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginBottom: 2,
+      marginBottom: 1,
     },
     totalsLabel: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
     },
     totalsValue: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.primaryColor,
       textAlign: "right",
     },
     totalRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginTop: config.spacing,
-      paddingTop: config.spacing,
+      marginTop: config.spacing * 0.5,
+      paddingTop: config.spacing * 0.5,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.primaryColor,
@@ -174,21 +174,21 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     totalLabel: {
-      fontSize: config.headerSize,
+      fontSize: config.headerSize - 2,
       fontWeight: "bold",
       color: config.primaryColor,
       fontFamily: "Helvetica-Bold",
     },
     totalValue: {
-      fontSize: config.headerSize,
+      fontSize: config.headerSize - 2,
       fontWeight: "bold",
       color: config.primaryColor,
       textAlign: "right",
       fontFamily: "Helvetica-Bold",
     },
     paymentSection: {
-      marginTop: config.spacing * 1.5,
-      paddingTop: config.spacing,
+      marginTop: config.spacing,
+      paddingTop: config.spacing * 0.5,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.primaryColor,
@@ -198,23 +198,23 @@ const createStyles = (config: ReceiptConfig) =>
     paymentRow: {
       flexDirection: "row",
       justifyContent: "space-between",
-      marginBottom: 2,
+      marginBottom: 1,
     },
     paymentLabel: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.primaryColor,
       fontWeight: "bold",
       fontFamily: "Helvetica-Bold",
     },
     paymentValue: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       textAlign: "right",
     },
     footer: {
-      marginTop: config.spacing * 3,
+      marginTop: config.spacing * 2,
       textAlign: "center",
-      paddingTop: config.spacing * 2,
+      paddingTop: config.spacing,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
@@ -222,14 +222,14 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     footerText: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
-      marginBottom: 2,
+      marginBottom: 1,
       textAlign: "center",
     },
     orderNotes: {
-      marginTop: config.spacing * 1.5,
-      paddingTop: config.spacing,
+      marginTop: config.spacing,
+      paddingTop: config.spacing * 0.5,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
@@ -237,20 +237,20 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     noteTitle: {
-      fontSize: config.bodySize + 1,
+      fontSize: config.bodySize - 1,
       fontWeight: "bold",
       color: config.primaryColor,
-      marginBottom: 2,
+      marginBottom: 1,
       fontFamily: "Helvetica-Bold",
     },
     noteText: {
-      fontSize: config.bodySize,
+      fontSize: config.bodySize - 2,
       color: config.secondaryColor,
-      marginBottom: config.spacing,
+      marginBottom: config.spacing * 0.5,
     },
     promoSection: {
-      marginTop: config.spacing,
-      paddingTop: config.spacing,
+      marginTop: config.spacing * 0.5,
+      paddingTop: config.spacing * 0.5,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
@@ -258,7 +258,7 @@ const createStyles = (config: ReceiptConfig) =>
       }),
     },
     perforation: {
-      marginTop: config.spacing * 2,
+      marginTop: config.spacing,
       borderTopStyle: "solid",
       borderTopWidth: 1,
       borderTopColor: config.secondaryColor,
@@ -332,27 +332,36 @@ const ItemsSection = ({ items, formatCurrency, styles }: {
     <Text style={styles.sectionTitle}>Items</Text>
     <View style={styles.table}>
       <View style={styles.tableHeader}>
-        <Text style={[styles.tableHeaderCell, { width: '50%' }]}>Item</Text>
-        <Text style={[styles.tableHeaderCell, { width: '15%', textAlign: 'center' }]}>Qty</Text>
+        <Text style={[styles.tableHeaderCell, { width: '55%' }]}>Item</Text>
+        <Text style={[styles.tableHeaderCell, { width: '10%', textAlign: 'center' }]}>Qty</Text>
         <Text style={[styles.tableHeaderCell, { width: '17.5%', textAlign: 'right' }]}>Price</Text>
         <Text style={[styles.tableHeaderCell, { width: '17.5%', textAlign: 'right' }]}>Total</Text>
       </View>
 
-      {items.map((item, index) => (
-        <View key={index}>
-          <View style={styles.tableRow}>
-            <View style={styles.itemName}>
-              {/* @ts-ignore */}
-              <Text>{item.name}</Text>
-              {item.variant && <Text style={styles.itemVariant}>{item.variant}</Text>}
-              {item.addition && <Text style={styles.itemVariant}>+ {item.addition}</Text>}
+      {items.map((item, index) => {
+         const shouldShowVariant = item.variant && 
+          !["default", "default variant", "n/a"].includes(item.variant.toLowerCase()) &&
+                {/* @ts-ignore */}
+          item.variant.toLowerCase() !== item.name.toLowerCase();
+          
+         return (
+          <View key={index}>
+            <View style={styles.tableRow}>
+              <View style={styles.itemName}>
+                <Text>
+                {/* @ts-ignore */}
+                  {item.name}
+                  {shouldShowVariant ? ` - ${item.variant}` : ''}
+                </Text>
+                {item.addition && <Text style={styles.itemVariant}>+ {item.addition}</Text>}
+              </View>
+              <Text style={styles.itemQty}>{item.quantity}</Text>
+              <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
+              <Text style={styles.itemTotal}>{formatCurrency(item.price * item.quantity)}</Text>
             </View>
-            <Text style={styles.itemQty}>{item.quantity}</Text>
-            <Text style={styles.itemPrice}>{formatCurrency(item.price)}</Text>
-            <Text style={styles.itemTotal}>{formatCurrency(item.price * item.quantity)}</Text>
           </View>
-        </View>
-      ))}
+        )
+      })}
     </View>
   </View>
 )

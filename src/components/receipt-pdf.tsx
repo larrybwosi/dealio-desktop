@@ -37,15 +37,16 @@ interface ReceiptPdfProps {
     [key: string]: any;
   };
   qrCodeUrl?: string;
+  branchName?: string;
 }
 
 // --- 3. HELPER FUNCTIONS ---
-const formatCurrency = (amount: number, currency: string) => {
-  return `${currency} ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number, _currency: string) => {
+  return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
 // --- 4. COMPONENT ---
-export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfProps) => {
+export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, branchName }: ReceiptPdfProps) => {
   const config = settings.receiptConfig || {};
   
   // PDF Defaults to 80mm thermal if not specified, or A4 if specified
@@ -112,15 +113,22 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
     // Meta Data (Order ID, Date)
     metaContainer: {
-      marginBottom: 12,
-      borderBottomWidth: 1,
-      borderBottomColor: '#000',
-      borderBottomStyle: 'dashed',
-      paddingBottom: 8,
+      marginBottom: 2,
     },
     metaText: {
       fontSize: baseFontSize,
       marginBottom: 2,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 2,
+    },
+    metaColLeft: {
+      textAlign: 'left',
+    },
+    metaColRight: {
+      textAlign: 'right',
     },
 
     // Section Headers (ITEMS, PAYMENT)
@@ -204,7 +212,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
     // Payment Section
     paymentContainer: {
-      marginTop: 10,
+      marginTop: 2,
     },
     paymentRow: {
       flexDirection: 'row',
@@ -347,28 +355,38 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
           )}
         </View>
 
-        {/* === RECEIPT TITLE === */}
-        <View style={styles.receiptTitleBlock}>
-          <Text style={styles.receiptTitle}>RECEIPT</Text>
-        </View>
 
-        {/* === META (Order & Date) === */}
+
+        {/* === META (Order & Date - 2 Columns) === */}
         <View style={styles.metaContainer}>
-          {config.showOrderNumber !== false && (
-            <Text style={styles.metaText}>Order: {order.orderNumber}</Text>
-          )}
-          <Text style={styles.metaText}>
-            {order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm')}
-          </Text>
-          {config.showOrderType && order.orderType && (
-            <Text style={styles.metaText}>Type: {order.orderType.toUpperCase()}</Text>
-          )}
-          {config.showCustomerName && order.customerName && (
-            <Text style={styles.metaText}>Customer: {order.customerName}</Text>
-          )}
-          {config.showCashier && order.cashierName && (
-            <Text style={styles.metaText}>Served by: {order.cashierName}</Text>
-          )}
+           {/* Row 1: Time | Branch */}
+           <View style={styles.metaRow}>
+              <Text style={[styles.metaText, styles.metaColLeft]}>
+                {order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm')}
+              </Text>
+              {branchName && (
+                <Text style={[styles.metaText, styles.metaColRight]}>{branchName}</Text>
+              )}
+           </View>
+           
+           {/* Row 2: Served By | Customer */}
+           <View style={styles.metaRow}>
+              {config.showCashier && order.cashierName ? (
+                 <Text style={[styles.metaText, styles.metaColLeft]}>Served by: {order.cashierName}</Text>
+              ) : (
+                 <Text style={[styles.metaText, styles.metaColLeft]}></Text> 
+              )}
+              
+              {config.showCustomerName && order.customerName && (
+                 <Text style={[styles.metaText, styles.metaColRight]}>Customer: {order.customerName}</Text>
+              )}
+           </View>
+
+           {config.showOrderNumber !== false && (
+             <View style={styles.metaRow}>
+               <Text style={styles.metaText}>Order: {order.orderNumber}</Text>
+             </View>
+           )}
         </View>
 
         {/* === ITEMS === */}
@@ -378,7 +396,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
           <View style={styles.tableHeader}>
             <Text style={[styles.colItem, styles.bold]}>Item</Text>
             <Text style={[styles.colQty, styles.bold]}>Qty</Text>
-            <Text style={[styles.colTotal, styles.bold]}>Total</Text>
+            <Text style={[styles.colTotal, styles.bold]}>Total ({currency})</Text>
           </View>
 
           {order.items?.map((item, i) => {
@@ -458,14 +476,9 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl }: ReceiptPdfPro
 
         {/* === PAYMENT === */}
         <View style={styles.paymentContainer}>
-           <Text style={styles.sectionHeader}>PAYMENT</Text>
-           <View style={styles.paymentRow}>
-             <Text style={styles.totalLabel}>Method:</Text>
+           <View style={styles.totalRow}>
+             <Text style={styles.totalLabel}>Payment:</Text>
              <Text style={styles.totalValue}>{order.paymentMethod || 'Cash'}</Text>
-           </View>
-           <View style={styles.paymentRow}>
-             <Text style={styles.totalLabel}>Paid:</Text>
-             <Text style={styles.totalValue}>{formatCurrency(order.total || 0, currency)}</Text>
            </View>
         </View>
 

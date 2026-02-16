@@ -343,7 +343,7 @@ export default function ReceiptSettingsPage() {
             size="sm" 
             disabled={isPrinting || isDownloading} 
             onClick={() => mode === 'receipt' 
-              ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />, 'receipt-test')
+              ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />, 'receipt-test')
               : handlePrint(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
             className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
@@ -355,7 +355,7 @@ export default function ReceiptSettingsPage() {
             variant="secondary"
             disabled={isPrinting || isDownloading} 
             onClick={() => mode === 'receipt' 
-              ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />, 'receipt-test')
+              ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />, 'receipt-test')
               : handleDownload(<PDFKitchenTicket order={{...sampleOrder}} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
             className="shadow-xl hover:shadow-2xl transition-shadow gap-2 font-medium"
@@ -369,7 +369,7 @@ export default function ReceiptSettingsPage() {
           {mode === 'receipt' ? (
              <div className="w-full h-full max-w-[500px] shadow-2xl rounded-lg overflow-hidden border border-white/10 relative">
                <ReceiptPreviewWrapper 
-                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} />}
+                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} branchName="Main Branch" />}
                />
              </div>
           ) : (

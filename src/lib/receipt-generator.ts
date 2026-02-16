@@ -2,6 +2,7 @@ import { pdf } from '@react-pdf/renderer';
 import { createElement } from 'react';
 import { Order, BusinessSettings } from '@/store/store';
 import { ReceiptPdfDocument } from '@/components/receipt-pdf';
+import { useAuthStore } from '@/store/pos-auth-store';
 import QRCode from 'qrcode';
 
 /**
@@ -23,7 +24,8 @@ export async function generateReceiptPDF(
     }
 
     // Generate PDF document using react-pdf
-    const doc = createElement(ReceiptPdfDocument, { order, settings, qrCodeUrl });
+    const branchName = useAuthStore.getState().currentLocation?.name;
+    const doc = createElement(ReceiptPdfDocument, { order, settings, qrCodeUrl, branchName });
     console.log("Document:", doc);
     //@ts-expect-error
     const blob = await pdf(doc).toBlob();

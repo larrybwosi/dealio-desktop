@@ -569,7 +569,9 @@ async fn print_system_receipt(
         let args = vec![
             "-print-to".to_string(), 
             printer_name, 
-            "-silent".to_string(), 
+            "-silent".to_string(),
+            "-print-settings".to_string(),
+            "noscale".to_string(),
             file_to_print.clone() // Clone path string for the args
         ];
 
