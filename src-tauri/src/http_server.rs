@@ -9,6 +9,7 @@ use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
 use local_ip_address::local_ip;
 use std::{net::SocketAddr, path::PathBuf, sync::OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
+use log::{info, error};
 
 static DOWNLOAD_PATH: OnceLock<PathBuf> = OnceLock::new();
 static SERVER_PORT: OnceLock<u16> = OnceLock::new(); // Store the active port
@@ -52,7 +53,7 @@ async fn handle_upload(
         match tokio::fs::File::create(&path).await {
             Ok(mut f) => {
                 if let Ok(_) = f.write_all(&file.contents).await {
-                    println!("File saved to: {:?}", path);
+                    info!("File saved to: {:?}", path);
                     // Emit event to frontend
                     let _ = state.app.emit("file-received", &file_name);
                     // Return a simple success page for the phone
@@ -131,7 +132,7 @@ async fn handle_upload(
                     "#);
                 }
             }
-            Err(e) => println!("Error saving file: {}", e),
+            Err(e) => error!("Error saving file: {}", e),
         }
     }
     Html("<h1>Upload Failed</h1>")
@@ -512,7 +513,7 @@ pub async fn start_file_server(app: AppHandle) -> Result<String, String> {
             .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100MB liimit
             .with_state(state);
 
-        println!("File server running on http://{}:{}", ip, port);
+        info!("File server running on http://{}:{}", ip, port);
         
         let _ = axum::serve(listener, router).await;
     });

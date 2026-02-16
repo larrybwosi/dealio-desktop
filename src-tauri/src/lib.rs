@@ -5,6 +5,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{TrayIconBuilder, TrayIconEvent, MouseButton};
 use std::io::Write;
 use tempfile::Builder;
+use log::{info, error};
 
 use tokio::net::TcpStream;
 use tokio::io::AsyncWriteExt;
@@ -399,7 +400,7 @@ async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
 
     // 3. Detect Monitors and Move
     let monitors = window.available_monitors().map_err(|e| e.to_string())?;
-    println!("[Screen] Found {} monitors", monitors.len());
+    info!("[Screen] Found {} monitors", monitors.len());
 
     if monitors.len() > 1 {
         // Simple heuristic: Take the second monitor in the list
@@ -407,7 +408,7 @@ async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
         let secondary_monitor = &monitors[1];
         let pos = secondary_monitor.position();
 
-        println!("[Screen] Moving to monitor at {:?}", pos);
+        info!("[Screen] Moving to monitor at {:?}", pos);
         
         // Move window to the secondary monitor's coordinate space
         window.set_position(*pos).map_err(|e| e.to_string())?;
@@ -747,13 +748,13 @@ pub fn run() {
                 config_guard.as_ref().map(|c| c.location_id.clone())
             } {
                 if let Err(e) = tauri::async_runtime::block_on(product_store::load_products_from_disk(app.handle(), &state, &location_id)) {
-                    eprintln!("Failed to load initial data for location {}: {}", location_id, e);
+                    error!("Failed to load initial data for location {}: {}", location_id, e);
                 }
             }
 
             let cust_state = app.state::<CustomerState>();
             if let Err(e) = tauri::async_runtime::block_on(customer_store::load_customers_from_disk(app.handle(), &cust_state)) {
-                eprintln!("Failed to load initial customer data: {}", e);
+                error!("Failed to load initial customer data: {}", e);
             }
 
             let sales_state = app.state::<SalesState>();
@@ -761,7 +762,7 @@ pub fn run() {
 
             let pricing_state = app.state::<PricingState>();
             if let Err(e) = tauri::async_runtime::block_on(pricing_store::load_pricing_from_disk(app.handle(), &pricing_state)) {
-                eprintln!("Failed to load initial pricing data: {}", e);
+                error!("Failed to load initial pricing data: {}", e);
             }
 
             let notification_state = app.state::<NotificationState>();
@@ -770,7 +771,7 @@ pub fn run() {
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
             if let Err(e) = tauri::async_runtime::block_on(customer_screen_state.load_from_store(app.handle())) {
-                eprintln!("Failed to load customer screen state: {}", e);
+                error!("Failed to load customer screen state: {}", e);
             }
 
             // Check for old pending sales and notify user
