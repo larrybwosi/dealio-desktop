@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::models::{Shift, CashMovement, ShiftSyncPayload};
 use crate::auth_store::AuthState;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use sha2::{Sha256, Digest};
 
 // The State container
 pub struct ShiftState {
@@ -189,6 +190,14 @@ pub async fn sync_pending_shifts(
             return Ok("Shift is still open, not syncing yet.".to_string());
         }
 
+        let hashed_pin = if let Some(pin) = shift.operator_pin.as_ref() {
+            let mut hasher = Sha256::new();
+            hasher.update(pin.as_bytes());
+            format!("{:x}", hasher.finalize())
+        } else {
+            String::new()
+        };
+
         let payload = ShiftSyncPayload {
             location_id: location_id.clone(),
             shift_id: shift.id,
@@ -196,7 +205,7 @@ pub async fn sync_pending_shifts(
             closed_at: shift.closed_at.map(|t| t.to_rfc3339()),
             
             operator_card_id: shift.operator_card_id.unwrap_or_default(), 
-            operator_pin: shift.operator_pin.unwrap_or_default(), 
+            operator_pin: hashed_pin, 
 
             starting_float: shift.starting_float,
             total_cash_sales: shift.total_cash_sales,

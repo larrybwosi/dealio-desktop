@@ -142,6 +142,7 @@ pub enum ErrorKind {
     Server,
     Validation,
     Configuration,
+    Storage,
     Unknown,
 }
 

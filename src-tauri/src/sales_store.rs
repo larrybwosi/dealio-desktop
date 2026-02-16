@@ -1,6 +1,6 @@
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 use crate::models::{QueuedSale, SaleStatus, SaleResponse};
@@ -16,10 +16,18 @@ use sha2::{Sha256, Digest};
 use rand::RngCore;
 use log::{info, error, warn}; // Enterprise logging
 use thiserror::Error; // For custom error types
+use urlencoding;
 
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
-const LEGACY_APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
+static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 
+fn get_legacy_secret() -> &'static str {
+    LEGACY_SECRET.get_or_init(|| {
+        option_env!("LEGACY_APP_SECRET")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
+    })
+}
 // --- Enterprise Error Handling ---
 #[derive(Error, Debug)]
 pub enum SalesError {
@@ -53,7 +61,7 @@ impl SalesState {
 // Legacy key derivation for backward compatibility
 fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(LEGACY_APP_SECRET.as_bytes());
+    hasher.update(get_legacy_secret().as_bytes());
     hasher.finalize().into()
 }
 
@@ -161,13 +169,13 @@ pub async fn process_sale(
 ) -> Result<SaleResponse> {
     
     // 1. Get Config/Auth from State
-    let (base_url, location_id, device_key) = {
+    let (_base_url, location_id, _device_key) = {
         let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
         let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
 
-    let (token, member_id) = {
+    let (_member_token, _member_id) = {
         let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
         let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
         (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
@@ -234,12 +242,16 @@ pub async fn process_sale(
     };
 
     {
+    let queue_copy = {
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.push(new_sale.clone());
-        if let Err(e) = save_queue_encrypted(&app, &q).await {
-            error!("CRITICAL: Failed to persist sales queue: {}", e);
-            return Err(SalesError::StorageError(e.to_string()).into());
-        }
+        q.clone()
+    };
+    
+    if let Err(e) = save_queue_encrypted(&app, &queue_copy).await {
+        error!("CRITICAL: Failed to persist sales queue: {}", e);
+        return Err(SalesError::StorageError(e.to_string()).into());
+    }
     }
 
     // Spawn Background Sync Task (Fire and Forget)
@@ -260,26 +272,28 @@ pub async fn process_sale(
             &payload_clone
         ).await;
 
-        let mut q = queue_ref.lock().unwrap_or_else(|e| e.into_inner());
-        
-        match sync_result {
-            Ok(_) => {
-                info!("[Background] Sale {} synced successfully.", sale_id_clone);
-                if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
-                    q.remove(pos);
-                    let _ = save_queue_encrypted(&app_handle, &q).await; 
+        let queue_copy = {
+            let mut q = queue_ref.lock().unwrap_or_else(|e| e.into_inner());
+            
+            match sync_result {
+                Ok(_) => {
+                    info!("[Background] Sale {} synced successfully.", sale_id_clone);
+                    if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
+                        q.remove(pos);
+                    }
+                },
+                Err(e) => {
+                    warn!("[Background] Sync failed for {}: {}. Leaving in queue.", sale_id_clone, e);
+                    if let Some(item) = q.iter_mut().find(|x| x.id == sale_id_clone) {
+                        item.last_error = Some(e.to_string());
+                        item.retry_count += 1;
+                    }
                 }
-            },
-            Err(e) => {
-                warn!("[Background] Sync failed for {}: {}. Leaving in queue.", sale_id_clone, e);
-                if let Some(item) = q.iter_mut().find(|x| x.id == sale_id_clone) {
-                    item.last_error = Some(e.to_string());
-                    item.retry_count += 1;
-                    // Logic to mark as FAILED if retries > 10 could go here
-                }
-                let _ = save_queue_encrypted(&app_handle, &q).await;
             }
-        }
+            q.clone()
+        };
+
+        let _ = save_queue_encrypted(&app_handle, &queue_copy).await;
     });
 
     Ok(SaleResponse {
@@ -373,7 +387,8 @@ async fn push_single_sale(
 ) -> Result<serde_json::Value> {
     
     // Check if this is an M-Pesa sale to adjust timeout (handled by shared client timeout)
-    let url_path = format!("/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", location_id);
+    let encoded_loc = urlencoding::encode(&location_id);
+    let url_path = format!("/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", encoded_loc);
 
     // Build request using shared client
     // Note: SalesError::AuthError mapping
@@ -426,7 +441,8 @@ pub async fn get_sales_history_command(
     // Construct URL with optional locationId
     let mut url_path = "/api/v1/pos/sale".to_string();
     if let Some(loc_id) = location_id {
-        url_path = format!("{}?locationId={}", url_path, loc_id);
+        let encoded_loc = urlencoding::encode(&loc_id);
+        url_path = format!("{}?locationId={}", url_path, encoded_loc);
     }
 
     let res = auth_state.build_request(reqwest::Method::GET, &url_path)
@@ -576,14 +592,21 @@ pub fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<Queue
         .collect()
 }
 
-/// Delete a sale from the queue
-pub fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -> Result<bool> {
-    let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-    let initial_len = q.len();
-    q.retain(|s| s.id != sale_id);
+pub async fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -> Result<bool> {
+    let (should_save, queue_copy) = {
+        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+        let initial_len = q.len();
+        q.retain(|s| s.id != sale_id);
+        
+        if q.len() < initial_len {
+            (true, q.clone())
+        } else {
+            (false, Vec::new())
+        }
+    };
     
-    if q.len() < initial_len {
-        save_queue_encrypted(app, &q)?;
+    if should_save {
+        save_queue_encrypted(app, &queue_copy).await?;
         info!("[SalesStore] Sale {} deleted from queue.", sale_id);
         Ok(true)
     } else {
@@ -640,7 +663,8 @@ pub async fn create_order(
     location_id: String,
     order_payload: serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let url_path = format!("/api/v1/pos/orders?locationId={}", location_id);
+    let encoded_loc = urlencoding::encode(&location_id);
+    let url_path = format!("/api/v1/pos/orders?locationId={}", encoded_loc);
 
     let req = auth_state.build_request(reqwest::Method::POST, &url_path)
         .map_err(|e| SalesError::AuthError(e))?;

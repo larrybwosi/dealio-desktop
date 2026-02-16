@@ -215,7 +215,8 @@ pub async fn receive_purchase_order(
 ) -> Result<serde_json::Value, CommandError> {
 
     let (client, base_url) = build_client(&auth_state)?;
-    let url = format!("{}/api/v1/pos/purchases/{}/receive", base_url, purchase_id);
+    let encoded_id = urlencoding::encode(&purchase_id);
+    let url = format!("{}/api/v1/pos/purchases/{}/receive", base_url, encoded_id);
 
     info!("[StockAcceptance] Submitting Receipt for PO: {}", purchase_id);
 
@@ -289,7 +290,8 @@ pub async fn receive_stock_transfer(
 ) -> Result<serde_json::Value, CommandError> {
 
     let (client, base_url) = build_client(&auth_state)?;
-    let url = format!("{}/api/v1/pos/inventory/transfers/{}/receive", base_url, transfer_id);
+    let encoded_id = urlencoding::encode(&transfer_id);
+    let url = format!("{}/api/v1/pos/inventory/transfers/{}/receive", base_url, encoded_id);
 
     info!("[StockAcceptance] Submitting Receipt for Transfer: {}", transfer_id);
 

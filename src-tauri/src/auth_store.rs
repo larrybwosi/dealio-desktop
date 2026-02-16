@@ -125,7 +125,7 @@ impl AuthState {
 
     async fn save_to_keyring_async(config: &DeviceConfig) -> Result<(), String> {
         // 1. Try Keyring
-        let keyring_result = {
+        let keyring_result: Result<(), String> = {
             let entry = Entry::new(KEYRING_SERVICE, KEYRING_USER).map_err(|e| e.to_string())?;
             let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
             entry.set_password(&json).map_err(|e| e.to_string())?;

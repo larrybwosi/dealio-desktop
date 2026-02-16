@@ -227,12 +227,12 @@ fn check_failed_sales_command(
 }
 
 #[tauri::command]
-fn delete_sale_command(
+async fn delete_sale_command(
     app: AppHandle,
     state: State<'_, SalesState>,
     sale_id: String
 ) -> Result<bool, String> {
-    sales_store::delete_sale(&app, &state, sale_id)
+    sales_store::delete_sale(&app, &state, sale_id).await
         .map_err(|e| e.to_string())
 }
 
@@ -442,7 +442,7 @@ async fn set_customer_screen_enabled(
     state.set_enabled(enabled);
     
     // Save to disk
-    state.save_to_store(&app)?;
+    state.save_to_store(&app).await?;
     
     // Open or close window based on state
     if enabled {

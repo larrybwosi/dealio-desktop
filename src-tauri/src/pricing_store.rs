@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 use crate::models::{
     ClientPriceList, ClientPriceListItem, PosPricingData
@@ -18,8 +18,16 @@ use chrono::{DateTime, Utc};
 
 const PRICING_FILENAME: &str = "secure_pricing.bin"; 
 const TIMEOUT_SECONDS: u64 = 30; // Slightly longer for potentially large pricing data
-const APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
 
+static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
+
+fn get_legacy_secret() -> &'static str {
+    LEGACY_SECRET.get_or_init(|| {
+        option_env!("LEGACY_APP_SECRET")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
+    })
+}
 // --- State Management ---
 pub struct PricingState {
     pub data: Mutex<PosPricingData>,
@@ -42,7 +50,7 @@ impl PricingState {
 // --- Helper: Encryption Logic (Same as Customer Store) ---
 fn get_cipher_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(APP_SECRET);
+    hasher.update(get_legacy_secret().as_bytes());
     hasher.finalize().into()
 }
 
@@ -259,52 +267,55 @@ pub async fn run_sync(
     }
 
     // --- MERGE LOGIC ---
-    let mut data_guard = state.data.lock().unwrap_or_else(|e| e.into_inner());
-    
-    if !metadata.is_delta || metadata.temp_full_sync {
-        // Full Sync - Overwrite
-        *data_guard = PosPricingData {
-            lists: flat_lists,
-            items: flat_items,
-            allocations: customer_allocations,
-        };
-        println!("[PricingStore] Performed full sync. Items: {}", data_guard.items.len());
-    } else {
-        // Delta Sync - Merge
-        // 1. Lists
-        let mut list_map: HashMap<String, ClientPriceList> = data_guard.lists.drain(..).map(|l| (l.id.clone(), l)).collect();
-        for list in flat_lists {
-            list_map.insert(list.id.clone(), list);
-        }
-        data_guard.lists = list_map.into_values().collect();
-
-        // 2. Items
-        let mut item_map: HashMap<String, ClientPriceListItem> = data_guard.items.drain(..).map(|i| (i.id.clone(), i)).collect();
+    let (new_time, updated_data) = {
+        let mut data_guard = state.data.lock().unwrap_or_else(|e| e.into_inner());
         
-        // Remove deleted items if list provided
-        for deleted_id in server_data.deleted_item_ids {
-            item_map.remove(&deleted_id);
-        }
-        
-        // Add/Update new
-        for item in flat_items {
-            item_map.insert(item.id.clone(), item);
-        }
-        data_guard.items = item_map.into_values().collect();
+        if !metadata.is_delta || metadata.temp_full_sync {
+            // Full Sync - Overwrite
+            *data_guard = PosPricingData {
+                lists: flat_lists,
+                items: flat_items,
+                allocations: customer_allocations,
+            };
+            println!("[PricingStore] Performed full sync. Items: {}", data_guard.items.len());
+        } else {
+            // Delta Sync - Merge
+            // 1. Lists
+            let mut list_map: HashMap<String, ClientPriceList> = data_guard.lists.drain(..).map(|l| (l.id.clone(), l)).collect();
+            for list in flat_lists {
+                list_map.insert(list.id.clone(), list);
+            }
+            data_guard.lists = list_map.into_values().collect();
 
-        // 3. Allocations (Merge maps)
-        for (cust_id, lists) in customer_allocations {
-            data_guard.allocations.insert(cust_id, lists);
-        }
-        println!("[PricingStore] Performed delta sync. Active Items: {}", data_guard.items.len());
-    }
+            // 2. Items
+            let mut item_map: HashMap<String, ClientPriceListItem> = data_guard.items.drain(..).map(|i| (i.id.clone(), i)).collect();
+            
+            // Remove deleted items if list provided
+            for deleted_id in server_data.deleted_item_ids {
+                item_map.remove(&deleted_id);
+            }
+            
+            // Add/Update new
+            for item in flat_items {
+                item_map.insert(item.id.clone(), item);
+            }
+            data_guard.items = item_map.into_values().collect();
 
-    // --- SAVE TO DISK SECURELY ---
-    let new_time = metadata.synced_at;
-    *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_time.clone());
+            // 3. Allocations (Merge maps)
+            for (cust_id, lists) in customer_allocations {
+                data_guard.allocations.insert(cust_id, lists);
+            }
+            println!("[PricingStore] Performed delta sync. Active Items: {}", data_guard.items.len());
+        }
+
+        // --- SAVE TO DISK SECURELY ---
+        let new_time = metadata.synced_at;
+        *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_time.clone());
+        (new_time, data_guard.clone())
+    };
 
     let path = get_store_path(&app)?;
-    save_encrypted(path, Some(new_time.clone()), &data_guard).await?;
+    save_encrypted(path, Some(new_time.clone()), &updated_data).await?;
 
     Ok(new_time)
 }

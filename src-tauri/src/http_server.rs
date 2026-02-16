@@ -29,9 +29,13 @@ async fn handle_upload(
     TypedMultipart(UploadForm { file }): TypedMultipart<UploadForm>,
 ) -> Html<&'static str> {
     let file_name = file.metadata.file_name.unwrap_or("uploaded_file.bin".to_string());
+    let safe_file_name = std::path::Path::new(&file_name)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("uploaded_file.bin");
     
     if let Some(save_dir) = DOWNLOAD_PATH.get() {
-        let path = save_dir.join(&file_name);
+        let path = save_dir.join(safe_file_name);
         match tokio::fs::File::create(&path).await {
             Ok(mut f) => {
                 if let Ok(_) = f.write_all(&file.contents).await {

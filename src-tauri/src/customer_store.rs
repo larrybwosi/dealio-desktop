@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use tauri::{AppHandle, Manager};
 use crate::models::{PosCustomer, CustomersSyncResponse};
 use anyhow::{Result, Context};
@@ -15,8 +15,13 @@ use rand::RngCore;
 
 const CUSTOMER_FILENAME: &str = "secure_customers.bin"; 
 const TIMEOUT_SECONDS: u64 = 15;
-const LEGACY_APP_SECRET: &str = "dealio-pos-secure-storage-salt"; 
+static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 
+fn get_legacy_secret() -> &'static str {
+    LEGACY_SECRET.get_or_init(|| {
+        std::env::var("LEGACY_APP_SECRET").unwrap_or_else(|_| "dealio-pos-secure-storage-salt".to_string())
+    })
+}
 // --- State Management ---
 pub struct CustomerState {
     pub customers: Mutex<Vec<PosCustomer>>,
@@ -35,7 +40,7 @@ impl CustomerState {
 // --- Helper: Encryption Logic ---
 fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.update(LEGACY_APP_SECRET);
+    hasher.update(get_legacy_secret().as_bytes());
     hasher.finalize().into()
 }
 
@@ -218,25 +223,28 @@ pub async fn run_sync(
         .context("Failed to parse server response JSON")?;
 
     // --- MERGE LOGIC ---
-    let mut customers_guard = state.customers.lock().unwrap_or_else(|e| e.into_inner());
-    
-    let mut customer_map: HashMap<String, PosCustomer> = customers_guard
-        .drain(..)
-        .map(|c| (c.id.clone(), c))
-        .collect();
+    let (new_token, updated_list, incoming_count) = {
+        let mut customers_guard = state.customers.lock().unwrap_or_else(|e| e.into_inner());
+        
+        let mut customer_map: HashMap<String, PosCustomer> = customers_guard
+            .drain(..)
+            .map(|c| (c.id.clone(), c))
+            .collect();
 
-    let incoming_count = res_body.data.len();
-    
-    for customer in res_body.data {
-        customer_map.insert(customer.id.clone(), customer);
-    }
+        let incoming_count = res_body.data.len();
+        
+        for customer in res_body.data {
+            customer_map.insert(customer.id.clone(), customer);
+        }
 
-    let updated_list: Vec<PosCustomer> = customer_map.into_values().collect();
-    *customers_guard = updated_list.clone();
+        let updated_list: Vec<PosCustomer> = customer_map.into_values().collect();
+        *customers_guard = updated_list.clone();
 
-    // --- SAVE TO DISK SECURELY ---
-    let new_token = res_body.next_sync_token;
-    *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_token.clone());
+        // --- SAVE TO DISK SECURELY ---
+        let new_token = res_body.next_sync_token;
+        *state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_token.clone());
+        (new_token, updated_list, incoming_count)
+    };
 
     let path = get_store_path(&app)?;
     save_encrypted(path, Some(new_token), &updated_list).await?;
@@ -351,14 +359,19 @@ pub async fn create_customer(
     };
 
     // --- UPDATE LOCAL CACHE ---
-    {
+    let (path, sync_token, updated_list) = {
         let mut customers_guard = state.customers.lock().unwrap();
         customers_guard.push(new_customer.clone());
         
+        let path = get_store_path(&app);
         let sync_token = state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()).clone();
-        if let Ok(path) = get_store_path(&app) {
-            let _ = save_encrypted(path, sync_token, &customers_guard).await;
-        }
+        let updated_list = customers_guard.clone();
+        
+        (path, sync_token, updated_list)
+    };
+
+    if let Ok(p) = path {
+        let _ = save_encrypted(p, sync_token, &updated_list).await;
     }
 
     Ok(new_customer)
