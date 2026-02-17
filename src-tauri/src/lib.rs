@@ -916,9 +916,11 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
-            scanner_manager::start_scan,          // Updated reference
-            scanner_manager::list_hid_devices,    // Updated reference
-            scanner_manager::start_nfc_listener,  // Updated reference
+            scanner_manager::start_scan,        
+            scanner_manager::list_hid_devices,  
+            scanner_manager::start_nfc_listener,
+            scanner_manager::start_network_scan_server,
+            scanner_manager::print_to_network,
             scan_transaction_code, 
             open_customer_screen,
             close_customer_screen,
@@ -977,15 +979,12 @@ pub fn run() {
             create_order_command,
             get_invoice_blob_command,
             create_customer_command,
-            // New delivery commands
             delivery_store::get_drivers_command,
             delivery_store::dispatch_order_command,
             delivery_store::reconcile_delivery_command,
-            // New sales commands
             sales_store::get_sales_history_command,
             sales_store::record_payment_command,
             sales_store::initiate_mpesa_payment_command,
-            // New auth commands
             auth_store::get_locations_command,
             auth_store::get_ably_auth_token_command,
             auth_store::start_device_setup_command,

@@ -32,17 +32,26 @@ export const useAblyStore = create<AblyState>((set, get) => ({
   error: null,
 
   initializeAbly: () => {
-    // Prevent multiple initializations 
-    if (get().client) return;  
+    const { client: existingClient, connectionState } = get();
+    
+    // Allow initialization if no client exists OR if the existing client is closed/failed
+    if (existingClient && !['closed', 'failed'].includes(connectionState)) {
+      return;
+    }
 
-    set({ status: 'loading' }); 
+    // If there's an old failed/closed client, close it properly first
+    if (existingClient) {
+      existingClient.close();
+    }
+
+    set({ status: 'loading', error: null, client: null }); 
 
     // We define the authCallback logic here
     const authCallback: AuthOptions['authCallback'] = async (tokenParams, callback) => {
       try {
-        console.log('Init call')
+        console.log('[AblyStore] Fetching auth token...');
         const data = await invoke<any>('get_ably_auth_token_command', { params: tokenParams });
-        console.log('Api response data', data)
+        console.log('[AblyStore] Token received');
         
         // Validate
         const parsedData = AblyConfigSchema.parse(data);
@@ -55,14 +64,13 @@ export const useAblyStore = create<AblyState>((set, get) => ({
         });
 
         // Pass the token details back to Ably SDK
-        // We pass the whole object (or just the token string if that's what you have)
         callback(null, parsedData.tokenRequest.token);
       } catch (error) {
         const errorMessage = isAxiosError(error)
           ? error.response?.data?.message || error.message
           : 'Failed to fetch Ably config';
         
-        console.error('Ably Auth Error:', error);
+        console.error('[AblyStore] Auth Error:', error);
         set({ status: 'error', error: errorMessage });
         callback(errorMessage, null);
       }
@@ -70,13 +78,14 @@ export const useAblyStore = create<AblyState>((set, get) => ({
 
     // Initialize Client with authCallback
     const client = new Realtime({
-      authCallback, // SDK handles the loop now
-      // Optional: autoConnect: false (if you want more control)
+      authCallback,
+      autoConnect: true,
     });
 
-    // Listen to connection state changes (Important for UI feedback and backend sync)
+    // Listen to connection state changes
     client.connection.on((stateChange) => {
       const state = stateChange.current;
+      console.log(`[AblyStore] Connection state changed: ${state}`);
       set({ connectionState: state });
 
       // Notify backend about network status
@@ -94,14 +103,10 @@ export const useAblyStore = create<AblyState>((set, get) => ({
             id: member.id,
             name: member.name,
             lastSeen: new Date().toISOString()
-          }).catch(err => console.error("Error entering presence:", err));
+          }).catch(err => console.error("[AblyStore] Error entering presence:", err));
         }
       } else if (['disconnected', 'suspended', 'failed', 'closed'].includes(state)) {
         invoke('update_network_status_command', { isOnline: false }).catch(console.error);
-      }
-
-      if (state === 'failed') {
-          console.error("Ably connection failed");
       }
     });
 

@@ -9,9 +9,16 @@ export default function AblyInitializer() {
   const currentLocation = useAuthStore((state) => state.currentLocation);
   const currentMember = useAuthStore((state) => state.currentMember);
 
+  const isAuthInitialized = useAuthStore((state) => state.isInitialized);
+
   useEffect(() => {
-    initializeAbly();
-  }, [initializeAbly]);
+    // Only initialize Ably if auth is ready and we have a member
+    // This prevents "Unauthorized" errors or race conditions on boot
+    if (isAuthInitialized && currentMember) {
+      console.log('[AblyProvider] Auth ready, initializing Ably');
+      initializeAbly();
+    }
+  }, [initializeAbly, isAuthInitialized, currentMember]);
 
   useEffect(() => {
     if (!client || !currentLocation?.id || !currentMember) return;

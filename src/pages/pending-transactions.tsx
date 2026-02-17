@@ -179,12 +179,11 @@ export default function PendingTransactionsPage() {
 
     try {
       // Request waybill based on fulfillment ID
+      // NEXT VERSION: `/api/v1/fulfillment/${tx.fulfillmentId}/waybill`
       const url = `/api/v1/pos/waybill/${tx.id}`;
       const blob = await invoke<number[]>('get_invoice_blob_command', { url });
       const uint8Array = new Uint8Array(blob);
       const blobObj = new Blob([uint8Array], { type: 'application/pdf' });
-      // NEXT VERSION
-      // const response = await apiClient.get(`/api/v1/fulfillment/${tx.fulfillmentId}/waybill`, { responseType: 'blob' });
       
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Waybill_${safeOrderNum}.pdf`;

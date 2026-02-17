@@ -3,7 +3,7 @@
 import { useEffect, createContext } from 'react';
 import Ably from 'ably';
 import { toast } from 'sonner';
-import { ably } from './ably';
+import { useAblyStore } from '@/store/ablyStore';
 
 interface PaymentNotificationContextType {
   lastPayment: any;
@@ -18,17 +18,18 @@ export function PaymentNotificationProvider({
   children: React.ReactNode;
   organizationId: string;
 }) {
+  const client = useAblyStore((state) => state.client);
 
   useEffect(() => {
     if (!organizationId) return;
 
-    // 1. Subscribe to the Organization Channel
-    const channel = ably?.channels.get(`organization:${organizationId}:payments`);
+    // Subscribe to the Organization Channel
+    const channel = client?.channels.get(`organization:${organizationId}:payments`);
 
     // 2. Handle Matched Payments (STK Success or C2B Matched)
     const onPaymentUpdate = (message: Ably.Message) => {
       const { transactionId, status, data } = message.data;
-      console.log('Payment Update:', { transactionId, status, data });
+      console.log('[Payment] Update received:', { transactionId, status, data });
       
       if (status === 'COMPLETED' || status === 'PAID') {
         toast.success(`Payment Received: KES ${data.amount || ''}`, {
@@ -63,15 +64,21 @@ export function PaymentNotificationProvider({
       });
     };
 
-    channel?.subscribe('payment-update', onPaymentUpdate);
-    channel?.subscribe('payment-unclaimed', onUnclaimed);
+    if (channel) {
+      console.log('[Payment] Subscribing to channel:', channel.name);
+      channel.subscribe('payment-update', onPaymentUpdate);
+      channel.subscribe('payment-unclaimed', onUnclaimed);
+    }
 
     // Cleanup
     return () => {
-      channel?.unsubscribe('payment-update', onPaymentUpdate);
-      channel?.unsubscribe('payment-unclaimed', onUnclaimed);
+      if (channel) {
+        console.log('[Payment] Unsubscribing from channel:', channel.name);
+        channel.unsubscribe('payment-update', onPaymentUpdate);
+        channel.unsubscribe('payment-unclaimed', onUnclaimed);
+      }
     };
-  }, [organizationId]);
+  }, [organizationId, client]);
 
   return (
     <PaymentNotificationContext.Provider value={{ lastPayment: null }}>
