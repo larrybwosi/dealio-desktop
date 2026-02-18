@@ -1,3 +1,10 @@
+## [2.9.4](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.3...v2.9.4) (2026-02-18)
+
+
+### Bug Fixes
+
+* **build & deps:** corrected the bwip package import package ([ba01d60](https://github.com/larrybwosi/dealio-desktop/commit/ba01d6011270e2b3fc46d1c0e60b8478f7f2951a))
+
 ## [2.9.3](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.2...v2.9.3) (2026-02-18)
 
 
