@@ -24,7 +24,7 @@ import {
   Globe, CreditCard, Utensils, Bell, Tag, Building2, Scale
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import bwipjs from 'bwip-js';
+import bwipjs from '@bwip-js/browser';
 import { cn } from '@/lib/utils';
 import { ReceiptPreviewWrapper } from '@/components/pos/receipt-preview-wrapper';
 

@@ -1,6 +1,6 @@
 import { Message } from 'ably';
-import { ably } from './ably';
 import { invoke } from '@tauri-apps/api/core';
+import { useAblyStore } from '@/store/ablyStore';
 
 interface InitiateMpesaPaymentParams {
   phoneNumber: string;
@@ -30,6 +30,7 @@ export function subscribeToAbly(
   }
 ) {
   // Get the Ably channel for M-Pesa payments
+  const ably = useAblyStore((state) => state.client);
   const channel = ably?.channels.get('mpesa-payments');
 
   // Define the subscription callback

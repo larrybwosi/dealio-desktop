@@ -12,7 +12,7 @@ import {
   Wallet 
 } from 'lucide-react';
 import QRCode from 'qrcode'; 
-import bwipjs from 'bwip-js';
+import bwipjs from '@bwip-js/browser';
 
 // UI Components
 import { Dialog, DialogContent } from '@/components/ui/dialog';
