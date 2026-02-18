@@ -1,3 +1,10 @@
+## [2.9.3](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.2...v2.9.3) (2026-02-18)
+
+
+### Bug Fixes
+
+* **ably connection and backend:** updated the backend to also support network printing ([665be59](https://github.com/larrybwosi/dealio-desktop/commit/665be59c67f20887a1ced9136f1f2261586dd518))
+
 ## [2.9.2](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.1...v2.9.2) (2026-02-16)
 
 
