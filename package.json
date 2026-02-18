@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "exe": "npx tauri build",
-    "lint:ox": "oxlint",
+    "lint:ox": "oxlint -c oxlint.json",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",

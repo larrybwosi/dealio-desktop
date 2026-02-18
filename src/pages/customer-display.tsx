@@ -111,7 +111,8 @@ export default function CustomerDisplay() {
   const [showCompletionMessage, setShowCompletionMessage] = useState(false);
 
   // Fallback formatter
-  const formatCurrency = useFormattedCurrency ? useFormattedCurrency() : (val: number) => `KSH ${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const utilsFormatCurrency = useFormattedCurrency();
+  const formatCurrency = utilsFormatCurrency || ((val: number) => `KSH ${val.toLocaleString(undefined, { minimumFractionDigits: 2 })}`);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 10000);

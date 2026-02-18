@@ -342,7 +342,7 @@ const ItemsSection = ({ items, formatCurrency, styles }: {
          const shouldShowVariant = item.variant && 
           !["default", "default variant", "n/a"].includes(item.variant.toLowerCase()) &&
                 {/* @ts-ignore */}
-          item.variant.toLowerCase() !== item.name.toLowerCase();
+          // item.variant.toLowerCase() !== item.name.toLowerCase();
           
          return (
           <View key={index}>

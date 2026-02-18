@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "unicorn", "typescript"],
+  "rules": {
+    "no-debugger": "error",
+    "no-console": "off",
+    "eqeqeq": "off",
+    "react/jsx-no-undef": "error",
+    "react/react-in-jsx-scope": "off",
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "off",
+    "unicorn/filename-case": "off"
+  }
+}

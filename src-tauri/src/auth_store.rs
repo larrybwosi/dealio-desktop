@@ -499,7 +499,6 @@ pub async fn get_ably_auth_token_command(
     state: State<'_, AuthState>,
     params: Option<serde_json::Value>
 ) -> Result<serde_json::Value, String> {
-    println!("[AuthStore] get_ably_auth_token_command called");
     let (client, base_url) = match state.get_client() {
         Ok(res) => res,
         Err(e) => {
@@ -509,14 +508,12 @@ pub async fn get_ably_auth_token_command(
     };
     
     let url = format!("{}/api/v1/pos/ably-auth", base_url.trim_end_matches('/'));
-    println!("[AuthStore] Ably Auth URL: {}", url);
 
     // Get member ID for header
     let member_id = {
         let user_guard = state.current_user.lock().map_err(|_| "Failed to lock user")?;
         user_guard.as_ref().map(|u| u.id.clone())
     };
-    println!("[AuthStore] Member ID present: {}", member_id.is_some());
 
     let mut req = client.post(&url);
 
@@ -527,10 +524,8 @@ pub async fn get_ably_auth_token_command(
     
     // If params are provided, send them in body
     if let Some(p) = params {
-        println!("[AuthStore] Params provided: yes");
         req = req.json(&serde_json::json!({ "params": p }));
     } else {
-        println!("[AuthStore] Params provided: no");
         // Ensure we send an empty JSON object if server expects JSON
         req = req.json(&serde_json::json!({}));
     }
