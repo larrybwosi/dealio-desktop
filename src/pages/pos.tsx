@@ -347,7 +347,7 @@ export function POS() {
             <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
                 
                 {/* View Mode Toggle */}
-                <div className="bg-muted/40 p-0.5 rounded-full flex items-center border border-border/60">
+                <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
                     <button
                         onClick={() => setViewMode('grid')}
                         className={cn(
@@ -390,7 +390,7 @@ export function POS() {
                 )}
 
                 {/* Pricing Toggle */}
-               <div className="bg-muted/40 p-0.5 rounded-full flex items-center border border-border/60">
+               <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
                     <button
                         onClick={() => setPricingMode('retail')}
                         className={cn(

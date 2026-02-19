@@ -123,7 +123,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   return (
     <Card className={cn(
         "group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300",
-        "hover:shadow-md hover:border-primary/40 bg-card"
+        "hover:shadow-md hover:border-primary/40 bg-card rounded-sm"
     )}>
       
       {/* --- Image Section --- */}

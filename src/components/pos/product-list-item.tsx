@@ -121,7 +121,7 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
 
   return (
     <div className={cn(
-        "group relative flex items-center w-full overflow-hidden border rounded-lg bg-card transition-all duration-200",
+        "group relative flex items-center w-full overflow-hidden border rounded-xs bg-card transition-all duration-200",
         "hover:shadow-sm hover:border-primary/40 p-1.5 gap-2.5"
     )}>
       

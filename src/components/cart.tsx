@@ -367,77 +367,77 @@ export function Cart() {
           <div className="flex-1 overflow-y-auto bg-muted/5 p-2 space-y-2">
             
             {currentOrder.items.length > 0 ? (
-                currentOrder.items.map((item, index) => {
-                    const unitId = item.selectedUnit?.unitId || 'default';
-                    const unitName = item.selectedUnit?.unitName || 'Unit';
-                    const price = item.selectedUnit?.price || 0;
-    
-                    return (
-                      <Card key={`${item.productId}-${unitId}-${index}`} className="group relative flex gap-3 p-2 bg-card hover:bg-accent/5 transition-colors border-border/40 shadow-sm">
-                        
-                        {/* Image */}
-                        <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
-                          <img
-                            src={convertFileSrc(item.imageUrl|| '') || '/placeholder.svg?height=64&width=64'}
-                            alt={item.productName}
-                            className="object-cover w-full h-full"
-                          />
-                        </div>
-                        
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                            <div className="flex justify-between items-start gap-2">
-                                <div className="min-w-0">
-                                    <h4 className="font-semibold text-sm truncate text-foreground leading-tight">
-                                        {item.productName}
-                                    </h4>
-                                    <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                                        <span className="truncate max-w-[100px]">{item.variantName}</span>
-                                        <span className="text-border mx-1">|</span>
-                                        <span>{unitName}</span>
-                                    </div>
-                                     {item.notes && (
-                                         <div className="text-[10px] text-amber-600 italic bg-amber-50 dark:bg-amber-950/30 px-1 py-0.5 rounded mt-1 inline-block truncate max-w-full">
-                                            Note: "{item.notes}"
-                                         </div>
-                                     )}
-                                </div>
-                                <div className="text-right shrink-0">
-                                     <div className="font-bold text-sm">{price.toLocaleString()}</div>
-                                </div>
-                            </div>
-    
-                            <div className="flex items-center justify-between mt-1">
-                                <div className="flex items-center gap-1 bg-muted/50 rounded-md border border-border/50 h-7 px-1">
-                                    <button 
-                                        className="h-full px-2 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                        onClick={() => updateItemInOrder({...item, quantity: Math.max(1, item.quantity - 1)})}
-                                        disabled={item.quantity <= 1}
-                                    >
-                                        <Minus className="w-3 h-3" />
-                                    </button>
-                                    <span className="text-xs font-mono font-medium min-w-[1.5rem] text-center">{item.quantity}</span>
-                                    <button 
-                                        className="h-full px-2 text-muted-foreground hover:text-foreground"
-                                        onClick={() => updateItemInOrder({...item, quantity: item.quantity + 1})}
-                                    >
-                                        <Plus className="w-3 h-3" />
-                                    </button>
-                                </div>
-                                
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEdit(item)}>
-                                        <Edit2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeItemFromOrder(item.productId, unitId)}>
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
-                      </Card>
-                    );
-                  })
+              currentOrder.items.map((item, index) => {
+                  const unitId = item.selectedUnit?.unitId || 'default';
+                  const unitName = item.selectedUnit?.unitName || 'Unit';
+                  const price = item.selectedUnit?.price || 0;
+  
+                  return (
+                    <Card key={`${item.productId}-${unitId}-${index}`} className="group relative flex gap-3 p-2 bg-card hover:bg-accent/5 transition-colors border-border/40 rounded-none shadow-sm">
+                      
+                      {/* Image */}
+                      <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
+                        <img
+                          src={convertFileSrc(item.imageUrl|| '') || '/placeholder.svg?height=64&width=64'}
+                          alt={item.productName}
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                      
+                      {/* Content */}
+                      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                          <div className="flex justify-between items-start gap-2">
+                              <div className="min-w-0">
+                                  <h4 className="font-semibold text-sm truncate text-foreground leading-tight">
+                                      {item.productName}
+                                  </h4>
+                                  <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                                      <span className="truncate max-w-[100px]">{item.variantName}</span>
+                                      <span className="text-border mx-1">|</span>
+                                      <span>{unitName}</span>
+                                  </div>
+                                    {item.notes && (
+                                        <div className="text-[10px] text-amber-600 italic bg-amber-50 dark:bg-amber-950/30 px-1 py-0.5 rounded mt-1 inline-block truncate max-w-full">
+                                          Note: "{item.notes}"
+                                        </div>
+                                    )}
+                              </div>
+                              <div className="text-right shrink-0">
+                                    <div className="font-bold text-sm">{price.toLocaleString()}</div>
+                              </div>
+                          </div>
+  
+                          <div className="flex items-center justify-between mt-1">
+                              <div className="flex items-center gap-1 bg-muted/50 rounded-md border border-border/50 h-7 px-1">
+                                  <button 
+                                      className="h-full px-2 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                      onClick={() => updateItemInOrder({...item, quantity: Math.max(1, item.quantity - 1)})}
+                                      disabled={item.quantity <= 1}
+                                  >
+                                      <Minus className="w-3 h-3" />
+                                  </button>
+                                  <span className="text-xs font-mono font-medium min-w-[1.5rem] text-center">{item.quantity}</span>
+                                  <button 
+                                      className="h-full px-2 text-muted-foreground hover:text-foreground"
+                                      onClick={() => updateItemInOrder({...item, quantity: item.quantity + 1})}
+                                  >
+                                      <Plus className="w-3 h-3" />
+                                  </button>
+                              </div>
+                              
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEdit(item)}>
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeItemFromOrder(item.productId, unitId)}>
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                  </Button>
+                              </div>
+                          </div>
+                      </div>
+                    </Card>
+                  );
+                })
             ) : (
                 <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground/50 space-y-4">
                   <div className="p-6 bg-muted/30 rounded-full border border-dashed border-border">
