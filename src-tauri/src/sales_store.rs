@@ -1,21 +1,24 @@
+use aes_gcm::{
+    aead::{Aead, KeyInit, OsRng},
+    Aes256Gcm, Nonce,
+};
+use anyhow::{Context, Result};
+use log::{error, info, warn}; // Enterprise logging
+use rand::RngCore;
+use reqwest::StatusCode;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
-use crate::models::{QueuedSale, SaleStatus, SaleResponse};
-use crate::auth_store::AuthState;
-use crate::shift_store::ShiftState;
-use anyhow::{Result, Context};
-use reqwest::StatusCode;
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce 
-};
-use sha2::{Sha256, Digest};
-use rand::RngCore;
-use log::{info, error, warn}; // Enterprise logging
 use thiserror::Error; // For custom error types
+use tokio::sync::RwLock;
+use tokio::time::{sleep, Instant};
+
+use crate::auth_store::AuthState;
+use crate::models::{QueuedSale, SaleResponse, SaleStatus};
+use crate::shift_store::ShiftState;
 
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
 static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
@@ -27,6 +30,7 @@ fn get_legacy_secret() -> &'static str {
             .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
     })
 }
+
 // --- Enterprise Error Handling ---
 #[derive(Error, Debug)]
 pub enum SalesError {
@@ -66,25 +70,28 @@ fn get_legacy_key() -> [u8; 32] {
 
 async fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> {
     let json_data = serde_json::to_string(queue)?;
-    
+
     // Use secure key from keyring
     let key = crate::security::get_or_create_key("sales_queue_key")
         .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
-        
+
     let cipher = Aes256Gcm::new(&key.into());
-    
+
     let mut nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from(nonce_bytes);
 
-    let ciphertext = cipher.encrypt(&nonce, json_data.as_bytes())
+    let ciphertext = cipher
+        .encrypt(&nonce, json_data.as_bytes())
         .map_err(|_| anyhow::anyhow!("Encryption failed"))?;
 
     let mut final_payload = nonce_bytes.to_vec();
     final_payload.extend_from_slice(&ciphertext);
 
     let path = get_store_path(app)?;
-    tokio::fs::write(path, final_payload).await.context("Failed to write sales queue")?;
+    tokio::fs::write(path, final_payload)
+        .await
+        .context("Failed to write sales queue")?;
     Ok(())
 }
 
@@ -95,17 +102,19 @@ async fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
     }
 
     let file_bytes = tokio::fs::read(&path).await?;
-    if file_bytes.len() < 12 { return Ok(Vec::new()); }
+    if file_bytes.len() < 12 {
+        return Ok(Vec::new());
+    }
 
     let (nonce_slice, ciphertext) = file_bytes.split_at(12);
-    
+
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
     // 1. Try with authorized key from Keyring
     let secure_key_res = crate::security::get_or_create_key("sales_queue_key");
-    
+
     if let Ok(key) = secure_key_res {
         let cipher = Aes256Gcm::new(&key.into());
         if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
@@ -121,27 +130,27 @@ async fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
 
     match legacy_cipher.decrypt(&nonce, ciphertext) {
         Ok(plaintext) => {
-             let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
-             info!("[SalesStore] Legacy decryption successful. Migrating data to secure key...");
-             
-             // Re-encrypt immediately with new safe key
-             if let Err(e) = save_queue_encrypted(app, &queue).await {
-                 error!("[SalesStore] Failed to migrate updated data: {}", e);
-             } else {
-                 info!("[SalesStore] Data successfully migrated to secure storage.");
-             }
-             
-             Ok(queue)
-        },
-        Err(_) => {
-            Err(anyhow::anyhow!("Decryption failed with both keys"))
+            let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
+            info!("[SalesStore] Legacy decryption successful. Migrating data to secure key...");
+
+            // Re-encrypt immediately with new safe key
+            if let Err(e) = save_queue_encrypted(app, &queue).await {
+                error!("[SalesStore] Failed to migrate updated data: {}", e);
+            } else {
+                info!("[SalesStore] Data successfully migrated to secure storage.");
+            }
+
+            Ok(queue)
         }
+        Err(_) => Err(anyhow::anyhow!("Decryption failed with both keys")),
     }
 }
 
 fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir().context("No App Data Dir")?;
-    if !app_dir.exists() { fs::create_dir_all(&app_dir)?; }
+    if !app_dir.exists() {
+        fs::create_dir_all(&app_dir)?;
+    }
     Ok(app_dir.join(SALES_FILENAME))
 }
 
@@ -164,24 +173,42 @@ pub async fn process_sale(
     shift_state: &ShiftState,
     sale_id: String,
     payload: serde_json::Value,
-    auth_state: &AuthState
+    auth_state: &AuthState,
 ) -> Result<SaleResponse> {
-    
     // 1. Get Config/Auth from State
     let (_base_url, location_id, _device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
-        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (
+            config.base_url.clone(),
+            config.location_id.clone(),
+            config.device_key.clone(),
+        )
     };
 
     let (_member_token, _member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+        let token_guard = auth_state
+            .member_token
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state
+            .current_user
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        (
+            token_guard.clone(),
+            user_guard.as_ref().map(|u| u.id.clone()),
+        )
     };
 
     // 2. Identify Payment Method for Special Handling
-    let payment_method = payload.get("paymentMethod")
+    let payment_method = payload
+        .get("paymentMethod")
         .and_then(|v| v.as_str())
         .unwrap_or("UNKNOWN")
         .to_uppercase();
@@ -194,30 +221,36 @@ pub async fn process_sale(
     // 4. Handle Shift Recording (Local)
     if payment_method == "CASH" {
         if let Some(total) = payload.get("total").and_then(|v| v.as_f64()) {
-             if let Err(e) = crate::shift_store::record_cash_sale(shift_state, total) {
-                 error!("[SalesStore] Failed to record cash sale in shift: {}", e);
-             } else {
-                 info!("[SalesStore] Recorded cash sale of {:.2}", total);
-             }
+            if let Err(e) = crate::shift_store::record_cash_sale(shift_state, total) {
+                error!("[SalesStore] Failed to record cash sale in shift: {}", e);
+            } else {
+                info!("[SalesStore] Recorded cash sale of {:.2}", total);
+            }
         }
     }
 
     // 5. Strategy A: Immediate Sync (For Interactive Payments)
     if is_interactive_payment {
-        info!("[SalesStore] Attempting immediate sync for interactive payment: {}", payment_method);
-        
+        info!(
+            "[SalesStore] Attempting immediate sync for interactive payment: {}",
+            payment_method
+        );
+
         match push_single_sale(auth_state, &location_id, &payload).await {
             Ok(server_resp) => {
                 // Success! Return the server response so the UI can show Paybill/Till instructions
                 return Ok(SaleResponse {
                     success: true,
                     message: "Transaction initiated successfully.".into(),
-                    server_response: Some(server_resp) 
+                    server_response: Some(server_resp),
                 });
             }
             Err(e) => {
-                error!("[SalesStore] Immediate sync failed for {}: {}", payment_method, e);
-                // Decide: Do we queue or fail? 
+                error!(
+                    "[SalesStore] Immediate sync failed for {}: {}",
+                    payment_method, e
+                );
+                // Decide: Do we queue or fail?
                 // For Paybill/Till, offline is useless as we need the server to verify.
                 // We return an error to the UI asking them to check internet or switch to Cash.
                 return Err(SalesError::PaymentProcessingError(format!(
@@ -232,7 +265,9 @@ pub async fn process_sale(
     // Add to Local Queue (Encrypted)
     let new_sale = QueuedSale {
         id: sale_id.clone(),
-        timestamp: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)?.as_millis() as u64,
+        timestamp: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)?
+            .as_millis() as u64,
         location_id: location_id.clone(),
         transaction_data: payload.clone(),
         status: SaleStatus::Pending,
@@ -241,16 +276,16 @@ pub async fn process_sale(
     };
 
     {
-    let queue_copy = {
-        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.push(new_sale.clone());
-        q.clone()
-    };
-    
-    if let Err(e) = save_queue_encrypted(&app, &queue_copy).await {
-        error!("CRITICAL: Failed to persist sales queue: {}", e);
-        return Err(SalesError::StorageError(e.to_string()).into());
-    }
+        let queue_copy = {
+            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+            q.push(new_sale.clone());
+            q.clone()
+        };
+
+        if let Err(e) = save_queue_encrypted(&app, &queue_copy).await {
+            error!("CRITICAL: Failed to persist sales queue: {}", e);
+            return Err(SalesError::StorageError(e.to_string()).into());
+        }
     }
 
     // Spawn Background Sync Task (Fire and Forget)
@@ -261,28 +296,27 @@ pub async fn process_sale(
 
     tauri::async_runtime::spawn(async move {
         info!("[Background] Starting sync for sale: {}", sale_id_clone);
-        
+
         // Re-acquire auth_state from app handle
         let auth_state = app_handle.state::<AuthState>();
 
-        let sync_result = push_single_sale(
-            &auth_state,
-            &location_id, 
-            &payload_clone
-        ).await;
+        let sync_result = push_single_sale(&auth_state, &location_id, &payload_clone).await;
 
         let queue_copy = {
             let mut q = queue_ref.lock().unwrap_or_else(|e| e.into_inner());
-            
+
             match sync_result {
                 Ok(_) => {
                     info!("[Background] Sale {} synced successfully.", sale_id_clone);
                     if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
                         q.remove(pos);
                     }
-                },
+                }
                 Err(e) => {
-                    warn!("[Background] Sync failed for {}: {}. Leaving in queue.", sale_id_clone, e);
+                    warn!(
+                        "[Background] Sync failed for {}: {}. Leaving in queue.",
+                        sale_id_clone, e
+                    );
                     if let Some(item) = q.iter_mut().find(|x| x.id == sale_id_clone) {
                         item.last_error = Some(e.to_string());
                         item.retry_count += 1;
@@ -298,7 +332,7 @@ pub async fn process_sale(
     Ok(SaleResponse {
         success: true,
         message: "Sale saved locally. Syncing in background.".into(),
-        server_response: None 
+        server_response: None,
     })
 }
 
@@ -306,15 +340,13 @@ pub async fn process_sale(
 pub async fn sync_pending_sales(
     app: AppHandle,
     state: &SalesState,
-    auth_state: &AuthState
+    auth_state: &AuthState,
 ) -> Result<usize> {
-    // Simplified: No longer need to pre-extract auth data here for push_single_sale
-    // but preserving strict checks for base_url logic if needed by other parts, 
-    // although push_single_sale handles it internally now.
-    // We'll keep the empty check optimization but use the helper accessor.
-    
     let has_config = {
-        auth_state.device_config.lock().is_ok_and(|c| c.is_some())
+        auth_state
+            .device_config
+            .lock()
+            .is_ok_and(|c| c.is_some())
     };
 
     if !has_config {
@@ -329,9 +361,14 @@ pub async fn sync_pending_sales(
             .collect()
     };
 
-    if pending_items.is_empty() { return Ok(0); }
+    if pending_items.is_empty() {
+        return Ok(0);
+    }
 
-    info!("[Sync] Found {} pending sales to sync...", pending_items.len());
+    info!(
+        "[Sync] Found {} pending sales to sync...",
+        pending_items.len()
+    );
     let mut success_count = 0;
     let mut ids_to_remove = Vec::new();
 
@@ -342,27 +379,26 @@ pub async fn sync_pending_sales(
             tokio::time::sleep(Duration::from_millis(100 * (sale.retry_count as u64))).await;
         }
 
-        match push_single_sale(
-            auth_state,
-            &sale.location_id, 
-            &sale.transaction_data
-        ).await {
+        match push_single_sale(auth_state, &sale.location_id, &sale.transaction_data).await {
             Ok(_) => {
                 ids_to_remove.push(sale.id);
                 success_count += 1;
-            },
+            }
             Err(e) => {
                 // Enterprise: Analyze Error Type
                 match e.downcast_ref::<SalesError>() {
                     Some(SalesError::ValidationError(_)) => {
                         // Fatal error: Mark as failed so we stop retrying
-                        error!("[Sync] Fatal validation error for {}: {}. Marking FAILED.", sale.id, e);
+                        error!(
+                            "[Sync] Fatal validation error for {}: {}. Marking FAILED.",
+                            sale.id, e
+                        );
                         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-                         if let Some(item) = q.iter_mut().find(|x| x.id == sale.id) {
+                        if let Some(item) = q.iter_mut().find(|x| x.id == sale.id) {
                             item.status = SaleStatus::Failed;
                             item.last_error = Some(format!("Fatal: {}", e));
                         }
-                    },
+                    }
                     _ => warn!("[Sync] Transient error for {}: {}", sale.id, e),
                 }
             }
@@ -384,48 +420,55 @@ pub async fn sync_pending_sales(
 // --- Helper: Network Request ---
 async fn push_single_sale(
     auth_state: &AuthState,
-    location_id: &str, 
-    payload: &serde_json::Value
+    location_id: &str,
+    payload: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    
     // Check if this is an M-Pesa sale to adjust timeout (handled by shared client timeout)
     let encoded_loc = urlencoding::encode(&location_id);
-    let url_path = format!("/api/v1/pos/sale/process?locationId={}&enableStockTracking=true", encoded_loc);
+    let url_path = format!(
+        "/api/v1/pos/sale/process?locationId={}&enableStockTracking=true",
+        encoded_loc
+    );
 
     // Build request using shared client
     // Note: SalesError::AuthError mapping
-    let req = auth_state.build_request(reqwest::Method::POST, &url_path)
+    let req = auth_state
+        .build_request(reqwest::Method::POST, &url_path)
         .map_err(SalesError::AuthError)?
         .json(payload);
-    
-    // We specifically want a longer timeout for sales processing if needed, 
+
+    // We specifically want a longer timeout for sales processing if needed,
     // but the shared client has 30s. If we need 45s, we might need a per-request timeout override
     // which reqwest supports on the RequestBuilder.
-    let resp = req.timeout(Duration::from_secs(45))
+    let resp = req
+        .timeout(Duration::from_secs(45))
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;
-    
+
     let status = resp.status();
 
     // Enterprise: Detailed Status Handling
     if status.is_success() {
-        let body: serde_json::Value = resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
         return Ok(body);
     }
 
     // Error Handling
     let error_body = resp.text().await.unwrap_or_default();
-    
+
     match status {
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
             // 400/422: Data is wrong. Do not retry.
             Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into())
-        },
+        }
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             // 401/403: Auth wrong. Retry might fix if token refreshes, but usually fatal for current session.
             Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
-        },
+        }
         _ => {
             // 500 or others: Retry.
             Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
@@ -438,7 +481,7 @@ async fn push_single_sale(
 #[tauri::command]
 pub async fn get_sales_history_command(
     auth_state: State<'_, AuthState>,
-    location_id: Option<String>
+    location_id: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
     // Construct URL with optional locationId
     let mut url_path = "/api/v1/pos/sale".to_string();
@@ -447,7 +490,8 @@ pub async fn get_sales_history_command(
         url_path = format!("{}?locationId={}", url_path, encoded_loc);
     }
 
-    let res = auth_state.build_request(reqwest::Method::GET, &url_path)?
+    let res = auth_state
+        .build_request(reqwest::Method::GET, &url_path)?
         .send()
         .await
         .map_err(|e| e.to_string())?;
@@ -463,11 +507,12 @@ pub async fn get_sales_history_command(
 #[tauri::command]
 pub async fn record_payment_command(
     auth_state: State<'_, AuthState>,
-    payload: serde_json::Value
+    payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
     let url_path = "/api/v1/pos/sale/payments";
 
-    let res = auth_state.build_request(reqwest::Method::POST, url_path)?
+    let res = auth_state
+        .build_request(reqwest::Method::POST, url_path)?
         .json(&payload)
         .send()
         .await
@@ -476,7 +521,10 @@ pub async fn record_payment_command(
     let status = res.status();
     if !status.is_success() {
         let err_text = res.text().await.unwrap_or_default();
-        return Err(format!("Payment recording failed: {} - {}", status, err_text));
+        return Err(format!(
+            "Payment recording failed: {} - {}",
+            status, err_text
+        ));
     }
 
     let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
@@ -488,7 +536,7 @@ pub async fn initiate_mpesa_payment_command(
     auth_state: State<'_, AuthState>,
     phone_number: String,
     amount: f64,
-    sale_number: String
+    sale_number: String,
 ) -> Result<serde_json::Value, String> {
     let url_path = "/api/mpesa/initiate";
 
@@ -498,7 +546,8 @@ pub async fn initiate_mpesa_payment_command(
         "saleNumber": sale_number
     });
 
-    let res = auth_state.build_request(reqwest::Method::POST, url_path)?
+    let res = auth_state
+        .build_request(reqwest::Method::POST, url_path)?
         .json(&payload)
         .send()
         .await
@@ -507,7 +556,10 @@ pub async fn initiate_mpesa_payment_command(
     let status = res.status();
     if !status.is_success() {
         let err_text = res.text().await.unwrap_or_default();
-        return Err(format!("M-Pesa initiation failed: {} - {}", status, err_text));
+        return Err(format!(
+            "M-Pesa initiation failed: {} - {}",
+            status, err_text
+        ));
     }
 
     let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
@@ -526,8 +578,6 @@ pub async fn retry_single_sale(
     sale_id: String,
 ) -> Result<bool> {
     // Find the sale in the queue
-
-    // Find the sale in the queue
     let sale_data = {
         let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         q.iter().find(|s| s.id == sale_id).cloned()
@@ -536,11 +586,7 @@ pub async fn retry_single_sale(
     let sale = sale_data.ok_or_else(|| anyhow::anyhow!("Sale not found"))?;
 
     // Attempt to sync
-    match push_single_sale(
-        auth_state,
-        &sale.location_id,
-        &sale.transaction_data,
-    ).await {
+    match push_single_sale(auth_state, &sale.location_id, &sale.transaction_data).await {
         Ok(_) => {
             info!("[SalesStore] Sale {} retried successfully.", sale_id);
             // Remove from queue
@@ -551,7 +597,7 @@ pub async fn retry_single_sale(
             };
             let _ = save_queue_encrypted(&app, &queue_copy).await;
             Ok(true)
-        },
+        }
         Err(e) => {
             warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
             // Update retry count
@@ -579,9 +625,9 @@ pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<Q
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_millis() as u64;
-    
+
     let threshold_ms = days_threshold * 24 * 60 * 60 * 1000;
-    
+
     q.iter()
         .filter(|s| s.status != SaleStatus::Synced && (now - s.timestamp) > threshold_ms)
         .cloned()
@@ -602,14 +648,14 @@ pub async fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -
         let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
         let initial_len = q.len();
         q.retain(|s| s.id != sale_id);
-        
+
         if q.len() < initial_len {
             (true, q.clone())
         } else {
             (false, Vec::new())
         }
     };
-    
+
     if should_save {
         save_queue_encrypted(app, &queue_copy).await?;
         info!("[SalesStore] Sale {} deleted from queue.", sale_id);
@@ -619,7 +665,6 @@ pub async fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -
     }
 }
 
-
 pub async fn scan_transaction_qr(
     auth_state: &AuthState,
     qr_code: String,
@@ -627,21 +672,26 @@ pub async fn scan_transaction_qr(
     // Url match: /api/v1/pos/transaction/scan
     let url_path = "/api/v1/pos/transaction/scan";
 
-    let req = auth_state.build_request(reqwest::Method::POST, url_path)
+    let req = auth_state
+        .build_request(reqwest::Method::POST, url_path)
         .map_err(SalesError::AuthError)?;
 
     let payload = serde_json::json!({ "code": qr_code });
 
-    let resp = req.json(&payload)
+    let resp = req
+        .json(&payload)
         .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;
-    
+
     let status = resp.status();
 
     if status.is_success() {
-        let body: serde_json::Value = resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
         return Ok(body);
     }
 
@@ -652,11 +702,15 @@ pub async fn scan_transaction_qr(
 pub fn search_local(state: &SalesState, query: String) -> Vec<QueuedSale> {
     let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     let lower_query = query.to_lowercase();
-    
+
     q.iter()
         .filter(|s| {
-            s.id.to_lowercase().contains(&lower_query) ||
-            s.transaction_data.get("saleNumber").and_then(|v| v.as_str()).map(|v| v.to_lowercase().contains(&lower_query)).unwrap_or(false)
+            s.id.to_lowercase().contains(&lower_query)
+                || s.transaction_data
+                    .get("saleNumber")
+                    .and_then(|v| v.as_str())
+                    .map(|v| v.to_lowercase().contains(&lower_query))
+                    .unwrap_or(false)
         })
         .cloned()
         .collect()
@@ -671,34 +725,146 @@ pub async fn create_order(
     let encoded_loc = urlencoding::encode(&location_id);
     let url_path = format!("/api/v1/pos/orders?locationId={}", encoded_loc);
 
-    let req = auth_state.build_request(reqwest::Method::POST, &url_path)
+    let req = auth_state
+        .build_request(reqwest::Method::POST, &url_path)
         .map_err(SalesError::AuthError)?;
 
-    let resp = req.json(&order_payload)
+    let resp = req
+        .json(&order_payload)
         .timeout(Duration::from_secs(30))
         .send()
         .await
         .map_err(|e| SalesError::NetworkError(e.to_string()))?;
-    
+
     let status = resp.status();
 
     if status.is_success() {
-        let body: serde_json::Value = resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
         return Ok(body);
     }
 
     // Error Handling
     let error_body = resp.text().await.unwrap_or_default();
-    
+
     match status {
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
             Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into())
-        },
+        }
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
-        },
-        _ => {
-            Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
+        }
+        _ => Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into()),
+    }
+}
+
+pub async fn invalidate_sale(
+    app: &AppHandle,
+    state: &SalesState,
+    sale_id: String,
+    reason: String,
+) -> Result<bool> {
+    let (should_save, queue_copy) = {
+        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
+        let mut found = false;
+
+        if let Some(item) = q.iter_mut().find(|s| s.id == sale_id) {
+            item.status = SaleStatus::Invalidated;
+            // Append the reason so the manager knows why it was voided
+            item.last_error = Some(format!("Voided locally: {}", reason));
+            found = true;
+        }
+
+        (found, q.clone())
+    };
+
+    if should_save {
+        save_queue_encrypted(app, &queue_copy).await?;
+        info!("[SalesStore] Sale {} invalidated.", sale_id);
+        Ok(true)
+    } else {
+        Err(anyhow::anyhow!("Sale not found in local queue").into())
+    }
+}
+
+#[tauri::command]
+pub async fn invalidate_sale_command(
+    app: AppHandle,
+    state: State<'_, SalesState>,
+    sale_id: String,
+    reason: String,
+) -> Result<bool, String> {
+    invalidate_sale(&app, &state, sale_id, reason)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+// 1. State to hold our configurable sync interval
+pub struct SyncConfigState {
+    pub interval: Arc<RwLock<Duration>>,
+}
+
+impl SyncConfigState {
+    pub fn new() -> Self {
+        Self {
+            // Default to 5 minutes (5 * 60 seconds)
+            interval: Arc::new(RwLock::new(Duration::from_secs(5 * 60))),
         }
     }
+}
+
+// 2. Command to change the sync interval dynamically from the frontend
+#[tauri::command]
+pub async fn set_sync_interval_command(
+    state: State<'_, SyncConfigState>,
+    minutes: u64,
+) -> Result<String, String> {
+    if minutes < 1 {
+        return Err("Interval must be at least 1 minute".into());
+    }
+
+    let mut interval = state.interval.write().await;
+    *interval = Duration::from_secs(minutes * 60);
+
+    info!("Background sales sync interval updated to {} minutes", minutes);
+    Ok(format!("Sync interval updated to {} minutes", minutes))
+}
+
+// 3. The background cron job logic
+pub fn start_auto_sync_task(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut last_sync = Instant::now();
+
+        loop {
+            // Sleep for a short 10-second tick.
+            // This prevents blocking dynamic updates to the interval and uses 0% CPU.
+            sleep(Duration::from_secs(10)).await;
+
+            // Read the current interval configuration
+            let interval = {
+                let state = app.state::<SyncConfigState>();
+                // Force the RwLockReadGuard to drop before `state` drops by saving it to a local variable
+                let val = *state.interval.read().await;
+                val
+            };
+
+            // Check if the required time has elapsed since the last sync
+            if last_sync.elapsed() >= interval {
+                info!("[AutoSync] Triggering scheduled sales sync...");
+
+                let sales_state = app.state::<SalesState>();
+                let auth_state = app.state::<AuthState>();
+
+                match sync_pending_sales(app.clone(), &sales_state, &auth_state).await {
+                    Ok(_) => info!("[AutoSync] Sync successful."),
+                    Err(e) => error!("[AutoSync] Failed to sync sales: {}", e),
+                }
+
+                // Reset the timer after execution
+                last_sync = Instant::now();
+            }
+        }
+    });
 }

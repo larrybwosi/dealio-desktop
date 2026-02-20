@@ -194,13 +194,13 @@ pub struct QueuedSale {
     pub last_error: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum SaleStatus {
     Pending,
-    Syncing,
-    Failed, // Fatal error (e.g., validation), don't retry
     Synced,
+    Failed,
+    Invalidated,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
