@@ -1,6 +1,7 @@
 use std::sync::Mutex;
+use log::info;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{AppHandle, State};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use keyring::Entry;
 
@@ -277,6 +278,7 @@ pub async fn set_device_config(
 
 #[tauri::command]
 pub async fn login_member(
+    app: AppHandle,
     state: State<'_, AuthState>,
     card_id: String,
     pin: Option<String>,
@@ -308,6 +310,17 @@ pub async fn login_member(
     if !res.status().is_success() {
         let status = res.status();
         let error_text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        // Audit failed login attempt
+        let _ = crate::audit_store::write_event(
+            &app,
+            crate::audit_store::AuditLevel::Warning,
+            "LOGIN_FAILED",
+            Some(card_id.clone()),
+            None,
+            location_id,
+            None,
+            serde_json::json!({ "card_id": card_id, "reason": format!("{} - {}", status, error_text) }),
+        );
         return Err(format!("Login failed: {} - {}", status, error_text));
     }
 
@@ -319,6 +332,19 @@ pub async fn login_member(
     *state.member_token.lock().unwrap() = Some(data.token); 
     *state.current_user.lock().unwrap() = Some(data.member.clone());
 
+    // Audit successful login
+    info!("[AUTH] Member {} logged in", data.member.name);
+    let _ = crate::audit_store::write_event(
+        &app,
+        crate::audit_store::AuditLevel::Info,
+        "LOGIN",
+        Some(data.member.id.clone()),
+        Some(data.member.name.clone()),
+        location_id,
+        None,
+        serde_json::json!({ "card_id": card_id, "role": data.member.role }),
+    );
+
     Ok(CheckInResult {
         member: data.member,
         restored_session: data.restored_session.unwrap_or(false),
@@ -327,9 +353,19 @@ pub async fn login_member(
 
 #[tauri::command]
 pub async fn logout_member(
+    app: AppHandle,
     state: State<'_, AuthState>,
     location_id: Option<String>
 ) -> Result<(), String> {
+    // Capture actor before clearing
+    let (actor_id, actor_name) = {
+        let user_guard = state.current_user.lock().unwrap_or_else(|e| e.into_inner());
+        (
+            user_guard.as_ref().map(|u| u.id.clone()),
+            user_guard.as_ref().map(|u| u.name.clone()),
+        )
+    };
+
     // 1. Attempt to notify the server (Best effort)
     if let Ok((client, base_url)) = state.get_client() {
         let device_key = {
@@ -349,6 +385,19 @@ pub async fn logout_member(
     let _ = AuthState::delete_token_from_keyring();
     *state.member_token.lock().unwrap() = None;
     *state.current_user.lock().unwrap() = None;
+
+    // Audit logout
+    info!("[AUTH] Member {:?} logged out", actor_name);
+    let _ = crate::audit_store::write_event(
+        &app,
+        crate::audit_store::AuditLevel::Info,
+        "LOGOUT",
+        actor_id,
+        actor_name,
+        location_id,
+        None,
+        serde_json::Value::Null,
+    );
     
     Ok(())
 }

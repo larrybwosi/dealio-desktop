@@ -11,7 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type, AlertTriangle, Palette, Store, ShieldAlert, Check, LayoutGrid, Save, Building2, Bell, HardDrive } from 'lucide-react';
+import { ScanBarcode, Play, Square, RefreshCcw, Search, CreditCard, Smartphone, Monitor, DoorOpen, Plus, Trash, Image, Type, AlertTriangle, Palette, Store, ShieldAlert, Check, LayoutGrid, Save, Building2, Bell, HardDrive, FileText } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -28,6 +28,7 @@ import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
 import GeneralSettings from '@/components/settings/general-tab';
+import LogsTab from '@/components/settings/logs-tab';
 import { Badge } from '@/components/ui/badge';
 import {motion} from 'framer-motion';
 
@@ -302,6 +303,12 @@ export default function SettingsPage() {
                 <Store className="h-4 w-4 mr-2" /> Navigation
               </TabsTrigger>
               <TabsTrigger 
+                value="logs" 
+                className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
+              >
+                <FileText className="h-4 w-4 mr-2" /> Logs
+              </TabsTrigger>
+              <TabsTrigger 
                 value="danger" 
                 className="flex-1 min-w-[100px] h-10 text-destructive data-[state=active]:bg-destructive/10 data-[state=active]:text-destructive data-[state=active]:shadow-none transition-all hover:text-destructive"
               >
@@ -326,6 +333,8 @@ export default function SettingsPage() {
             enableAutoStart={enableAutoStart}
             setEnableAutoStart={setEnableAutoStart}
           />
+
+          <LogsTab />
 
           <TabsContent value="theme" className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95">
             <div className="grid gap-6 md:grid-cols-2">

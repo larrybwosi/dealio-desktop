@@ -45,6 +45,7 @@ urlencoding = "2.1"
 tempfile = "3"       # For safe file handling (Security)
 thiserror = "1"      # For typed errors
 log = "0.4"          # For standard logging
+tauri-plugin-log = { version = "2", features = ["colored"] } # Structured file logging
 
 tauri-plugin-os = "2"
 tauri-plugin-fs = "2"

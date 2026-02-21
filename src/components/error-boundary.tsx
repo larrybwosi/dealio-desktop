@@ -1,6 +1,7 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle, RotateCcw } from "lucide-react";
+import { logger } from "@/lib/logger";
 
 interface Props {
   children?: ReactNode;
@@ -21,7 +22,14 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("Uncaught error:", error, errorInfo);
+    // Log to system log file for developer troubleshooting
+    logger.error(
+      "[CRASH] React ErrorBoundary caught an unhandled error",
+      error,
+      {
+        componentStack: errorInfo.componentStack ?? "N/A",
+      }
+    );
   }
 
   public handleReload = () => {
@@ -42,7 +50,7 @@ export class ErrorBoundary extends Component<Props, State> {
             </h1>
             
             <p className="text-muted-foreground mb-6">
-              The application encountered an unexpected error. We apologize for the inconvenience.
+              The application encountered an unexpected error. The error has been logged for your support team.
             </p>
             
             {this.state.error && (
@@ -71,3 +79,4 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+

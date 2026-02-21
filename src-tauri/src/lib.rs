@@ -49,6 +49,7 @@ mod http_server;
 mod stock_acceptance;
 mod stock_acceptance_models;
 pub mod stock_transfer;
+mod audit_store;
 
 mod scanner_manager;
 
@@ -185,9 +186,51 @@ async fn process_sale_command(
     payload: serde_json::Value,
 ) -> Result<models::SaleResponse, String> {
     // Pass auth_state and shift_state to the logic
-    sales_store::process_sale(app, &state, &shift_state, sale_id, payload, &auth_state)
+    let result = sales_store::process_sale(app.clone(), &state, &shift_state, sale_id.clone(), payload.clone(), &auth_state)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+
+    // --- Audit Logging ---
+    let (actor_id, actor_name, location_id) = {
+        let config_guard = auth_state.device_config.lock().unwrap_or_else(|e| e.into_inner());
+        let user_guard = auth_state.current_user.lock().unwrap_or_else(|e| e.into_inner());
+        (
+            user_guard.as_ref().map(|u| u.id.clone()),
+            user_guard.as_ref().map(|u| u.name.clone()),
+            config_guard.as_ref().map(|c| c.location_id.clone()),
+        )
+    };
+
+    match &result {
+        Ok(_) => {
+            let payment_method = payload.get("paymentMethod").and_then(|v| v.as_str()).unwrap_or("UNKNOWN");
+            let total = payload.get("total").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let _ = crate::audit_store::write_event(
+                &app,
+                crate::audit_store::AuditLevel::Info,
+                "SALE_PROCESSED",
+                actor_id,
+                actor_name,
+                location_id,
+                None,
+                serde_json::json!({ "sale_id": sale_id, "total": total, "payment_method": payment_method }),
+            );
+        }
+        Err(e) => {
+            let _ = crate::audit_store::write_event(
+                &app,
+                crate::audit_store::AuditLevel::Critical,
+                "SALE_FAILED",
+                actor_id,
+                actor_name,
+                location_id,
+                None,
+                serde_json::json!({ "sale_id": sale_id, "error": e }),
+            );
+        }
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -715,6 +758,7 @@ fn record_shift_sale_command(state: State<'_, ShiftState>, amount: f64) -> Resul
 
 #[tauri::command]
 fn open_shift_command(
+    app: AppHandle,
     state: State<'_, ShiftState>,
     card_id: String,
     pin: String,
@@ -725,7 +769,23 @@ fn open_shift_command(
     }
 
     // Now passes card_id and pin individually to shift_store
-    shift_store::open_new_shift(&state, card_id, pin, float_amount)
+    let result = shift_store::open_new_shift(&state, card_id.clone(), pin, float_amount);
+
+    // --- Audit Logging ---
+    if let Ok(ref shift) = result {
+        let _ = crate::audit_store::write_event(
+            &app,
+            crate::audit_store::AuditLevel::Info,
+            "SHIFT_OPENED",
+            Some(card_id),
+            None,
+            None,
+            None,
+            serde_json::json!({ "shift_id": shift.id, "float": float_amount }),
+        );
+    }
+
+    result
 }
 
 #[tauri::command]
@@ -742,6 +802,24 @@ async fn close_shift_command(
     }
 
     let closed_shift = shift_store::close_current_shift(&state, actual_count)?;
+
+    // --- Audit Logging ---
+    let _ = crate::audit_store::write_event(
+        &app,
+        crate::audit_store::AuditLevel::Info,
+        "SHIFT_CLOSED",
+        Some(card_id),
+        None,
+        None,
+        None,
+        serde_json::json!({
+            "shift_id": closed_shift.id,
+            "total_cash_sales": closed_shift.total_cash_sales,
+            "actual_cash": closed_shift.actual_cash,
+            "variance": closed_shift.variance
+        }),
+    );
+
     let report_text = shift_store::generate_z_report_text(&closed_shift);
 
     if let Some(p_name) = printer_name {
@@ -955,6 +1033,13 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .level(log::LevelFilter::Info)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .max_file_size(5_000_000) // 5 MB per file
+                .build(),
+        )
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -1054,6 +1139,9 @@ pub fn run() {
             stock_acceptance::submit_stock_process,
             stock_transfer::submit_stock_transfer,
             http_server::start_file_server,
+            audit_store::write_audit_log,
+            audit_store::get_audit_logs,
+            audit_store::get_system_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
