@@ -1,3 +1,11 @@
+# [2.10.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.4...v2.10.0) (2026-02-21)
+
+
+### Features
+
+* **error handling and logging:** updated the error handling logic and proper logging ([2887477](https://github.com/larrybwosi/dealio-desktop/commit/28874772be3163b5853b9c41ff303d8f1094be8d))
+* **sale synking:** sales can now be synked in the background ([280e6ea](https://github.com/larrybwosi/dealio-desktop/commit/280e6ea553046446b0833f1f0b5bdf21a538ac9d))
+
 ## [2.9.4](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.3...v2.9.4) (2026-02-18)
 
 
