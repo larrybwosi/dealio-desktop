@@ -286,7 +286,7 @@ pub async fn login_member(
 ) -> Result<CheckInResult, String> {
     // 1. Get Client and URL from state
     let (client, base_url) = state.get_client()?;
-    let url = format!("{}/api/v1/pos/check-in", base_url);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::CHECK_IN);
 
     // 2. Perform Request
     let device_key = {
@@ -373,7 +373,7 @@ pub async fn logout_member(
             config_guard.as_ref().map(|c| c.device_key.clone())
         };
 
-        let url = format!("{}/api/v1/pos/check-out", base_url);
+        let url = format!("{}/{}", base_url, crate::api_config::routes::CHECK_OUT);
         let body = serde_json::json!({ 
             "locationId": location_id,
             "deviceKey": device_key
@@ -526,7 +526,7 @@ pub async fn get_locations_command(
     state: State<'_, AuthState>
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = state.get_client()?;
-    let url = format!("{}/api/v1/pos/locations", base_url.trim_end_matches('/'));
+    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::LOCATIONS);
 
     let res = client.get(&url)
         .send()
@@ -556,7 +556,7 @@ pub async fn get_ably_auth_token_command(
         }
     };
     
-    let url = format!("{}/api/v1/pos/ably-auth", base_url.trim_end_matches('/'));
+    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::ABLY_AUTH);
 
     // Get member ID for header
     let member_id = {

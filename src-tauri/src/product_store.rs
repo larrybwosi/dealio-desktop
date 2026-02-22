@@ -174,7 +174,7 @@ pub async fn run_sync(
     }
 
     let clean_base_url = base_url.trim_end_matches('/');
-    let target_url = format!("{}/api/v1/pos/products", clean_base_url);
+    let target_url = format!("{}/{}", clean_base_url, crate::api_config::routes::PRODUCTS);
     
     // Get last sync time for THIS location (not global)
     let last_sync_time = if force_full_sync {

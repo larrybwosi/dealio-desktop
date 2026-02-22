@@ -22,7 +22,7 @@ pub async fn get_drivers_command(
     auth_state: State<'_, AuthState>
 ) -> Result<Vec<Driver>, String> {
     let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!("{}/api/v1/drivers", base_url.trim_end_matches('/'));
+    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::DRIVERS);
 
     let res = client.get(&url)
         .send()
@@ -44,7 +44,7 @@ pub async fn dispatch_order_command(
     payload: serde_json::Value
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!("{}/api/v1/pos/deliveries/dispatch?transactionId={}", base_url.trim_end_matches('/'), transaction_id);
+    let url = format!("{}/{}?transactionId={}", base_url.trim_end_matches('/'), crate::api_config::routes::DELIVERY_DISPATCH, transaction_id);
 
     let res = client.post(&url)
         .json(&payload)
@@ -70,7 +70,7 @@ pub async fn reconcile_delivery_command(
     notes: Option<String>
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!("{}/api/v1/pos/deliveries/reconcile-pod", base_url.trim_end_matches('/'));
+    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::DELIVERY_RECONCILE);
 
     let mut form = reqwest::multipart::Form::new()
         .text("fulfilmentId", fulfillment_id);

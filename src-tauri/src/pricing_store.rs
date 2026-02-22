@@ -179,9 +179,9 @@ pub async fn run_sync(
     let last_sync = state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()).clone();
     
     let target_url = if last_sync.is_some() {
-        format!("{}/api/v1/pos/pricing/sync", clean_base_url)
+        format!("{}/{}", clean_base_url, crate::api_config::routes::PRICING_SYNC)
     } else {
-        format!("{}/api/v1/pos/pricing", clean_base_url)
+        format!("{}/{}", clean_base_url, crate::api_config::routes::PRICING)
     };
 
     // --- BUILD HEADERS ---

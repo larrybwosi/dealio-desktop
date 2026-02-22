@@ -24,6 +24,7 @@ import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
 import { DispatchDialog } from '@/components/pending-page/dispatch-dialog';
 import { useNavigate, useSearchParams } from 'react-router';
+import { API_ROUTES } from '@/config/api';
 
 // Import the new components
 import { TransactionRow } from '@/components/pending-page/transaction-row';
@@ -179,8 +180,7 @@ export default function PendingTransactionsPage() {
 
     try {
       // Request waybill based on fulfillment ID
-      // NEXT VERSION: `/api/v1/fulfillment/${tx.fulfillmentId}/waybill`
-      const url = `/api/v1/pos/waybill/${tx.id}`;
+      const url = API_ROUTES.FULFILLMENT.WAYBILL(tx.id);
       const blob = await invoke<number[]>('get_invoice_blob_command', { url });
       const uint8Array = new Uint8Array(blob);
       const blobObj = new Blob([uint8Array], { type: 'application/pdf' });

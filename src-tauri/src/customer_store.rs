@@ -172,7 +172,7 @@ pub async fn run_sync(
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
 
     let clean_base_url = base_url.trim_end_matches('/');
-    let target_url = format!("{}/api/v1/pos/customers", clean_base_url);
+    let target_url = format!("{}/{}", clean_base_url, crate::api_config::routes::CUSTOMERS);
     let last_token = state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner()).clone();
     
     // --- BUILD HEADERS ---
@@ -306,7 +306,7 @@ pub async fn create_customer(
     };
 
     let clean_base = base_url.trim_end_matches('/');
-    let target_url = format!("{}/api/v1/pos/customers", clean_base);
+    let target_url = format!("{}/{}", clean_base, crate::api_config::routes::CUSTOMERS);
 
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();

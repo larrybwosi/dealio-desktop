@@ -240,7 +240,7 @@ pub async fn sync_pending_shifts(
             .map_err(|e| e.to_string())?;
 
         let clean_base_url = base_url.trim_end_matches('/');
-        let res = client.post(format!("{}/api/v1/pos/shifts/sync", clean_base_url)) // Updated endpoint path to match standard
+        let res = client.post(format!("{}/{}", clean_base_url, crate::api_config::routes::SHIFT_SYNC)) // Updated endpoint path to match standard
             .json(&payload)
             .send()
             .await

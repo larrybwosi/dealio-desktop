@@ -169,7 +169,7 @@ pub async fn submit_stock_process(
 ) -> Result<serde_json::Value, CommandError> {
 
     let (client, base_url) = build_client(&auth_state)?;
-    let url = format!("{}/api/v1/pos/inventory/process", base_url);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::INVENTORY_PROCESS);
 
     info!("[StockAcceptance] Submitting process for batch {} - Action: {}", payload.batch_id, payload.action);
 
@@ -189,7 +189,7 @@ pub async fn fetch_incoming_shipments(
 ) -> Result<IncomingResponse, CommandError> {
     
     let (client, base_url) = build_client(&auth_state)?;
-    let url = format!("{}/api/v1/pos/incoming", base_url);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::INCOMING_SHIPMENTS);
 
     info!("[StockAcceptance] Fetching incoming shipments for location: {}", location_id);
 
@@ -214,7 +214,7 @@ pub async fn receive_purchase_order(
 
     let (client, base_url) = build_client(&auth_state)?;
     let encoded_id = urlencoding::encode(&purchase_id);
-    let url = format!("{}/api/v1/pos/purchases/{}/receive", base_url, encoded_id);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::purchase_receive(&encoded_id));
 
     info!("[StockAcceptance] Submitting Receipt for PO: {}", purchase_id);
 
@@ -289,7 +289,7 @@ pub async fn receive_stock_transfer(
 
     let (client, base_url) = build_client(&auth_state)?;
     let encoded_id = urlencoding::encode(&transfer_id);
-    let url = format!("{}/api/v1/pos/inventory/transfers/{}/receive", base_url, encoded_id);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::transfer_receive(&encoded_id));
 
     info!("[StockAcceptance] Submitting Receipt for Transfer: {}", transfer_id);
 

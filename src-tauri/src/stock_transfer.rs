@@ -192,7 +192,7 @@ pub async fn submit_stock_transfer(
     let (client, base_url, current_location_id) = build_client_with_context(&auth_state)?;
     
     // 2. Prepare API URL
-    let url = format!("{}/api/v1/pos/inventory/transfers", base_url);
+    let url = format!("{}/{}", base_url, crate::api_config::routes::INVENTORY_TRANSFERS);
 
     // 3. Construct Full Payload
     let api_payload = TransferApiPayload {

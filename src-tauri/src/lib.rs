@@ -31,6 +31,8 @@ use shift_store::ShiftState;
 mod auth_store;
 use auth_store::AuthState;
 
+mod api_config;
+
 mod security;
 
 mod notification_manager;
