@@ -1,3 +1,15 @@
+# [2.11.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.10.1-beta.1...v2.11.0-beta.1) (2026-02-22)
+
+
+### Bug Fixes
+
+* **stock transfer:** corrected the error thrown when creating the stock transfers ([fde8755](https://github.com/larrybwosi/dealio-desktop/commit/fde875547cdde3ee607b008fc9fdd1b9b7589d2f))
+
+
+### Features
+
+* centralize API configuration in backend and frontend ([ef72a5f](https://github.com/larrybwosi/dealio-desktop/commit/ef72a5fafc027d9050dfbdd302c6ae664a11e8d6))
+
 ## [2.10.1-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.10.0...v2.10.1-beta.1) (2026-02-22)
 
 
