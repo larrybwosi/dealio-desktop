@@ -127,7 +127,7 @@ export default function StockTransferCreate() {
     const allVariants = getProductVariants(product);
     
     // Handle Product Name Safely (fallback for snake_case or missing)
-    const safeProductName = product.productName || (product as any).product_name || "Unknown Product";
+    const safeProductName = product.productName || (product as any).product_name || product.name || "Unknown Product";
 
     // Find selected variant
     let selectedVariant: ProductVariant | null = null;
@@ -354,7 +354,7 @@ export default function StockTransferCreate() {
                           {searchResults.map((product) => {
                             const variants = getProductVariants(product);
                             const availableVariants = variants.filter(v => v.stock > 0);
-                            const safeProductName = product.productName || (product as any).product_name || "Unknown Product";
+                            const safeProductName = product.productName || (product as any).product_name || product.name || "Unknown Product";
 
                             // Case 1: Out of Stock (Render Parent with Key)
                             if (availableVariants.length === 0) {

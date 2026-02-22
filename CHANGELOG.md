@@ -1,3 +1,10 @@
+## [2.10.1-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.10.0...v2.10.1-beta.1) (2026-02-22)
+
+
+### Bug Fixes
+
+* **stock transfer:** corrected the stock transfer page ([2324ed0](https://github.com/larrybwosi/dealio-desktop/commit/2324ed0df4b91e9fe3c7bea7dc660849be91f4f4))
+
 # [2.10.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.9.4...v2.10.0) (2026-02-21)
 
 

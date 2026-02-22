@@ -24,6 +24,7 @@ export interface Variant {
 export interface PosProduct {
   productId: string;
   productName: string;
+  name?: string;
   variantId: string;
   variantName: string;
   category: string;
