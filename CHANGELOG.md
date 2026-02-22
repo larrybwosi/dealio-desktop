@@ -1,3 +1,10 @@
+# [2.11.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v2.11.0-beta.1...v2.11.0-beta.2) (2026-02-22)
+
+
+### Bug Fixes
+
+* **build:** prerelease build fix ([4aa34cd](https://github.com/larrybwosi/dealio-desktop/commit/4aa34cd47a69f23746a0a33eb169b2e3920ee3df))
+
 # [2.11.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.10.1-beta.1...v2.11.0-beta.1) (2026-02-22)
 
 
