@@ -127,11 +127,16 @@ jobs:
       - name: Update Version for Build
         shell: bash
         run: |
-          echo "Bumping version to ${{ needs.release-management.outputs.new_release_version }}"
-          npm version ${{ needs.release-management.outputs.new_release_version }} --no-git-tag-version --allow-same-version
+          FULL_VERSION="${{ needs.release-management.outputs.new_release_version }}"
+          # Extract just the X.Y.Z part (removes -beta.1, etc.)
+          CLEAN_VERSION="${FULL_VERSION%%-*}"
           
-          # Safely update tauri.conf.json with jq
-          jq '.version = "${{ needs.release-management.outputs.new_release_version }}"' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          echo "Bumping npm version to $FULL_VERSION"
+          npm version $FULL_VERSION --no-git-tag-version --allow-same-version
+          
+          echo "Bumping Tauri config version to $CLEAN_VERSION to satisfy strict bundler rules"
+          # Safely update tauri.conf.json with jq using the cleaned version
+          jq --arg v "$CLEAN_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
       - uses: tauri-apps/tauri-action@v0
         env:
