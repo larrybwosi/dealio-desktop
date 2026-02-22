@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePDF } from '@react-pdf/renderer';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Loader2 } from 'lucide-react';
@@ -13,18 +13,26 @@ import 'react-pdf/dist/Page/TextLayer.css';
 
 export const ReceiptPreviewWrapper = ({ document }: { document: React.ReactElement<any> | null }) => {
   const [instance, update] = usePDF({ document: document as any });
-  
-  
-  // Update the instance when the document prop changes
+
+  // Hold onto the last successfully rendered URL so the preview never
+  // disappears while a new PDF is being generated — this eliminates the flash.
+  const [stableUrl, setStableUrl] = useState<string | null>(null);
+  const isFirstLoad = useRef(true);
+
   useEffect(() => {
     update(document as any);
   }, [document, update]);
 
-  function onDocumentLoadSuccess({ numPages: _numPages }: { numPages: number }) {
-    // We don't need numPages currently, but the library passes it
-  }
+  // Only update stableUrl when a new valid URL comes in
+  useEffect(() => {
+    if (instance.url) {
+      setStableUrl(instance.url);
+      isFirstLoad.current = false;
+    }
+  }, [instance.url]);
 
-  if (instance.loading) {
+  // Only show the full-screen loader on the very first load (no prior URL to show)
+  if (isFirstLoad.current && instance.loading) {
     return (
       <div className="flex h-full items-center justify-center flex-col gap-3 animate-pulse">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -43,27 +51,26 @@ export const ReceiptPreviewWrapper = ({ document }: { document: React.ReactEleme
   }
 
   return (
-    <div className="w-full h-full flex justify-center overflow-y-auto bg-gray-100 dark:bg-neutral-900/50 p-4">
-      {instance.url ? (
+    <div className="w-full h-full flex justify-center overflow-y-auto bg-gray-100 dark:bg-neutral-900/50 p-4 relative">
+      {/* Subtle updating indicator — shows on re-renders without hiding the preview */}
+      {instance.loading && stableUrl && (
+        <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-background/80 backdrop-blur-sm border border-border/50 rounded-full px-2.5 py-1 shadow-sm">
+          <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+          <span className="text-[10px] font-mono text-muted-foreground">updating</span>
+        </div>
+      )}
+
+      {stableUrl ? (
         <Document
-          file={instance.url}
-          onLoadSuccess={onDocumentLoadSuccess}
-          loading={
-            <div className="flex items-center gap-2 text-muted-foreground mt-10">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Rendering PDF...</span>
-            </div>
-          }
+          file={stableUrl}
+          loading={null}
           className="shadow-2xl"
         >
-          {/* Render the first page. Receipts are usually 1 page. 
-              scale={1.0} ensures it renders at 72dpi standard size, 
-              adjust or make dynamic based on container width if needed */}
-          <Page 
-            pageNumber={1} 
-            renderTextLayer={false} 
+          <Page
+            pageNumber={1}
+            renderTextLayer={false}
             renderAnnotationLayer={false}
-            scale={2.0} 
+            scale={2.0}
             className="rounded-lg overflow-hidden border border-border"
           />
         </Document>

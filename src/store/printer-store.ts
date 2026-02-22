@@ -84,12 +84,23 @@ export const usePrinterStore = create<PrinterState>()(
         
         // 2. Persist to Disk via Rust
         const currentAssignments = get().assignments;
+        
+        // Helper function to format the string ID into the Rust PrinterConfig struct
+        const formatConfig = (id: string | null) => {
+          if (!id) return null;
+          return {
+            type: "system", // Assuming system printers based on the "XP-80C" error. Change to "network" if it's an IP address.
+            target: id
+          };
+        };
+
         try {
            await invoke('save_printer_config', { 
              config: {
-               receipt_printer: currentAssignments.receipt,
-               kitchen_printer: currentAssignments.kitchen,
-               invoice_printer: currentAssignments.invoice
+               receipt_printer: formatConfig(currentAssignments.receipt),
+               kitchen_printer: formatConfig(currentAssignments.kitchen),
+               // Note: If 'invoice_printer' isn't in your Rust PrinterSettings struct, you might need to remove it here or add it to Rust.
+               invoice_printer: formatConfig(currentAssignments.invoice) 
              }
            });
         } catch(e) { console.error("Failed to save config", e); }
