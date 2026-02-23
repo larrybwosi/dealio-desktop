@@ -1058,6 +1058,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_aptabase::Builder::new("A-EU-2394517177").build())
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,
