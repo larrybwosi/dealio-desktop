@@ -44,6 +44,7 @@ import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import { useGiftCard } from '@/hooks/use-gift-card';
+import { trackEvent } from "@aptabase/tauri";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -536,6 +537,7 @@ const PaymentModal = ({
         openPhysicalDrawer();
       }
       emit('payment-update', { type: 'CLEAR_COMPLETED' });
+      trackEvent("sale_processed", { amount: totalPayable, payment_method: primaryMethod });
       onPaymentComplete(completedOrder);
       onClose();
     } catch {

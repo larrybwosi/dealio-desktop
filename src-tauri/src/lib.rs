@@ -4,6 +4,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
 use tempfile::Builder;
+use dotenvy_macro::dotenv;
+use tauri_plugin_aptabase::EventTracker;
 
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -841,18 +843,26 @@ async fn sync_shifts_command(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let _guard = rt.enter();
+
     tauri::Builder::default()
-        .manage(ProductState::new()) // Initialize State
-        .manage(CustomerState::new()) // Initialize Customer State
-        .manage(SalesState::new()) // Initialize Sales State
-        .manage(PricingState::new()) // Initialize Pricing State
-        .manage(ShiftState::new()) // Initialize Shift State
-        .manage(AuthState::new()) // Initialize Auth State
-        .manage(NotificationState::new()) // Initialize Notification State
-        .manage(NetworkState::new()) // Initialize Network State
-        .manage(CustomerScreenState::new()) // Initialize Customer Screen State
-        .manage(sales_store::SyncConfigState::new()) // Initialize Sync Config State
+        .manage(ProductState::new())
+        .manage(CustomerState::new())
+        .manage(SalesState::new())
+        .manage(PricingState::new())
+        .manage(ShiftState::new())
+        .manage(AuthState::new())
+        .manage(NotificationState::new())
+        .manage(NetworkState::new())
+        .manage(CustomerScreenState::new())
+        .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
+            
+            let _ = app.track_event("app_started", None);
             // --- 1. Load Data (Existing Code) ---
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
@@ -1058,7 +1068,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_aptabase::Builder::new("A-EU-2394517177").build())
+        .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,
