@@ -1,13 +1,29 @@
 import '@testing-library/jest-dom';
 import { cleanup } from '@testing-library/react';
 import { afterEach, vi } from 'vitest';
-import * as tauriMocks from './mocks/tauri';
+// 1. Import Tauri v2's official testing mocks
+import { mockWindows, clearMocks } from '@tauri-apps/api/mocks';
 
-// Mock Tauri API
-// This must remain a top-level mock to be hoisted correctly by Vitest
+// 2. Initialize Tauri v2 Window (Replaces __TAURI_METADATA__)
+mockWindows('main');
+
+// 3. Initialize Tauri v2 IPC mock
+// We use vi.mock for better integration with Vitest's mocking system
+export const mockInvoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
-  // Add other Tauri APIs here as needed
+  invoke: (...args: any[]) => mockInvoke(...args),
+}));
+
+// Provide a global mock implementation for specific commands if needed
+mockInvoke.mockImplementation(async (_cmd, _args) => {
+  // console.log(`[MockIPC] ${_cmd}`, _args);
+  return undefined;
+});
+
+// Prevent Aptabase from attempting background IPC calls
+vi.mock('@aptabase/tauri', () => ({
+  init: vi.fn(),
+  trackEvent: vi.fn(),
 }));
 
 // Mock matchMedia for UI components
@@ -35,10 +51,6 @@ global.ResizeObserver = class ResizeObserver {
 // Cleanup after each test
 afterEach(() => {
   cleanup();
+  clearMocks(); // 4. Clear Tauri v2 mock state between tests
   vi.clearAllMocks();
 });
-
-// Helper to reset Tauri mocks
-export const resetTauriMocks = () => {
-    tauriMocks.resetMocks();
-};
