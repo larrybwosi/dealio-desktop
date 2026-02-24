@@ -880,12 +880,11 @@ pub fn run() {
     let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
     // -----------------------------
 
-    let builder = tauri::Builder::default();
-
     #[cfg(not(debug_assertions))]
-    {
-        builder = builder.plugin(tauri_plugin_sentry::init(&client));
-    }
+    let builder = tauri::Builder::default().plugin(tauri_plugin_sentry::init(&client));
+
+    #[cfg(debug_assertions)]
+    let builder = tauri::Builder::default();
 
     builder
         .manage(ProductState::new())
@@ -1078,9 +1077,10 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // Prevent the app from closing and hide the window instead
-                api.prevent_close();
-                let _ = window.hide();
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .plugin(

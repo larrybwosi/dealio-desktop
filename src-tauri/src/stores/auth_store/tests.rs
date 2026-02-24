@@ -35,6 +35,7 @@ fn test_get_client_with_config_succeeds() {
         base_url: "http://example.com".to_string(),
         location_id: "loc-1".to_string(),
         device_key: "key-1".to_string(),
+        allow_negative_stock: false,
     };
 
     let state = AuthState {
@@ -56,6 +57,7 @@ fn test_get_client_includes_token() {
         base_url: "http://example.com".to_string(),
         location_id: "loc-1".to_string(),
         device_key: "key-1".to_string(),
+        allow_negative_stock: false,
     };
 
     let state = AuthState {
