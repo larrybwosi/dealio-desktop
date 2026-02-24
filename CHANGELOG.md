@@ -1,3 +1,17 @@
+## [3.0.1-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.0...v3.0.1-beta.1) (2026-02-24)
+
+
+### Bug Fixes
+
+* **tests and build:** corrected the test and build errors ([329dabe](https://github.com/larrybwosi/dealio-desktop/commit/329dabec20f47e52819e393d4f279e67967a6cd1))
+
+# [3.0.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.0-beta.1...v3.0.0-beta.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* **tests and build:** corrected the test and build errors ([329dabe](https://github.com/larrybwosi/dealio-desktop/commit/329dabec20f47e52819e393d4f279e67967a6cd1))
+
 # [3.0.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.11.0-beta.2...v3.0.0-beta.1) (2026-02-24)
 
 
