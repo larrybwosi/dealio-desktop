@@ -35,13 +35,13 @@ import { cn } from '@/lib/utils';
 
 function SectionHeader({ icon: Icon, title, description }: { icon: React.ElementType; title: string; description?: string }) {
   return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-        <Icon className="w-4 h-4 text-primary" />
+    <div className="flex items-start gap-3 mb-5 pb-4 border-b border-border/30">
+      <div className="w-7 h-7 rounded-md bg-zinc-800 border border-zinc-700/60 flex items-center justify-center shrink-0 mt-0.5">
+        <Icon className="w-3.5 h-3.5 text-zinc-300" />
       </div>
       <div>
-        <p className="text-sm font-semibold leading-none">{title}</p>
-        {description && <p className="text-[11px] text-muted-foreground mt-0.5">{description}</p>}
+        <p className="text-[13px] font-semibold text-foreground tracking-tight leading-none">{title}</p>
+        {description && <p className="text-[11px] text-zinc-500 mt-1 leading-snug">{description}</p>}
       </div>
     </div>
   );
@@ -51,10 +51,10 @@ function FieldRow({
   label, description, children,
 }: { label: string; description?: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2.5 border-b border-border/40 last:border-0">
+    <div className="flex items-center justify-between gap-6 py-3 border-b border-border/20 last:border-0 group">
       <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-medium leading-none">{label}</p>
-        {description && <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{description}</p>}
+        <p className="text-[12.5px] font-medium text-zinc-200 leading-none">{label}</p>
+        {description && <p className="text-[11px] text-zinc-500 mt-1 leading-snug">{description}</p>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
@@ -66,7 +66,7 @@ function ToggleRow({ label, description, checked, onChange }: {
 }) {
   return (
     <FieldRow label={label} description={description}>
-      <Switch checked={checked} onCheckedChange={onChange} />
+      <Switch checked={checked} onCheckedChange={onChange} className="data-[state=checked]:bg-blue-500" />
     </FieldRow>
   );
 }
@@ -75,9 +75,9 @@ function Section({ title, icon, description, children }: {
   title: string; icon: React.ElementType; description?: string; children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border/60 bg-card p-5 space-y-0">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 backdrop-blur-sm p-4">
       <SectionHeader icon={icon} title={title} description={description} />
-      {children}
+      <div>{children}</div>
     </div>
   );
 }
@@ -90,19 +90,19 @@ function NavPill({ tabs, active, onChange }: {
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="flex gap-1 p-1 bg-muted/50 rounded-xl border border-border/40">
+    <div className="flex gap-0.5 overflow-x-auto no-scrollbar">
       {tabs.map(({ value, label, icon: Icon }) => (
         <button
           key={value}
           onClick={() => onChange(value)}
           className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200',
+            'flex items-center gap-1.5 px-3 py-2 rounded-md text-[11.5px] font-medium transition-all duration-150 whitespace-nowrap shrink-0',
             active === value
-              ? 'bg-background text-foreground shadow-sm border border-border/50'
-              : 'text-muted-foreground hover:text-foreground hover:bg-background/50',
+              ? 'bg-zinc-800 text-white border border-zinc-700/80 shadow-sm'
+              : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50',
           )}
         >
-          <Icon className="w-3.5 h-3.5" />
+          <Icon className="w-3 h-3" />
           {label}
         </button>
       ))}
@@ -114,59 +114,61 @@ function NavPill({ tabs, active, onChange }: {
 
 function KitchenTicketPreview({ order, config }: { order: any; config: KitchenTicketConfig }) {
   const fontSize = config.fontSize === 'small' ? 'text-[10px]' : config.fontSize === 'large' ? 'text-lg' : 'text-sm';
-  const width = config.paperSize === '58mm' ? 'max-w-[180px]' : config.paperSize === '80mm' ? 'max-w-[300px]' : 'max-w-full';
+  const width = config.paperSize === '58mm' ? 'max-w-[200px]' : config.paperSize === '80mm' ? 'max-w-[300px]' : 'max-w-full';
 
   return (
-    <div className={cn('bg-white text-black p-4 font-mono shadow-lg mx-auto rounded', fontSize, width)} style={{ minHeight: 350 }}>
+    <div className={cn('bg-white text-black p-4 font-mono mx-auto rounded-sm shadow-[0_0_0_1px_rgba(0,0,0,0.1),0_8px_32px_rgba(0,0,0,0.15)]', fontSize, width)} style={{ minHeight: 350 }}>
       <div className="text-center border-b-2 border-black pb-2 mb-3">
-        <div className="font-bold text-sm uppercase">{config.headerText || 'KITCHEN ORDER'}</div>
-        {config.showSequenceNumber && <div className="text-xl font-bold my-1">{order.orderNumber || 'ORD-001'}</div>}
+        <div className="font-bold text-sm uppercase tracking-widest">{config.headerText || 'KITCHEN ORDER'}</div>
+        {config.showSequenceNumber && <div className="text-2xl font-black my-1 tracking-tight">{order.orderNumber || 'ORD-001'}</div>}
       </div>
       <div className="space-y-1 mb-3 text-xs">
         {config.showOrderType && (
           <div className="flex justify-between font-bold border-b border-dashed pb-1">
-            <span>TYPE:</span>
-            <Badge variant={order.orderType === 'dine-in' ? 'default' : 'secondary'} className="uppercase text-[10px]">
-              {order.orderType}
-            </Badge>
+            <span className="text-gray-500 uppercase tracking-wider text-[9px]">TYPE</span>
+            <span className="font-black uppercase text-[10px] bg-black text-white px-1.5 py-0.5 rounded-sm">{order.orderType}</span>
           </div>
         )}
         {config.showTable && order.tableNumber && (
-          <div className="flex justify-between font-bold text-base bg-black text-white px-2 py-1 -mx-2">
-            <span>TABLE:</span><span>{order.tableNumber}</span>
+          <div className="flex justify-between font-bold text-base bg-black text-white px-2 py-1 -mx-2 my-2">
+            <span className="tracking-wider text-[11px] text-gray-300 uppercase">Table</span>
+            <span className="text-lg font-black">{order.tableNumber}</span>
           </div>
         )}
         {config.showCustomerName && order.customerName && (
-          <div className="flex justify-between"><span>Guest:</span><span>{order.customerName}</span></div>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-400 uppercase tracking-wider text-[9px]">Guest</span>
+            <span className="font-semibold">{order.customerName}</span>
+          </div>
         )}
         {config.showTime && (
-          <div className="flex justify-between">
-            <span>Time:</span>
-            <span>{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-400 uppercase tracking-wider text-[9px]">Time</span>
+            <span className="font-mono font-semibold">{new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
         )}
       </div>
-      <div className="space-y-3 border-t border-black pt-2">
+      <div className="space-y-2 border-t-2 border-black pt-3 mt-2">
         {order.items.map((item: any, i: number) => (
-          <div key={i} className={cn('pb-2', config.showItemSeparators && 'border-b border-dashed border-gray-300')}>
-            <div className="flex gap-2">
-              <div className={cn('font-bold bg-black text-white flex items-center justify-center rounded-sm shrink-0', config.largeQuantityDisplay ? 'w-10 h-10 text-xl' : 'w-6 h-6 text-sm')}>
+          <div key={i} className={cn('pb-2', config.showItemSeparators && 'border-b border-dashed border-gray-200')}>
+            <div className="flex gap-2.5 items-center">
+              <div className={cn('font-black bg-black text-white flex items-center justify-center shrink-0 rounded-sm', config.largeQuantityDisplay ? 'w-10 h-10 text-xl' : 'w-7 h-7 text-sm')}>
                 {item.quantity}
               </div>
-              <div className="font-bold leading-tight text-base">{item.productName}</div>
+              <div className="font-bold leading-tight">{item.productName}</div>
             </div>
           </div>
         ))}
       </div>
       {config.showNotes && order.instructions && (
-        <div className="mt-4 bg-yellow-100 border-l-4 border-yellow-500 p-2">
-          <div className="font-bold text-xs mb-1">⚠️ NOTES:</div>
-          <div className="text-xs">{order.instructions}</div>
+        <div className="mt-4 bg-amber-50 border border-amber-300 border-l-4 border-l-amber-500 p-2 rounded-sm">
+          <div className="font-black text-[9px] uppercase tracking-widest text-amber-700 mb-1">⚠ Notes</div>
+          <div className="text-[11px] text-gray-700 leading-snug">{order.instructions}</div>
         </div>
       )}
-      <div className="mt-4 pt-2 border-t border-black text-center text-[10px] text-gray-500">
-        Printed: {new Date().toLocaleString()}
-        {config.footerText && <div className="mt-1">{config.footerText}</div>}
+      <div className="mt-4 pt-2 border-t border-dashed border-gray-300 text-center text-[9px] text-gray-400 tracking-wider uppercase">
+        {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        {config.footerText && <div className="mt-1 font-medium">{config.footerText}</div>}
       </div>
     </div>
   );
@@ -187,10 +189,10 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
 
   return (
     <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border/40 px-5 py-3">
+      <div className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur border-b border-zinc-800/80 px-4 py-3">
         <NavPill tabs={RECEIPT_TABS} active={tab} onChange={setTab} />
       </div>
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
 
         {tab === 'branding' && (
           <>
@@ -199,14 +201,14 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
               {config.showLogo && (
                 <div className="mt-3 space-y-3 pl-1">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Logo URL</Label>
-                    <Input value={config.logoUrl} onChange={e => updateConfig('logoUrl', e.target.value)} placeholder="https://..." className="h-9 text-sm" />
+                    <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Logo URL</Label>
+                    <Input value={config.logoUrl} onChange={e => updateConfig('logoUrl', e.target.value)} placeholder="https://..." className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">Position</Label>
+                      <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Position</Label>
                       <Select value={config.logoPosition} onValueChange={v => updateConfig('logoPosition', v)}>
-                        <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="left">Left</SelectItem>
                           <SelectItem value="center">Center</SelectItem>
@@ -215,7 +217,7 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs text-muted-foreground uppercase tracking-wide">Size — {config.logoWidth}%</Label>
+                      <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Size — {config.logoWidth}%</Label>
                       <Slider value={[config.logoWidth]} min={20} max={100} step={5} onValueChange={v => updateConfig('logoWidth', v[0])} className="mt-3" />
                     </div>
                   </div>
@@ -223,16 +225,16 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
               )}
               <ToggleRow label="Show Tagline" checked={config.showTagline} onChange={v => updateConfig('showTagline', v)} />
               {config.showTagline && (
-                <Input value={config.tagline} onChange={e => updateConfig('tagline', e.target.value)} placeholder="Your tagline..." className="h-9 text-sm mt-2 ml-1" />
+                <Input value={config.tagline} onChange={e => updateConfig('tagline', e.target.value)} placeholder="Your tagline..." className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
               )}
             </Section>
 
             <Section title="Layout & Typography" icon={Layout} description="Paper size and font preferences">
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Paper Size</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Paper Size</Label>
                   <Select value={config.paperSize} onValueChange={v => updateConfig('paperSize', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="80mm">80mm (Standard)</SelectItem>
                       <SelectItem value="58mm">58mm (Compact)</SelectItem>
@@ -241,9 +243,9 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Font Style</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Font Style</Label>
                   <Select value={config.fontFamily} onValueChange={v => updateConfig('fontFamily', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="monospace">Monospace</SelectItem>
                       <SelectItem value="sans">Sans Serif</SelectItem>
@@ -252,9 +254,9 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Font Size</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Font Size</Label>
                   <Select value={config.fontSize} onValueChange={v => updateConfig('fontSize', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="small">Small</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
@@ -263,9 +265,9 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Alignment</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Alignment</Label>
                   <Select value={config.textAlignment} onValueChange={v => updateConfig('textAlignment', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="left">Left</SelectItem>
                       <SelectItem value="center">Center</SelectItem>
@@ -274,20 +276,20 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                 </div>
               </div>
               <div className="mt-3 space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Item Spacing — {config.itemSpacing || 0}px</Label>
+                <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Item Spacing — {config.itemSpacing || 0}px</Label>
                 <Slider value={[config.itemSpacing || 0]} min={0} max={20} step={1} onValueChange={v => updateConfig('itemSpacing', v[0])} />
               </div>
             </Section>
 
             <Section title="Business Contact" icon={Store} description="Contact information printed on receipt">
               <ToggleRow label="Address" checked={config.showAddress} onChange={v => updateConfig('showAddress', v)} />
-              {config.showAddress && <Input value={config.address} onChange={e => updateConfig('address', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showAddress && <Input value={config.address} onChange={e => updateConfig('address', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="Phone" checked={config.showPhone} onChange={v => updateConfig('showPhone', v)} />
-              {config.showPhone && <Input value={config.phone} onChange={e => updateConfig('phone', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showPhone && <Input value={config.phone} onChange={e => updateConfig('phone', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="Email" checked={config.showEmail} onChange={v => updateConfig('showEmail', v)} />
-              {config.showEmail && <Input value={config.email} onChange={e => updateConfig('email', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showEmail && <Input value={config.email} onChange={e => updateConfig('email', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="Website" checked={config.showWebsite} onChange={v => updateConfig('showWebsite', v)} />
-              {config.showWebsite && <Input value={config.website} onChange={e => updateConfig('website', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showWebsite && <Input value={config.website} onChange={e => updateConfig('website', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
             </Section>
           </>
         )}
@@ -317,16 +319,16 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
             <Section title="Header & Footer Messages" icon={FileText} description="Custom printed messages">
               <div className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Header Text</Label>
-                  <Textarea value={config.headerText} onChange={e => updateConfig('headerText', e.target.value)} className="text-sm resize-none" rows={2} />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Header Text</Label>
+                  <Textarea value={config.headerText} onChange={e => updateConfig('headerText', e.target.value)} className="text-[12px] resize-none bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" rows={2} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Footer Text</Label>
-                  <Textarea value={config.footerText} onChange={e => updateConfig('footerText', e.target.value)} className="text-sm resize-none" rows={2} />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Footer Text</Label>
+                  <Textarea value={config.footerText} onChange={e => updateConfig('footerText', e.target.value)} className="text-[12px] resize-none bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" rows={2} />
                 </div>
                 <ToggleRow label="Thank You Message" checked={config.showThankYouMessage} onChange={v => updateConfig('showThankYouMessage', v)} />
                 {config.showThankYouMessage && (
-                  <Input value={config.thankYouMessage} onChange={e => updateConfig('thankYouMessage', e.target.value)} className="h-9 text-sm" />
+                  <Input value={config.thankYouMessage} onChange={e => updateConfig('thankYouMessage', e.target.value)} className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                 )}
               </div>
             </Section>
@@ -337,29 +339,29 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
           <>
             <Section title="Tax Registration" icon={Building2} description="Tax & VAT identification numbers">
               <ToggleRow label="Tax Number" checked={config.showTaxNumber} onChange={v => updateConfig('showTaxNumber', v)} />
-              {config.showTaxNumber && <Input value={config.taxNumber} onChange={e => updateConfig('taxNumber', e.target.value)} placeholder="TAX-XXXXX" className="h-9 text-sm mt-2 ml-1" />}
+              {config.showTaxNumber && <Input value={config.taxNumber} onChange={e => updateConfig('taxNumber', e.target.value)} placeholder="TAX-XXXXX" className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="VAT Number" checked={config.showVatNumber} onChange={v => updateConfig('showVatNumber', v)} />
-              {config.showVatNumber && <Input value={config.vatNumber} onChange={e => updateConfig('vatNumber', e.target.value)} placeholder="VAT-XXXXX" className="h-9 text-sm mt-2 ml-1" />}
+              {config.showVatNumber && <Input value={config.vatNumber} onChange={e => updateConfig('vatNumber', e.target.value)} placeholder="VAT-XXXXX" className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="Company Reg. Number" checked={config.showCompanyRegNumber} onChange={v => updateConfig('showCompanyRegNumber', v)} />
-              {config.showCompanyRegNumber && <Input value={config.companyRegNumber} onChange={e => updateConfig('companyRegNumber', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showCompanyRegNumber && <Input value={config.companyRegNumber} onChange={e => updateConfig('companyRegNumber', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
             </Section>
 
             <Section title="Legal Notices" icon={Scale} description="Return policies & disclaimers">
               <ToggleRow label="Return Policy" checked={config.showReturnPolicy} onChange={v => updateConfig('showReturnPolicy', v)} />
-              {config.showReturnPolicy && <Textarea value={config.returnPolicyText} onChange={e => updateConfig('returnPolicyText', e.target.value)} className="text-sm resize-none mt-2 ml-1" rows={2} />}
+              {config.showReturnPolicy && <Textarea value={config.returnPolicyText} onChange={e => updateConfig('returnPolicyText', e.target.value)} className="text-[12px] resize-none mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" rows={2} />}
               <ToggleRow label="Legal Disclaimer" checked={config.showLegalDisclaimer} onChange={v => updateConfig('showLegalDisclaimer', v)} />
-              {config.showLegalDisclaimer && <Textarea value={config.legalDisclaimerText} onChange={e => updateConfig('legalDisclaimerText', e.target.value)} className="text-sm resize-none mt-2 ml-1" rows={2} />}
+              {config.showLegalDisclaimer && <Textarea value={config.legalDisclaimerText} onChange={e => updateConfig('legalDisclaimerText', e.target.value)} className="text-[12px] resize-none mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" rows={2} />}
             </Section>
 
             <Section title="Localization" icon={Globe} description="Currency and number formatting">
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Currency</Label>
-                  <Input value={config.currency} onChange={e => updateConfig('currency', e.target.value)} placeholder="USD" className="h-9 text-sm" />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Currency</Label>
+                  <Input value={config.currency} onChange={e => updateConfig('currency', e.target.value)} placeholder="USD" className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Locale</Label>
-                  <Input value={config.locale} onChange={e => updateConfig('locale', e.target.value)} placeholder="en-US" className="h-9 text-sm" />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Locale</Label>
+                  <Input value={config.locale} onChange={e => updateConfig('locale', e.target.value)} placeholder="en-US" className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                 </div>
               </div>
             </Section>
@@ -372,9 +374,9 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
             <ToggleRow label="Customer Copy" checked={config.printCustomerCopy} onChange={v => updateConfig('printCustomerCopy', v)} />
             <ToggleRow label="Merchant Copy" checked={config.printMerchantCopy} onChange={v => updateConfig('printMerchantCopy', v)} />
             <div className="mt-3 space-y-1.5">
-              <Label className="text-xs text-muted-foreground uppercase tracking-wide">Number of Copies</Label>
+              <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Number of Copies</Label>
               <Select value={config.printCopies.toString()} onValueChange={v => updateConfig('printCopies', parseInt(v))}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}
                 </SelectContent>
@@ -390,9 +392,9 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
               {config.showQrCode && (
                 <div className="mt-3 space-y-3 ml-1">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">QR Destination</Label>
+                    <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">QR Destination</Label>
                     <Select value={config.qrCodeTarget} onValueChange={v => updateConfig('qrCodeTarget', v)}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="order-link">Order Tracking</SelectItem>
                         <SelectItem value="website">Website</SelectItem>
@@ -402,7 +404,7 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
                     </Select>
                   </div>
                   {config.qrCodeTarget !== 'order-link' && (
-                    <Input value={config.qrCodeCustomUrl || ''} onChange={e => updateConfig('qrCodeCustomUrl', e.target.value)} placeholder="https://..." className="h-9 text-sm" />
+                    <Input value={config.qrCodeCustomUrl || ''} onChange={e => updateConfig('qrCodeCustomUrl', e.target.value)} placeholder="https://..." className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                   )}
                 </div>
               )}
@@ -413,14 +415,14 @@ function ReceiptSettings({ config, updateConfig }: { config: ReceiptConfig; upda
               <ToggleRow label="Loyalty Points" checked={config.showLoyaltyPoints} onChange={v => updateConfig('showLoyaltyPoints', v)} />
               <ToggleRow label="Loyalty Balance" checked={config.showLoyaltyBalance} onChange={v => updateConfig('showLoyaltyBalance', v)} />
               <ToggleRow label="Next Visit Promo" checked={config.showNextVisitPromo} onChange={v => updateConfig('showNextVisitPromo', v)} />
-              {config.showNextVisitPromo && <Input value={config.nextVisitPromoText} onChange={e => updateConfig('nextVisitPromoText', e.target.value)} className="h-9 text-sm mt-2 ml-1" />}
+              {config.showNextVisitPromo && <Input value={config.nextVisitPromoText} onChange={e => updateConfig('nextVisitPromoText', e.target.value)} className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
               <ToggleRow label="Survey QR" checked={config.showSurveyQr} onChange={v => updateConfig('showSurveyQr', v)} />
-              {config.showSurveyQr && <Input value={config.surveyUrl} onChange={e => updateConfig('surveyUrl', e.target.value)} placeholder="https://survey..." className="h-9 text-sm mt-2 ml-1" />}
+              {config.showSurveyQr && <Input value={config.surveyUrl} onChange={e => updateConfig('surveyUrl', e.target.value)} placeholder="https://survey..." className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
             </Section>
 
             <Section title="Social Media" icon={Globe} description="Social handles on receipt">
               <ToggleRow label="Show Social Media" checked={config.showSocialMedia} onChange={v => updateConfig('showSocialMedia', v)} />
-              {config.showSocialMedia && <Input value={config.socialMediaHandle} onChange={e => updateConfig('socialMediaHandle', e.target.value)} placeholder="@yourhandle" className="h-9 text-sm mt-2 ml-1" />}
+              {config.showSocialMedia && <Input value={config.socialMediaHandle} onChange={e => updateConfig('socialMediaHandle', e.target.value)} placeholder="@yourhandle" className="h-8 text-[12px] mt-2 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />}
             </Section>
           </>
         )}
@@ -445,19 +447,19 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
 
   return (
     <div className="flex flex-col h-full">
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border/40 px-5 py-3">
+      <div className="sticky top-0 z-10 bg-zinc-950/95 backdrop-blur border-b border-zinc-800/80 px-4 py-3">
         <NavPill tabs={KITCHEN_TABS} active={tab} onChange={setTab} />
       </div>
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3">
 
         {tab === 'layout' && (
           <>
             <Section title="Paper & Typography" icon={Layout} description="Size, font, and spacing">
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Paper Size</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Paper Size</Label>
                   <Select value={config.paperSize} onValueChange={v => updateConfig('paperSize', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="80mm">80mm (Standard)</SelectItem>
                       <SelectItem value="58mm">58mm (Compact)</SelectItem>
@@ -466,9 +468,9 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Font Size</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Font Size</Label>
                   <Select value={config.fontSize} onValueChange={v => updateConfig('fontSize', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="small">Small</SelectItem>
                       <SelectItem value="medium">Medium</SelectItem>
@@ -487,12 +489,12 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
             <Section title="Header & Footer" icon={FileText} description="Ticket header and footer text">
               <div className="space-y-3 pt-1">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Header Text</Label>
-                  <Input value={config.headerText} onChange={e => updateConfig('headerText', e.target.value)} placeholder="KITCHEN ORDER" className="h-9 text-sm" />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Header Text</Label>
+                  <Input value={config.headerText} onChange={e => updateConfig('headerText', e.target.value)} placeholder="KITCHEN ORDER" className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Footer Text</Label>
-                  <Input value={config.footerText} onChange={e => updateConfig('footerText', e.target.value)} placeholder="Optional footer..." className="h-9 text-sm" />
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Footer Text</Label>
+                  <Input value={config.footerText} onChange={e => updateConfig('footerText', e.target.value)} placeholder="Optional footer..." className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                 </div>
               </div>
             </Section>
@@ -527,15 +529,15 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
             {config.enableStationRouting && (
               <div className="mt-4 space-y-3 ml-1">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Stations</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Stations</Label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {config.stations.map((station, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">{station}</Badge>
+                      <Badge key={i} variant="outline" className="text-[10px] bg-zinc-800 border-zinc-700 text-zinc-300 font-mono">{station}</Badge>
                     ))}
                   </div>
                   <Input
                     placeholder="Add station name, press Enter"
-                    className="h-9 text-sm"
+                    className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && e.currentTarget.value) {
                         updateConfig('stations', [...config.stations, e.currentTarget.value]);
@@ -545,9 +547,9 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Default Station</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Default Station</Label>
                   <Select value={config.defaultStation} onValueChange={v => updateConfig('defaultStation', v)}>
-                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {config.stations.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
@@ -567,19 +569,19 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
               {config.highlightRushOrders && (
                 <div className="mt-3 space-y-3 ml-1">
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Rush Threshold (minutes)</Label>
+                    <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Rush Threshold (minutes)</Label>
                     <Select value={config.rushOrderThresholdMinutes.toString()} onValueChange={v => updateConfig('rushOrderThresholdMinutes', parseInt(v))}>
-                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {[5, 10, 15, 20, 30].map(n => <SelectItem key={n} value={n.toString()}>{n} min</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground uppercase tracking-wide">Rush Highlight Color</Label>
+                    <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Rush Highlight Color</Label>
                     <div className="flex gap-2">
-                      <input type="color" value={config.rushOrderColor} onChange={e => updateConfig('rushOrderColor', e.target.value)} className="w-10 h-9 rounded-lg cursor-pointer border border-border" />
-                      <Input value={config.rushOrderColor} onChange={e => updateConfig('rushOrderColor', e.target.value)} className="h-9 text-sm flex-1" />
+                      <input type="color" value={config.rushOrderColor} onChange={e => updateConfig('rushOrderColor', e.target.value)} className="w-9 h-8 rounded-md cursor-pointer border border-zinc-700 bg-zinc-900" />
+                      <Input value={config.rushOrderColor} onChange={e => updateConfig('rushOrderColor', e.target.value)} className="h-8 text-[12px] flex-1 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                     </div>
                   </div>
                 </div>
@@ -590,10 +592,10 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
               <ToggleRow label="Dietary Icons" description="V, VG, GF indicator badges" checked={config.showDietaryIcons} onChange={v => updateConfig('showDietaryIcons', v)} />
               {config.showAllergens && (
                 <div className="mt-3 space-y-1.5 ml-1">
-                  <Label className="text-xs text-muted-foreground uppercase tracking-wide">Allergen Highlight Color</Label>
+                  <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Allergen Highlight Color</Label>
                   <div className="flex gap-2">
-                    <input type="color" value={config.allergenHighlightColor} onChange={e => updateConfig('allergenHighlightColor', e.target.value)} className="w-10 h-9 rounded-lg cursor-pointer border border-border" />
-                    <Input value={config.allergenHighlightColor} onChange={e => updateConfig('allergenHighlightColor', e.target.value)} className="h-9 text-sm flex-1" />
+                    <input type="color" value={config.allergenHighlightColor} onChange={e => updateConfig('allergenHighlightColor', e.target.value)} className="w-9 h-8 rounded-md cursor-pointer border border-zinc-700 bg-zinc-900" />
+                    <Input value={config.allergenHighlightColor} onChange={e => updateConfig('allergenHighlightColor', e.target.value)} className="h-8 text-[12px] flex-1 bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md" />
                   </div>
                 </div>
               )}
@@ -607,18 +609,18 @@ function KitchenSettings({ config, updateConfig }: { config: KitchenTicketConfig
               <ToggleRow label="Auto-print New Orders" description="Print immediately when order is created" checked={config.autoPrintNewOrders} onChange={v => updateConfig('autoPrintNewOrders', v)} />
               <ToggleRow label="Auto-print on Complete" description="Print when order is completed" checked={config.autoPrintCompleted} onChange={v => updateConfig('autoPrintCompleted', v)} />
               <div className="mt-3 space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Print Delay</Label>
+                <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Print Delay</Label>
                 <Select value={config.printDelaySeconds.toString()} onValueChange={v => updateConfig('printDelaySeconds', parseInt(v))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {[0, 1, 2, 3, 5, 10].map(n => <SelectItem key={n} value={n.toString()}>{n === 0 ? 'Immediate' : `${n}s delay`}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="mt-3 space-y-1.5">
-                <Label className="text-xs text-muted-foreground uppercase tracking-wide">Number of Copies</Label>
+                <Label className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-widest">Number of Copies</Label>
                 <Select value={config.printCopies.toString()} onValueChange={v => updateConfig('printCopies', parseInt(v))}>
-                  <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-[12px] bg-zinc-900 border-zinc-800 text-zinc-200 placeholder:text-zinc-600 focus:border-zinc-600 rounded-md"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {[1, 2, 3, 4, 5].map(n => <SelectItem key={n} value={n.toString()}>{n}</SelectItem>)}
                   </SelectContent>
@@ -718,21 +720,21 @@ export default function ReceiptSettingsPage() {
   }, [config.showBarcode, sampleOrder.orderNumber]);
 
   return (
-    <div className="flex h-full w-full bg-background overflow-hidden">
+    <div className="flex h-full w-full bg-zinc-950 overflow-hidden font-sans">
 
       {/* ── Left Panel: Controls ─────────────────────────────────────────── */}
-      <div className="w-full lg:w-[460px] xl:w-[520px] flex flex-col border-r border-border/60 h-full bg-background">
+      <div className="w-full lg:w-[440px] xl:w-[500px] flex flex-col border-r border-zinc-800 h-full bg-zinc-950">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 bg-background shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 bg-zinc-950/80 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Settings2 className="w-4.5 h-4.5 text-primary" />
+            <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700/60 flex items-center justify-center shadow-inner">
+              <Settings2 className="w-4 h-4 text-zinc-300" />
             </div>
             <div>
-              <h2 className="font-semibold text-[15px] leading-none">Print Configuration</h2>
-              <p className="text-[11px] text-muted-foreground mt-1">
-                {hasKitchenDisplay ? 'Customer receipt & kitchen ticket' : 'Customer receipt settings'}
+              <h2 className="font-semibold text-[14px] leading-none text-white tracking-tight">Print Configuration</h2>
+              <p className="text-[11px] text-zinc-500 mt-1 font-mono">
+                {hasKitchenDisplay ? 'receipt · kitchen ticket' : 'customer receipt'}
               </p>
             </div>
           </div>
@@ -740,48 +742,48 @@ export default function ReceiptSettingsPage() {
             variant="ghost"
             size="sm"
             onClick={() => mode === 'receipt' ? (setConfig(getDefaultReceiptConfig()), updateReceiptConfig(getDefaultReceiptConfig())) : (setKConfig(getDefaultKitchenTicketConfig()), updateKitchenTicketConfig(getDefaultKitchenTicketConfig()))}
-            className="h-8 text-xs text-muted-foreground hover:text-destructive gap-1.5"
+            className="h-7 text-[11px] text-zinc-500 hover:text-red-400 hover:bg-red-400/10 gap-1.5 rounded-md border border-transparent hover:border-red-400/20 transition-all"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Reset
+            <RotateCcw className="w-3 h-3" /> Reset
           </Button>
         </div>
 
         {/* Mode Switcher */}
-        <div className="px-5 py-3 border-b border-border/40 shrink-0">
-          <div className="flex gap-1 p-1 bg-muted/40 rounded-xl">
+        <div className="px-5 py-3 border-b border-zinc-800/70 shrink-0 bg-zinc-900/40">
+          <div className="flex gap-1 p-1 bg-zinc-900 rounded-lg border border-zinc-800">
             <button
               onClick={() => setMode('receipt')}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all duration-200',
+                'flex-1 flex items-center justify-center gap-2 h-8 rounded-md text-[12px] font-medium transition-all duration-150',
                 mode === 'receipt'
-                  ? 'bg-background text-foreground shadow-sm border border-border/50'
-                  : 'text-muted-foreground hover:text-foreground',
+                  ? 'bg-zinc-800 text-white border border-zinc-700/60 shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-300',
               )}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3.5 h-3.5" />
               Customer Receipt
-              {mode === 'receipt' && <Check className="w-3.5 h-3.5 text-primary ml-auto mr-1" />}
+              {mode === 'receipt' && <Check className="w-3 h-3 text-blue-400 ml-auto mr-1" />}
             </button>
             {hasKitchenDisplay && (
               <button
                 onClick={() => setMode('kitchen')}
                 className={cn(
-                  'flex-1 flex items-center justify-center gap-2 h-9 rounded-lg text-sm font-medium transition-all duration-200',
+                  'flex-1 flex items-center justify-center gap-2 h-8 rounded-md text-[12px] font-medium transition-all duration-150',
                   mode === 'kitchen'
-                    ? 'bg-background text-foreground shadow-sm border border-border/50'
-                    : 'text-muted-foreground hover:text-foreground',
+                    ? 'bg-zinc-800 text-white border border-zinc-700/60 shadow-sm'
+                    : 'text-zinc-500 hover:text-zinc-300',
                 )}
               >
-                <ChefHat className="w-4 h-4" />
+                <ChefHat className="w-3.5 h-3.5" />
                 Kitchen Ticket
-                {mode === 'kitchen' && <Check className="w-3.5 h-3.5 text-primary ml-auto mr-1" />}
+                {mode === 'kitchen' && <Check className="w-3 h-3 text-blue-400 ml-auto mr-1" />}
               </button>
             )}
           </div>
         </div>
 
         {/* Scrollable settings panel */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-zinc-950">
           {mode === 'receipt' ? (
             <ReceiptSettings config={config} updateConfig={updateConfig} />
           ) : (
@@ -794,35 +796,46 @@ export default function ReceiptSettingsPage() {
       <div className={cn(
         'flex-1 relative flex flex-col transition-colors duration-500',
         previewBg === 'dark'
-          ? 'bg-[#111]'
-          : 'bg-neutral-100',
+          ? 'bg-[#0a0a0a]'
+          : 'bg-zinc-100',
       )}>
 
+        {/* Grid overlay texture */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-[0.025]"
+          style={{
+            backgroundImage: 'linear-gradient(to right, #fff 1px, transparent 1px), linear-gradient(to bottom, #fff 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }}
+        />
+
         {/* Floating toolbar */}
-        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-background/95 backdrop-blur-xl border border-border/50 shadow-2xl rounded-full px-3 py-1.5">
+        <div className="absolute top-5 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 bg-zinc-900/95 backdrop-blur-xl border border-zinc-700/60 shadow-2xl rounded-full px-3 py-1.5">
           {mode === 'kitchen' && (
             <>
               <button
-                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-200"
                 onClick={() => setPreviewScale(p => [Math.max(50, p[0] - 10)])}
               >
                 <ZoomOut className="w-3.5 h-3.5" />
               </button>
-              <span className="text-xs font-semibold tabular-nums w-12 text-center text-muted-foreground">{previewScale[0]}%</span>
+              <span className="text-[11px] font-mono font-semibold tabular-nums w-10 text-center text-zinc-400">{previewScale[0]}%</span>
               <button
-                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+                className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-200"
                 onClick={() => setPreviewScale(p => [Math.min(150, p[0] + 10)])}
               >
                 <ZoomIn className="w-3.5 h-3.5" />
               </button>
-              <div className="w-px h-4 bg-border mx-1" />
+              <div className="w-px h-4 bg-zinc-700 mx-1" />
             </>
           )}
           <button
             onClick={() => setPreviewBg(previewBg === 'dark' ? 'light' : 'dark')}
             className={cn(
-              'w-7 h-7 rounded-full flex items-center justify-center transition-colors',
-              previewBg === 'dark' ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-muted-foreground hover:text-foreground',
+              'w-7 h-7 rounded-full flex items-center justify-center transition-all',
+              previewBg === 'dark'
+                ? 'bg-zinc-700 text-zinc-200 ring-1 ring-zinc-600'
+                : 'hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200',
             )}
           >
             <Layout className="w-3.5 h-3.5" />
@@ -838,10 +851,10 @@ export default function ReceiptSettingsPage() {
               ? handlePrint(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />, 'receipt-test')
               : handlePrint(<PDFKitchenTicket order={{ ...sampleOrder }} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
-            className="h-8 text-xs font-medium gap-1.5 shadow-lg"
+            className="h-8 text-[11.5px] font-medium gap-1.5 bg-white text-zinc-900 hover:bg-zinc-100 border-0 shadow-lg rounded-lg"
           >
             <Printer className="w-3.5 h-3.5" />
-            {isPrinting ? 'Printing…' : 'Print Test'}
+            {isPrinting ? 'Printing…' : 'Test Print'}
           </Button>
           <Button
             size="sm"
@@ -851,17 +864,25 @@ export default function ReceiptSettingsPage() {
               ? handleDownload(<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />, 'receipt-test')
               : handleDownload(<PDFKitchenTicket order={{ ...sampleOrder }} kitchenTicketConfig={kConfig} />, 'kitchen-ticket-test')
             }
-            className="h-8 text-xs font-medium gap-1.5 shadow-lg"
+            className="h-8 text-[11.5px] font-medium gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 shadow-lg rounded-lg"
           >
             <Download className="w-3.5 h-3.5" />
-            {isDownloading ? 'Saving…' : 'Download'}
+            {isDownloading ? 'Saving…' : 'Export PDF'}
           </Button>
         </div>
 
+        {/* Preview label */}
+        <div className="absolute bottom-5 left-1/2 -translate-x-1/2 z-20">
+          <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur border border-zinc-800/60 rounded-full px-3 py-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-widest">Live Preview</span>
+          </div>
+        </div>
+
         {/* Preview canvas */}
-        <div className={cn('flex-1 overflow-hidden flex flex-col items-center justify-center pt-20 pb-8 px-8', mode === 'receipt' ? 'h-full' : '')}>
+        <div className={cn('flex-1 overflow-hidden flex flex-col items-center justify-center pt-20 pb-16 px-8', mode === 'receipt' ? 'h-full' : '')}>
           {mode === 'receipt' ? (
-            <div className="w-full h-full max-w-[500px] shadow-2xl rounded-xl overflow-hidden border border-white/10 relative">
+            <div className="w-full h-full max-w-[480px] shadow-[0_32px_80px_rgba(0,0,0,0.6)] rounded-xl overflow-hidden border border-white/5 relative ring-1 ring-inset ring-white/5">
               <ReceiptPreviewWrapper
                 document={<ReceiptPdfDocument order={sampleOrder} settings={{ ...settings, receiptConfig: config }} qrCodeUrl={qrCodeDataUrl} barcodeUrl={barcodeUrl} branchName="Main Branch" />}
               />

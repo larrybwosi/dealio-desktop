@@ -530,6 +530,7 @@ interface PosStore {
   addCashTransaction: (type: 'cash-in' | 'cash-out', amount: number, notes?: string) => void;
 
   updateProductStock: (productId: string, newStock: number) => void;
+  deductStockForOrderItems: (items: any[]) => void;
   getLowStockProducts: () => InventoryAlert[];
   getDailySummary: (date: string) => DailySummary;
   getTopProducts: (limit: number) => {
@@ -1464,6 +1465,32 @@ export const usePosStore = create<PosStore>()(
         set(state => ({
           products: state.products.map(p => (p.productId === productId ? { ...p, stock: newStock } : p)),
         })),
+
+      deductStockForOrderItems: (items) =>
+        set((state) => {
+          const newProducts = [...state.products];
+          let updated = false;
+
+          for (const item of items) {
+            const productIndex = newProducts.findIndex((p) => p.productId === item.productId);
+            if (productIndex !== -1) {
+              const conversion = item.selectedUnit?.conversion || 1;
+              const deductedAmount = item.quantity * conversion;
+              
+              const product = newProducts[productIndex];
+              newProducts[productIndex] = {
+                ...product,
+                stock: Math.max(0, product.stock - deductedAmount),
+              };
+              updated = true;
+            }
+          }
+
+          if (updated) {
+            return { products: newProducts };
+          }
+          return {};
+        }),
 
       getLowStockProducts: () => {
         const state = get();

@@ -4,12 +4,12 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use tokio::io::AsyncWriteExt;
 use axum_typed_multipart::{TryFromMultipart, TypedMultipart};
 use local_ip_address::local_ip;
+use log::{error, info};
 use std::{net::SocketAddr, path::PathBuf, sync::OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
-use log::{info, error};
+use tokio::io::AsyncWriteExt;
 
 static DOWNLOAD_PATH: OnceLock<PathBuf> = OnceLock::new();
 static SERVER_PORT: OnceLock<u16> = OnceLock::new(); // Store the active port
@@ -29,7 +29,10 @@ async fn handle_upload(
     State(state): State<AppState>,
     TypedMultipart(UploadForm { file }): TypedMultipart<UploadForm>,
 ) -> Html<&'static str> {
-    let file_name = file.metadata.file_name.unwrap_or("uploaded_file.bin".to_string());
+    let file_name = file
+        .metadata
+        .file_name
+        .unwrap_or("uploaded_file.bin".to_string());
     let safe_file_name = std::path::Path::new(&file_name)
         .file_name()
         .and_then(|n| n.to_str())
@@ -37,17 +40,18 @@ async fn handle_upload(
 
     // Basic Content Type Validation
     if let Some(content_type) = &file.metadata.content_type {
-       // Block executable types
-       if content_type.contains("application/x-msdownload") || 
-          content_type.contains("application/x-executable") ||
-          file_name.ends_with(".exe") || 
-          file_name.ends_with(".bat") ||
-          file_name.ends_with(".cmd") ||
-          file_name.ends_with(".sh") {
+        // Block executable types
+        if content_type.contains("application/x-msdownload")
+            || content_type.contains("application/x-executable")
+            || file_name.ends_with(".exe")
+            || file_name.ends_with(".bat")
+            || file_name.ends_with(".cmd")
+            || file_name.ends_with(".sh")
+        {
             return Html("<h1>Upload Failed: File type not allowed</h1>");
-       }
+        }
     }
-    
+
     if let Some(save_dir) = DOWNLOAD_PATH.get() {
         let path = save_dir.join(safe_file_name);
         match tokio::fs::File::create(&path).await {
@@ -57,7 +61,8 @@ async fn handle_upload(
                     // Emit event to frontend
                     let _ = state.app.emit("file-received", &file_name);
                     // Return a simple success page for the phone
-                    return Html(r#"
+                    return Html(
+                        r#"
                         <!DOCTYPE html>
                         <html lang="en">
                         <head>
@@ -129,7 +134,8 @@ async fn handle_upload(
                             </div>
                         </body>
                         </html>
-                    "#);
+                    "#,
+                    );
                 }
             }
             Err(e) => error!("Error saving file: {}", e),
@@ -139,7 +145,8 @@ async fn handle_upload(
 }
 
 async fn show_upload_page() -> Html<&'static str> {
-    Html(r#"
+    Html(
+        r#"
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -476,7 +483,8 @@ async fn show_upload_page() -> Html<&'static str> {
             </script>
         </body>
         </html>
-    "#)
+    "#,
+    )
 }
 
 #[tauri::command]
@@ -496,14 +504,16 @@ pub async fn start_file_server(app: AppHandle) -> Result<String, String> {
 
     // 2. BIND TO PORT 0 (Random available port)
     let addr = SocketAddr::from((ip, 0));
-    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| e.to_string())?;
-    
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| e.to_string())?;
+
     // 3. GET THE ASSIGNED PORT
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let _ = SERVER_PORT.set(port);
 
     let app_handle = app.clone();
-    
+
     tauri::async_runtime::spawn(async move {
         let state = AppState { app: app_handle };
 
@@ -514,7 +524,7 @@ pub async fn start_file_server(app: AppHandle) -> Result<String, String> {
             .with_state(state);
 
         info!("File server running on http://{}:{}", ip, port);
-        
+
         let _ = axum::serve(listener, router).await;
     });
 

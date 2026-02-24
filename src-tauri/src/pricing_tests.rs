@@ -49,8 +49,9 @@ mod tests {
             }
         });
 
-        let response: ServerPricingResponse = serde_json::from_value(json_data).expect("Failed to deserialize");
-        
+        let response: ServerPricingResponse =
+            serde_json::from_value(json_data).expect("Failed to deserialize");
+
         assert_eq!(response.data.items[0].price, "1200");
         assert_eq!(response.data.items[1].price, "1500");
     }

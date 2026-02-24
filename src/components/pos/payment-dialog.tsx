@@ -44,6 +44,7 @@ import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import { useGiftCard } from '@/hooks/use-gift-card';
+import { trackEvent } from "@aptabase/tauri";
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -270,6 +271,7 @@ const PaymentModal = ({
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
   const settings = usePosStore((state) => state.settings);
+  const deductStockForOrderItems = usePosStore((state) => state.deductStockForOrderItems);
   const autoPrintConfig = settings.autoPrintConfig;
   const locationId = useAuthStore((state) => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
@@ -465,8 +467,8 @@ const PaymentModal = ({
       await createSale(payload);
       setMpesaStatus('WAITING');
       setMpesaWaiting(true);
-    } catch {
-      setValidationErrors(['Failed to trigger STK Push. Please retry.']);
+    } catch (err: any) {
+      setValidationErrors([err?.message || 'Failed to trigger STK Push. Please retry.']);
     }
   };
 
@@ -536,10 +538,15 @@ const PaymentModal = ({
         openPhysicalDrawer();
       }
       emit('payment-update', { type: 'CLEAR_COMPLETED' });
+      trackEvent("sale_processed", { amount: totalPayable, payment_method: primaryMethod });
+      
+      // Deduct local stock immediately on sale
+      deductStockForOrderItems(cartItems);
+
       onPaymentComplete(completedOrder);
       onClose();
-    } catch {
-      setValidationErrors(['Error completing sale. Please try again.']);
+    } catch (err: any) {
+      setValidationErrors([err?.message || 'Error completing sale. Please try again.']);
     }
   };
 

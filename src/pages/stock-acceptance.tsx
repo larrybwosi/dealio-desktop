@@ -44,6 +44,7 @@ import { format } from 'date-fns';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { trackEvent } from "@aptabase/tauri";
 import { FileReceiveDialog } from '@/components/file-receive';
 
 // --- Interfaces matching Rust Data Structures ---
@@ -270,6 +271,7 @@ export default function StockAcceptancePage() {
         });
       }
 
+      trackEvent("stock_transfer_completed");
       toast.success('Shipment received successfully');
       setIsReceiveDialogOpen(false);
       fetchShipments(); // Refresh list

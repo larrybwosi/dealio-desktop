@@ -27,6 +27,7 @@ import { useScanner } from '@/hooks/use-scanner';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import PrinterSettings from '@/components/printer.config';
 import { toast } from 'sonner';
+import { trackEvent } from "@aptabase/tauri";
 import GeneralSettings from '@/components/settings/general-tab';
 import LogsTab from '@/components/settings/logs-tab';
 import { Badge } from '@/components/ui/badge';
@@ -221,6 +222,7 @@ export default function SettingsPage() {
       console.error("Failed to update auto-start setting", err);
     }
 
+    trackEvent("settings_updated");
     toast.success('Settings saved successfully!');
   };
 

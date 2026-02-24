@@ -1,10 +1,12 @@
 use hidapi::HidApi;
-use tauri::{AppHandle, Emitter};
+use pcsc::{
+    Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION,
+};
+use std::io::{BufRead, BufReader, Write};
+use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time::Duration;
-use pcsc::{Context, Protocols, ReaderState, Scope, ShareMode, State as PcscState, PNP_NOTIFICATION};
-use std::net::{TcpListener, TcpStream};
-use std::io::{Write, BufReader, BufRead};
+use tauri::{AppHandle, Emitter};
 
 #[derive(Clone, serde::Serialize)]
 struct ScanPayload {
@@ -38,7 +40,10 @@ pub fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<St
     let pid = u16::from_str_radix(pid_hex.trim_start_matches("0x"), 16)
         .map_err(|_| "Invalid Product ID format")?;
 
-    println!("[USB Scanner] Connecting to VID: {:04X}, PID: {:04X}", vid, pid);
+    println!(
+        "[USB Scanner] Connecting to VID: {:04X}, PID: {:04X}",
+        vid, pid
+    );
 
     tauri::async_runtime::spawn(async move {
         let api = match HidApi::new() {
@@ -76,10 +81,13 @@ pub fn start_scan(app: AppHandle, vid_hex: String, pid_hex: String) -> Result<St
                                 let code = part.trim();
                                 if !code.is_empty() {
                                     println!("[USB Scanner] Code detected: {}", code);
-                                    let _ = app.emit("scanner-data", ScanPayload { 
-                                        message: code.to_string(),
-                                        source: "USB".to_string()
-                                    });
+                                    let _ = app.emit(
+                                        "scanner-data",
+                                        ScanPayload {
+                                            message: code.to_string(),
+                                            source: "USB".to_string(),
+                                        },
+                                    );
                                 }
                             }
                             string_buffer = parts.last().unwrap_or(&"").to_string();
@@ -110,14 +118,20 @@ pub fn start_network_scan_server(app: AppHandle, port: u16) -> Result<String, St
 
     println!("[Net Scanner] Server started on port {}", port);
     // Notify frontend
-    let _ = app.emit("scanner-status", format!("Network Server Listening on :{}", port));
+    let _ = app.emit(
+        "scanner-status",
+        format!("Network Server Listening on :{}", port),
+    );
 
     // Spawn a dedicated thread for accepting connections
     thread::spawn(move || {
         for stream in listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    println!("[Net Scanner] New scanner connected: {:?}", stream.peer_addr());
+                    println!(
+                        "[Net Scanner] New scanner connected: {:?}",
+                        stream.peer_addr()
+                    );
                     let app_clone = app.clone();
 
                     // Handle each scanner connection in its own thread
@@ -133,10 +147,13 @@ pub fn start_network_scan_server(app: AppHandle, port: u16) -> Result<String, St
                             let code = line.trim().to_string();
                             if !code.is_empty() {
                                 println!("[Net Scanner] Code received: {}", code);
-                                let _ = app_clone.emit("scanner-data", ScanPayload { 
-                                    message: code,
-                                    source: "Network".to_string()
-                                });
+                                let _ = app_clone.emit(
+                                    "scanner-data",
+                                    ScanPayload {
+                                        message: code,
+                                        source: "Network".to_string(),
+                                    },
+                                );
                             }
                             line.clear();
                         }
@@ -160,13 +177,14 @@ pub fn start_network_scan_server(app: AppHandle, port: u16) -> Result<String, St
 #[tauri::command]
 pub fn print_to_network(ip: String, port: String, payload: String) -> Result<String, String> {
     let address = format!("{}:{}", ip, port);
-    
+
     // Connect with a timeout (handled by OS default here, or wrapping with simple connect)
     let mut stream = TcpStream::connect(&address)
         .map_err(|e| format!("Failed to connect to printer at {}: {}", address, e))?;
 
     // Send the raw bytes (ZPL / ESC/POS / Text)
-    stream.write_all(payload.as_bytes())
+    stream
+        .write_all(payload.as_bytes())
         .map_err(|e| format!("Failed to send data: {}", e))?;
 
     stream.flush().map_err(|_| "Failed to flush stream")?;
@@ -183,16 +201,17 @@ pub fn start_nfc_listener(app: AppHandle) {
     thread::spawn(move || {
         let ctx = match Context::establish(Scope::User) {
             Ok(ctx) => ctx,
-            Err(_) => return, 
+            Err(_) => return,
         };
 
         let mut readers_buf = [0; 2048];
-        let mut reader_states = vec![
-            ReaderState::new(PNP_NOTIFICATION(), PcscState::UNAWARE),
-        ];
+        let mut reader_states = vec![ReaderState::new(PNP_NOTIFICATION(), PcscState::UNAWARE)];
 
         loop {
-            if ctx.get_status_change(Some(Duration::from_millis(1000)), &mut reader_states).is_ok() {
+            if ctx
+                .get_status_change(Some(Duration::from_millis(1000)), &mut reader_states)
+                .is_ok()
+            {
                 if let Ok(readers) = ctx.list_readers(&mut readers_buf) {
                     for reader in readers {
                         if let Ok(card) = ctx.connect(reader, ShareMode::Shared, Protocols::ANY) {
@@ -200,11 +219,10 @@ pub fn start_nfc_listener(app: AppHandle) {
                             let mut rapdu_buf = [0; 256];
 
                             if let Ok(rapdu) = card.transmit(&apdu, &mut rapdu_buf) {
-                                let uid: String = rapdu.iter()
-                                    .map(|b| format!("{:02X}", b))
-                                    .collect();
-                                
-                                let clean_uid = &uid[0..uid.len()-4]; 
+                                let uid: String =
+                                    rapdu.iter().map(|b| format!("{:02X}", b)).collect();
+
+                                let clean_uid = &uid[0..uid.len() - 4];
 
                                 app.emit("nfc-read", clean_uid).unwrap();
                                 thread::sleep(Duration::from_secs(2));

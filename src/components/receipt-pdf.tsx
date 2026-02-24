@@ -1,15 +1,10 @@
-'use client';
-
 import React from 'react';
-
 import { Document, Page, Text, View, StyleSheet, Image, Font } from '@react-pdf/renderer';
 import { format } from 'date-fns';
 import type { Order, ReceiptConfig } from '@/store/store';
 
 const getFontUrl = (path: string) => {
-  if (typeof window !== 'undefined') {
-    return `${window.location.origin}${path}`;
-  }
+  if (typeof window !== 'undefined') return `${window.location.origin}${path}`;
   return path;
 };
 
@@ -18,16 +13,8 @@ Font.register({
   fonts: [
     { src: getFontUrl('/fonts/Roboto-Regular.ttf') },
     { src: getFontUrl('/fonts/Roboto-Bold.ttf'), fontWeight: 'bold' },
-    { src: getFontUrl('/fonts/Roboto-Italic.ttf'), fontStyle: 'italic' }
-  ]
-});
-
-Font.register({
-  family: 'CourierPrime',
-  fonts: [
-    { src: getFontUrl('/fonts/CourierPrime-Regular.ttf') },
-    { src: getFontUrl('/fonts/CourierPrime-Bold.ttf'), fontWeight: 'bold' }
-  ]
+    { src: getFontUrl('/fonts/Roboto-Italic.ttf'), fontStyle: 'italic' },
+  ],
 });
 
 interface ReceiptPdfProps {
@@ -48,273 +35,265 @@ interface ReceiptPdfProps {
   branchName?: string;
 }
 
-// --- 3. HELPER FUNCTIONS ---
-const formatCurrency = (amount: number, _currency: string) => {
-  return amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+const formatCurrency = (amount: number, _currency: string) =>
+  amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-// --- 4. COMPONENT ---
 export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, branchName }: ReceiptPdfProps) => {
   const config = settings.receiptConfig || {};
-  
-  // PDF Defaults to 80mm thermal if not specified, or A4 if specified
   const isThermal = config.paperSize === '58mm' || config.paperSize === '80mm';
-  const baseFontSize = config.fontSize === 'small' ? 9 : config.fontSize === 'medium' ? 10 : 11;
 
-  // --- STYLES ---
+  // Compact font scale: small=7, medium=8, large=9
+  const base = config.fontSize === 'small' ? 7 : config.fontSize === 'medium' ? 8 : 9;
+  const pad = isThermal ? 8 : 24;
+  const bc = isThermal ? '#000' : '#d1d5db';
+  const bs = isThermal ? 'dashed' : 'solid';
+
   const styles = React.useMemo(() => StyleSheet.create({
     page: {
       fontFamily: 'Roboto',
-      fontSize: baseFontSize,
-      padding: isThermal ? 12 : 40,
-      backgroundColor: '#ffffff',
-      color: '#000000',
+      fontSize: base,
+      padding: pad,
+      backgroundColor: '#fff',
+      color: '#111',
     },
-    // Utilities
-    bold: { fontWeight: 'bold' },
-    italic: { fontStyle: 'italic' },
-    center: { textAlign: 'center' },
-    
-    // Header Section
-    headerContainer: {
+
+    // ── HEADER ──
+    header: {
       alignItems: 'center',
-      marginBottom: 10,
+      marginBottom: 6,
+      paddingBottom: 5,
+      borderBottomWidth: 1,
+      borderBottomColor: bc,
+      borderBottomStyle: bs,
     },
     logo: {
-      width: isThermal ? 50 : 60,
-      height: isThermal ? 50 : 60,
+      width: isThermal ? 32 : 44,
+      height: isThermal ? 32 : 44,
       objectFit: 'contain',
-      marginBottom: 8,
-    },
-    businessName: {
-      fontSize: baseFontSize + 6,
-      fontWeight: 'bold',
       marginBottom: 4,
+    },
+    bizName: {
+      fontSize: base + (isThermal ? 3 : 5),
+      fontWeight: 'bold',
       textAlign: 'center',
+      textTransform: 'uppercase',
+      letterSpacing: 1.2,
+      marginBottom: 1,
     },
     slogan: {
-      fontSize: baseFontSize,
-      marginBottom: 6,
+      fontSize: base - 1,
+      fontStyle: 'italic',
+      color: '#555',
       textAlign: 'center',
-      color: '#000',
+      marginBottom: 2,
     },
-    contactInfo: {
-      fontSize: baseFontSize - 1,
-      color: '#222',
+    contactLine: {
+      fontSize: base - 1,
+      color: isThermal ? '#000' : '#555',
       textAlign: 'center',
-      marginBottom: 1,
       lineHeight: 1.3,
     },
-
-    // Receipt Title Section
-    receiptTitleBlock: {
-      marginTop: 10,
-      marginBottom: 10,
-      alignItems: 'center',
+    regRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      flexWrap: 'wrap',
+      marginTop: 1,
     },
-    receiptTitle: {
-      fontSize: baseFontSize + 2,
-      fontWeight: 'bold',
-      textTransform: 'uppercase',
-      letterSpacing: 1,
+    regItem: {
+      fontSize: base - 1,
+      color: '#666',
+      marginHorizontal: 3,
     },
 
-    // Meta Data (Order ID, Date)
-    metaContainer: {
-      marginBottom: 2,
+    // ── DIVIDER ──
+    divider: {
+      borderBottomWidth: 1,
+      borderBottomColor: bc,
+      borderBottomStyle: bs,
+      marginVertical: 4,
     },
-    metaText: {
-      fontSize: baseFontSize,
-      marginBottom: 2,
+    doubleDivider: {
+      borderBottomWidth: 2,
+      borderBottomColor: '#000',
+      marginVertical: 3,
     },
-    metaRow: {
+
+    // ── META GRID ──
+    metaGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginBottom: 5,
+      paddingBottom: 5,
+      borderBottomWidth: 1,
+      borderBottomColor: bc,
+      borderBottomStyle: bs,
+    },
+    metaCell: {
+      width: isThermal ? '100%' : '50%',
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 2,
+      paddingVertical: 1,
+      paddingRight: isThermal ? 0 : 8,
     },
-    metaColLeft: {
-      textAlign: 'left',
-    },
-    metaColRight: {
-      textAlign: 'right',
-    },
+    metaLabel: { fontSize: base - 1, color: '#777' },
+    metaValue: { fontSize: base - 1, fontWeight: 'bold' },
 
-    // Section Headers (ITEMS, PAYMENT)
-    sectionHeader: {
-      fontSize: baseFontSize,
-      fontWeight: 'bold',
-      marginTop: 8,
-      marginBottom: 6,
-      textTransform: 'uppercase',
-    },
-
-    // Table
-    tableContainer: {
-      marginBottom: 10,
-    },
-    tableHeader: {
+    // ── TABLE ──
+    table: { marginBottom: 4 },
+    tHead: {
       flexDirection: 'row',
       borderBottomWidth: 1,
       borderBottomColor: '#000',
-      paddingBottom: 4,
-      marginBottom: 4,
+      borderBottomStyle: bs,
+      paddingBottom: 3,
+      marginBottom: 2,
     },
-    tableRow: {
+    tHCell: {
+      fontSize: base - 1,
+      fontWeight: 'bold',
+      textTransform: 'uppercase',
+      color: isThermal ? '#000' : '#444',
+    },
+    tRow: {
       flexDirection: 'row',
-      marginBottom: config.itemSpacing !== undefined ? config.itemSpacing : 6,
+      marginBottom: config.itemSpacing ?? 3,
+      alignItems: 'flex-start',
     },
-    // Column Widths
-    colItem: { width: '55%' },
-    colQty: { width: '15%', textAlign: 'center' },
-    colTotal: { width: '30%', textAlign: 'right' },
-    
-    // Item Details
-    itemName: {
-      fontSize: baseFontSize,
-    },
-    itemVariant: {
-      fontSize: baseFontSize - 1,
-      color: '#444',
-      marginTop: 1,
-      fontStyle: 'italic',
-    },
+    colItem:  { width: '42%', paddingRight: 3 },
+    colQty:   { width: '13%', textAlign: 'center' },
+    colPrice: { width: '22%', textAlign: 'right', paddingRight: 2 },
+    colTotal: { width: '23%', textAlign: 'right' },
 
-    // Totals Section
-    totalsContainer: {
-      marginTop: 4,
+    itemName: { fontSize: base, fontWeight: 'bold', lineHeight: 1.2 },
+    itemVariant: { fontSize: base - 2, color: '#555', marginTop: 1 },
+
+    // ── TOTALS ──
+    totalsWrap: {
+      marginTop: 2,
+      paddingTop: 4,
       borderTopWidth: 1,
       borderTopColor: '#000',
-      borderTopStyle: 'dashed',
-      paddingTop: 8,
+      borderTopStyle: bs,
       alignItems: 'flex-end',
     },
     totalRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      width: isThermal ? '100%' : '60%',
-      marginBottom: 2,
+      width: isThermal ? '100%' : '48%',
+      paddingVertical: 1,
     },
-    totalLabel: {
-      fontSize: baseFontSize,
-    },
-    totalValue: {
-      fontSize: baseFontSize,
-      fontWeight: 'bold',
-    },
-    grandTotalRow: {
+    totalLabel: { fontSize: base, color: isThermal ? '#000' : '#555' },
+    totalValue: { fontSize: base, fontWeight: 'bold' },
+    grandRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      width: isThermal ? '100%' : '60%',
-      marginTop: 6,
-      paddingTop: 4,
-      borderTopWidth: 1,
-      borderTopColor: '#000',
-      borderBottomWidth: 1,
-      borderBottomColor: '#000',
-      paddingBottom: 2,
-    },
-    grandTotalText: {
-      fontSize: baseFontSize + 2,
-      fontWeight: 'bold',
-    },
-
-    // Payment Section
-    paymentContainer: {
+      width: isThermal ? '100%' : '48%',
+      paddingVertical: 3,
       marginTop: 2,
+      borderTopWidth: 2,
+      borderTopColor: '#000',
+      borderBottomWidth: 2,
+      borderBottomColor: '#000',
     },
-    paymentRow: {
+    grandLabel: { fontSize: base + 2, fontWeight: 'bold', textTransform: 'uppercase' },
+    grandValue: { fontSize: base + 2, fontWeight: 'bold' },
+    savingsRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      marginBottom: 2,
+      width: isThermal ? '100%' : '48%',
+      paddingVertical: 1,
     },
+    savingsText: { fontSize: base, color: '#16a34a' },
 
-    // Footer
-    footerContainer: {
-      marginTop: 20,
-      alignItems: 'center',
-    },
-    footerMessage: {
-      fontSize: baseFontSize,
+    // ── FOOTER ──
+    footer: { marginTop: 8, alignItems: 'center' },
+    footerMsg: {
+      fontSize: base,
       fontWeight: 'bold',
       textAlign: 'center',
-      marginBottom: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+      marginBottom: 3,
     },
-    footerContact: {
-      fontSize: baseFontSize - 1,
+    footerLine: {
+      fontSize: base - 1,
       textAlign: 'center',
-      marginBottom: 8,
+      color: isThermal ? '#000' : '#555',
+      marginBottom: 2,
     },
-    footerKeepRecord: {
-      fontSize: baseFontSize - 1,
+    footerDisclaimer: {
+      fontSize: base - 2,
       textAlign: 'center',
-      marginTop: 8,
+      color: '#888',
       fontStyle: 'italic',
-    }
-  }), [baseFontSize, isThermal]);
+      marginTop: 3,
+    },
+    loyaltyBox: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      marginTop: 4,
+    },
+    loyaltyItem: {
+      fontSize: base - 1,
+      marginHorizontal: 5,
+      color: isThermal ? '#000' : '#555',
+    },
+    barcodeWrap: {
+      alignItems: 'center',
+      marginTop: 6,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: bc,
+      borderTopStyle: bs,
+      width: '100%',
+    },
+    barcodeNum: {
+      fontSize: base - 2,
+      marginTop: 2,
+      letterSpacing: 1.5,
+      color: '#444',
+    },
+  }), [base, pad, bc, bs, isThermal, config.itemSpacing]);
 
-  // --- DYNAMIC HEIGHT CALCULATION ---
+  // ── PAGE SIZE ──
   const calculatePageHeight = () => {
     if (config.paperSize === 'Letter') return 'A4';
-    
-    // Base padding (vertical)
-    let height = isThermal ? 24 : 80;
-
-    // Header approximation
-    if (config.showLogo && config.logoUrl) height += isThermal ? 60 : 70;
-    height += 30; // Business name
-    if (config.showTagline || settings.businessSlogan) height += 20;
-    
-    // Contact info (approx 12px per line)
+    let h = isThermal ? 28 : 48;
+    if (config.showLogo && config.logoUrl) h += isThermal ? 42 : 56;
+    h += 30; // biz name + slogan
     const contactLines = [
       config.showAddress && settings.address,
-      (config.showPhone || settings.phone),
+      config.showPhone || settings.phone,
       settings.email,
       settings.website,
       config.showTaxNumber && config.taxNumber,
       config.showVatNumber && config.vatNumber,
-      config.showCompanyRegNumber && config.companyRegNumber
+      config.showCompanyRegNumber && config.companyRegNumber,
     ].filter(Boolean).length;
-    height += contactLines * 12 + 10;
-
-    // Title & Meta (Significantly reduced)
-    height += 10; // Base spacing for meta
-    height += 24; // Row 1 (Time | Branch) - approx 12px font + margins
-    height += 24; // Row 2 (Served By | Customer) - approx 12px font + margins
-    if (config.showOrderNumber !== false) height += 14; 
-    // Removed customer/cashier/orderType incremental additions as they are now in fixed rows or conditionally rendered within the fixed height blocks above.
-
-    // Items
-    height += 30; // Table header
+    h += contactLines * 12 + 16;
+    h += 46; // meta block
+    h += 30; // table header
     order.items?.forEach(item => {
-      height += 18; // Base item line
-      if (item.variantName && !['Default', 'Default Variant'].includes(item.variantName)) height += 12; // Variant line
+      h += 16;
+      if (item.variantName && !['Default', 'Default Variant'].includes(item.variantName)) h += 11;
     });
-    height += 20; // Table bottom margin
-
-    // Totals
-    if (config.showSubtotal !== false) height += 15;
-    if (config.showDiscountBreakdown !== false && order.discount > 0) height += 15;
-    if (config.showTaxBreakdown !== false) height += 15;
-    if (config.showSavingsTotal && order.discount > 0) height += 15;
-    height += 25; // Grand total + margins
-
-    // Payment (Compacted to 1 line)
-    height += 20; 
-
-    // Footer
-    height += 60; // Base footer margin + message
-    if (config.showNextVisitPromo) height += 20;
-    if (config.showLoyaltyPoints || config.showLoyaltyBalance) height += 25;
-    if (settings.email) height += 15;
-    if (config.showReturnPolicy) height += 25;
-    if (config.showLegalDisclaimer) height += 25;
-    if (config.showQrCode && qrCodeUrl) height += 60;
-    if (config.showBarcode && barcodeUrl) height += 50;
-    if (config.showSurveyQr) height += 20;
-    if (config.showSocialMedia) height += 20;
-    
-    // Buffer for safety (Reduced)
-    return height + 20; 
+    h += 16;
+    if (config.showSubtotal !== false) h += 14;
+    if (config.showDiscountBreakdown !== false && order.discount > 0) h += 14;
+    if (config.showTaxBreakdown !== false) h += 14;
+    if (config.showSavingsTotal && order.discount > 0) h += 14;
+    h += 34; // grand total
+    h += 14; // payment line
+    h += 32; // footer base
+    if (config.showNextVisitPromo) h += 14;
+    if (config.showLoyaltyPoints || config.showLoyaltyBalance) h += 20;
+    if (config.showReturnPolicy) h += 18;
+    if (config.showLegalDisclaimer) h += 16;
+    if (config.showQrCode && qrCodeUrl) h += 56;
+    if (config.showBarcode && barcodeUrl) h += 52;
+    if (config.showSurveyQr) h += 12;
+    if (config.showSocialMedia) h += 12;
+    return h;
   };
 
   const pageSize =
@@ -322,115 +301,126 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, bra
     config.paperSize === '80mm' ? { width: 226, height: calculatePageHeight() } :
     'A4';
 
-  // Fallback for null currency
   const currency = settings.currency || 'KSH';
 
   return (
     <Document>
       <Page size={pageSize} style={styles.page}>
-        
-        {/* === HEADER === */}
-        <View style={styles.headerContainer}>
+
+        {/* ── HEADER ── */}
+        <View style={styles.header}>
           {config.showLogo && config.logoUrl && (
             <Image src={config.logoUrl} style={styles.logo} />
           )}
-          <Text style={styles.businessName}>{settings.businessName || 'Cake Panier'}</Text>
-          {config.showTagline && config.tagline && (
-            <Text style={[styles.contactInfo, { fontStyle: 'italic' }]}>{config.tagline}</Text>
+          <Text style={styles.bizName}>{settings.businessName || 'Business Name'}</Text>
+          {(config.showTagline && config.tagline) && (
+            <Text style={styles.slogan}>{config.tagline}</Text>
           )}
-          {settings.businessSlogan && (
-             <Text style={styles.slogan}>{settings.businessSlogan}</Text>
+          {!config.tagline && settings.businessSlogan && (
+            <Text style={styles.slogan}>{settings.businessSlogan}</Text>
           )}
-          
+
+          {/* Contact — inline where possible */}
           {config.showAddress && settings.address && (
-            <Text style={styles.contactInfo}>{settings.address}</Text>
+            <Text style={styles.contactLine}>{settings.address}</Text>
           )}
-          {(config.showPhone || config.phone || settings.phone) && (
-            <Text style={styles.contactInfo}>Tel: {config.phone || settings.phone}</Text>
+          {(config.showPhone || settings.phone) && settings.email ? (
+            <Text style={styles.contactLine}>
+              {config.phone || settings.phone}  ·  {settings.email}
+            </Text>
+          ) : (
+            <>
+              {(config.showPhone || settings.phone) && (
+                <Text style={styles.contactLine}>{config.phone || settings.phone}</Text>
+              )}
+              {settings.email && (
+                <Text style={styles.contactLine}>{settings.email}</Text>
+              )}
+            </>
           )}
-          {(settings.email) && (
-            <Text style={styles.contactInfo}>Email: {settings.email}</Text>
+          {settings.website && (
+            <Text style={styles.contactLine}>{settings.website}</Text>
           )}
-          {(settings.website) && (
-            <Text style={styles.contactInfo}>{settings.website}</Text>
+
+          {/* Reg numbers inline */}
+          {(config.showTaxNumber && config.taxNumber) ||
+           (config.showVatNumber && config.vatNumber) ||
+           (config.showCompanyRegNumber && config.companyRegNumber) ? (
+            <View style={styles.regRow}>
+              {config.showTaxNumber && config.taxNumber && (
+                <Text style={styles.regItem}>TIN: {config.taxNumber}</Text>
+              )}
+              {config.showVatNumber && config.vatNumber && (
+                <Text style={styles.regItem}>VAT: {config.vatNumber}</Text>
+              )}
+              {config.showCompanyRegNumber && config.companyRegNumber && (
+                <Text style={styles.regItem}>REG: {config.companyRegNumber}</Text>
+              )}
+            </View>
+          ) : null}
+        </View>
+
+        {/* ── META GRID ── */}
+        <View style={styles.metaGrid}>
+          {config.showOrderNumber !== false && (
+            <View style={styles.metaCell}>
+              <Text style={styles.metaLabel}>Receipt No</Text>
+              <Text style={styles.metaValue}>{order.orderNumber}</Text>
+            </View>
           )}
-          {config.showTaxNumber && config.taxNumber && (
-            <Text style={styles.contactInfo}>Tax ID: {config.taxNumber}</Text>
+          <View style={styles.metaCell}>
+            <Text style={styles.metaLabel}>Date</Text>
+            <Text style={styles.metaValue}>
+              {order.createdAt
+                ? format(new Date(order.createdAt), 'dd/MM/yy HH:mm')
+                : format(new Date(), 'dd/MM/yy HH:mm')}
+            </Text>
+          </View>
+          {branchName && (
+            <View style={styles.metaCell}>
+              <Text style={styles.metaLabel}>Branch</Text>
+              <Text style={styles.metaValue}>{branchName}</Text>
+            </View>
           )}
-          {config.showVatNumber && config.vatNumber && (
-            <Text style={styles.contactInfo}>VAT: {config.vatNumber}</Text>
+          {config.showCashier && order.cashierName && (
+            <View style={styles.metaCell}>
+              <Text style={styles.metaLabel}>Served By</Text>
+              <Text style={styles.metaValue}>{order.cashierName}</Text>
+            </View>
           )}
-          {config.showCompanyRegNumber && config.companyRegNumber && (
-            <Text style={styles.contactInfo}>Reg: {config.companyRegNumber}</Text>
+          {config.showCustomerName && order.customerName && (
+            <View style={styles.metaCell}>
+              <Text style={styles.metaLabel}>Customer</Text>
+              <Text style={styles.metaValue}>{order.customerName}</Text>
+            </View>
           )}
         </View>
 
-
-
-        {/* === META (Order & Date - 2 Columns) === */}
-        <View style={styles.metaContainer}>
-           {/* Row 1: Time | Branch */}
-           <View style={styles.metaRow}>
-              <Text style={[styles.metaText, styles.metaColLeft]}>
-                {order.createdAt ? format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm') : format(new Date(), 'dd/MM/yyyy HH:mm')}
-              </Text>
-              {branchName && (
-                <Text style={[styles.metaText, styles.metaColRight]}>{branchName}</Text>
-              )}
-           </View>
-           
-           {/* Row 2: Served By | Customer */}
-           <View style={styles.metaRow}>
-              {config.showCashier && order.cashierName ? (
-                 <Text style={[styles.metaText, styles.metaColLeft]}>Served by: {order.cashierName}</Text>
-              ) : (
-                 <Text style={[styles.metaText, styles.metaColLeft]}></Text> 
-              )}
-              
-              {config.showCustomerName && order.customerName && (
-                 <Text style={[styles.metaText, styles.metaColRight]}>Customer: {order.customerName}</Text>
-              )}
-           </View>
-
-           {config.showOrderNumber !== false && (
-             <View style={styles.metaRow}>
-               <Text style={styles.metaText}>Order: {order.orderNumber}</Text>
-             </View>
-           )}
-        </View>
-
-        {/* === ITEMS === */}
-        <View style={styles.tableContainer}>
-          <Text style={styles.sectionHeader}>ITEMS</Text>
-          
-          <View style={styles.tableHeader}>
-            <Text style={[styles.colItem, styles.bold]}>Item</Text>
-            <Text style={[styles.colQty, styles.bold]}>Qty</Text>
-            <Text style={[styles.colTotal, styles.bold]}>Total ({currency})</Text>
+        {/* ── ITEMS TABLE ── */}
+        <View style={styles.table}>
+          <View style={styles.tHead}>
+            <Text style={[styles.colItem,  styles.tHCell]}>Item</Text>
+            <Text style={[styles.colQty,   styles.tHCell]}>Qty</Text>
+            <Text style={[styles.colPrice, styles.tHCell]}>Price</Text>
+            <Text style={[styles.colTotal, styles.tHCell]}>Amt</Text>
           </View>
 
           {order.items?.map((item, i) => {
             const unitPrice = item.selectedUnit?.price || 0;
             const lineTotal = unitPrice * item.quantity;
-            
-            // Logic to determine if variant should be shown
-            const variantName = item.variantName || '';
-            const shouldShowVariant = variantName && !['Default', 'Default Variant'].includes(variantName);
-
+            const variant = item.variantName || '';
+            const showVariant = variant && !['Default', 'Default Variant'].includes(variant);
             return (
-              <View key={i} style={styles.tableRow}>
+              <View key={i} style={styles.tRow}>
                 <View style={styles.colItem}>
-                  {/* Product Name */}
                   <Text style={styles.itemName}>{item.productName}</Text>
-                  
-                  {/* Variant Name - displayed below in italics if not default */}
-                  {shouldShowVariant && (
-                    <Text style={styles.itemVariant}>{variantName}</Text>
-                  )}
+                  {showVariant && <Text style={styles.itemVariant}>{variant}</Text>}
                 </View>
-                
                 <Text style={styles.colQty}>{item.quantity}</Text>
-                <Text style={styles.colTotal}>
+                <Text style={[styles.colPrice, { color: '#555' }]}>
+                  {formatCurrency(unitPrice, currency)}
+                </Text>
+                <Text style={[styles.colTotal, { fontWeight: 'bold' }]}>
                   {formatCurrency(lineTotal, currency)}
                 </Text>
               </View>
@@ -438,121 +428,101 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, bra
           })}
         </View>
 
-        {/* === TOTALS === */}
-        <View style={styles.totalsContainer}>
+        {/* ── TOTALS ── */}
+        <View style={styles.totalsWrap}>
           {config.showSubtotal !== false && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Subtotal:</Text>
-              <Text style={styles.totalValue}>
-                {formatCurrency(order.subTotal || 0, currency)}
-              </Text>
+              <Text style={styles.totalLabel}>Subtotal</Text>
+              <Text style={styles.totalValue}>{formatCurrency(order.subTotal || 0, currency)}</Text>
             </View>
           )}
-          
           {config.showDiscountBreakdown !== false && order.discount > 0 && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Discount:</Text>
-              <Text style={styles.totalValue}>
-                -{formatCurrency(order.discount, currency)}
-              </Text>
+              <Text style={styles.totalLabel}>Discount</Text>
+              <Text style={styles.totalValue}>-{formatCurrency(order.discount, currency)}</Text>
             </View>
           )}
-          
           {config.showTaxBreakdown !== false && (
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Tax:</Text>
-              <Text style={styles.totalValue}>
-                {formatCurrency(order.taxes || 0, currency)}
-              </Text>
+              <Text style={styles.totalLabel}>Tax</Text>
+              <Text style={styles.totalValue}>{formatCurrency(order.taxes || 0, currency)}</Text>
             </View>
           )}
-
+          <View style={styles.grandRow}>
+            <Text style={styles.grandLabel}>Total</Text>
+            <Text style={styles.grandValue}>{currency} {formatCurrency(order.total || 0, currency)}</Text>
+          </View>
+          <View style={[styles.totalRow, { marginTop: 2 }]}>
+            <Text style={styles.totalLabel}>Payment</Text>
+            <Text style={styles.totalValue}>{order.paymentMethod || 'Cash'}</Text>
+          </View>
           {config.showSavingsTotal && order.discount > 0 && (
-            <View style={styles.totalRow}>
-              <Text style={[styles.totalLabel, { color: '#16a34a' }]}>You Saved:</Text>
-              <Text style={[styles.totalValue, { color: '#16a34a' }]}>
+            <View style={styles.savingsRow}>
+              <Text style={styles.savingsText}>You Saved</Text>
+              <Text style={[styles.savingsText, { fontWeight: 'bold' }]}>
                 {formatCurrency(order.discount, currency)}
               </Text>
             </View>
           )}
-
-          <View style={styles.grandTotalRow}>
-            <Text style={styles.grandTotalText}>TOTAL:</Text>
-            <Text style={styles.grandTotalText}>
-              {formatCurrency(order.total || 0, currency)}
-            </Text>
-          </View>
         </View>
 
-        {/* === PAYMENT === */}
-        <View style={styles.paymentContainer}>
-           <View style={styles.totalRow}>
-             <Text style={styles.totalLabel}>Payment:</Text>
-             <Text style={styles.totalValue}>{order.paymentMethod || 'Cash'}</Text>
-           </View>
-        </View>
+        {/* ── FOOTER ── */}
+        <View style={styles.footer}>
+          <View style={styles.divider} />
 
-        {/* === FOOTER === */}
-        <View style={styles.footerContainer}>
-          {config.showThankYouMessage && config.thankYouMessage ? (
-            <Text style={styles.footerMessage}>{config.thankYouMessage}</Text>
+          {config.showThankYouMessage ? (
+            <Text style={styles.footerMsg}>{config.thankYouMessage || 'Thank You'}</Text>
           ) : (
-            <Text style={styles.footerMessage}>Thank you for your business!</Text>
+            <Text style={styles.footerMsg}>Thank You</Text>
           )}
 
           {config.showNextVisitPromo && config.nextVisitPromoText && (
-            <Text style={[styles.footerContact, { marginTop: 4 }]}>
-              🎁 {config.nextVisitPromoText}
+            <Text style={[styles.footerLine, { fontWeight: 'bold' }]}>
+              {config.nextVisitPromoText}
             </Text>
           )}
 
           {(config.showLoyaltyPoints || config.showLoyaltyBalance) && (
-            <View style={{ marginTop: 4 }}>
+            <View style={styles.loyaltyBox}>
               {config.showLoyaltyPoints && (
-                <Text style={styles.footerContact}>Points Earned: +{Math.floor((order.total || 0) / 10)}</Text>
+                <Text style={styles.loyaltyItem}>Pts Earned: +{Math.floor((order.total || 0) / 10)}</Text>
               )}
               {config.showLoyaltyBalance && (
-                <Text style={styles.footerContact}>Loyalty Balance: 150 pts</Text>
+                <Text style={styles.loyaltyItem}>Balance: 150 pts</Text>
               )}
             </View>
           )}
-          
-          {settings.email && (
-            <Text style={styles.footerContact}>Questions? Email: {settings.email}</Text>
-          )}
 
-          {config.showReturnPolicy && config.returnPolicyText && (
-            <Text style={[styles.footerContact, { marginTop: 4, fontSize: baseFontSize - 2 }]}>
-              Return Policy: {config.returnPolicyText}
+          {config.showSocialMedia && config.socialMediaHandle && (
+            <Text style={[styles.footerLine, { fontWeight: 'bold', marginTop: 2 }]}>
+              {config.socialMediaHandle}
             </Text>
-          )}
-
-          {config.showLegalDisclaimer && config.legalDisclaimerText && (
-            <Text style={[styles.footerContact, { marginTop: 4, fontSize: baseFontSize - 2, color: '#888' }]}>
-              {config.legalDisclaimerText}
-            </Text>
-          )}
-          
-          {config.showQrCode && qrCodeUrl && (
-             <Image src={qrCodeUrl} style={{ width: 50, height: 50, marginVertical: 5 }} />
           )}
 
           {config.showSurveyQr && config.surveyUrl && (
-            <Text style={[styles.footerContact, { marginTop: 4 }]}>Rate us: {config.surveyUrl}</Text>
+            <Text style={styles.footerLine}>Rate us: {config.surveyUrl}</Text>
           )}
 
-          {config.showSocialMedia && config.socialMediaHandle && (
-            <Text style={[styles.footerContact, { fontWeight: 'bold' }]}>Connect: {config.socialMediaHandle}</Text>
+          {config.showQrCode && qrCodeUrl && (
+            <Image src={qrCodeUrl} style={{ width: 48, height: 48, marginTop: 6 }} />
           )}
-          
+
           {config.showBarcode && barcodeUrl && (
-             <View style={{ alignItems: 'center', marginTop: 10 }}>
-               <Image src={barcodeUrl} style={{ width: isThermal ? 140 : 180, height: 40, objectFit: 'contain' }} />
-               <Text style={{ fontSize: baseFontSize - 4, marginTop: 2 }}>{order.orderNumber}</Text>
-             </View>
+            <View style={styles.barcodeWrap}>
+              <Image src={barcodeUrl} style={{ width: isThermal ? 120 : 160, height: 28, objectFit: 'contain' }} />
+              <Text style={styles.barcodeNum}>{order.orderNumber}</Text>
+            </View>
           )}
 
-          <Text style={styles.footerKeepRecord}>Keep this receipt for your records</Text>
+          {config.showReturnPolicy && config.returnPolicyText && (
+            <Text style={[styles.footerDisclaimer, { marginTop: 5 }]}>{config.returnPolicyText}</Text>
+          )}
+
+          {config.showLegalDisclaimer && config.legalDisclaimerText && (
+            <Text style={styles.footerDisclaimer}>{config.legalDisclaimerText}</Text>
+          )}
+
+          <Text style={styles.footerDisclaimer}>Goods once sold are not returnable.</Text>
         </View>
 
       </Page>

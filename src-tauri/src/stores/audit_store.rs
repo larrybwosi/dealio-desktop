@@ -1,11 +1,11 @@
 use anyhow::Result;
 use chrono::Utc;
+use log::{info, warn};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
-use log::{info, warn};
 
 // ============================================================
 // Data Structures
@@ -88,14 +88,14 @@ pub fn write_event(
     };
 
     // Also emit to the structured system log so it appears in log files
-    info!("[AUDIT] {} | {:?} | {}", event.timestamp, event.action, event.details);
+    info!(
+        "[AUDIT] {} | {:?} | {}",
+        event.timestamp, event.action, event.details
+    );
 
     let json_line = serde_json::to_string(&event)?;
 
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)?;
+    let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
 
     writeln!(file, "{}", json_line)?;
 
@@ -124,7 +124,10 @@ pub fn read_events(app: &AppHandle, filter: AuditFilter) -> Result<Vec<AuditEven
             match serde_json::from_str::<AuditEvent>(trimmed) {
                 Ok(ev) => Some(ev),
                 Err(e) => {
-                    warn!("[AUDIT] Failed to parse audit line: {} — error: {}", trimmed, e);
+                    warn!(
+                        "[AUDIT] Failed to parse audit line: {} — error: {}",
+                        trimmed, e
+                    );
                     None
                 }
             }
@@ -136,7 +139,11 @@ pub fn read_events(app: &AppHandle, filter: AuditFilter) -> Result<Vec<AuditEven
 
     // Apply filters
     if let Some(action_filter) = &filter.action {
-        events.retain(|e| e.action.to_lowercase().contains(&action_filter.to_lowercase()));
+        events.retain(|e| {
+            e.action
+                .to_lowercase()
+                .contains(&action_filter.to_lowercase())
+        });
     }
     if let Some(actor_filter) = &filter.actor_id {
         events.retain(|e| {
@@ -184,11 +191,7 @@ pub fn read_system_log(app: &AppHandle, lines: usize) -> Result<String> {
     let mut log_files: Vec<PathBuf> = fs::read_dir(&log_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| {
-            p.extension()
-                .map(|ext| ext == "log")
-                .unwrap_or(false)
-        })
+        .filter(|p| p.extension().map(|ext| ext == "log").unwrap_or(false))
         .collect();
 
     // Sort by modification time, latest first

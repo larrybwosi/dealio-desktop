@@ -1,6 +1,6 @@
+use log::info;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
-use log::info;
 
 /// Network status state
 #[derive(Clone)]
@@ -27,29 +27,39 @@ impl NetworkState {
 
 /// Internal helper to update status and emit events
 fn update_internal_status(app: &AppHandle, network_state: &Arc<NetworkState>, is_online: bool) {
-    let mut current_status = network_state.is_online.lock().unwrap_or_else(|e| e.into_inner());
+    let mut current_status = network_state
+        .is_online
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let previous_status = *current_status;
-    
+
     if previous_status == is_online {
         // Update last check time even if status didn't change
-        *network_state.last_check.lock().unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
+        *network_state
+            .last_check
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
         return;
     }
 
     *current_status = is_online;
     drop(current_status);
-    
+
     // Update last check time
-    *network_state.last_check.lock().unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
-    
+    *network_state
+        .last_check
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
+
     // Emit event if status changed
-    info!("[NetworkMonitor] Status changed: {} -> {}", 
+    info!(
+        "[NetworkMonitor] Status changed: {} -> {}",
         if previous_status { "Online" } else { "Offline" },
         if is_online { "Online" } else { "Offline" }
     );
-    
+
     let _ = app.emit("network-status-changed", is_online);
-    
+
     // If we just came online, trigger sync
     if is_online && !previous_status {
         info!("[NetworkMonitor] Connection restored. Triggering sales sync...");
@@ -62,7 +72,7 @@ fn update_internal_status(app: &AppHandle, network_state: &Arc<NetworkState>, is
 pub fn update_network_status_command(
     app: AppHandle,
     state: tauri::State<'_, NetworkState>,
-    is_online: bool
+    is_online: bool,
 ) {
     let network_state = Arc::new(state.inner().clone());
     update_internal_status(&app, &network_state, is_online);

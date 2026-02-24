@@ -1,17 +1,17 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 // --- Response Wrapper ---
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductsSyncResponse {
     pub products: Vec<PosProduct>,
-    // The API returns 'pagination', but we might not use it yet. 
+    // The API returns 'pagination', but we might not use it yet.
     // We add it here so Serde doesn't get confused, but we can ignore it if we want.
     pub pagination: Option<Pagination>,
-    // If your API sends the timestamp in the body, keep this. 
+    // If your API sends the timestamp in the body, keep this.
     // If it's missing in the JSON you pasted, we make it Option to prevent crashes.
-    pub sync_timestamp: Option<String>, 
+    pub sync_timestamp: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,21 +27,21 @@ pub struct Pagination {
 #[serde(rename_all = "camelCase")]
 pub struct PosProduct {
     pub product_id: String,
-    
+
     // MAP JSON "name" -> Rust "product_name"
-    #[serde(rename = "name")] 
+    #[serde(rename = "name")]
     pub product_name: String,
 
     pub category: String,
-    
+
     // Make optional as some products might not have images
     // Make optional as some products might not have images
-    pub image_url: Option<String>, 
-    
+    pub image_url: Option<String>,
+
     // New field seen in your JSON
     // Use custom deserializer to handle "004" (string) vs 0 (int)
     #[serde(default, deserialize_with = "deserialize_option_string_or_num")]
-    pub total_stock: Option<i32>, 
+    pub total_stock: Option<i32>,
 
     pub variants: Vec<Variant>,
 }
@@ -54,12 +54,12 @@ pub struct Variant {
 
     // MAP JSON "name" -> Rust "variant_name"
     // THIS FIXES YOUR ERROR (missing field `variantName`)
-    #[serde(rename = "name")] 
+    #[serde(rename = "name")]
     pub variant_name: String,
 
     pub sku: String,
     pub barcode: Option<String>,
-    
+
     #[serde(deserialize_with = "deserialize_string_or_num")]
     pub stock: i32,
 
@@ -80,11 +80,11 @@ where
                 Ok(None)
             } else {
                 s.parse::<f64>()
-                 .map(|f| Some(f as i32))
-                 .or_else(|_| s.parse::<i32>().map(Some))
-                 .map_err(serde::de::Error::custom)
+                    .map(|f| Some(f as i32))
+                    .or_else(|_| s.parse::<i32>().map(Some))
+                    .map_err(serde::de::Error::custom)
             }
-        },
+        }
         serde_json::Value::Null => Ok(None),
         _ => Err(serde::de::Error::custom("Expected number, string, or null")),
     }
@@ -96,14 +96,17 @@ where
 {
     let v: serde_json::Value = serde::Deserialize::deserialize(deserializer)?;
     match v {
-        serde_json::Value::Number(n) => n.as_i64().map(|x| x as i32).ok_or_else(|| serde::de::Error::custom("Number out of range")),
+        serde_json::Value::Number(n) => n
+            .as_i64()
+            .map(|x| x as i32)
+            .ok_or_else(|| serde::de::Error::custom("Number out of range")),
         serde_json::Value::String(s) => {
-             // Handle cases like "004" or "5.0"
-             s.parse::<f64>()
-              .map(|f| f as i32)
-              .or_else(|_| s.parse::<i32>())
-              .map_err(serde::de::Error::custom)
-        },
+            // Handle cases like "004" or "5.0"
+            s.parse::<f64>()
+                .map(|f| f as i32)
+                .or_else(|_| s.parse::<i32>())
+                .map_err(serde::de::Error::custom)
+        }
         _ => Err(serde::de::Error::custom("Expected number or string")),
     }
 }
@@ -118,9 +121,9 @@ pub struct SellableUnit {
     pub wholesale_price: Option<f64>, // Added based on your JSON
     pub conversion: f64,
     pub is_base_unit: bool,
-    
+
     // Nested Pricing Rules
-    pub pricing: Option<Vec<PricingRule>>, 
+    pub pricing: Option<Vec<PricingRule>>,
 }
 
 // --- 4. Pricing Rules ---
@@ -134,10 +137,10 @@ pub struct PricingRule {
     pub list_name: String,
     pub list_code: String,
     pub priority: i32,
-    
+
     // These dates can be null
-    pub valid_from: Option<String>, 
-    pub valid_to: Option<String>,   
+    pub valid_from: Option<String>,
+    pub valid_to: Option<String>,
 }
 
 // --- CUSTOMERS ---
@@ -156,16 +159,16 @@ pub struct PosCustomer {
     pub name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
-    
+
     // Backend fields
     pub customer_type: Option<String>, // "B2B" or "B2C" usually
     pub company: Option<String>,
     pub business_account_id: Option<String>,
     pub loyalty_points: Option<f64>,
-    
+
     // Computed/Frontend helper fields
-    pub primary_address: Option<String>, 
-    
+    pub primary_address: Option<String>,
+
     // Complex nested fields
     pub addresses: Option<Vec<CustomerAddress>>,
     pub updated_at: Option<String>,
@@ -185,7 +188,7 @@ pub struct CustomerAddress {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct QueuedSale {
-    pub id: String,        // UUID generated by frontend
+    pub id: String, // UUID generated by frontend
     pub timestamp: u64,
     pub location_id: String,
     pub transaction_data: serde_json::Value, // Flexible payload
@@ -243,8 +246,8 @@ pub struct ClientPriceListItem {
 #[serde(rename_all = "camelCase")]
 pub struct PricingMetadata {
     pub synced_at: String,
-    
-    #[serde(default)] 
+
+    #[serde(default)]
     pub is_delta: bool,
 
     #[serde(default)]
@@ -276,26 +279,28 @@ pub struct ServerPriceList {
     pub code: String,
     pub priority: i32,
     pub is_global: bool,
-    #[serde(default = "default_true")] 
-    pub is_active: bool, 
+    #[serde(default = "default_true")]
+    pub is_active: bool,
     pub valid_from: Option<String>,
     pub valid_to: Option<String>,
     #[serde(default)]
-    pub updated_at: String, 
+    pub updated_at: String,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerPriceListItem {
-    pub id: String, 
+    pub id: String,
     pub price_list_id: String,
     pub variant_id: String,
     pub selling_unit_id: Option<String>,
     pub min_quantity: i32,
     #[serde(deserialize_with = "deserialize_price_to_string")]
-    pub price: String, 
+    pub price: String,
     #[serde(default)]
     pub updated_at: String,
 }
@@ -308,7 +313,9 @@ where
     match v {
         serde_json::Value::String(s) => Ok(s),
         serde_json::Value::Number(n) => Ok(n.to_string()),
-        _ => Err(serde::de::Error::custom("Expected string or number for price")),
+        _ => Err(serde::de::Error::custom(
+            "Expected string or number for price",
+        )),
     }
 }
 
@@ -351,19 +358,19 @@ pub struct Shift {
     pub opened_at: DateTime<Utc>,
     pub closed_at: Option<DateTime<Utc>>,
     pub operator_id: Option<String>,
-    
+
     // Money tracking
     pub starting_float: f64,
-    pub total_cash_sales: f64,    // Sales made in cash
-    pub total_cash_drops: f64,    // Cash removed (e.g., paying vendor)
-    pub total_cash_refunds: f64,  // Cash given back
-    
+    pub total_cash_sales: f64,   // Sales made in cash
+    pub total_cash_drops: f64,   // Cash removed (e.g., paying vendor)
+    pub total_cash_refunds: f64, // Cash given back
+
     // Reconciliation
-    pub expected_cash: f64,       // Float + Sales - Drops - Refunds
-    pub actual_cash: Option<f64>, // What user counted
-    pub variance: Option<f64>,    // Actual - Expected
+    pub expected_cash: f64,               // Float + Sales - Drops - Refunds
+    pub actual_cash: Option<f64>,         // What user counted
+    pub variance: Option<f64>,            // Actual - Expected
     pub operator_card_id: Option<String>, // The Card ID
-    pub operator_pin: Option<String>,  // The PIN (or Hash of PIN)
+    pub operator_pin: Option<String>,     // The PIN (or Hash of PIN)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -380,11 +387,11 @@ pub struct ShiftSyncPayload {
     pub shift_id: String,
     pub opened_at: String, // ISO String
     pub closed_at: Option<String>,
-    
+
     // Auth Data for Anti-Buddy Punching
-    pub operator_card_id: String, 
+    pub operator_card_id: String,
     pub operator_pin: String, // Sending raw or hashed depending on your API security
-    
+
     // Money
     pub starting_float: f64,
     pub total_cash_sales: f64,
@@ -397,7 +404,7 @@ pub struct ShiftSyncPayload {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GlobalSearchResult {
-   pub products: Vec<PosProduct>,
-   pub customers: Vec<PosCustomer>,
-   pub sales: Vec<QueuedSale>,
+    pub products: Vec<PosProduct>,
+    pub customers: Vec<PosCustomer>,
+    pub sales: Vec<QueuedSale>,
 }

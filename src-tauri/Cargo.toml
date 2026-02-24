@@ -28,7 +28,7 @@ anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 pcsc = "2.9.0" # Library to talk to Smart Card readers
 serialport = "4.8.1" # Library to talk to Serial ports
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full", "macros", "rt-multi-thread"] }
 axum = { version = "0.7", features = ["multipart"] }
 axum_typed_multipart = "0.11"
 local-ip-address = "0.6"
@@ -60,6 +60,11 @@ tauri-plugin-upload = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-process = "2"
 tauri-plugin-websocket = "2"
+dotenvy_macro = "0.15.7"
+tauri-plugin-aptabase = { git = "https://github.com/aptabase/tauri-plugin-aptabase" }
+
+sentry = "0.42"
+tauri-plugin-sentry = "0.5"
 
 [dev-dependencies]
 mockito = "1.2"
@@ -72,5 +77,3 @@ tauri-plugin-window-state = "2"
 
 [dependencies.keyring]
 version = "2"
-
-

@@ -44,7 +44,7 @@ export default function GeneralSettings({
   allowSaveUnpaidOrders,
   setAllowSaveUnpaidOrders,
   enableAutoStart,
-  setEnableAutoStart
+  setEnableAutoStart,
 }: {
   businessName: string;
   setBusinessName: (name: string) => void;
@@ -61,7 +61,7 @@ export default function GeneralSettings({
   enableAutoStart: boolean;
   setEnableAutoStart: (enable: boolean) => void;
 }) {
-  const { currentLocation } = useAuthStore();
+  const { currentLocation, allowNegativeStock, setAllowNegativeStock } = useAuthStore();
   const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
 
   return (
@@ -282,6 +282,22 @@ export default function GeneralSettings({
                   </p>
                 </div>
                 <Switch checked={enableAutoStart} onCheckedChange={setEnableAutoStart} />
+              </div>
+
+              <div className="flex items-center justify-between py-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Allow Negative Stock</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-[300px]">
+                    Allow selling products even when local stock count reaches zero.
+                  </p>
+                </div>
+                <Switch 
+                  checked={allowNegativeStock} 
+                  onCheckedChange={setAllowNegativeStock} 
+                />
               </div>
 
             </CardContent>
