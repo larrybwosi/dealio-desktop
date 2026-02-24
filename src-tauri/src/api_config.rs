@@ -12,11 +12,11 @@ pub mod routes {
     pub const INVENTORY_TRANSFERS: &str = "api/v1/pos/inventory/transfers";
     pub const INVENTORY_PROCESS: &str = "api/v1/pos/inventory/process";
     pub const INCOMING_SHIPMENTS: &str = "api/v1/pos/incoming";
-    
+
     pub fn purchase_receive(id: &str) -> String {
         format!("api/v1/pos/purchases/{}/receive", id)
     }
-    
+
     pub fn transfer_receive(id: &str) -> String {
         format!("api/v1/pos/inventory/transfers/{}/receive", id)
     }

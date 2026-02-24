@@ -1,13 +1,13 @@
+use crate::models::{PosProduct, ProductsSyncResponse};
+use anyhow::{Context, Result};
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use crate::models::{PosProduct, ProductsSyncResponse};
-use anyhow::{Result, Context};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use tokio::fs as async_fs; 
+use tokio::fs as async_fs;
 
-const TIMEOUT_SECONDS: u64 = 60; 
+const TIMEOUT_SECONDS: u64 = 60;
 
 // --- State Management ---
 pub struct ProductState {
@@ -27,24 +27,34 @@ impl ProductState {
 
 // --- Helper: File Paths ---
 async fn get_store_path(app: &AppHandle, location_id: &str) -> Result<PathBuf> {
-    let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
-    
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .context("Failed to resolve App Data Directory")?;
+
     if !app_dir.exists() {
-        tokio::fs::create_dir_all(&app_dir).await.context("Failed to create App Data Directory")?;
+        tokio::fs::create_dir_all(&app_dir)
+            .await
+            .context("Failed to create App Data Directory")?;
     }
-    
+
     // Location-specific filename
     Ok(app_dir.join(format!("products_loc_{}.json", location_id)))
 }
 
 async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
-    let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
+    let app_dir = app
+        .path()
+        .app_data_dir()
+        .context("Failed to resolve App Data Directory")?;
     let images_dir = app_dir.join("product_images");
 
     if !images_dir.exists() {
-        tokio::fs::create_dir_all(&images_dir).await.context("Failed to create Images Directory")?;
+        tokio::fs::create_dir_all(&images_dir)
+            .await
+            .context("Failed to create Images Directory")?;
     }
-    
+
     Ok(images_dir)
 }
 
@@ -55,12 +65,13 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     }
 
     // 1. Generate a safe filename from the URL
-    let clean_name = url.replace("https://", "")
-                        .replace("http://", "")
-                        .replace('/', "_")
-                        .replace(':', "")
-                        .replace('?', "_");
-    
+    let clean_name = url
+        .replace("https://", "")
+        .replace("http://", "")
+        .replace('/', "_")
+        .replace(':', "")
+        .replace('?', "_");
+
     // Ensure extension exists or default to .jpg if missing
     let filename = if clean_name.contains('.') {
         clean_name
@@ -83,9 +94,9 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     if file_path.exists() {
         // Integrity check: If file is 0 bytes, it's corrupt/empty.
         if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
-             if metadata.len() > 0 {
-                  return Some(file_path_str);
-             }
+            if metadata.len() > 0 {
+                return Some(file_path_str);
+            }
         }
         // If we reach here, file exists but is invalid (0 bytes). Remove it.
         let _ = async_fs::remove_file(&file_path).await;
@@ -125,17 +136,29 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 }
 
 // --- 1. Load Data on Startup (Synchronous is fine here) ---
-pub async fn load_products_from_disk(app: &AppHandle, state: &ProductState, location_id: &str) -> Result<()> {
+pub async fn load_products_from_disk(
+    app: &AppHandle,
+    state: &ProductState,
+    location_id: &str,
+) -> Result<()> {
     let path = get_store_path(app, location_id).await?;
-    
+
     if path.exists() {
-        let content = tokio::fs::read_to_string(path).await.context("Failed to read store file")?;
+        let content = tokio::fs::read_to_string(path)
+            .await
+            .context("Failed to read store file")?;
         let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
 
         if let Ok((last_sync, products)) = data {
-            let mut products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
-            let mut sync_map = state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner());
-            
+            let mut products_map = state
+                .products_by_location
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            let mut sync_map = state
+                .last_sync_by_location
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+
             products_map.insert(location_id.to_string(), products);
             sync_map.insert(location_id.to_string(), last_sync);
         }
@@ -150,52 +173,71 @@ pub async fn run_sync(
     app: AppHandle,
     state: &ProductState,
     auth_state: &AuthState,
-    force_full_sync: bool // NEW: if true, ignore lastSync and get all products
+    force_full_sync: bool, // NEW: if true, ignore lastSync and get all products
 ) -> Result<usize> {
-    
     // 1. Get Config/Auth from State
     let (base_url, location_id, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
-        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (
+            config.base_url.clone(),
+            config.location_id.clone(),
+            config.device_key.clone(),
+        )
     };
 
     // FIX: Extract Member ID along with Token
     let (member_token, member_id) = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        
+        let token_guard = auth_state
+            .member_token
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state
+            .current_user
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+
         let mid = user_guard.as_ref().map(|u| u.id.clone());
         (token_guard.clone(), mid)
     };
-    
+
     if base_url.is_empty() {
         return Err(anyhow::anyhow!("Base URL is empty"));
     }
 
     let clean_base_url = base_url.trim_end_matches('/');
     let target_url = format!("{}/{}", clean_base_url, crate::api_config::routes::PRODUCTS);
-    
+
     // Get last sync time for THIS location (not global)
     let last_sync_time = if force_full_sync {
         None
     } else {
-        state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner())
+        state
+            .last_sync_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
             .get(&location_id)
             .and_then(|opt| opt.clone())
     };
-    
+
     // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
-    
+
     // Device Key is now always present if we got past the config check
-    let mut val = HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
+    let mut val =
+        HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
     headers.insert("X-Device-Api-Key", val);
 
     if let Some(token) = member_token {
         let auth_val = format!("Bearer {}", token);
-        let mut val = HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+        let mut val =
+            HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
         val.set_sensitive(true);
         headers.insert(AUTHORIZATION, val);
     }
@@ -215,7 +257,7 @@ pub async fn run_sync(
     let mut query_params = vec![
         ("locationId", location_id.clone()),
         ("page", "1".to_string()),
-        ("limit", "2000".to_string()), 
+        ("limit", "2000".to_string()),
         ("categoryId", "all".to_string()),
     ];
 
@@ -224,7 +266,8 @@ pub async fn run_sync(
     }
 
     // --- EXECUTE REQUEST ---
-    let response = client.get(&target_url)
+    let response = client
+        .get(&target_url)
         .query(&query_params)
         .send()
         .await
@@ -233,21 +276,27 @@ pub async fn run_sync(
     if !response.status().is_success() {
         let status = response.status();
         let error_text = response.text().await.unwrap_or_default();
-        return Err(anyhow::anyhow!("Server returned error: {} - {}", status, error_text));
+        return Err(anyhow::anyhow!(
+            "Server returned error: {} - {}",
+            status,
+            error_text
+        ));
     }
 
-    let mut res_body = response.json::<ProductsSyncResponse>().await
+    let mut res_body = response
+        .json::<ProductsSyncResponse>()
+        .await
         .context("Failed to parse server response JSON")?;
 
     // --- IMAGE CACHING LOGIC ---
     // Updated: Ensure we only attempt to cache if the URL is valid/remote.
     for product in &mut res_body.products {
         if let Some(url) = &product.image_url {
-             // Basic check to ensure we aren't re-caching a local path (if server sent weird data)
-             if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
+            // Basic check to ensure we aren't re-caching a local path (if server sent weird data)
+            if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
                 let local_path = cache_image(&app, url).await;
                 product.image_url = local_path;
-             }
+            }
         }
     }
 
@@ -257,14 +306,17 @@ pub async fn run_sync(
 
     // --- MERGE LOGIC FOR THIS LOCATION ---
     let updated_list = {
-        let mut products_map_guard = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
-        
+        let mut products_map_guard = state
+            .products_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
         // Get existing products for this location, or empty vec
         let existing_products = products_map_guard
             .get(&location_id)
             .cloned()
             .unwrap_or_default();
-        
+
         let mut product_map: HashMap<String, PosProduct> = existing_products
             .into_iter()
             .map(|p| (p.product_id.clone(), p))
@@ -275,7 +327,7 @@ pub async fn run_sync(
         }
 
         let list: Vec<PosProduct> = product_map.into_values().collect();
-        
+
         // Update location-specific cache
         products_map_guard.insert(location_id.clone(), list.clone());
         list
@@ -283,27 +335,121 @@ pub async fn run_sync(
 
     // --- ASYNC SAVE TO DISK (LOCATION-SPECIFIC FILE) ---
     let new_sync_time = sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-    
+
     // Update sync timestamp for this location
-    state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner())
+    state
+        .last_sync_by_location
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
         .insert(location_id.clone(), Some(new_sync_time.clone()));
 
     let file_data = (Some(new_sync_time), updated_list);
-    
-    let json = tokio::task::spawn_blocking(move || {
-        serde_json::to_string(&file_data)
-    }).await??;
-    
+
+    let json = tokio::task::spawn_blocking(move || serde_json::to_string(&file_data)).await??;
+
     let path = get_store_path(&app, &location_id).await?;
-    async_fs::write(path, json).await.context("Failed to write to disk")?;
+    async_fs::write(path, json)
+        .await
+        .context("Failed to write to disk")?;
 
     Ok(incoming_count)
 }
 
-// --- 3. Search Logic ---
+// --- 3. Stock Management ---
+pub async fn deduct_stock(
+    app: AppHandle,
+    state: &ProductState,
+    location_id: &str,
+    cart_items: &Vec<serde_json::Value>,
+) -> Result<()> {
+    let (updated, file_data) = {
+        let mut products_map = state
+            .products_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let mut updated = false;
+
+        if let Some(products) = products_map.get_mut(location_id) {
+            for item in cart_items {
+                let product_id = item.get("productId").and_then(|v| v.as_str());
+                let variant_id = item.get("variantId").and_then(|v| v.as_str());
+                let unit_id = item.get("sellingUnitId").and_then(|v| v.as_str());
+                let quantity = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
+
+                if let (Some(p_id), Some(v_id)) = (product_id, variant_id) {
+                    if let Some(product) = products.iter_mut().find(|p| p.product_id == p_id) {
+                        if let Some(variant) =
+                            product.variants.iter_mut().find(|v| v.variant_id == v_id)
+                        {
+                            // Find conversion rate
+                            let conversion = if let Some(u_id) = unit_id {
+                                variant
+                                    .sellable_units
+                                    .iter()
+                                    .find(|u| u.unit_id == u_id)
+                                    .map(|u| u.conversion)
+                                    .unwrap_or(1.0)
+                            } else {
+                                1.0
+                            };
+
+                            let deducted_qty = (quantity as f64 * conversion) as i32;
+
+                            // Update variant stock
+                            variant.stock = (variant.stock - deducted_qty).max(0);
+
+                            // Update product total_stock if it exists
+                            if let Some(total) = product.total_stock.as_mut() {
+                                *total = (*total - deducted_qty).max(0);
+                            }
+
+                            updated = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        if updated {
+            let current_products = products_map.get(location_id).cloned().unwrap_or_default();
+            let last_sync = state
+                .last_sync_by_location
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(location_id)
+                .cloned()
+                .flatten();
+            (true, Some((last_sync, current_products)))
+        } else {
+            (false, None)
+        }
+    };
+
+    if updated {
+        if let Some(data) = file_data {
+            let json = serde_json::to_string(&data)?;
+            let path = get_store_path(&app, location_id).await?;
+            async_fs::write(path, json)
+                .await
+                .context("Failed to update stock on disk")?;
+        }
+    }
+
+    Ok(())
+}
+
+// --- 4. Search Logic ---
 // Helper to get products for current location from auth state
-pub fn search_local(state: &ProductState, location_id: &str, query: String, category: String) -> Vec<PosProduct> {
-    let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
+pub fn search_local(
+    state: &ProductState,
+    location_id: &str,
+    query: String,
+    category: String,
+) -> Vec<PosProduct> {
+    let products_map = state
+        .products_by_location
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let products = products_map.get(location_id).cloned().unwrap_or_default();
     let query = query.trim().to_lowercase();
     let filter_category = category != "all" && !category.is_empty();
@@ -312,35 +458,53 @@ pub fn search_local(state: &ProductState, location_id: &str, query: String, cate
         return products.iter().take(50).cloned().collect();
     }
 
-    products.iter().filter(|p| {
-        let matches_category = !filter_category || p.category == category;
-        if !matches_category { return false; }
-        if query.is_empty() { return true; }
+    products
+        .iter()
+        .filter(|p| {
+            let matches_category = !filter_category || p.category == category;
+            if !matches_category {
+                return false;
+            }
+            if query.is_empty() {
+                return true;
+            }
 
-        let matches_product_name = p.product_name.to_lowercase().contains(&query);
-        let matches_variant = p.variants.iter().any(|v| {
-            v.sku.to_lowercase().contains(&query) || 
-            v.variant_name.to_lowercase().contains(&query) ||
-            v.barcode.as_ref().is_some_and(|b| b.to_lowercase().contains(&query))
-        });
+            let matches_product_name = p.product_name.to_lowercase().contains(&query);
+            let matches_variant = p.variants.iter().any(|v| {
+                v.sku.to_lowercase().contains(&query)
+                    || v.variant_name.to_lowercase().contains(&query)
+                    || v.barcode
+                        .as_ref()
+                        .is_some_and(|b| b.to_lowercase().contains(&query))
+            });
 
-        matches_product_name || matches_variant
-    })
-    .take(100) 
-    .cloned()
-    .collect()
+            matches_product_name || matches_variant
+        })
+        .take(100)
+        .cloned()
+        .collect()
 }
 
-pub fn get_products_by_ids(state: &ProductState, location_id: &str, ids: Vec<String>) -> Vec<PosProduct> {
-    let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
+pub fn get_products_by_ids(
+    state: &ProductState,
+    location_id: &str,
+    ids: Vec<String>,
+) -> Vec<PosProduct> {
+    let products_map = state
+        .products_by_location
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let products = products_map.get(location_id).cloned().unwrap_or_default();
     if ids.is_empty() {
         return Vec::new();
     }
-    
-    products.iter()
+
+    products
+        .iter()
         .filter(|p| {
-            if ids.contains(&p.product_id) { return true; }
+            if ids.contains(&p.product_id) {
+                return true;
+            }
             p.variants.iter().any(|v| ids.contains(&v.variant_id))
         })
         .cloned()
@@ -356,24 +520,31 @@ pub async fn switch_location(
     new_location_id: String,
 ) -> Result<Vec<PosProduct>, String> {
     // 1. Load cached products for this location (instant response)
-    load_products_from_disk(&app, &state, &new_location_id).await
+    load_products_from_disk(&app, &state, &new_location_id)
+        .await
         .map_err(|e| e.to_string())?;
-    
+
     // 2. Return cached products immediately (even if empty)
     let cached = {
-        let products_map = state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
-        products_map.get(&new_location_id).cloned().unwrap_or_default()
+        let products_map = state
+            .products_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        products_map
+            .get(&new_location_id)
+            .cloned()
+            .unwrap_or_default()
     };
-    
+
     // 3. Trigger background sync (delta if we have lastSync, full if first visit)
     let app_clone = app.clone();
-    
+
     tauri::async_runtime::spawn(async move {
         // Retrieve states inside the task to avoid lifetime issues
         let state_inner = app_clone.state::<ProductState>();
         let auth_inner = app_clone.state::<AuthState>();
         let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
     });
-    
+
     Ok(cached)
 }

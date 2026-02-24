@@ -1,11 +1,11 @@
+use dotenvy_macro::dotenv;
 use log::{error, info};
 use std::io::Write;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
-use tempfile::Builder;
-use dotenvy_macro::dotenv;
 use tauri_plugin_aptabase::EventTracker;
+use tempfile::Builder;
 
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
@@ -48,14 +48,15 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+mod audit_store;
 mod delivery_store;
 mod http_server;
 mod stock_acceptance;
 mod stock_acceptance_models;
 pub mod stock_transfer;
-mod audit_store;
 
 mod scanner_manager;
+// sentry and tauri_plugin_sentry imports removed/commented to fix resolution errors if any
 
 #[cfg(test)]
 mod pricing_tests;
@@ -174,7 +175,10 @@ async fn create_customer_command(
 }
 
 #[tauri::command]
-fn search_customers_command(state: State<'_, CustomerState>, query: String) -> Vec<models::PosCustomer> {
+fn search_customers_command(
+    state: State<'_, CustomerState>,
+    query: String,
+) -> Vec<models::PosCustomer> {
     customer_store::search_local(&state, query)
 }
 
@@ -184,20 +188,35 @@ fn search_customers_command(state: State<'_, CustomerState>, query: String) -> V
 async fn process_sale_command(
     app: AppHandle,
     state: State<'_, SalesState>,
+    product_state: State<'_, ProductState>,
     shift_state: State<'_, ShiftState>,
     auth_state: State<'_, AuthState>,
     sale_id: String,
     payload: serde_json::Value,
 ) -> Result<models::SaleResponse, String> {
     // Pass auth_state and shift_state to the logic
-    let result = sales_store::process_sale(app.clone(), &state, &shift_state, sale_id.clone(), payload.clone(), &auth_state)
-        .await
-        .map_err(|e| e.to_string());
+    let result = sales_store::process_sale(
+        app.clone(),
+        &state,
+        &product_state,
+        &shift_state,
+        sale_id.clone(),
+        payload.clone(),
+        &auth_state,
+    )
+    .await
+    .map_err(|e| e.to_string());
 
     // --- Audit Logging ---
     let (actor_id, actor_name, location_id) = {
-        let config_guard = auth_state.device_config.lock().unwrap_or_else(|e| e.into_inner());
-        let user_guard = auth_state.current_user.lock().unwrap_or_else(|e| e.into_inner());
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let user_guard = auth_state
+            .current_user
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         (
             user_guard.as_ref().map(|u| u.id.clone()),
             user_guard.as_ref().map(|u| u.name.clone()),
@@ -207,7 +226,10 @@ async fn process_sale_command(
 
     match &result {
         Ok(_) => {
-            let payment_method = payload.get("paymentMethod").and_then(|v| v.as_str()).unwrap_or("UNKNOWN");
+            let payment_method = payload
+                .get("paymentMethod")
+                .and_then(|v| v.as_str())
+                .unwrap_or("UNKNOWN");
             let total = payload.get("total").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let _ = crate::audit_store::write_event(
                 &app,
@@ -384,7 +406,10 @@ async fn get_invoice_blob_command(
             .text()
             .await
             .unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!("Failed to fetch invoice: {} - {}", status, error_text));
+        return Err(format!(
+            "Failed to fetch invoice: {} - {}",
+            status, error_text
+        ));
     }
 
     let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
@@ -456,12 +481,13 @@ async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
     }
 
     // 2. Create the window HIDDEN to prevent flashing on the wrong screen
-    let builder = WebviewWindowBuilder::new(&app, window_label, WebviewUrl::App("/customer".into()))
-        .title("Customer Display")
-        .visible(false) // <--- CRITICAL: Start hidden
-        .decorations(false)
-        .skip_taskbar(true)
-        .inner_size(800.0, 600.0);
+    let builder =
+        WebviewWindowBuilder::new(&app, window_label, WebviewUrl::App("/customer".into()))
+            .title("Customer Display")
+            .visible(false) // <--- CRITICAL: Start hidden
+            .decorations(false)
+            .skip_taskbar(true)
+            .inner_size(800.0, 600.0);
 
     let window = builder.build().map_err(|e| e.to_string())?;
 
@@ -573,8 +599,11 @@ async fn print_network_receipt(
     let address = format!("{}:{}", ip, port);
 
     // 1. Enforce a connection timeout
-    let stream_result =
-        tokio::time::timeout(std::time::Duration::from_secs(5), TcpStream::connect(&address)).await;
+    let stream_result = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        TcpStream::connect(&address),
+    )
+    .await;
 
     let mut stream = match stream_result {
         Ok(Ok(s)) => s,
@@ -615,9 +644,7 @@ async fn print_system_receipt(
         let mut temp_file = Builder::new()
             .suffix(".txt")
             .tempfile()
-            .map_err(|e| {
-                PrinterError::SystemError(format!("Temp file creation failed: {}", e))
-            })?;
+            .map_err(|e| PrinterError::SystemError(format!("Temp file creation failed: {}", e)))?;
 
         // Write content to the file
         temp_file.write_all(content.as_bytes()).map_err(|e| {
@@ -849,7 +876,24 @@ pub fn run() {
         .unwrap();
     let _guard = rt.enter();
 
+    // --- SENTRY INITIALIZATION ---
+    #[cfg(not(debug_assertions))]
+    let client = sentry::init((
+        dotenv!("SENTRY_DSN"),
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            auto_session_tracking: true,
+            ..Default::default()
+        },
+    ));
+
+    // Initialize the native crash reporter for minidumps (Everything except iOS)
+    #[cfg(not(target_os = "ios"))]
+    let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
+    // -----------------------------
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_sentry::init(&client))
         .manage(ProductState::new())
         .manage(CustomerState::new())
         .manage(SalesState::new())
@@ -1069,6 +1113,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
+        .plugin(tauri_plugin_sentry::init(&client))
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,

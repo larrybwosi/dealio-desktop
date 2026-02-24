@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CustomerScreenConfig {
@@ -20,7 +20,10 @@ impl CustomerScreenState {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.config.lock().unwrap_or_else(|e| e.into_inner()).enabled
+        self.config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .enabled
     }
 
     pub fn set_enabled(&self, enabled: bool) {
@@ -29,7 +32,10 @@ impl CustomerScreenState {
     }
 
     pub fn get_config(&self) -> CustomerScreenConfig {
-        self.config.lock().unwrap_or_else(|e| e.into_inner()).clone()
+        self.config
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     async fn get_store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -39,7 +45,8 @@ impl CustomerScreenState {
             .map_err(|e| format!("Failed to get app data dir: {}", e))?;
 
         if !app_data.exists() {
-            tokio::fs::create_dir_all(&app_data).await
+            tokio::fs::create_dir_all(&app_data)
+                .await
                 .map_err(|e| format!("Failed to create app data dir: {}", e))?;
         }
 
@@ -52,7 +59,8 @@ impl CustomerScreenState {
         let json = serde_json::to_string_pretty(&config)
             .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-        tokio::fs::write(&path, json).await
+        tokio::fs::write(&path, json)
+            .await
             .map_err(|e| format!("Failed to write config file: {}", e))?;
 
         Ok(())
@@ -66,7 +74,8 @@ impl CustomerScreenState {
             return Ok(());
         }
 
-        let json = tokio::fs::read_to_string(&path).await
+        let json = tokio::fs::read_to_string(&path)
+            .await
             .map_err(|e| format!("Failed to read config file: {}", e))?;
 
         let config: CustomerScreenConfig = serde_json::from_str(&json)

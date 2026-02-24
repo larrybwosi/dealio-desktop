@@ -1,10 +1,10 @@
-use std::sync::Mutex;
-use chrono::Utc;
-use uuid::Uuid;
-use crate::models::{Shift, CashMovement, ShiftSyncPayload};
 use crate::auth_store::AuthState;
+use crate::models::{CashMovement, Shift, ShiftSyncPayload};
+use chrono::Utc;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
+use std::sync::Mutex;
+use uuid::Uuid;
 
 // The State container
 pub struct ShiftState {
@@ -27,9 +27,12 @@ pub fn open_new_shift(
     state: &ShiftState,
     card_id: String,
     pin: String,
-    float_amount: f64
+    float_amount: f64,
 ) -> Result<Shift, String> {
-    let mut shift_lock = state.current_shift.lock().map_err(|_| "Failed to lock shift state")?;
+    let mut shift_lock = state
+        .current_shift
+        .lock()
+        .map_err(|_| "Failed to lock shift state")?;
 
     if shift_lock.is_some() {
         return Err("A shift is already open. Close it first.".to_string());
@@ -39,9 +42,9 @@ pub fn open_new_shift(
         id: Uuid::now_v7().to_string(),
         opened_at: Utc::now(),
         closed_at: None,
-        
+
         // Fix 1: Wrap String in Some() for Option fields
-        operator_id: Some(card_id.clone()), 
+        operator_id: Some(card_id.clone()),
         operator_card_id: Some(card_id),
         operator_pin: Some(pin),
 
@@ -55,7 +58,7 @@ pub fn open_new_shift(
     };
 
     *shift_lock = Some(new_shift.clone());
-    
+
     // Clear old movements on new shift open
     if let Ok(mut moves) = state.movements.lock() {
         moves.clear();
@@ -66,7 +69,7 @@ pub fn open_new_shift(
 
 pub fn record_cash_sale(state: &ShiftState, amount: f64) -> Result<(), String> {
     let mut shift_lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-    
+
     if let Some(ref mut shift) = *shift_lock {
         shift.total_cash_sales += amount;
         shift.expected_cash += amount;
@@ -78,19 +81,22 @@ pub fn record_cash_sale(state: &ShiftState, amount: f64) -> Result<(), String> {
 
 pub fn record_cash_drop(state: &ShiftState, amount: f64, reason: String) -> Result<(), String> {
     let mut shift_lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-    
+
     if let Some(ref mut shift) = *shift_lock {
         shift.total_cash_drops += amount;
         shift.expected_cash -= amount;
-        
-        let mut moves = state.movements.lock().map_err(|_| "Lock error on movements")?;
+
+        let mut moves = state
+            .movements
+            .lock()
+            .map_err(|_| "Lock error on movements")?;
         moves.push(CashMovement {
             amount,
             reason,
             timestamp: Utc::now(),
             movement_type: "DROP".to_string(),
         });
-        
+
         Ok(())
     } else {
         Err("No active shift found".to_string())
@@ -104,10 +110,10 @@ pub fn close_current_shift(state: &ShiftState, actual_count: f64) -> Result<Shif
         shift.closed_at = Some(Utc::now());
         shift.actual_cash = Some(actual_count);
         shift.variance = Some(actual_count - shift.expected_cash);
-        
+
         let closed_shift = shift.clone();
-        
-        *shift_lock = None; 
+
+        *shift_lock = None;
         Ok(closed_shift)
     } else {
         Err("No active shift to close".to_string())
@@ -115,16 +121,23 @@ pub fn close_current_shift(state: &ShiftState, actual_count: f64) -> Result<Shif
 }
 
 pub fn get_shift_status(state: &ShiftState) -> Option<Shift> {
-    let lock = state.current_shift.lock().unwrap_or_else(|e| e.into_inner());
+    let lock = state
+        .current_shift
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     lock.clone()
 }
 
 // --- RECEIPT GENERATION ---
 
 pub fn generate_z_report_text(shift: &Shift) -> String {
-    let date_str = shift.closed_at.unwrap_or(Utc::now()).format("%Y-%m-%d %H:%M:%S").to_string();
+    let date_str = shift
+        .closed_at
+        .unwrap_or(Utc::now())
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string();
     let op = shift.operator_id.clone().unwrap_or("Unknown".to_string());
-    
+
     format!(
         "
       Z-REPORT (SHIFT END)
@@ -159,29 +172,46 @@ VARIANCE:           {:.2}
 
 pub async fn sync_pending_shifts(
     state: &ShiftState,
-    auth_state: &AuthState
+    auth_state: &AuthState,
 ) -> Result<String, String> {
-    
     // 1. Get Config/Auth from State
     let (base_url, location_id, device_key) = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| "Lock error".to_string())?;
-        let config = config_guard.as_ref().ok_or("Device not configured".to_string())?;
-        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
+        let config = config_guard
+            .as_ref()
+            .ok_or("Device not configured".to_string())?;
+        (
+            config.base_url.clone(),
+            config.location_id.clone(),
+            config.device_key.clone(),
+        )
     };
 
     let member_token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| "Lock error".to_string())?;
+        let token_guard = auth_state
+            .member_token
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
         token_guard.clone()
     };
-    
+
     // FIX: Extract Member ID
     let member_id = {
-        let user_guard = auth_state.current_user.lock().map_err(|_| "Lock error".to_string())?;
+        let user_guard = auth_state
+            .current_user
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
         user_guard.as_ref().map(|u| u.id.clone())
     };
 
     let shift_opt = {
-        let lock = state.current_shift.lock().unwrap_or_else(|e| e.into_inner());
+        let lock = state
+            .current_shift
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         lock.clone()
     };
 
@@ -203,9 +233,9 @@ pub async fn sync_pending_shifts(
             shift_id: shift.id,
             opened_at: shift.opened_at.to_rfc3339(),
             closed_at: shift.closed_at.map(|t| t.to_rfc3339()),
-            
-            operator_card_id: shift.operator_card_id.unwrap_or_default(), 
-            operator_pin: hashed_pin, 
+
+            operator_card_id: shift.operator_card_id.unwrap_or_default(),
+            operator_pin: hashed_pin,
 
             starting_float: shift.starting_float,
             total_cash_sales: shift.total_cash_sales,
@@ -216,18 +246,20 @@ pub async fn sync_pending_shifts(
 
         // --- BUILD HEADERS ---
         let mut headers = HeaderMap::new();
-        
-        let mut val = HeaderValue::from_str(&device_key).map_err(|_| "Invalid Device Key".to_string())?;
+
+        let mut val =
+            HeaderValue::from_str(&device_key).map_err(|_| "Invalid Device Key".to_string())?;
         val.set_sensitive(true);
         headers.insert("X-Device-Api-Key", val);
 
         if let Some(token) = member_token {
             let auth_val = format!("Bearer {}", token);
-            let mut val = HeaderValue::from_str(&auth_val).map_err(|_| "Invalid Token".to_string())?;
+            let mut val =
+                HeaderValue::from_str(&auth_val).map_err(|_| "Invalid Token".to_string())?;
             val.set_sensitive(true);
             headers.insert(AUTHORIZATION, val);
         }
-        
+
         // Add Member ID Header
         if let Some(mid) = member_id {
             let val = HeaderValue::from_str(&mid).map_err(|_| "Invalid Member ID".to_string())?;
@@ -240,7 +272,12 @@ pub async fn sync_pending_shifts(
             .map_err(|e| e.to_string())?;
 
         let clean_base_url = base_url.trim_end_matches('/');
-        let res = client.post(format!("{}/{}", clean_base_url, crate::api_config::routes::SHIFT_SYNC)) // Updated endpoint path to match standard
+        let res = client
+            .post(format!(
+                "{}/{}",
+                clean_base_url,
+                crate::api_config::routes::SHIFT_SYNC
+            )) // Updated endpoint path to match standard
             .json(&payload)
             .send()
             .await

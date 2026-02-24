@@ -124,7 +124,9 @@ async fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
     }
 
     // 2. Migration: Try with Legacy Key
-    warn!("[SalesStore] Decryption with secure key failed. Attempting migration with legacy key...");
+    warn!(
+        "[SalesStore] Decryption with secure key failed. Attempting migration with legacy key..."
+    );
     let legacy_key = get_legacy_key();
     let legacy_cipher = Aes256Gcm::new(&legacy_key.into());
 
@@ -170,6 +172,7 @@ pub async fn init_state(app: &AppHandle, state: &SalesState) {
 pub async fn process_sale(
     app: AppHandle,
     state: &SalesState,
+    product_state: &crate::product_store::ProductState,
     shift_state: &ShiftState,
     sale_id: String,
     payload: serde_json::Value,
@@ -226,6 +229,21 @@ pub async fn process_sale(
             } else {
                 info!("[SalesStore] Recorded cash sale of {:.2}", total);
             }
+        }
+    }
+
+    // 4b. Handle Backend Stock Deduction
+    if let Some(cart_items) = payload.get("cartItems").and_then(|v| v.as_array()) {
+        if let Err(e) =
+            crate::product_store::deduct_stock(app.clone(), product_state, &location_id, cart_items)
+                .await
+        {
+            error!("[SalesStore] Failed to deduct backend stock: {}", e);
+        } else {
+            info!(
+                "[SalesStore] Successfully deducted backend stock for sale {}",
+                sale_id
+            );
         }
     }
 
@@ -342,12 +360,7 @@ pub async fn sync_pending_sales(
     state: &SalesState,
     auth_state: &AuthState,
 ) -> Result<usize> {
-    let has_config = {
-        auth_state
-            .device_config
-            .lock()
-            .is_ok_and(|c| c.is_some())
-    };
+    let has_config = { auth_state.device_config.lock().is_ok_and(|c| c.is_some()) };
 
     if !has_config {
         return Ok(0);
@@ -568,7 +581,11 @@ pub async fn initiate_mpesa_payment_command(
 }
 
 pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
-    state.queue.lock().unwrap_or_else(|e| e.into_inner()).clone()
+    state
+        .queue
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
 /// Retry a single sale by ID
@@ -724,7 +741,11 @@ pub async fn create_order(
     order_payload: serde_json::Value,
 ) -> Result<serde_json::Value> {
     let encoded_loc = urlencoding::encode(&location_id);
-    let url_path = format!("/{}?locationId={}", crate::api_config::routes::ORDERS, encoded_loc);
+    let url_path = format!(
+        "/{}?locationId={}",
+        crate::api_config::routes::ORDERS,
+        encoded_loc
+    );
 
     let req = auth_state
         .build_request(reqwest::Method::POST, &url_path)
@@ -757,7 +778,9 @@ pub async fn create_order(
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
             Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
         }
-        _ => Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into()),
+        _ => {
+            Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
+        }
     }
 }
 
@@ -829,7 +852,10 @@ pub async fn set_sync_interval_command(
     let mut interval = state.interval.write().await;
     *interval = Duration::from_secs(minutes * 60);
 
-    info!("Background sales sync interval updated to {} minutes", minutes);
+    info!(
+        "Background sales sync interval updated to {} minutes",
+        minutes
+    );
     Ok(format!("Sync interval updated to {} minutes", minutes))
 }
 

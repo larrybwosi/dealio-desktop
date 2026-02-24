@@ -1,11 +1,11 @@
-use tauri::{AppHandle, Manager};
 use keyring::Entry;
-use log::{info, error, warn};
+use log::{error, info, warn};
+use tauri::{AppHandle, Manager};
 
 const KEYRING_SERVICE: &str = "dealio-desktop";
 
-use crate::product_store::ProductState;
 use crate::customer_store::CustomerState;
+use crate::product_store::ProductState;
 
 #[tauri::command]
 pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
@@ -60,11 +60,7 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     }
 
     // 3. Clear Keyring Entries
-    let keyring_keys = [
-        "device-config",
-        "customer_store_key",
-        "sales_queue_key",
-    ];
+    let keyring_keys = ["device-config", "customer_store_key", "sales_queue_key"];
 
     for key in keyring_keys {
         if let Ok(entry) = Entry::new(KEYRING_SERVICE, key) {
@@ -79,21 +75,33 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     // 4. Reset In-Memory State
     let product_state = app.state::<ProductState>();
     {
-        let mut products_map = product_state.products_by_location.lock().unwrap_or_else(|e| e.into_inner());
+        let mut products_map = product_state
+            .products_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         products_map.clear();
     }
     {
-        let mut sync_map = product_state.last_sync_by_location.lock().unwrap_or_else(|e| e.into_inner());
+        let mut sync_map = product_state
+            .last_sync_by_location
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         sync_map.clear();
     }
 
     let customer_state = app.state::<CustomerState>();
     {
-        let mut customers = customer_state.customers.lock().unwrap_or_else(|e| e.into_inner());
+        let mut customers = customer_state
+            .customers
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         customers.clear();
     }
     {
-        let mut last_sync = customer_state.last_sync_token.lock().unwrap_or_else(|e| e.into_inner());
+        let mut last_sync = customer_state
+            .last_sync_token
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         *last_sync = None;
     }
 

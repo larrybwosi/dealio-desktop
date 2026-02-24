@@ -1,9 +1,9 @@
-use std::time::Duration;
-use tauri::{State}; 
-use crate::auth_store::AuthState; 
+use crate::auth_store::AuthState;
+use log::{error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
-use log::{info, error};
+use std::time::Duration;
+use tauri::State;
 
 // --- Error Handling Structures ---
 
@@ -77,11 +77,11 @@ pub struct TransferApiPayload {
     pub from_location_id: String,
     pub to_location_id: String,
     pub items: Vec<TransferItem>,
-    
+
     // UPDATED: Added skip_serializing_if to ensure these are omitted if None
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
-    
+
     // UPDATED: Added skip_serializing_if to ensure these are omitted if None
     #[serde(skip_serializing_if = "Option::is_none")]
     pub documents: Option<Vec<String>>,
@@ -92,51 +92,70 @@ pub struct TransferApiPayload {
 fn build_client_with_context(
     auth_state: &State<'_, AuthState>,
 ) -> Result<(reqwest::Client, String, String), CommandError> {
-    
     // 1. Get Config (Base URL & Current Location)
     let (base_url, device_key, location_id) = {
-        let config_guard = auth_state.device_config.lock()
-            .map_err(|_| CommandError::new(ErrorKind::Configuration, "Failed to lock device config"))?;
-        
-        let config = config_guard.as_ref()
-            .ok_or_else(|| CommandError::new(ErrorKind::Configuration, "Device is not configured"))?;
-        
-        (config.base_url.clone(), config.device_key.clone(), config.location_id.clone())
+        let config_guard = auth_state.device_config.lock().map_err(|_| {
+            CommandError::new(ErrorKind::Configuration, "Failed to lock device config")
+        })?;
+
+        let config = config_guard.as_ref().ok_or_else(|| {
+            CommandError::new(ErrorKind::Configuration, "Device is not configured")
+        })?;
+
+        (
+            config.base_url.clone(),
+            config.device_key.clone(),
+            config.location_id.clone(),
+        )
     };
 
     // 2. Get Auth (Token & Member)
     let (token, member_id) = {
-        let token_guard = auth_state.member_token.lock()
-            .map_err(|_| CommandError::new(ErrorKind::Authentication, "Failed to lock token store"))?;
-        
-        let user_guard = auth_state.current_user.lock()
-            .map_err(|_| CommandError::new(ErrorKind::Authentication, "Failed to lock user store"))?;
-        
+        let token_guard = auth_state.member_token.lock().map_err(|_| {
+            CommandError::new(ErrorKind::Authentication, "Failed to lock token store")
+        })?;
+
+        let user_guard = auth_state.current_user.lock().map_err(|_| {
+            CommandError::new(ErrorKind::Authentication, "Failed to lock user store")
+        })?;
+
         (
-            token_guard.clone(), 
-            user_guard.as_ref().map(|u| u.id.clone())
+            token_guard.clone(),
+            user_guard.as_ref().map(|u| u.id.clone()),
         )
     };
 
     let clean_base = base_url.trim_end_matches('/').to_string();
     let mut headers = HeaderMap::new();
-    
-    let mut val = HeaderValue::from_str(&device_key)
-        .map_err(|e| CommandError::new(ErrorKind::Configuration, format!("Invalid Device Key format: {}", e)))?;
+
+    let mut val = HeaderValue::from_str(&device_key).map_err(|e| {
+        CommandError::new(
+            ErrorKind::Configuration,
+            format!("Invalid Device Key format: {}", e),
+        )
+    })?;
     val.set_sensitive(true);
     headers.insert("X-Device-Api-Key", val);
 
     if let Some(t) = &token {
         let auth_val = format!("Bearer {}", t);
-        let mut val = HeaderValue::from_str(&auth_val)
-            .map_err(|e| CommandError::new(ErrorKind::Authentication, format!("Invalid Token format: {}", e)))?;
+        let mut val = HeaderValue::from_str(&auth_val).map_err(|e| {
+            CommandError::new(
+                ErrorKind::Authentication,
+                format!("Invalid Token format: {}", e),
+            )
+        })?;
         val.set_sensitive(true);
         headers.insert(AUTHORIZATION, val);
     }
-    
+
     if let Some(mid) = &member_id {
-        let val = HeaderValue::from_str(mid)
-            .map_err(|e| CommandError::new(ErrorKind::Authentication, format!("Invalid Member ID format: {}", e)))?;
+        let val = HeaderValue::from_str(mid).map_err(|e| {
+            CommandError::new(
+                ErrorKind::Authentication,
+                format!("Invalid Member ID format: {}", e),
+            )
+        })?;
         headers.insert("X-Member-Id", val);
     }
 
@@ -144,39 +163,60 @@ fn build_client_with_context(
         .default_headers(headers)
         .timeout(Duration::from_secs(60))
         .build()
-        .map_err(|e| CommandError::new(ErrorKind::Configuration, format!("Failed to build HTTP client: {}", e)))?;
+        .map_err(|e| {
+            CommandError::new(
+                ErrorKind::Configuration,
+                format!("Failed to build HTTP client: {}", e),
+            )
+        })?;
 
     Ok((client, clean_base, location_id))
 }
 
 async fn handle_response<T: for<'de> Deserialize<'de>>(
-    response: reqwest::Response, 
-    context: &str
+    response: reqwest::Response,
+    context: &str,
 ) -> Result<T, CommandError> {
     let status = response.status();
-    
+
     if status.is_success() {
         return response.json::<T>().await.map_err(|e| {
             error!("[{}] JSON Parse Error: {}", context, e);
-            CommandError::new(ErrorKind::Serialization, "Failed to process server response")
-                .with_details(e.to_string())
+            CommandError::new(
+                ErrorKind::Serialization,
+                "Failed to process server response",
+            )
+            .with_details(e.to_string())
         });
     }
 
-    let error_body = response.text().await.unwrap_or_else(|_| "No content".to_string());
+    let error_body = response
+        .text()
+        .await
+        .unwrap_or_else(|_| "No content".to_string());
     error!("[{}] API Error {}: {}", context, status, error_body);
 
     match status.as_u16() {
-        401 | 403 => Err(CommandError::new(ErrorKind::Authentication, "Session expired or unauthorized")
-            .with_details(error_body)),
-        400 | 422 => Err(CommandError::new(ErrorKind::Validation, "Invalid request data")
-            .with_details(error_body)),
-        404 => Err(CommandError::new(ErrorKind::Server, "Resource not found")
-            .with_details(error_body)),
-        500..=599 => Err(CommandError::new(ErrorKind::Server, "Remote server error")
-            .with_details(error_body)),
-        _ => Err(CommandError::new(ErrorKind::Unknown, format!("Unexpected status: {}", status))
-            .with_details(error_body)),
+        401 | 403 => Err(CommandError::new(
+            ErrorKind::Authentication,
+            "Session expired or unauthorized",
+        )
+        .with_details(error_body)),
+        400 | 422 => Err(
+            CommandError::new(ErrorKind::Validation, "Invalid request data")
+                .with_details(error_body),
+        ),
+        404 => {
+            Err(CommandError::new(ErrorKind::Server, "Resource not found").with_details(error_body))
+        }
+        500..=599 => {
+            Err(CommandError::new(ErrorKind::Server, "Remote server error")
+                .with_details(error_body))
+        }
+        _ => Err(
+            CommandError::new(ErrorKind::Unknown, format!("Unexpected status: {}", status))
+                .with_details(error_body),
+        ),
     }
 }
 
@@ -185,14 +225,17 @@ async fn handle_response<T: for<'de> Deserialize<'de>>(
 #[tauri::command]
 pub async fn submit_stock_transfer(
     auth_state: State<'_, AuthState>,
-    payload: TransferRequest
+    payload: TransferRequest,
 ) -> Result<serde_json::Value, CommandError> {
-
     // 1. Build Client & Fetch Current Location from State
     let (client, base_url, current_location_id) = build_client_with_context(&auth_state)?;
-    
+
     // 2. Prepare API URL
-    let url = format!("{}/{}", base_url, crate::api_config::routes::INVENTORY_TRANSFERS);
+    let url = format!(
+        "{}/{}",
+        base_url,
+        crate::api_config::routes::INVENTORY_TRANSFERS
+    );
 
     // 3. Construct Full Payload
     let api_payload = TransferApiPayload {
@@ -203,14 +246,21 @@ pub async fn submit_stock_transfer(
         documents: payload.documents,
     };
 
-    info!("[StockTransfer] Submitting transfer from {} to {}", current_location_id, api_payload.to_location_id);
+    info!(
+        "[StockTransfer] Submitting transfer from {} to {}",
+        current_location_id, api_payload.to_location_id
+    );
 
     // 4. Send Request
-    let resp = client.post(&url)
+    let resp = client
+        .post(&url)
         .json(&api_payload)
         .send()
         .await
-        .map_err(|e| CommandError::new(ErrorKind::Network, "Failed to submit transfer request").with_details(e.to_string()))?;
+        .map_err(|e| {
+            CommandError::new(ErrorKind::Network, "Failed to submit transfer request")
+                .with_details(e.to_string())
+        })?;
 
     handle_response(resp, "SubmitStockTransfer").await
 }

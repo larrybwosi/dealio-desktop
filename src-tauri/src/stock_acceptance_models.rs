@@ -6,19 +6,19 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct DeliveryItem {
     pub variant_id: String,
-    
+
     // Core quantity logic
-    pub quantity: i32, 
+    pub quantity: i32,
     #[serde(default)]
     pub unit_cost: f64,
 
     // Purchase / Transfer Receipt Fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub purchase_item_id: Option<String>,
-    
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub received_quantity: Option<f64>,
-    
+
     // Quality Control Fields
     #[serde(skip_serializing_if = "Option::is_none")]
     pub accepted_quantity: Option<f64>,
@@ -26,7 +26,7 @@ pub struct DeliveryItem {
     pub rejected_quantity: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rejection_reason: Option<String>,
-    
+
     // Batch/Expiry Info
     #[serde(skip_serializing_if = "Option::is_none")]
     pub batch_number: Option<String>,
@@ -41,14 +41,12 @@ pub struct DeliveryItem {
 pub struct DocumentMetadata {
     pub id: String,
     pub name: String,
-    pub doc_type: String, 
+    pub doc_type: String,
     pub path: String,
     pub size: u64,
 }
 
-
 // --- Stock Batch / Inventory Models ---
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -76,7 +74,7 @@ pub struct IncomingVariant {
     pub id: String,
     pub name: String,
     pub sku: Option<String>,
-    #[serde(alias = "displayName")] 
+    #[serde(alias = "displayName")]
     pub display_name: Option<String>,
 }
 
@@ -85,13 +83,13 @@ pub struct IncomingVariant {
 pub struct IncomingItem {
     pub id: String,
 
-    #[serde(alias = "requestedQuantity")] 
-    pub quantity: String, 
+    #[serde(alias = "requestedQuantity")]
+    pub quantity: String,
 
     pub variant: IncomingVariant,
 
     #[serde(default)]
-    pub unit_cost: Option<String>, 
+    pub unit_cost: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,7 +97,7 @@ pub struct IncomingItem {
 pub struct IncomingShipment {
     pub id: String,
     #[serde(rename = "type")]
-    pub shipment_type: String, 
+    pub shipment_type: String,
     pub reference_number: String,
     pub source: String,
     pub date: String,

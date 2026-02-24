@@ -42,8 +42,8 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, bra
   const config = settings.receiptConfig || {};
   const isThermal = config.paperSize === '58mm' || config.paperSize === '80mm';
 
-  // Ultra-compact font scale: small=6, medium=7, large=8
-  const base = config.fontSize === 'small' ? 6 : config.fontSize === 'medium' ? 7 : 8;
+  // Compact font scale: small=7, medium=8, large=9
+  const base = config.fontSize === 'small' ? 7 : config.fontSize === 'medium' ? 8 : 9;
   const pad = isThermal ? 8 : 24;
   const bc = isThermal ? '#000' : '#d1d5db';
   const bs = isThermal ? 'dashed' : 'solid';
@@ -260,7 +260,7 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, bra
     if (config.paperSize === 'Letter') return 'A4';
     let h = isThermal ? 28 : 48;
     if (config.showLogo && config.logoUrl) h += isThermal ? 42 : 56;
-    h += 26; // biz name + slogan
+    h += 30; // biz name + slogan
     const contactLines = [
       config.showAddress && settings.address,
       config.showPhone || settings.phone,
@@ -270,25 +270,25 @@ export const ReceiptPdfDocument = ({ order, settings, qrCodeUrl, barcodeUrl, bra
       config.showVatNumber && config.vatNumber,
       config.showCompanyRegNumber && config.companyRegNumber,
     ].filter(Boolean).length;
-    h += contactLines * 10 + 14;
-    h += 40; // meta block
-    h += 26; // table header
+    h += contactLines * 12 + 16;
+    h += 46; // meta block
+    h += 30; // table header
     order.items?.forEach(item => {
-      h += 14;
-      if (item.variantName && !['Default', 'Default Variant'].includes(item.variantName)) h += 10;
+      h += 16;
+      if (item.variantName && !['Default', 'Default Variant'].includes(item.variantName)) h += 11;
     });
-    h += 14;
-    if (config.showSubtotal !== false) h += 12;
-    if (config.showDiscountBreakdown !== false && order.discount > 0) h += 12;
-    if (config.showTaxBreakdown !== false) h += 12;
-    if (config.showSavingsTotal && order.discount > 0) h += 12;
-    h += 30; // grand total
-    h += 12; // payment line
-    h += 28; // footer base
-    if (config.showNextVisitPromo) h += 12;
-    if (config.showLoyaltyPoints || config.showLoyaltyBalance) h += 18;
-    if (config.showReturnPolicy) h += 16;
-    if (config.showLegalDisclaimer) h += 14;
+    h += 16;
+    if (config.showSubtotal !== false) h += 14;
+    if (config.showDiscountBreakdown !== false && order.discount > 0) h += 14;
+    if (config.showTaxBreakdown !== false) h += 14;
+    if (config.showSavingsTotal && order.discount > 0) h += 14;
+    h += 34; // grand total
+    h += 14; // payment line
+    h += 32; // footer base
+    if (config.showNextVisitPromo) h += 14;
+    if (config.showLoyaltyPoints || config.showLoyaltyBalance) h += 20;
+    if (config.showReturnPolicy) h += 18;
+    if (config.showLegalDisclaimer) h += 16;
     if (config.showQrCode && qrCodeUrl) h += 56;
     if (config.showBarcode && barcodeUrl) h += 52;
     if (config.showSurveyQr) h += 12;

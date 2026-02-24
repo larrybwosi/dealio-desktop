@@ -10,7 +10,7 @@ fn test_auth_state_manual_initialization() {
         current_user: Mutex::new(None),
         client: reqwest::Client::new(),
     };
-    
+
     assert!(state.device_config.lock().unwrap().is_none());
     assert!(state.member_token.lock().unwrap().is_none());
 }
@@ -23,7 +23,7 @@ fn test_get_client_without_config_fails() {
         current_user: Mutex::new(None),
         client: reqwest::Client::new(),
     };
-    
+
     let result = state.get_client();
     assert!(result.is_err());
     assert_eq!(result.err().unwrap(), "Device not initialized");
@@ -36,14 +36,14 @@ fn test_get_client_with_config_succeeds() {
         location_id: "loc-1".to_string(),
         device_key: "key-1".to_string(),
     };
-    
+
     let state = AuthState {
         device_config: Mutex::new(Some(config)),
         member_token: Mutex::new(None),
         current_user: Mutex::new(None),
         client: reqwest::Client::new(),
     };
-    
+
     let result = state.get_client();
     assert!(result.is_ok());
     let (_client, url) = result.unwrap();
@@ -57,14 +57,14 @@ fn test_get_client_includes_token() {
         location_id: "loc-1".to_string(),
         device_key: "key-1".to_string(),
     };
-    
+
     let state = AuthState {
         device_config: Mutex::new(Some(config)),
         member_token: Mutex::new(Some("secret-token".to_string())),
         current_user: Mutex::new(None),
         client: reqwest::Client::new(),
     };
-    
+
     let result = state.get_client();
     assert!(result.is_ok());
     // Verification of headers would require inspecting the client which is hard,

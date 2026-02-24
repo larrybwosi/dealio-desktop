@@ -1,9 +1,9 @@
-use std::sync::Mutex;
-use log::info;
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, State};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use keyring::Entry;
+use log::info;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+use tauri::{AppHandle, State};
 
 #[cfg(test)]
 mod tests;
@@ -29,7 +29,7 @@ pub struct DeviceConfig {
 
 pub struct AuthState {
     // We wrap in Mutex to allow safe concurrent access
-    pub device_config: Mutex<Option<DeviceConfig>>, 
+    pub device_config: Mutex<Option<DeviceConfig>>,
     pub member_token: Mutex<Option<String>>,
     pub current_user: Mutex<Option<MemberProfile>>,
     pub client: reqwest::Client,
@@ -68,12 +68,10 @@ impl AuthState {
 
     fn load_from_file() -> Option<DeviceConfig> {
         let path = Self::get_config_path()?;
-        
+
         let content = std::fs::read_to_string(path).ok()?;
         match serde_json::from_str(&content) {
-            Ok(config) => {
-                 Some(config)
-            },
+            Ok(config) => Some(config),
             Err(e) => {
                 eprintln!("[AuthStore] Failed to parse file config: {}", e);
                 None
@@ -84,10 +82,11 @@ impl AuthState {
     async fn save_to_file_async(config: &DeviceConfig) -> Result<(), String> {
         let path = Self::get_config_path().ok_or("Could not determine config path")?;
         let json = serde_json::to_string(config).map_err(|e| e.to_string())?;
-        tokio::fs::write(&path, json).await.map_err(|e| e.to_string())?;
+        tokio::fs::write(&path, json)
+            .await
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
-
 
     fn load_from_keyring() -> Option<DeviceConfig> {
         let entry = match Entry::new(KEYRING_SERVICE, KEYRING_USER) {
@@ -101,15 +100,16 @@ impl AuthState {
         let password = match entry.get_password() {
             Ok(p) => p,
             Err(e) => {
-                eprintln!("[AuthStore] Failed to retrieve password from keyring: {}", e);
+                eprintln!(
+                    "[AuthStore] Failed to retrieve password from keyring: {}",
+                    e
+                );
                 return None;
             }
         };
-        
+
         match serde_json::from_str(&password) {
-            Ok(config) => {
-                Some(config)
-            },
+            Ok(config) => Some(config),
             Err(e) => {
                 eprintln!("[AuthStore] Failed to parse config from keyring: {}", e);
                 None
@@ -127,71 +127,96 @@ impl AuthState {
         };
 
         if let Err(e) = keyring_result {
-            eprintln!("[AuthStore] Keyring save failed: {}. Falling back to file.", e);
+            eprintln!(
+                "[AuthStore] Keyring save failed: {}. Falling back to file.",
+                e
+            );
         }
 
         // 2. ALWAYS Save to File as Backup
         Self::save_to_file_async(config).await?;
-        
+
         Ok(())
     }
-
 
     // --- Helper to get a configured HTTP Client ---
     // This replaces creating Axios instances in React
 
-    pub fn build_request(&self, method: reqwest::Method, path: &str) -> Result<reqwest::RequestBuilder, String> {
+    pub fn build_request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+    ) -> Result<reqwest::RequestBuilder, String> {
         let (base_url, device_key) = {
-            let config_guard = self.device_config.lock().map_err(|_| "Failed to lock device config")?;
+            let config_guard = self
+                .device_config
+                .lock()
+                .map_err(|_| "Failed to lock device config")?;
             let config = config_guard.as_ref().ok_or("Device not configured")?;
             (config.base_url.clone(), config.device_key.clone())
         };
 
         let token = {
-            self.member_token.lock().map_err(|_| "Failed to lock token store")?.clone()
+            self.member_token
+                .lock()
+                .map_err(|_| "Failed to lock token store")?
+                .clone()
         };
 
         let member_id = {
-             let user_guard = self.current_user.lock().map_err(|_| "Failed to lock user store")?;
-             user_guard.as_ref().map(|u| u.id.clone())
+            let user_guard = self
+                .current_user
+                .lock()
+                .map_err(|_| "Failed to lock user store")?;
+            user_guard.as_ref().map(|u| u.id.clone())
         };
 
         let full_url = if path.starts_with("http") {
-             path.to_string()
+            path.to_string()
         } else {
-             format!("{}/{}", base_url.trim_end_matches('/'), path.trim_start_matches('/'))
+            format!(
+                "{}/{}",
+                base_url.trim_end_matches('/'),
+                path.trim_start_matches('/')
+            )
         };
 
         let mut request_builder = self.client.request(method, &full_url);
-        
+
         let mut key_val = HeaderValue::from_str(&device_key).map_err(|e| e.to_string())?;
         key_val.set_sensitive(true);
         request_builder = request_builder.header("X-Device-Api-Key", key_val);
 
         if let Some(t) = token {
-             let auth_val = format!("Bearer {}", t);
-             let mut val = HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?;
-             val.set_sensitive(true);
-             request_builder = request_builder.header(AUTHORIZATION, val);
+            let auth_val = format!("Bearer {}", t);
+            let mut val = HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?;
+            val.set_sensitive(true);
+            request_builder = request_builder.header(AUTHORIZATION, val);
         }
 
         if let Some(mid) = member_id {
-             let val = HeaderValue::from_str(&mid).map_err(|e| e.to_string())?;
-             request_builder = request_builder.header("X-Member-Id", val);
+            let val = HeaderValue::from_str(&mid).map_err(|e| e.to_string())?;
+            request_builder = request_builder.header("X-Member-Id", val);
         }
 
         Ok(request_builder)
     }
 
     pub fn get_client(&self) -> Result<(reqwest::Client, String), String> {
-        let config_guard = self.device_config.lock().map_err(|_| "Failed to lock config")?;
+        let config_guard = self
+            .device_config
+            .lock()
+            .map_err(|_| "Failed to lock config")?;
         let config = config_guard.as_ref().ok_or("Device not initialized")?;
 
-        let token_guard = self.member_token.lock().map_err(|_| "Failed to lock token")?;
-        
+        let token_guard = self
+            .member_token
+            .lock()
+            .map_err(|_| "Failed to lock token")?;
+
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        
+
         if let Ok(val) = HeaderValue::from_str(&config.device_key) {
             headers.insert("X-Device-Api-Key", val);
         }
@@ -202,7 +227,7 @@ impl AuthState {
                 headers.insert(AUTHORIZATION, val);
             }
         }
-        
+
         // Return a fresh client for backward compatibility, but strictly calls should migrate to build_request
         let client = reqwest::Client::builder()
             .default_headers(headers)
@@ -212,7 +237,6 @@ impl AuthState {
 
         Ok((client, config.base_url.clone()))
     }
-
 
     fn load_token_from_keyring() -> Option<String> {
         let entry = Entry::new(KEYRING_SERVICE, "member-token").ok()?;
@@ -257,10 +281,14 @@ pub async fn set_device_config(
     network_state: State<'_, crate::network_monitor::NetworkState>,
     base_url: String,
     location_id: String,
-    device_key: String
+    device_key: String,
 ) -> Result<(), String> {
-    let new_config = DeviceConfig { base_url: base_url.clone(), location_id, device_key };
-    
+    let new_config = DeviceConfig {
+        base_url: base_url.clone(),
+        location_id,
+        device_key,
+    };
+
     // 1. Save to Keyring first (fail early if secure storage fails)
     AuthState::save_to_keyring_async(&new_config).await?;
 
@@ -272,7 +300,7 @@ pub async fn set_device_config(
 
     // 3. Update network monitor
     network_state.set_base_url(base_url);
-    
+
     Ok(())
 }
 
@@ -294,14 +322,15 @@ pub async fn login_member(
         config_guard.as_ref().map(|c| c.device_key.clone())
     };
 
-    let body = serde_json::json!({ 
-        "cardId": card_id, 
+    let body = serde_json::json!({
+        "cardId": card_id,
         "pin": pin,
         "locationId": location_id,
         "deviceKey": device_key
     });
-    
-    let res = client.post(&url)
+
+    let res = client
+        .post(&url)
         .json(&body)
         .send()
         .await
@@ -309,7 +338,10 @@ pub async fn login_member(
 
     if !res.status().is_success() {
         let status = res.status();
-        let error_text = res.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+        let error_text = res
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
         // Audit failed login attempt
         let _ = crate::audit_store::write_event(
             &app,
@@ -329,7 +361,7 @@ pub async fn login_member(
 
     // CRITICAL: Token stays here, never returned to UI
     let _ = AuthState::save_token_to_keyring(&data.token);
-    *state.member_token.lock().unwrap() = Some(data.token); 
+    *state.member_token.lock().unwrap() = Some(data.token);
     *state.current_user.lock().unwrap() = Some(data.member.clone());
 
     // Audit successful login
@@ -355,7 +387,7 @@ pub async fn login_member(
 pub async fn logout_member(
     app: AppHandle,
     state: State<'_, AuthState>,
-    location_id: Option<String>
+    location_id: Option<String>,
 ) -> Result<(), String> {
     // Capture actor before clearing
     let (actor_id, actor_name) = {
@@ -374,7 +406,7 @@ pub async fn logout_member(
         };
 
         let url = format!("{}/{}", base_url, crate::api_config::routes::CHECK_OUT);
-        let body = serde_json::json!({ 
+        let body = serde_json::json!({
             "locationId": location_id,
             "deviceKey": device_key
         });
@@ -398,12 +430,14 @@ pub async fn logout_member(
         None,
         serde_json::Value::Null,
     );
-    
+
     Ok(())
 }
 
 #[tauri::command]
-pub async fn get_device_config(state: State<'_, AuthState>) -> Result<Option<DeviceConfig>, String> {
+pub async fn get_device_config(
+    state: State<'_, AuthState>,
+) -> Result<Option<DeviceConfig>, String> {
     let config = state.device_config.lock().map_err(|_| "Lock error")?;
     Ok(config.clone())
 }
@@ -417,7 +451,7 @@ pub async fn authenticated_api_request(
 ) -> Result<serde_json::Value, String> {
     // 1. Get Client and Base URL
     let (client, base_url) = state.get_client()?;
-    
+
     // 2. Build full URL
     let clean_base = base_url.trim_end_matches('/');
     let clean_path = path.trim_start_matches('/');
@@ -446,22 +480,28 @@ pub async fn authenticated_api_request(
     }
 
     // 4. Send and handle response
-    let res = request.send().await.map_err(|e| format!("Proxy request failed: {}", e))?;
-    
+    let res = request
+        .send()
+        .await
+        .map_err(|e| format!("Proxy request failed: {}", e))?;
+
     let status = res.status();
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();
         return Err(format!("API Error {}: {}", status, err_body));
     }
 
-    let json_res: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON response: {}", e))?;
+    let json_res: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("Invalid JSON response: {}", e))?;
     Ok(json_res)
 }
 
 #[tauri::command]
 pub async fn restore_member_session(
     state: State<'_, AuthState>,
-    member: MemberProfile
+    member: MemberProfile,
 ) -> Result<(), String> {
     // If we have a token (loaded from keyring), but no member in memory, sync them
     *state.current_user.lock().unwrap() = Some(member);
@@ -478,13 +518,16 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
     })();
 
     if let Err(e) = keyring_del {
-         eprintln!("[AuthStore] Optional Keyring delete failed (might not exist): {}", e);
+        eprintln!(
+            "[AuthStore] Optional Keyring delete failed (might not exist): {}",
+            e
+        );
     }
 
     // 2. Clear File
     if let Some(path) = AuthState::get_config_path() {
         if path.exists() {
-             let _ = tokio::fs::remove_file(path).await;
+            let _ = tokio::fs::remove_file(path).await;
         }
     }
 
@@ -492,7 +535,7 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
     *state.device_config.lock().unwrap() = None;
     *state.member_token.lock().unwrap() = None;
     *state.current_user.lock().unwrap() = None;
-    
+
     println!("[AuthStore] Device configuration reset complete.");
     Ok(())
 }
@@ -504,7 +547,7 @@ pub async fn start_device_setup_command(
     state: State<'_, AuthState>,
     network_state: State<'_, crate::network_monitor::NetworkState>,
     base_url: String,
-    device_key: String
+    device_key: String,
 ) -> Result<(), String> {
     // We store a partial config (no location_id yet) in memory
     // This allows get_locations_command to work using get_client
@@ -517,18 +560,23 @@ pub async fn start_device_setup_command(
 
     // Update network monitor
     network_state.set_base_url(base_url);
-    
+
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_locations_command(
-    state: State<'_, AuthState>
+    state: State<'_, AuthState>,
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = state.get_client()?;
-    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::LOCATIONS);
+    let url = format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        crate::api_config::routes::LOCATIONS
+    );
 
-    let res = client.get(&url)
+    let res = client
+        .get(&url)
         .send()
         .await
         .map_err(|e| format!("Network error: {}", e))?;
@@ -536,17 +584,23 @@ pub async fn get_locations_command(
     let status = res.status();
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();
-        return Err(format!("Failed to fetch locations: {} - {}", status, err_body));
+        return Err(format!(
+            "Failed to fetch locations: {} - {}",
+            status, err_body
+        ));
     }
 
-    let data: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON: {}", e))?;
+    let data: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
     Ok(data)
 }
 
 #[tauri::command]
 pub async fn get_ably_auth_token_command(
     state: State<'_, AuthState>,
-    params: Option<serde_json::Value>
+    params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
     let (client, base_url) = match state.get_client() {
         Ok(res) => res,
@@ -555,12 +609,19 @@ pub async fn get_ably_auth_token_command(
             return Err(e);
         }
     };
-    
-    let url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::ABLY_AUTH);
+
+    let url = format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        crate::api_config::routes::ABLY_AUTH
+    );
 
     // Get member ID for header
     let member_id = {
-        let user_guard = state.current_user.lock().map_err(|_| "Failed to lock user")?;
+        let user_guard = state
+            .current_user
+            .lock()
+            .map_err(|_| "Failed to lock user")?;
         user_guard.as_ref().map(|u| u.id.clone())
     };
 
@@ -568,9 +629,9 @@ pub async fn get_ably_auth_token_command(
 
     // Add Member ID Header
     if let Some(mid) = member_id {
-       req = req.header("X-Member-Id", mid);
+        req = req.header("X-Member-Id", mid);
     }
-    
+
     // If params are provided, send them in body
     if let Some(p) = params {
         req = req.json(&serde_json::json!({ "params": p }));
@@ -579,22 +640,23 @@ pub async fn get_ably_auth_token_command(
         req = req.json(&serde_json::json!({}));
     }
 
-    let res = req.send()
-        .await
-        .map_err(|e| {
-            println!("[AuthStore] Network request failed: {}", e);
-            format!("Network error: {}", e)
-        })?;
+    let res = req.send().await.map_err(|e| {
+        println!("[AuthStore] Network request failed: {}", e);
+        format!("Network error: {}", e)
+    })?;
 
     let status = res.status();
     println!("[AuthStore] Response Status: {}", status);
-    
+
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();
         println!("[AuthStore] Error Body: {}", err_body);
         return Err(format!("Ably auth failed: {} - {}", status, err_body));
     }
 
-    let data: serde_json::Value = res.json().await.map_err(|e| format!("Invalid JSON: {}", e))?;
+    let data: serde_json::Value = res
+        .json()
+        .await
+        .map_err(|e| format!("Invalid JSON: {}", e))?;
     Ok(data)
 }

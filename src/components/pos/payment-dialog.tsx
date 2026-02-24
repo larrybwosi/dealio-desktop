@@ -271,6 +271,7 @@ const PaymentModal = ({
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
   const settings = usePosStore((state) => state.settings);
+  const deductStockForOrderItems = usePosStore((state) => state.deductStockForOrderItems);
   const autoPrintConfig = settings.autoPrintConfig;
   const locationId = useAuthStore((state) => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
@@ -538,6 +539,10 @@ const PaymentModal = ({
       }
       emit('payment-update', { type: 'CLEAR_COMPLETED' });
       trackEvent("sale_processed", { amount: totalPayable, payment_method: primaryMethod });
+      
+      // Deduct local stock immediately on sale
+      deductStockForOrderItems(cartItems);
+
       onPaymentComplete(completedOrder);
       onClose();
     } catch {
