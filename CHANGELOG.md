@@ -1,3 +1,25 @@
+# [3.0.0](https://github.com/larrybwosi/dealio-desktop/compare/v2.10.1...v3.0.0) (2026-02-24)
+
+
+### Bug Fixes
+
+* **build:** prerelease build fix ([4aa34cd](https://github.com/larrybwosi/dealio-desktop/commit/4aa34cd47a69f23746a0a33eb169b2e3920ee3df))
+* **negative stock and backend structure:** allowed for negative stock config ([426d0da](https://github.com/larrybwosi/dealio-desktop/commit/426d0daadc7d818e7db732413af0d618b3d720c6))
+* **stock transfer:** corrected the error thrown when creating the stock transfers ([fde8755](https://github.com/larrybwosi/dealio-desktop/commit/fde875547cdde3ee607b008fc9fdd1b9b7589d2f))
+
+
+### Features
+
+* **aptabase telementary:** usage tracking initiliazation ([0ad3b8e](https://github.com/larrybwosi/dealio-desktop/commit/0ad3b8ebc462bcf77b2ccee738e9cdff22efbdd6))
+* **aptabase:** added the aptabase logic to the frontend for proper logging and monitoring ([27093fc](https://github.com/larrybwosi/dealio-desktop/commit/27093fcbcc5fc47a6b6666ad46daa83c74db8c23))
+* centralize API configuration in backend and frontend ([ef72a5f](https://github.com/larrybwosi/dealio-desktop/commit/ef72a5fafc027d9050dfbdd302c6ae664a11e8d6))
+* **sentry initiliazation:** added the sentry reporting logic ([8763fe6](https://github.com/larrybwosi/dealio-desktop/commit/8763fe6f79f2e44feb5523f928b4180381066e9c))
+
+
+### BREAKING CHANGES
+
+* **negative stock and backend structure:** Error monitoring and telementary data collection
+
 # [3.0.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v2.11.0-beta.2...v3.0.0-beta.1) (2026-02-24)
 
 
