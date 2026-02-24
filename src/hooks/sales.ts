@@ -143,6 +143,7 @@ export const useProcessSale = () => {
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-products'] });
 
       // If it was an offline queue or background process
       if (data.message.toLowerCase().includes('background') || data.message.toLowerCase().includes('offline')) {

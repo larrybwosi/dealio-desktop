@@ -361,6 +361,7 @@ pub async fn deduct_stock(
     state: &ProductState,
     location_id: &str,
     cart_items: &Vec<serde_json::Value>,
+    allow_negative: bool,
 ) -> Result<()> {
     let (updated, file_data) = {
         let mut products_map = state
@@ -368,6 +369,8 @@ pub async fn deduct_stock(
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         let mut updated = false;
+
+        let mut error = None;
 
         if let Some(products) = products_map.get_mut(location_id) {
             for item in cart_items {
@@ -395,12 +398,23 @@ pub async fn deduct_stock(
 
                             let deducted_qty = (quantity as f64 * conversion) as i32;
 
+                            // Validation check
+                            if !allow_negative && variant.stock < deducted_qty {
+                                error = Some(anyhow::anyhow!(
+                                    "Insufficient stock for {}: requested {}, available {}",
+                                    product.product_name,
+                                    deducted_qty,
+                                    variant.stock
+                                ));
+                                break;
+                            }
+
                             // Update variant stock
-                            variant.stock = (variant.stock - deducted_qty).max(0);
+                            variant.stock -= deducted_qty;
 
                             // Update product total_stock if it exists
                             if let Some(total) = product.total_stock.as_mut() {
-                                *total = (*total - deducted_qty).max(0);
+                                *total -= deducted_qty;
                             }
 
                             updated = true;
@@ -408,6 +422,10 @@ pub async fn deduct_stock(
                     }
                 }
             }
+        }
+
+        if let Some(err) = error {
+            return Err(err);
         }
 
         if updated {

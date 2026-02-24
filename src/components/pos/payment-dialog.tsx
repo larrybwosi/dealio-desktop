@@ -467,8 +467,8 @@ const PaymentModal = ({
       await createSale(payload);
       setMpesaStatus('WAITING');
       setMpesaWaiting(true);
-    } catch {
-      setValidationErrors(['Failed to trigger STK Push. Please retry.']);
+    } catch (err: any) {
+      setValidationErrors([err?.message || 'Failed to trigger STK Push. Please retry.']);
     }
   };
 
@@ -545,8 +545,8 @@ const PaymentModal = ({
 
       onPaymentComplete(completedOrder);
       onClose();
-    } catch {
-      setValidationErrors(['Error completing sale. Please try again.']);
+    } catch (err: any) {
+      setValidationErrors([err?.message || 'Error completing sale. Please try again.']);
     }
   };
 

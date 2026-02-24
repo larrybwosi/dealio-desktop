@@ -179,7 +179,7 @@ pub async fn process_sale(
     auth_state: &AuthState,
 ) -> Result<SaleResponse> {
     // 1. Get Config/Auth from State
-    let (_base_url, location_id, _device_key) = {
+    let (_base_url, location_id, _device_key, _allow_negative_stock) = {
         let config_guard = auth_state
             .device_config
             .lock()
@@ -191,6 +191,7 @@ pub async fn process_sale(
             config.base_url.clone(),
             config.location_id.clone(),
             config.device_key.clone(),
+            config.allow_negative_stock,
         )
     };
 
@@ -235,10 +236,17 @@ pub async fn process_sale(
     // 4b. Handle Backend Stock Deduction
     if let Some(cart_items) = payload.get("cartItems").and_then(|v| v.as_array()) {
         if let Err(e) =
-            crate::product_store::deduct_stock(app.clone(), product_state, &location_id, cart_items)
-                .await
+            crate::product_store::deduct_stock(
+                app.clone(),
+                product_state,
+                &location_id,
+                cart_items,
+                _allow_negative_stock,
+            )
+            .await
         {
-            error!("[SalesStore] Failed to deduct backend stock: {}", e);
+            error!("[SalesStore] Stock validation failed: {}", e);
+            return Err(SalesError::ValidationError(e.to_string()).into());
         } else {
             info!(
                 "[SalesStore] Successfully deducted backend stock for sale {}",

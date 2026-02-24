@@ -10,31 +10,28 @@ use tempfile::Builder;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 
+pub mod stores;
+use models::Shift;
+
 use models::PrinterError;
 mod models;
-mod product_store;
-use product_store::ProductState;
+mod http_server;
+mod stock_acceptance;
+mod stock_acceptance_models;
+pub mod stock_transfer;
+mod scanner_manager;
 
-mod customer_store;
-use customer_store::CustomerState;
-
-mod sales_store;
-use sales_store::SalesState;
-
-mod pricing_store;
-use pricing_store::PricingState;
+use stores::product_store::{self, ProductState};
+use stores::customer_store::{self, CustomerState};
+use stores::sales_store::{self, SalesState};
+use stores::pricing_store::{self, PricingState};
+use stores::shift_store::{self, ShiftState};
+use stores::auth_store::{self, AuthState};
+use stores::audit_store;
+use stores::delivery_store;
 
 mod printer_manager;
-
-mod shift_store;
-use models::Shift;
-use shift_store::ShiftState;
-
-mod auth_store;
-use auth_store::AuthState;
-
 mod api_config;
-
 mod security;
 
 mod notification_manager;
@@ -48,15 +45,6 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
-mod audit_store;
-mod delivery_store;
-mod http_server;
-mod stock_acceptance;
-mod stock_acceptance_models;
-pub mod stock_transfer;
-
-mod scanner_manager;
-// sentry and tauri_plugin_sentry imports removed/commented to fix resolution errors if any
 
 #[cfg(test)]
 mod pricing_tests;
@@ -887,13 +875,19 @@ pub fn run() {
         },
     ));
 
-    // Initialize the native crash reporter for minidumps (Everything except iOS)
-    #[cfg(not(target_os = "ios"))]
+    // Also combine the iOS check with the debug check
+    #[cfg(all(not(debug_assertions), not(target_os = "ios")))]
     let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
     // -----------------------------
 
-    tauri::Builder::default()
-        .plugin(tauri_plugin_sentry::init(&client))
+    let builder = tauri::Builder::default();
+
+    #[cfg(not(debug_assertions))]
+    {
+        builder = builder.plugin(tauri_plugin_sentry::init(&client));
+    }
+
+    builder
         .manage(ProductState::new())
         .manage(CustomerState::new())
         .manage(SalesState::new())
@@ -1113,7 +1107,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
-        .plugin(tauri_plugin_sentry::init(&client))
         // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,
@@ -1187,6 +1180,7 @@ pub fn run() {
             sales_store::initiate_mpesa_payment_command,
             sales_store::invalidate_sale_command,
             sales_store::set_sync_interval_command,
+            auth_store::set_negative_stock_command,
             auth_store::get_locations_command,
             auth_store::get_ably_auth_token_command,
             auth_store::start_device_setup_command,

@@ -138,6 +138,13 @@ jobs:
           # Safely update tauri.conf.json with jq using the cleaned version
           jq --arg v "$CLEAN_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
+      # NEW STEP: Create the .env file so dotenvy! macro compiles successfully
+      - name: Generate .env file for build
+        shell: bash
+        run: |
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> src-tauri/.env
+          echo "APTABASE_KEY=${{ secrets.APTABASE_KEY }}" >> src-tauri/.env
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -62,6 +62,7 @@ interface PosAuthState {
   isRestoredSession: boolean;
   sessionUpdatedAt: number | null;
   isInitialized: boolean;
+  allowNegativeStock: boolean;
 }
 
 interface PosAuthActions {
@@ -78,6 +79,7 @@ interface PosAuthActions {
   initializeFromBackend: () => Promise<void>;
   registerDevice: (apiKey: string, location: InventoryLocation) => Promise<void>;
   switchLocation: (location: InventoryLocation) => Promise<void>;
+  setAllowNegativeStock: (allow: boolean) => Promise<void>;
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -90,6 +92,7 @@ const initialState: PosAuthState = {
   isRestoredSession: false,
   sessionUpdatedAt: null,
   isInitialized: false,
+  allowNegativeStock: false,
 };
 
 export const useAuthStore = create<PosAuthState & PosAuthActions>()(
@@ -154,10 +157,13 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
       initializeFromBackend: async () => {
         try {
-          // rust struct: DeviceConfig { base_url, location_id, device_key }
-          const config = await invoke<{ device_key: string, location_id: string, base_url: string } | null>('get_device_config');
+          // rust struct: DeviceConfig { base_url, location_id, device_key, allow_negative_stock }
+          const config = await invoke<{ device_key: string, location_id: string, base_url: string, allow_negative_stock: boolean } | null>('get_device_config');
           if (config) {
-             set({ deviceKey: config.device_key });
+             set({ 
+               deviceKey: config.device_key,
+               allowNegativeStock: config.allow_negative_stock 
+             });
              console.log("[AuthStore] Device key loaded from backend");
              
              // If currentLocation is not already hydrated from localStorage, fetch it
@@ -252,6 +258,16 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         } catch (error) {
             console.error('Failed to switch location:', error);
         }
+      },
+
+      setAllowNegativeStock: async (allow) => {
+        try {
+          await invoke('set_negative_stock_command', { allowNegativeStock: allow });
+          set({ allowNegativeStock: allow });
+        } catch (error) {
+          console.error('Failed to update negative stock setting:', error);
+          throw error;
+        }
       }
 
     }),
@@ -265,6 +281,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         currentMember: state.currentMember,
         isRestoredSession: state.isRestoredSession,
         sessionUpdatedAt: state.sessionUpdatedAt,
+        allowNegativeStock: state.allowNegativeStock,
       }),
 
       onRehydrateStorage: () => (state) => {

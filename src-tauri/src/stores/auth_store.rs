@@ -23,6 +23,8 @@ pub struct DeviceConfig {
     pub base_url: String,
     pub location_id: String,
     pub device_key: String,
+    #[serde(default)]
+    pub allow_negative_stock: bool,
 }
 
 // --- The State Container ---
@@ -287,6 +289,7 @@ pub async fn set_device_config(
         base_url: base_url.clone(),
         location_id,
         device_key,
+        allow_negative_stock: false, // Default to false for new setups
     };
 
     // 1. Save to Keyring first (fail early if secure storage fails)
@@ -556,10 +559,39 @@ pub async fn start_device_setup_command(
         base_url: base_url.clone(),
         location_id: String::new(), // Empty for now
         device_key,
+        allow_negative_stock: false, // Default for setup
     });
 
     // Update network monitor
     network_state.set_base_url(base_url);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_negative_stock_command(
+    state: tauri::State<'_, AuthState>,
+    allow: bool,
+) -> Result<(), String> {
+    // 1. Isolate the Mutex lock in its own block to drop it before awaiting
+    let config_to_save = {
+        let mut config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+        
+        if let Some(config) = config_guard.as_mut() {
+            config.allow_negative_stock = allow;
+            Some(config.clone()) // Clone the data so we can use it safely outside the lock
+        } else {
+            None
+        }
+    }; // <-- config_guard is strictly dropped right here.
+
+    // 2. Await the async save operation without holding the lock
+    if let Some(config) = config_to_save {
+        // Assuming save_to_keyring_async takes a reference. If it takes ownership, remove the '&'
+        AuthState::save_to_keyring_async(&config).await.map_err(|e| e.to_string())?;
+    } else {
+        return Err("Device not configured".to_string());
+    }
 
     Ok(())
 }
