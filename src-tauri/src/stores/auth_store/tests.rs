@@ -1,3 +1,20 @@
+use super::*;
+use std::sync::Mutex;
+
+#[test]
+fn test_auth_state_manual_initialization() {
+    // Manually constructing AuthState to avoid accessing real keyring/files
+    let state = AuthState {
+        device_config: Mutex::new(None),
+        member_token: Mutex::new(None),
+        current_user: Mutex::new(None),
+        client: reqwest::Client::new(),
+    };
+
+    assert!(state.device_config.lock().unwrap().is_none());
+    assert!(state.member_token.lock().unwrap().is_none());
+}
+
 #[test]
 fn test_build_request_without_config_fails() {
     let state = AuthState {
@@ -30,7 +47,6 @@ fn test_build_request_with_config_succeeds() {
 
     let result = state.build_request(reqwest::Method::GET, "/api/data");
     assert!(result.is_ok());
-    // Since we return a RequestBuilder, we successfully built it without crashing
 }
 
 #[test]

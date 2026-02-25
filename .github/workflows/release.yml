@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - main
-      - beta # Added prerelease branch
+      - beta
 
 jobs:
   # STEP 1: Determine version and create GitHub Release
