@@ -802,6 +802,11 @@ fn open_shift_command(
             None,
             serde_json::json!({ "shift_id": shift.id, "float": float_amount }),
         );
+
+        let _ = app.track_event("shift_opened", Some(serde_json::json!({ 
+            "shift_id": shift.id, 
+            "float": float_amount 
+        })));
     }
 
     result
@@ -838,6 +843,12 @@ async fn close_shift_command(
             "variance": closed_shift.variance
         }),
     );
+
+    let _ =app.track_event("shift_closed", Some(serde_json::json!({
+        "shift_id": closed_shift.id,
+        "total_cash_sales": closed_shift.total_cash_sales,
+        "variance": closed_shift.variance
+    })));
 
     let report_text = shift_store::generate_z_report_text(&closed_shift);
 

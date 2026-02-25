@@ -96,6 +96,7 @@ export function useAuth() {
     onSuccess: () => {
       // On success, clear the global store
       clearMemberSession();
+      trackEvent("user_logout");
       toast.success('Checked out successfully');
 
       // Invalidate any queries that depend on an active session
