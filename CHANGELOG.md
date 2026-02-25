@@ -1,3 +1,10 @@
+## [3.0.2-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.1...v3.0.2-beta.2) (2026-02-25)
+
+
+### Bug Fixes
+
+* **build and customer screen:** updated the customer screen to have the close button and correted ci ([6c39a10](https://github.com/larrybwosi/dealio-desktop/commit/6c39a1012ea5e143f8858e63dd7f7f27f1c9e949))
+
 ## [3.0.2-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.1...v3.0.2-beta.1) (2026-02-25)
 
 
