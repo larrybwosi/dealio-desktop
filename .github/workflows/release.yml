@@ -10,9 +10,9 @@ jobs:
   release-management:
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # Required to push tags and version commits
-      issues: write     # Required to create failure issues
-      pull-requests: write # Required to comment on PRs
+      contents: write
+      issues: write
+      pull-requests: write
     outputs:
       new_release_published: ${{ steps.semantic.outputs.new_release_published }}
       new_release_version: ${{ steps.semantic.outputs.new_release_version }}
@@ -21,7 +21,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # DEBUG STEP: Check the logs for this step to see if a bad config file exists
       - name: Debug - List all files
         run: |
           echo "=== Current working directory: $(pwd) ==="
@@ -31,11 +30,11 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: '20'
           cache: 'pnpm'
 
       - name: Install dependencies
@@ -73,23 +72,28 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-        # Removed `with: ref: main` so it checks out the branch that triggered the run
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: setup node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: '20'
           cache: 'pnpm'
 
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # Optimization: Added Rust caching to the release job to significantly speed up matrix builds
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -100,7 +104,6 @@ jobs:
       - name: install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      # Create dummy binaries for non-Windows platforms
       - name: Create dummy binaries for macOS/Linux
         if: matrix.platform != 'windows-latest'
         run: |
@@ -110,7 +113,6 @@ jobs:
           touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
           chmod +x src-tauri/binaries/*
 
-      # Create dummy binaries for Windows (PowerShell) if they don't exist
       - name: Create dummy binaries for Windows
         if: matrix.platform == 'windows-latest'
         shell: pwsh
@@ -123,22 +125,18 @@ jobs:
             New-Item -ItemType File -Path "src-tauri/binaries/sumatrapdf-i686-pc-windows-msvc.exe"
           }
 
-      # Manually set the version using the output from Job 1
       - name: Update Version for Build
         shell: bash
         run: |
           FULL_VERSION="${{ needs.release-management.outputs.new_release_version }}"
-          # Extract just the X.Y.Z part (removes -beta.1, etc.)
           CLEAN_VERSION="${FULL_VERSION%%-*}"
           
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
           
-          echo "Bumping Tauri config version to $CLEAN_VERSION to satisfy strict bundler rules"
-          # Safely update tauri.conf.json with jq using the cleaned version
+          echo "Bumping Tauri config version to $CLEAN_VERSION"
           jq --arg v "$CLEAN_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
-      # NEW STEP: Create the .env file so dotenvy! macro compiles successfully
       - name: Generate .env file for build
         shell: bash
         run: |
@@ -153,6 +151,5 @@ jobs:
         with:
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           releaseDraft: false
-          # Dynamically set to prerelease if the branch is not 'main'
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           args: ${{ matrix.args }}
