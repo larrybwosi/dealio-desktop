@@ -19,14 +19,9 @@ pub struct DriverMember {
 
 #[tauri::command]
 pub async fn get_drivers_command(auth_state: State<'_, AuthState>) -> Result<Vec<Driver>, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!(
-        "{}/{}",
-        base_url.trim_end_matches('/'),
-        crate::api_config::routes::DRIVERS
-    );
+    let request = auth_state.build_request(reqwest::Method::GET, crate::api_config::routes::DRIVERS)?;
 
-    let res = client.get(&url).send().await.map_err(|e| e.to_string())?;
+    let res = request.send().await.map_err(|e| e.to_string())?;
 
     if !res.status().is_success() {
         return Err(format!("Failed to fetch drivers: {}", res.status()));
@@ -42,16 +37,15 @@ pub async fn dispatch_order_command(
     transaction_id: String,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!(
-        "{}/{}?transactionId={}",
-        base_url.trim_end_matches('/'),
+    let path = format!(
+        "{}?transactionId={}",
         crate::api_config::routes::DELIVERY_DISPATCH,
         transaction_id
     );
+    
+    let request = auth_state.build_request(reqwest::Method::POST, &path)?;
 
-    let res = client
-        .post(&url)
+    let res = request
         .json(&payload)
         .send()
         .await
@@ -74,12 +68,7 @@ pub async fn reconcile_delivery_command(
     file_path: Option<String>,
     notes: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = auth_state.get_client().map_err(|e| e.to_string())?;
-    let url = format!(
-        "{}/{}",
-        base_url.trim_end_matches('/'),
-        crate::api_config::routes::DELIVERY_RECONCILE
-    );
+    let request = auth_state.build_request(reqwest::Method::POST, crate::api_config::routes::DELIVERY_RECONCILE)?;
 
     let mut form = reqwest::multipart::Form::new().text("fulfilmentId", fulfillment_id);
 
@@ -112,8 +101,7 @@ pub async fn reconcile_delivery_command(
         }
     }
 
-    let res = client
-        .post(&url)
+    let res = request
         .multipart(form)
         .send()
         .await
