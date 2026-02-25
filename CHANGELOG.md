@@ -1,3 +1,10 @@
+## [3.0.2-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.1...v3.0.2-beta.1) (2026-02-25)
+
+
+### Bug Fixes
+
+* **auth:** updated the login and delivery store to use the updated auth logic ([5a5ba10](https://github.com/larrybwosi/dealio-desktop/commit/5a5ba10a8eeec4f6c8a457483ccee983c5447e3f))
+
 ## [3.0.1-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.1-beta.1...v3.0.1-beta.2) (2026-02-25)
 
 
