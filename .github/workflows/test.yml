@@ -64,17 +64,15 @@ jobs:
             pkg-config \
             patchelf
 
+      # Fix: Removed the matrix check since this job strictly runs on ubuntu-latest
       - name: Create dummy binaries for macOS/Linux
-        if: matrix.platform != 'windows-latest'
         run: |
           mkdir -p src-tauri/binaries
           
-          # Create dummy files for all targets you build
           touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
           
-          # Make them executable (Aligned correctly now)
           chmod +x src-tauri/binaries/*
 
       - name: Generate .env file for tests
@@ -100,6 +98,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      # Optimization: Added caching for Playwright browsers
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
