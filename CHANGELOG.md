@@ -1,3 +1,10 @@
+## [3.0.2-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.2...v3.0.2-beta.3) (2026-02-25)
+
+
+### Bug Fixes
+
+* **build test:** corrected the tests that caused the ci/cd to fail ([f0df0ec](https://github.com/larrybwosi/dealio-desktop/commit/f0df0ecc67c3247c136b886f25cd0ccc86e1e329))
+
 ## [3.0.2-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.1...v3.0.2-beta.2) (2026-02-25)
 
 
