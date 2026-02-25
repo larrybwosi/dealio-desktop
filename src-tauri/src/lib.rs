@@ -1,8 +1,8 @@
 use dotenvy_macro::dotenv;
-use log::{error, info};
+use log::{error};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_aptabase::EventTracker;
 
 pub mod stores;
@@ -49,97 +49,6 @@ use customer_screen_state::CustomerScreenState;
 mod pricing_tests;
 #[cfg(test)]
 mod test_utils;
-
-// --- Command to open/manage the Customer Window ---
-#[tauri::command]
-async fn open_customer_screen(app: AppHandle) -> Result<(), String> {
-    // 0. Check if enabled in state
-    let state = app.state::<CustomerScreenState>();
-    if !state.is_enabled() {
-        return Err("Customer screen is disabled in settings".to_string());
-    }
-
-    let window_label = "customer";
-
-    // 1. Check if window exists
-    if let Some(window) = app.get_webview_window(window_label) {
-        // If it exists, just focus it and return
-        let _ = window.set_focus();
-        return Ok(());
-    }
-
-    // 2. Create the window HIDDEN to prevent flashing on the wrong screen
-    let builder =
-        WebviewWindowBuilder::new(&app, window_label, WebviewUrl::App("/customer".into()))
-            .title("Customer Display")
-            .visible(false) // <--- CRITICAL: Start hidden
-            .decorations(false)
-            .skip_taskbar(true)
-            .inner_size(800.0, 600.0);
-
-    let window = builder.build().map_err(|e| e.to_string())?;
-
-    // 3. Detect Monitors and Move
-    let monitors = window.available_monitors().map_err(|e| e.to_string())?;
-    info!("[Screen] Found {} monitors", monitors.len());
-
-    if monitors.len() > 1 {
-        // Simple heuristic: Take the second monitor in the list
-        // (For production, you might want to filter for m.name() or coordinates)
-        let secondary_monitor = &monitors[1];
-        let pos = secondary_monitor.position();
-
-        info!("[Screen] Moving to monitor at {:?}", pos);
-
-        // Move window to the secondary monitor's coordinate space
-        window.set_position(*pos).map_err(|e| e.to_string())?;
-
-        // Fullscreen it there
-        window.set_fullscreen(true).map_err(|e| e.to_string())?;
-    }
-
-    // 4. Show the window ONLY after it is in the correct position
-    window.show().map_err(|e| e.to_string())?;
-    window.set_focus().map_err(|e| e.to_string())?;
-
-    Ok(())
-}
-
-#[tauri::command]
-async fn close_customer_screen(app: AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("customer") {
-        window.close().map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-// --- New State Management Commands ---
-#[tauri::command]
-async fn set_customer_screen_enabled(
-    app: AppHandle,
-    state: State<'_, CustomerScreenState>,
-    enabled: bool,
-) -> Result<(), String> {
-    // Update state
-    state.set_enabled(enabled);
-
-    // Save to disk
-    state.save_to_store(&app).await?;
-
-    // Open or close window based on state
-    if enabled {
-        open_customer_screen(app).await?;
-    } else {
-        close_customer_screen(app).await?;
-    }
-
-    Ok(())
-}
-
-#[tauri::command]
-fn get_customer_screen_state(state: State<'_, CustomerScreenState>) -> bool {
-    state.is_enabled()
-}
 
 // --- SHIFT COMMANDS ---
 
@@ -398,7 +307,7 @@ pub fn run() {
             if customer_screen_state.is_enabled() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
-                    if let Err(e) = open_customer_screen(app_handle).await {
+                    if let Err(e) = customer_screen_state::open_customer_screen(app_handle).await {
                         eprintln!("Failed to open customer screen on startup: {}", e);
                     }
                 });
@@ -450,7 +359,7 @@ pub fn run() {
                         let state = app.state::<CustomerScreenState>();
                         if state.is_enabled() {
                             tauri::async_runtime::spawn(async move {
-                                let _ = open_customer_screen(app_handle).await;
+                                let _ = customer_screen_state::open_customer_screen(app_handle).await;
                             });
                         }
                     }
@@ -478,6 +387,17 @@ pub fn run() {
                 if window.label() == "main" {
                     api.prevent_close();
                     let _ = window.hide();
+                } else if window.label() == "customer" {
+                    // Handle native customer window closing
+                    let app_handle = window.app_handle().clone();
+                    let state = app_handle.state::<CustomerScreenState>();
+                    state.set_enabled(false);
+                    
+                    // Save asynchronously
+                    tauri::async_runtime::spawn(async move {
+                        let state = app_handle.state::<CustomerScreenState>();
+                        let _ = state.save_to_store(&app_handle).await;
+                    });
                 }
             }
         })
@@ -505,7 +425,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
-        // REGISTER NEW COMMAND HERE
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,
             scanner_manager::list_hid_devices,
@@ -513,10 +432,11 @@ pub fn run() {
             scanner_manager::start_network_scan_server,
             scanner_manager::print_to_network,
             sale_manager::scan_transaction_code,
-            open_customer_screen,
-            close_customer_screen,
-            set_customer_screen_enabled,
-            get_customer_screen_state,
+            // UPDATED: Prefixed with module name
+            customer_screen_state::open_customer_screen,
+            customer_screen_state::close_customer_screen,
+            customer_screen_state::set_customer_screen_enabled,
+            customer_screen_state::get_customer_screen_state,
             product_manager::sync_products_command,
             product_manager::search_products_command,
             product_manager::search_global_command,

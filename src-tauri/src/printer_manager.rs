@@ -288,7 +288,7 @@ pub async fn print_network_receipt(
 // --- Method 2: OS Driver (Shell) ---
 #[tauri::command]
 pub async fn print_system_receipt(
-    app: AppHandle,
+    _app: AppHandle,
     printer_name: String,
     content: String,
     is_path: bool,

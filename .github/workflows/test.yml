@@ -77,6 +77,11 @@ jobs:
           # Make them executable (Aligned correctly now)
           chmod +x src-tauri/binaries/*
 
+      - name: Generate .env file for tests
+        run: |
+          echo "SENTRY_DSN=dummy_dsn" >> src-tauri/.env
+          echo "APTABASE_KEY=dummy_key" >> src-tauri/.env
+
       - name: Run Backend Tests
         run: pnpm test:backend
 

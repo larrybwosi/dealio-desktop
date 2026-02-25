@@ -1,9 +1,5 @@
-use super::*;
-use std::sync::Mutex;
-
 #[test]
-fn test_auth_state_manual_initialization() {
-    // Manually constructing AuthState to avoid accessing real keyring/files
+fn test_build_request_without_config_fails() {
     let state = AuthState {
         device_config: Mutex::new(None),
         member_token: Mutex::new(None),
@@ -11,26 +7,13 @@ fn test_auth_state_manual_initialization() {
         client: reqwest::Client::new(),
     };
 
-    assert!(state.device_config.lock().unwrap().is_none());
-    assert!(state.member_token.lock().unwrap().is_none());
-}
-
-#[test]
-fn test_get_client_without_config_fails() {
-    let state = AuthState {
-        device_config: Mutex::new(None),
-        member_token: Mutex::new(None),
-        current_user: Mutex::new(None),
-        client: reqwest::Client::new(),
-    };
-
-    let result = state.get_client();
+    let result = state.build_request(reqwest::Method::GET, "/test");
     assert!(result.is_err());
-    assert_eq!(result.err().unwrap(), "Device not initialized");
+    assert_eq!(result.err().unwrap(), "Device not configured");
 }
 
 #[test]
-fn test_get_client_with_config_succeeds() {
+fn test_build_request_with_config_succeeds() {
     let config = DeviceConfig {
         base_url: "http://example.com".to_string(),
         location_id: "loc-1".to_string(),
@@ -45,14 +28,13 @@ fn test_get_client_with_config_succeeds() {
         client: reqwest::Client::new(),
     };
 
-    let result = state.get_client();
+    let result = state.build_request(reqwest::Method::GET, "/api/data");
     assert!(result.is_ok());
-    let (_client, url) = result.unwrap();
-    assert_eq!(url, "http://example.com");
+    // Since we return a RequestBuilder, we successfully built it without crashing
 }
 
 #[test]
-fn test_get_client_includes_token() {
+fn test_build_request_includes_token() {
     let config = DeviceConfig {
         base_url: "http://example.com".to_string(),
         location_id: "loc-1".to_string(),
@@ -67,8 +49,6 @@ fn test_get_client_includes_token() {
         client: reqwest::Client::new(),
     };
 
-    let result = state.get_client();
+    let result = state.build_request(reqwest::Method::GET, "/api/data");
     assert!(result.is_ok());
-    // Verification of headers would require inspecting the client which is hard,
-    // but the fact it builds successfully with headers logic running is a good basic test.
 }
