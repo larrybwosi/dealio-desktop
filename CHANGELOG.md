@@ -1,3 +1,10 @@
+# [3.1.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.3...v3.1.0-beta.1) (2026-02-26)
+
+
+### Features
+
+* **product pagination:** added proper pagination for large inventories ([d03e9d0](https://github.com/larrybwosi/dealio-desktop/commit/d03e9d066691d665bb41134705693c3869265f13))
+
 ## [3.0.2-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.2...v3.0.2-beta.3) (2026-02-25)
 
 
