@@ -1,3 +1,10 @@
+# [3.1.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.1...v3.1.0-beta.2) (2026-02-26)
+
+
+### Bug Fixes
+
+* **build:** mismatch of packages ([687cf7c](https://github.com/larrybwosi/dealio-desktop/commit/687cf7c37ae44d28bf11155ba108042ff1a5e28e))
+
 # [3.1.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.2-beta.3...v3.1.0-beta.1) (2026-02-26)
 
 
