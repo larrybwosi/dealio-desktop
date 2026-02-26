@@ -22,6 +22,13 @@ pub struct Pagination {
     pub limit: i32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductSearchResponse {
+    pub products: Vec<PosProduct>,
+    pub total_count: usize,
+}
+
 // --- 1. Product ---
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

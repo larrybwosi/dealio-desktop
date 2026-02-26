@@ -41,10 +41,12 @@ export interface PosProduct {
 interface UsePosProductsParams {
   search: string;
   category: string;
+  page?: number;
+  pageSize?: number;
   enabled?: boolean;
 }
 
-export function usePosProducts({ search, category, enabled = true }: UsePosProductsParams) {
+export function usePosProducts({ search, category, page = 1, pageSize = 50, enabled = true }: UsePosProductsParams) {
   const queryClient = useQueryClient();
   const setProducts = usePosStore(state => state.setProducts);
   
@@ -56,37 +58,42 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
   const [debouncedSearch] = useDebounce(safeSearch, 500);
 
   // --- QUERY: Local Search ---
-  const { data: products = [], isLoading: isSearching } = useQuery({
-    queryKey: ['pos-products', debouncedSearch, category, locationId], // Added locationId to force refetch on change
+  const { data: searchResponse = { products: [], totalCount: 0 }, isLoading: isSearching } = useQuery({
+    queryKey: ['pos-products', debouncedSearch, category, locationId, page, pageSize], // Added pagination params
     queryFn: async () => {
       // Invoke Tauri command to search local DB
-      const rawProducts = await invoke<PosProduct[]>('search_products_command', {
+      const response = await invoke<{ products: PosProduct[]; totalCount: number }>('search_products_command', {
         query: debouncedSearch,
         category: category,
+        page: page,
+        pageSize: pageSize,
       });
 
       // Map backend totalStock to frontend stock
-      return rawProducts.map(p => ({
-        ...p,
-        stock: p.stock ?? p.totalStock ?? 0 
-      }));
+      return {
+        products: response.products.map(p => ({
+            ...p,
+            stock: p.stock ?? p.totalStock ?? 0 
+        })),
+        totalCount: response.totalCount
+      };
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
     enabled: enabled, 
     placeholderData: (prev) => prev,
   });
 
+  const products = searchResponse.products;
+  const totalCount = searchResponse.totalCount;
+
   // --- SYNC TO GLOBAL STORE ---
   // When we fetch "all" products (no search, no category filter), update the global store
   // so that features like Low Stock Alerts works.
   useEffect(() => {
-    if (products.length > 0 && !debouncedSearch && category === 'all') {
-        const mappedForStore = products.map(p => ({
-             ...p,
-        }));
-        setProducts(mappedForStore as any);
+    if (products.length > 0 && !debouncedSearch && category === 'all' && page === 1) {
+        setProducts(products as any);
     }
-  }, [products, debouncedSearch, category, setProducts]);
+  }, [products, debouncedSearch, category, page, setProducts]);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -110,10 +117,10 @@ export function usePosProducts({ search, category, enabled = true }: UsePosProdu
 
   return {
     products,
+    totalCount,
     isLoading: isSearching && products.length === 0, // Only show loading on initial load
     isSyncing: syncMutation.isPending,
     triggerSync: handleSync, // Attach this to a "Sync" button or a "Pull to Refresh"
-    totalCount: products.length,
     error: syncMutation.error
   };
 }

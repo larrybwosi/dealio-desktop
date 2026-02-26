@@ -27,7 +27,9 @@ pub fn search_products_command(
     auth_state: State<'_, AuthState>,
     query: String,
     category: String,
-) -> Vec<models::PosProduct> {
+    page: Option<usize>,
+    page_size: Option<usize>,
+) -> models::ProductSearchResponse {
     // Get current location from auth state
     let location_id = {
         let config_guard = auth_state
@@ -39,7 +41,7 @@ pub fn search_products_command(
             .map(|c| c.location_id.clone())
             .unwrap_or_default()
     };
-    product_store::search_local(&state, &location_id, query, category)
+    product_store::search_local(&state, &location_id, query, category, page, page_size)
 }
 
 #[tauri::command]
@@ -67,10 +69,10 @@ pub fn search_global_command(
         &location_id,
         query.clone(),
         "All".to_string(),
+        Some(1),
+        Some(5),
     )
-    .into_iter()
-    .take(5)
-    .collect();
+    .products;
 
     // 2. Search Customers
     let customers = customer_store::search_local(&customer_state, query.clone())
