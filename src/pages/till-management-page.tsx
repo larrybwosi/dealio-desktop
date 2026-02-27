@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { DollarSign, TrendingUp, TrendingDown, AlertCircle, Lock, Unlock, Plus, Minus, Calculator } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { trackEvent } from "@aptabase/tauri";
+// import { trackEvent } from "@aptabase/tauri";
 
 export default function TillManagementPage() {
   const settings = usePosStore((state) => state.settings)
@@ -45,18 +45,18 @@ export default function TillManagementPage() {
     const amount = Number.parseFloat(openingBalance)
     if (isNaN(amount) || amount < 0) return
     openCashDrawer(amount)
-    trackEvent("cash_drawer_opened", { opening_balance: amount });
+    // trackEvent("cash_drawer_opened", { opening_balance: amount });
     setOpeningBalance("")
   }
 
   const handleCloseDrawer = () => {
     const amount = Number.parseFloat(closingBalance)
     if (isNaN(amount) || amount < 0) return
-    trackEvent("cash_drawer_closed", { 
-        closing_balance: amount, 
-        expected_balance: currentBalance,
-        difference: amount - currentBalance
-    });
+    // trackEvent("cash_drawer_closed", { 
+    //     closing_balance: amount, 
+    //     expected_balance: currentBalance,
+    //     difference: amount - currentBalance
+    // });
     closeCashDrawer(amount)
     setClosingBalance("")
   }
@@ -65,7 +65,7 @@ export default function TillManagementPage() {
     const amount = Number.parseFloat(transactionAmount)
     if (isNaN(amount) || amount <= 0) return
     addCashTransaction("cash-in", amount, transactionNotes)
-    trackEvent("cash_in_out", { type: "cash-in", amount });
+    // trackEvent("cash_in_out", { type: "cash-in", amount });
     setTransactionAmount("")
     setTransactionNotes("")
   }
@@ -74,7 +74,7 @@ export default function TillManagementPage() {
     const amount = Number.parseFloat(transactionAmount)
     if (isNaN(amount) || amount <= 0) return
     addCashTransaction("cash-out", amount, transactionNotes)
-    trackEvent("cash_in_out", { type: "cash-out", amount });
+    // trackEvent("cash_in_out", { type: "cash-out", amount });
     setTransactionAmount("")
     setTransactionNotes("")
   }

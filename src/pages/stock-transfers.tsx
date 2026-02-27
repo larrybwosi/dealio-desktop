@@ -30,7 +30,7 @@ import {
 import { useAuthStore } from "@/store/pos-auth-store"
 import { invoke } from "@tauri-apps/api/core"
 import { toast } from "sonner"
-import { trackEvent } from "@aptabase/tauri"
+// import { trackEvent } from "@aptabase/tauri"
 
 import { usePosLocations } from "@/hooks/locations"
 import { FileReceiveDialog } from "@/components/file-receive"
@@ -360,7 +360,7 @@ export default function StockTransferCreate() {
         documents: attachedFiles.map((f) => f.path || f.name),
       }
       await invoke("submit_stock_transfer", { payload })
-      trackEvent("stock_transfer_initiated");
+      // trackEvent("stock_transfer_initiated");
       toast.success("Stock transfer submitted successfully")
       setItems([])
       setNotes("")

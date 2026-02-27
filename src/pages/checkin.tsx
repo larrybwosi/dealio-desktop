@@ -295,14 +295,14 @@ export default function CheckinPage() {
             alt="Tech Background"
             className="w-full h-full object-cover grayscale mix-blend-overlay"
           />
-          <div className="absolute inset-0 bg-linear-to-b from-slate-900 via-slate-900/50 to-blue-950/80"></div>
+          {/* <div className="absolute inset-0 bg-linear-to-b from-slate-900 via-slate-900/50 to-blue-950/80"></div>  */}
         </div>
 
         <div className="relative z-10 flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
             <Terminal className="text-white w-6 h-6" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-white">Dealio</span>
+          <span className="text-xl font-bold tracking-tight text-white">Skryme</span>
         </div>
 
         <div className="relative z-10 max-w-md space-y-6">
@@ -326,7 +326,7 @@ export default function CheckinPage() {
           </div>
         </div>
 
-        <div className="relative z-10 text-xs text-slate-500">© 2025 Dealio Corporation. All rights reserved.</div>
+        <div className="relative z-10 text-xs text-slate-500">© {new Date().getFullYear()} Skryme LLC. All rights reserved.</div>
       </div>
 
       {/* --- RIGHT SIDE: Login Form --- */}

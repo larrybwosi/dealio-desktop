@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
 import { useCallback, useEffect } from 'react';
-import { trackEvent } from "@aptabase/tauri";
+// import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
 
 
@@ -56,7 +56,7 @@ export function useAuth() {
     onSuccess: data => {
       // On success, update the global store with member AND restoration status
       setMemberSession(data.member, data.restoredSession);
-      trackEvent("user_login");
+      // trackEvent("user_login");
 
       // Provide context-aware feedback
       if (data.restoredSession) {
@@ -96,7 +96,7 @@ export function useAuth() {
     onSuccess: () => {
       // On success, clear the global store
       clearMemberSession();
-      trackEvent("user_logout");
+      // trackEvent("user_logout");
       toast.success('Checked out successfully');
 
       // Invalidate any queries that depend on an active session

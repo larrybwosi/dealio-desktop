@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   List
 } from 'lucide-react';
+// import { trackEvent } from '@aptabase/tauri';
 import { cn } from '@/lib/utils';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
@@ -139,7 +140,20 @@ export function POS() {
   // 5. Reset page on filter change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, activeCategory]);
+    if (debouncedSearch) {
+      // trackEvent("pos_search", { query: debouncedSearch.substring(0, 50) });
+    }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    if (activeCategory !== 'all') {
+      // trackEvent("pos_category_change", { category: activeCategory });
+    }
+  }, [activeCategory]);
+
+  useEffect(() => {
+    // trackEvent("pos_pricing_mode_change", { mode: pricingMode });
+  }, [pricingMode]);
 
   // 6. Global Keyboard Shortcuts
   useEffect(() => {

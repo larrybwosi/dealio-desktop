@@ -24,6 +24,17 @@ import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
 
+// Hook to track page views
+// const usePageTracking = () => {
+//   const location = useLocation();
+
+//   useEffect(() => {
+//     // Sanitize path for tracking
+//     const path = location.pathname === '/' ? 'pos' : location.pathname.substring(1).replace(/\//g, '_');
+//     trackEvent("page_view", { page: path });
+//   }, [location.pathname]);
+// };
+
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
   return (
@@ -89,6 +100,7 @@ const AppRoutes = () => {
 
 const DynamicRenderer = () => {
   useSessionActivityListener();
+  // usePageTracking();
 
   useEffect(() => {
     trackEvent("app_started");

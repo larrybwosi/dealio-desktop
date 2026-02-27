@@ -11,6 +11,8 @@ import {
   error as tauriError,
 } from "@tauri-apps/plugin-log";
 import { invoke } from "@tauri-apps/api/core";
+import * as Sentry from "@sentry/browser";
+// import { trackEvent } from "@aptabase/tauri";
 
 // ============================================================
 // Public Logger API
@@ -29,6 +31,14 @@ export const logger = {
       ? `${message} | ${JSON.stringify(context)}`
       : message;
     tauriInfo(formatted).catch(() => {});
+    
+    // Add breadcrumb to Sentry for better context on future errors
+    Sentry.addBreadcrumb({
+      category: "log",
+      message: message,
+      level: "info",
+      data: context,
+    });
   },
 
   warn: (message: string, context?: Record<string, unknown>) => {
@@ -36,6 +46,13 @@ export const logger = {
       ? `${message} | ${JSON.stringify(context)}`
       : message;
     tauriWarn(formatted).catch(() => {});
+
+    Sentry.addBreadcrumb({
+      category: "log",
+      message: message,
+      level: "warning",
+      data: context,
+    });
   },
 
   error: (message: string, error?: unknown, context?: Record<string, unknown>) => {
@@ -47,6 +64,17 @@ export const logger = {
       ? `${message} | error: ${errStr} | ${JSON.stringify(context)}`
       : `${message} | error: ${errStr}`;
     tauriError(formatted).catch(() => {});
+
+    // Report to Sentry
+    Sentry.captureException(error instanceof Error ? error : new Error(String(error ?? message)), {
+      extra: { context_msg: message, ...context },
+    });
+
+    // Track critical errors in Aptabase for analytics (success rates)
+    // trackEvent("app_error", { 
+    //   message: message.substring(0, 100), // Aptabase limit/clutter
+    //   is_crash: message.includes("[CRASH]") ? "true" : "false"
+    // });
   },
 };
 

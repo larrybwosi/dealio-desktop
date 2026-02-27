@@ -13,7 +13,7 @@ import {
   ChevronsUpDown,
   Search,
 } from 'lucide-react';
-import { trackEvent } from "@aptabase/tauri";
+// import { trackEvent } from "@aptabase/tauri";
 import { useFormattedCurrency, cn } from '@/lib/utils';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -537,7 +537,7 @@ export default function CreateOrderPage() {
       setCreatedOrderId(data?.number || data?.orderId || 'new-order');
       setCreatedInvoiceUrl(data?.invoiceUrl || null);
       setSubmitStatus('success');
-      trackEvent("sale_processed", { type: "invoice" });
+      // trackEvent("sale_processed", { type: "invoice" });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     onError: (error) => {

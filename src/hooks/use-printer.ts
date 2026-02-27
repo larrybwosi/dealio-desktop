@@ -6,7 +6,7 @@ import { Order, BusinessSettings } from '@/store/store';
 import { generateReceiptPDF, savePdfToTempFile } from '@/lib/receipt-generator';
 import { PrintResult } from '@/types/print-types';
 import { v4 as uuidv4 } from 'uuid';
-import { trackEvent } from '@aptabase/tauri';
+// import { trackEvent } from '@aptabase/tauri';
 
 export const usePrinter = () => {
   const store = usePrinterStore();
@@ -98,7 +98,7 @@ const printDocument = async (
       }
 
       store.updatePrintJob(jobId, { status: 'success' });
-      trackEvent("receipt_printed", { job_type: 'receipt' });
+      // trackEvent("receipt_printed", { job_type: 'receipt' });
       return { success: true, jobId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

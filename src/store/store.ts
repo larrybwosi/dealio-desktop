@@ -1,5 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
+// import { trackEvent } from "@aptabase/tauri";
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
@@ -1141,7 +1142,8 @@ export const usePosStore = create<PosStore>()(
         });
       },
 
-      resetOrder: () =>
+      resetOrder: () => {
+        // trackEvent("cart_cleared");
         set({
           currentOrder: {
             customerName: '',
@@ -1154,7 +1156,8 @@ export const usePosStore = create<PosStore>()(
             customerPhone: '',
             loyaltyPoints: 0,
           },
-        }),
+        });
+      },
 
       completeOrder: (paymentMethod, discountAmount) =>
         set(state => {
