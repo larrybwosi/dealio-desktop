@@ -1,3 +1,10 @@
+# [3.1.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.3...v3.1.0-beta.4) (2026-02-27)
+
+
+### Bug Fixes
+
+* **sale manager:** sale manager updates and the scanner manger ([27e2ad0](https://github.com/larrybwosi/dealio-desktop/commit/27e2ad005400be94c4e7e550575996acf6c4357d))
+
 # [3.1.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.2...v3.1.0-beta.3) (2026-02-26)
 
 
