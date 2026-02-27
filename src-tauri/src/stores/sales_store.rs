@@ -235,15 +235,14 @@ pub async fn process_sale(
 
     // 4b. Handle Backend Stock Deduction
     if let Some(cart_items) = payload.get("cartItems").and_then(|v| v.as_array()) {
-        if let Err(e) =
-            crate::product_store::deduct_stock(
-                app.clone(),
-                product_state,
-                &location_id,
-                cart_items,
-                _allow_negative_stock,
-            )
-            .await
+        if let Err(e) = crate::product_store::deduct_stock(
+            app.clone(),
+            product_state,
+            &location_id,
+            cart_items,
+            _allow_negative_stock,
+        )
+        .await
         {
             error!("[SalesStore] Stock validation failed: {}", e);
             return Err(SalesError::ValidationError(e.to_string()).into());
@@ -588,7 +587,7 @@ pub async fn initiate_mpesa_payment_command(
     Ok(data)
 }
 
-pub fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
+pub async fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
     state
         .queue
         .lock()
@@ -645,7 +644,7 @@ pub async fn retry_single_sale(
 }
 
 /// Check for sales older than specified days
-pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
+pub async fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
     let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -661,7 +660,7 @@ pub fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<Q
 }
 
 /// Check for repeatedly failed sales
-pub fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
+pub async fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
     let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
     q.iter()
         .filter(|s| s.retry_count >= retry_threshold)

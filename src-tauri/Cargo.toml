@@ -65,6 +65,7 @@ tauri-plugin-aptabase = { git = "https://github.com/aptabase/tauri-plugin-aptaba
 
 sentry = "0.42"
 tauri-plugin-sentry = "0.5"
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 
 [dev-dependencies]
 mockito = "1.2"

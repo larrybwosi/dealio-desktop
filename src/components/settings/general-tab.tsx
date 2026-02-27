@@ -1,13 +1,21 @@
+'use client';
+
 import { 
   Building2, 
   Wallet, 
   Percent, 
   Settings2, 
   CheckCircle2, 
-  XCircle, 
   Store,
   CreditCard,
-  Power
+  Power,
+  Download,
+  RefreshCw,
+  AlertTriangle,
+  CheckCheck,
+  Loader2,
+  ShieldCheck,
+  MapPin,
 } from 'lucide-react';
 import { 
   Card, 
@@ -20,15 +28,230 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { TabsContent } from "@/components/ui/tabs";
+import { Button } from '@/components/ui/button';
 import { BusinessType, BusinessConfig } from '@/lib/business-configs';
 import { LocationSwitchDialog } from './location-switch-dialog';
 import { useState } from 'react';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { MapPin } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useUpdater } from '@/lib/providers/UpdateProvider';
+
+// ─── Update Status UI Helpers ────────────────────────────────────────────────
+
+type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | 'ERROR';
+
+const UPDATE_STATUS_CONFIG: Record<
+  UpdateStatus,
+  { label: string; badgeClass: string; icon: React.ReactNode }
+> = {
+  IDLE: {
+    label: 'Up to date',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
+    icon: <CheckCheck className="h-3.5 w-3.5" />,
+  },
+  CHECKING: {
+    label: 'Checking…',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800',
+    icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+  },
+  PENDING: {
+    label: 'Update available',
+    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800',
+    icon: <Download className="h-3.5 w-3.5" />,
+  },
+  DOWNLOADING: {
+    label: 'Downloading…',
+    badgeClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800',
+    icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />,
+  },
+  DONE: {
+    label: 'Installed — restarting',
+    badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800',
+    icon: <CheckCheck className="h-3.5 w-3.5" />,
+  },
+  ERROR: {
+    label: 'Check failed',
+    badgeClass: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800',
+    icon: <AlertTriangle className="h-3.5 w-3.5" />,
+  },
+};
+
+// ─── Software Updates Card ────────────────────────────────────────────────────
+
+function SoftwareUpdatesCard() {
+
+  const {
+    status,
+    isUpdateAvailable,
+    isCritical,
+    releaseNotes,
+    releaseDate,
+    downloadProgress,
+    error,
+    checkForUpdates,
+    startInstall,
+    openModal,
+  } = useUpdater();
+
+  const statusCfg = UPDATE_STATUS_CONFIG[status];
+  const isChecking = status === 'CHECKING';
+  const isDownloading = status === 'DOWNLOADING';
+  const isBusy = isChecking || isDownloading;
+
+  const formattedDate = releaseDate
+    ? new Date(releaseDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : null;
+
+  return (
+    <Card className="border-muted/60 shadow-sm">
+      <CardHeader className="pb-4">
+        <div className="flex items-center gap-2">
+          <div className="p-2 bg-indigo-500/10 rounded-lg">
+            <ShieldCheck className="h-5 w-5 text-indigo-600" />
+          </div>
+          <div>
+            <CardTitle className="text-lg font-semibold">Software Updates</CardTitle>
+            <CardDescription>Keep your application secure and up to date.</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <Separator className="mb-0" />
+      <CardContent className="pt-5 space-y-5">
+
+        {/* Status Row */}
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Current Status
+            </p>
+            <div className="flex items-center gap-2 mt-1.5">
+              <span
+                className={`inline-flex items-center gap-1.5 border rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.badgeClass}`}
+              >
+                {statusCfg.icon}
+                {statusCfg.label}
+              </span>
+              {isCritical && (
+                <span className="inline-flex items-center gap-1 border rounded-full px-2.5 py-0.5 text-xs font-medium bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800">
+                  <AlertTriangle className="h-3 w-3" />
+                  Critical
+                </span>
+              )}
+            </div>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={checkForUpdates}
+            disabled={isBusy}
+            className="gap-2 text-xs"
+          >
+            {isChecking ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+            {isChecking ? 'Checking…' : 'Check Now'}
+          </Button>
+        </div>
+
+        {/* Download progress */}
+        {isDownloading && (
+          <div className="space-y-2 rounded-lg bg-muted/40 border border-muted p-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-medium text-foreground">Downloading update…</span>
+              <span className="tabular-nums font-mono text-muted-foreground">{downloadProgress}%</span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-indigo-600 transition-all duration-300 ease-out"
+                style={{ width: `${downloadProgress}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              The application will restart automatically when finished.
+            </p>
+          </div>
+        )}
+
+        {/* Error state */}
+        {status === 'ERROR' && error && (
+          <div className="flex items-start gap-2.5 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800/60 p-3">
+            <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-px" />
+            <div className="space-y-0.5">
+              <p className="text-xs font-medium text-red-700 dark:text-red-400">Update check failed</p>
+              <p className="text-[11px] text-red-600/80 dark:text-red-500">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Pending update details */}
+        {isUpdateAvailable && status === 'PENDING' && (
+          <div className="rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50/50 dark:bg-amber-950/20 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 dark:border-amber-800/60">
+              <div className="space-y-0.5">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-300">
+                  New release available
+                </p>
+                {formattedDate && (
+                  <p className="text-[11px] text-amber-700/70 dark:text-amber-500/80">
+                    Released {formattedDate}
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                  onClick={openModal}
+                >
+                  View details
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs h-7 bg-amber-600 hover:bg-amber-700 text-white"
+                  onClick={startInstall}
+                >
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  Install
+                </Button>
+              </div>
+            </div>
+            {releaseNotes && (
+              <div className="px-4 py-3 max-h-28 overflow-y-auto">
+                <p className="text-[11px] font-medium text-amber-800 dark:text-amber-400 uppercase tracking-wide mb-1.5">
+                  Release notes
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/70 whitespace-pre-line leading-relaxed">
+                  {releaseNotes.slice(0, 500)}
+                  {releaseNotes.length > 500 ? '…' : ''}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Up-to-date state */}
+        {status === 'IDLE' && !isUpdateAvailable && (
+          <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+            You&apos;re running the latest version of the application.
+          </div>
+        )}
+
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function GeneralSettings({
   businessName,
@@ -70,12 +293,9 @@ export default function GeneralSettings({
         open={isLocationDialogOpen} 
         onOpenChange={setIsLocationDialogOpen} 
       />
-      <div className="grid gap-6 md:grid-cols-12">
-        
-        {/* LEFT COLUMN: Input & Configuration */}
         <div className="md:col-span-7 lg:col-span-8 space-y-6">
           
-          {/* Business Identity Card */}
+          {/* Business Identity */}
           <Card className="border-muted/60 shadow-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
@@ -90,7 +310,6 @@ export default function GeneralSettings({
             </CardHeader>
             <Separator className="mb-6" />
             <CardContent className="grid gap-6">
-              
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-2.5">
                   <Label htmlFor="businessName" className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -132,7 +351,7 @@ export default function GeneralSettings({
             </CardContent>
           </Card>
 
-          {/* Location Settings Card */}
+          {/* Store Location */}
           <Card className="border-muted/60 shadow-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
@@ -147,41 +366,39 @@ export default function GeneralSettings({
             </CardHeader>
             <Separator className="mb-6" />
             <CardContent>
-               <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-2.5">
-                    <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Current Location
-                    </Label>
-                    <div className="flex gap-2">
-                        <Button 
-                            variant="outline" 
-                            className="w-full justify-between font-normal bg-muted/30 hover:bg-muted/50"
-                            onClick={() => setIsLocationDialogOpen(true)}
-                        >
-                            <span className="flex items-center gap-2 truncate">
-                                <Store className="h-4 w-4 text-muted-foreground" />
-                                {currentLocation?.name || 'No Location Set'}
-                            </span>
-                            <span className="text-xs text-primary font-medium">Change</span>
-                        </Button>
-                    </div>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Current Location
+                  </Label>
+                  <Button 
+                    variant="outline" 
+                    className="w-full justify-between font-normal bg-muted/30 hover:bg-muted/50"
+                    onClick={() => setIsLocationDialogOpen(true)}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Store className="h-4 w-4 text-muted-foreground" />
+                      {currentLocation?.name || 'No Location Set'}
+                    </span>
+                    <span className="text-xs text-primary font-medium">Change</span>
+                  </Button>
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Location Type
+                  </Label>
+                  <div className="flex items-center h-10 px-3 rounded-md bg-muted/30 border border-input">
+                    <span className="text-sm text-foreground capitalize">
+                      {currentLocation?.locationType?.toLowerCase().replace('_', ' ') || 'Unknown'}
+                    </span>
                   </div>
-                  
-                  <div className="space-y-2.5">
-                     <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                        Location Type
-                     </Label>
-                     <div className="flex items-center h-10 px-3 rounded-md bg-muted/30 border border-input">
-                        <span className="text-sm text-foreground capitalize">
-                            {currentLocation?.locationType?.toLowerCase().replace('_', ' ') || 'Unknown'}
-                        </span>
-                     </div>
-                  </div>
-               </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          {/* Financial Settings Card */}
+          {/* Financial Settings */}
           <Card className="border-muted/60 shadow-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-2">
@@ -257,7 +474,7 @@ export default function GeneralSettings({
             </CardHeader>
             <Separator className="mb-0" />
             <CardContent className="divide-y divide-muted">
-              
+
               <div className="flex items-center justify-between py-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -302,66 +519,10 @@ export default function GeneralSettings({
 
             </CardContent>
           </Card>
+
+          {/* Software Updates */}
+          <SoftwareUpdatesCard />
         </div>
-
-        {/* RIGHT COLUMN: Summary & Status */}
-        <div className="md:col-span-5 lg:col-span-4 space-y-6">
-          
-          <Card className="bg-slate-50 border-slate-200 dark:bg-slate-900/50 dark:border-slate-800 h-full">
-            <CardHeader>
-              <CardTitle className="text-base font-semibold text-slate-700 dark:text-slate-300">
-                Configuration Summary
-              </CardTitle>
-              <CardDescription>
-                Active features for {currentConfig.label}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              
-              {/* Features List */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                  Module Availability
-                </h4>
-                {Object.entries(currentConfig.features).map(([key, enabled]) => (
-                  <div key={key} className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600 dark:text-slate-400">
-                      {key.replace(/([A-Z])/g, ' $1').trim().replace(/^\w/, c => c.toUpperCase())}
-                    </span>
-                    {enabled ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="h-4 w-4 text-slate-300" />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <Separator />
-
-              {/* Order Types */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-                  Supported Order Types
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {currentConfig.orderTypes.map(orderType => (
-                    <Badge 
-                      key={orderType} 
-                      variant="secondary" 
-                      className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-normal"
-                    >
-                      {orderType.charAt(0).toUpperCase() + orderType.slice(1)}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-            </CardContent>
-          </Card>
-        </div>
-
-      </div>
     </TabsContent>
   );
 }

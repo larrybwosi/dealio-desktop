@@ -1,8 +1,7 @@
-import { Mock } from 'vitest';
-import { invoke } from '@tauri-apps/api/core';
+import { mockInvoke } from '../setup';
 
-// Type helper for the mocked invoke function
-export const mockInvoke = invoke as Mock;
+// Re-export for compatibility with existing tests
+export { mockInvoke };
 
 // Helper to setup a specific response for a command
 export const mockCommand = (cmd: string, response: any) => {

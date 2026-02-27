@@ -291,7 +291,7 @@ export default function CheckinPage() {
       <div className="hidden lg:flex w-1/2 relative flex-col justify-between p-12 bg-slate-900 border-r border-slate-800">
         <div className="absolute inset-0 z-0 opacity-40">
           <img
-            src="https://images.unsplash.com/photo-1550751827-4bd374c3f58b?q=80&w=2070&auto=format&fit=crop"
+            src="/some.png"
             alt="Tech Background"
             className="w-full h-full object-cover grayscale mix-blend-overlay"
           />

@@ -11,9 +11,11 @@ import {
   ScrollText,
   AlertTriangle,
   Zap,
+  BellOff,
 } from 'lucide-react';
 
-// ─── Markdown Overrides ──────────────────────────────────────────────────────
+// ─── Markdown Overrides ───────────────────────────────────────────────────────
+
 const markdownOptions = {
   overrides: {
     h1: {
@@ -82,21 +84,27 @@ const markdownOptions = {
   },
 };
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 interface UpdateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Snooze: remind me later (24 h). */
   onClose: () => void;
+  /** Skip: never prompt for this version again. */
+  onSkip: () => void;
   onConfirm: () => Promise<void>;
   releaseNotes: string | null;
   isCritical: boolean;
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
+
 export function UpdateDialog({
   open,
   onOpenChange,
   onClose,
+  onSkip,
   onConfirm,
   releaseNotes,
   isCritical,
@@ -131,7 +139,6 @@ export function UpdateDialog({
 
   return (
     <>
-      {/* ── Inject keyframes + scrollbar styles ── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 
@@ -155,9 +162,7 @@ export function UpdateDialog({
           0%, 100% { opacity: 0.6; transform: scale(1); }
           50%       { opacity: 1;   transform: scale(1.08); }
         }
-        @keyframes ud-spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes ud-spin { to { transform: rotate(360deg); } }
 
         .ud-backdrop-enter { animation: ud-backdrop-in  0.25s ease forwards; }
         .ud-backdrop-exit  { animation: ud-backdrop-out 0.3s  ease forwards; }
@@ -189,9 +194,7 @@ export function UpdateDialog({
           background: rgba(0,0,0,0.1);
           border-radius: 4px;
         }
-        .dark .ud-scroll::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.08);
-        }
+        .dark .ud-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
 
         .ud-critical-badge {
           background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
@@ -224,9 +227,7 @@ export function UpdateDialog({
         .ud-btn-primary:active { transform: translateY(0); opacity: 0.9; }
         .ud-btn-primary:disabled { transform: none; }
 
-        .ud-btn-ghost {
-          transition: background 0.15s ease, color 0.15s ease;
-        }
+        .ud-btn-ghost { transition: background 0.15s ease, color 0.15s ease; }
       `}</style>
 
       <div className="ud-root fixed inset-0 z-50 flex items-end justify-center sm:items-center p-4 sm:p-0">
@@ -246,15 +247,18 @@ export function UpdateDialog({
             ${open ? 'ud-panel-enter' : 'ud-panel-exit'}
           `}
         >
-          {/* Critical top-bar accent */}
+          {/* Critical shimmer accent */}
           {isCritical && (
             <div
               className="absolute inset-x-0 top-0 h-[2px] z-10"
-              style={{ background: 'linear-gradient(90deg, #ef4444, #f97316, #ef4444)', backgroundSize: '200% 100%', animation: 'ud-shimmer 2.5s linear infinite' }}
+              style={{
+                background: 'linear-gradient(90deg, #ef4444, #f97316, #ef4444)',
+                backgroundSize: '200% 100%',
+                animation: 'ud-shimmer 2.5s linear infinite',
+              }}
             />
           )}
 
-          {/* Non-critical subtle top gradient */}
           {!isCritical && (
             <div className="absolute inset-x-0 top-0 h-[1px] bg-gradient-to-r from-transparent via-zinc-200/80 to-transparent dark:via-zinc-700/60" />
           )}
@@ -275,13 +279,11 @@ export function UpdateDialog({
                       : 'bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'}
                   `}
                 >
-                  {isCritical
-                    ? <ShieldAlert className="h-5 w-5" />
-                    : <Sparkles className="h-5 w-5" />}
+                  {isCritical ? <ShieldAlert className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
                 </div>
               </div>
 
-              {/* Title + subtitle */}
+              {/* Title */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h2 className="text-[15px] font-semibold leading-tight tracking-[-0.01em] text-zinc-900 dark:text-zinc-50">
@@ -300,12 +302,13 @@ export function UpdateDialog({
                 </p>
               </div>
 
-              {/* Close */}
+              {/* X button — snoozes (remind later) */}
               {!isCritical && (
                 <button
                   onClick={onClose}
+                  title="Remind me later"
                   className="ud-btn-ghost -mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 dark:focus-visible:ring-zinc-700"
-                  aria-label="Dismiss"
+                  aria-label="Remind me later"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -326,9 +329,7 @@ export function UpdateDialog({
             </div>
 
             <div className="relative overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-900/60">
-              {/* Inner top fade */}
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-zinc-50 dark:from-zinc-900/60" />
-
               <div className="ud-scroll h-[240px] overflow-y-auto p-4 pb-6">
                 {releaseNotes ? (
                   <Markdown options={markdownOptions}>{releaseNotes}</Markdown>
@@ -347,12 +348,26 @@ export function UpdateDialog({
 
           {/* ── FOOTER ── */}
           <div className="flex items-center justify-between gap-3 px-6 py-4">
-            {/* Version hint */}
-            <p className="text-[11px] text-zinc-400 dark:text-zinc-600 font-mono">
-              {isCritical ? '⚠ mandatory' : 'optional'}
-            </p>
+            {/* Left side: skip option for non-critical */}
+            <div className="flex items-center gap-1">
+              {!isCritical ? (
+                <>
+                  <button
+                    onClick={onSkip}
+                    title="Don't remind me about this version"
+                    className="ud-btn-ghost inline-flex items-center gap-1.5 h-9 rounded-lg px-3 text-[12px] font-medium text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-200 dark:focus-visible:ring-zinc-700"
+                  >
+                    <BellOff className="h-3.5 w-3.5" />
+                    Skip this version
+                  </button>
+                </>
+              ) : (
+                <p className="text-[11px] text-zinc-400 dark:text-zinc-600 font-mono">⚠ mandatory</p>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
+              {/* "Later" snoozes for 24 h */}
               {!isCritical && (
                 <button
                   onClick={onClose}

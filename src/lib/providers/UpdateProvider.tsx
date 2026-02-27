@@ -1,25 +1,20 @@
 'use client';
 
-import { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useState, useEffect, useCallback, useContext, ReactNode } from 'react';
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { UpdateDialog } from '@/components/update.dialog';
-import { 
-  isTestMode, 
-  getCurrentTestScenario, 
-  mockCheck, 
-  mockRelaunch,
-  TEST_SCENARIOS 
-} from '@/lib/updater/mock-update';
 
-// --- Types ---
-type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | 'ERROR';
+// ─── Types ────────────────────────────────────────────────────────────────────
 
-interface UpdaterContextType {
+export type UpdateStatus = 'IDLE' | 'CHECKING' | 'PENDING' | 'DOWNLOADING' | 'DONE' | 'ERROR';
+
+export interface UpdaterContextType {
   isUpdateAvailable: boolean;
   isCritical: boolean;
   releaseNotes: string | null;
   releaseDate: string | null;
+  availableVersion: string | null;
   status: UpdateStatus;
   downloadProgress: number;
   isModalOpen: boolean;
@@ -28,50 +23,92 @@ interface UpdaterContextType {
   closeModal: () => void;
   checkForUpdates: () => Promise<void>;
   startInstall: () => Promise<void>;
+  /** Dismiss until the next session check cycle (24 h snooze). */
+  snoozeUpdate: () => void;
+  /** Never prompt for this specific version again. */
+  skipVersion: () => void;
 }
+
+// ─── Storage helpers ──────────────────────────────────────────────────────────
+
+const STORAGE_KEYS = {
+  SKIPPED_VERSION: 'updater:skippedVersion',
+  SNOOZED_UNTIL: 'updater:snoozedUntil',
+} as const;
+
+function getSkippedVersion(): string | null {
+  try { return localStorage.getItem(STORAGE_KEYS.SKIPPED_VERSION); }
+  catch { return null; }
+}
+
+function setSkippedVersion(version: string): void {
+  try { localStorage.setItem(STORAGE_KEYS.SKIPPED_VERSION, version); }
+  catch { /* ignore */ }
+}
+
+function getSnoozedUntil(): number {
+  try { return parseInt(localStorage.getItem(STORAGE_KEYS.SNOOZED_UNTIL) ?? '0', 10); }
+  catch { return 0; }
+}
+
+function setSnoozedUntil(ts: number): void {
+  try { localStorage.setItem(STORAGE_KEYS.SNOOZED_UNTIL, String(ts)); }
+  catch { /* ignore */ }
+}
+
+function clearSnooze(): void {
+  try { localStorage.removeItem(STORAGE_KEYS.SNOOZED_UNTIL); }
+  catch { /* ignore */ }
+}
+
+// ─── Context ──────────────────────────────────────────────────────────────────
 
 const UpdaterContext = createContext<UpdaterContextType | undefined>(undefined);
 
-// --- Internal Toast Component for Download Progress ---
-const ProgressToast = ({ progress }: { progress: number }) => {
-  return (
-    <div className="fixed bottom-5 right-5 z-50 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-800 dark:bg-gray-900">
-      <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-          Downloading Update...
-        </h4>
-        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-          {progress}%
-        </span>
-      </div>
-      
-      {/* Progress Bar Track */}
-      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-        {/* Progress Bar Fill */}
-        <div 
-          className="h-full bg-blue-600 transition-all duration-300 ease-out"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <p className="mt-2 text-xs text-gray-500">
-        The application will restart automatically when finished.
-      </p>
+// ─── Progress Toast ───────────────────────────────────────────────────────────
+
+const ProgressToast = ({ progress }: { progress: number }) => (
+  <div className="fixed bottom-5 right-5 z-50 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-xl dark:border-gray-800 dark:bg-gray-900">
+    <div className="mb-2 flex items-center justify-between">
+      <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+        Downloading Update...
+      </h4>
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+        {progress}%
+      </span>
     </div>
-  );
-};
+    <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+      <div
+        className="h-full bg-blue-600 transition-all duration-300 ease-out"
+        style={{ width: `${progress}%` }}
+      />
+    </div>
+    <p className="mt-2 text-xs text-gray-500">
+      The application will restart automatically when finished.
+    </p>
+  </div>
+);
+
+// ─── Provider ─────────────────────────────────────────────────────────────────
 
 interface UpdaterProviderProps {
   children: ReactNode;
+  /** How often to poll for updates in ms. Default: 1 hour. Pass 0 to disable. */
   checkInterval?: number;
+  /** Mark an update critical when the release is older than this many days. Default: 14. */
   deprecatedAfterDays?: number;
+  /** How long (ms) a "Later" snooze lasts. Default: 24 hours. */
+  snoozeDuration?: number;
 }
 
-export const UpdaterProvider = ({ 
-  children, 
-  checkInterval = 3600000, 
-  deprecatedAfterDays = 14 
+export const UpdaterProvider = ({
+  children,
+  checkInterval = 3_600_000,
+  deprecatedAfterDays = 14,
+  snoozeDuration = 86_400_000, // 24 h
 }: UpdaterProviderProps) => {
   const [update, setUpdate] = useState<Update | null>(null);
+  const [availableVersion, setAvailableVersion] = useState<string | null>(null);
   const [isUpdateAvailable, setIsUpdateAvailable] = useState(false);
   const [isCritical, setIsCritical] = useState(false);
   const [releaseNotes, setReleaseNotes] = useState<string | null>(null);
@@ -81,23 +118,40 @@ export const UpdaterProvider = ({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ── Modal controls ──────────────────────────────────────────────────────────
+
   const openModal = useCallback(() => setIsModalOpen(true), []);
-  
+
   const closeModal = useCallback(() => {
-    // Prevent closing if critical
-    if (isCritical) return; 
+    if (isCritical) return; // critical updates cannot be dismissed
     setIsModalOpen(false);
   }, [isCritical]);
 
+  // ── Snooze: hide for snoozeDuration, re-prompt on next interval ─────────────
+
+  const snoozeUpdate = useCallback(() => {
+    if (isCritical) return;
+    setSnoozedUntil(Date.now() + snoozeDuration);
+    setIsModalOpen(false);
+  }, [isCritical, snoozeDuration]);
+
+  // ── Skip: never prompt for this specific version again ──────────────────────
+
+  const skipVersion = useCallback(() => {
+    if (isCritical) return;
+    if (availableVersion) setSkippedVersion(availableVersion);
+    setIsModalOpen(false);
+    setIsUpdateAvailable(false);
+    setStatus('IDLE');
+  }, [isCritical, availableVersion]);
+
+  // ── Install ─────────────────────────────────────────────────────────────────
+
   const processUpdate = useCallback(async (updateObj: Update) => {
     setStatus('DOWNLOADING');
-    // Close the dialog when download starts so the Toast takes over
-    // Unless it's critical, you might want to keep the blocker open.
-    // Here we close it to show the toast:
     if (!isCritical) setIsModalOpen(false);
-    
     setError(null);
-    
+
     try {
       let downloadedBytes = 0;
       let totalBytes = 0;
@@ -105,7 +159,7 @@ export const UpdaterProvider = ({
       await updateObj.downloadAndInstall((progress) => {
         switch (progress.event) {
           case 'Started':
-            totalBytes = progress.data.contentLength || 0;
+            totalBytes = progress.data.contentLength ?? 0;
             break;
           case 'Progress':
             downloadedBytes += progress.data.chunkLength;
@@ -114,24 +168,18 @@ export const UpdaterProvider = ({
             }
             break;
           case 'Finished':
-             setStatus('DONE');
+            setStatus('DONE');
             break;
         }
       });
-      
-      // Use mock relaunch in test mode
-      if (isTestMode()) {
-        console.log('🧪 [TEST MODE] Using mock relaunch');
-        await mockRelaunch();
-      } else {
-        await relaunch();
-      }
-      
+
+      // Clear any snooze/skip state now that we've installed
+      clearSnooze();
+      await relaunch();
     } catch (e: any) {
       console.error('Update failed:', e);
-      setError(e.message || 'Failed to update');
+      setError(e.message ?? 'Failed to update');
       setStatus('ERROR');
-      // Re-open modal to show error
       setIsModalOpen(true);
     }
   }, [isCritical]);
@@ -141,84 +189,86 @@ export const UpdaterProvider = ({
     await processUpdate(update);
   }, [update, processUpdate]);
 
+  // ── GitHub release notes fallback ──────────────────────────────────────────
 
-
-  // Helper to fetch release notes from GitHub if missing
   const fetchReleaseNotes = async (version: string): Promise<string | null> => {
     try {
-        // Remove 'v' prefix if present to ensure clean version number for tag construction
-        const tagVersion = version.startsWith('v') ? version : `v${version}`;
-        const response = await fetch(`https://api.github.com/repos/larrybwosi/dealio-desktop/releases/tags/${tagVersion}`);
-        if (!response.ok) {
-            console.warn(`Failed to fetch release notes from GitHub: ${response.statusText}`);
-            return null;
-        }
-        const data = await response.json();
-        return data.body || null;
-    } catch (error) {
-        console.error('Error fetching release notes:', error);
-        return null;
+      const tag = version.startsWith('v') ? version : `v${version}`;
+      const res = await fetch(
+        `https://api.github.com/repos/larrybwosi/dealio-desktop/releases/tags/${tag}`
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.body ?? null;
+    } catch {
+      return null;
     }
   };
+
+  // ── Core check ─────────────────────────────────────────────────────────────
 
   const checkForUpdates = useCallback(async () => {
     setStatus('CHECKING');
     setError(null);
 
     try {
-      let updateResult: Update | null;
-      
-      // Use mock updater in test mode
-      if (isTestMode()) {
-        const scenario = getCurrentTestScenario();
-        const config = TEST_SCENARIOS[scenario];
-        console.log('🧪 [TEST MODE] Using mock update scenario:', scenario);
-        updateResult = await mockCheck(config);
-      } else {
-        updateResult = await check();
-      }
+      const updateResult: Update | null = await check();
 
-      if (updateResult) {
-        setUpdate(updateResult);
-        setIsUpdateAvailable(true);
-        
-        let notes = updateResult.body;
-        // Fallback: Fetch from GitHub if notes are missing
-        if (!notes) {
-            console.log('Release notes missing in update metadata, fetching from GitHub...');
-            const fetchedNotes = await fetchReleaseNotes(updateResult.version);
-            if (fetchedNotes) {
-                notes = fetchedNotes;
-            }
-        }
-
-        setReleaseNotes(notes || '');
-        setReleaseDate(updateResult.date || null);
-        setStatus('PENDING');
-
-        // --- DEPRECATION LOGIC ---
-        let critical = false;
-        if (notes && notes.includes('[CRITICAL]')) {
-            critical = true;
-        }
-        if (updateResult.date) {
-            const releaseDateObj = new Date(updateResult.date);
-            const now = new Date();
-            const diffTime = Math.abs(now.getTime() - releaseDateObj.getTime());
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays > deprecatedAfterDays) {
-                critical = true;
-            }
-        }
-
-        setIsCritical(critical);
-        setIsModalOpen(true);
-      } else {
+      if (!updateResult) {
         setStatus('IDLE');
-        if (isTestMode()) {
-          console.log('🧪 [TEST MODE] No update available');
-        }
+        return;
       }
+
+      const version = updateResult.version;
+
+      // 1. Skip: user permanently dismissed this version
+      if (getSkippedVersion() === version) {
+        setStatus('IDLE');
+        return;
+      }
+
+      // 2. Snooze: user clicked "Later" — respect the snooze window
+      //    UNLESS the update is critical (we'll evaluate that below first).
+      const snoozedUntil = getSnoozedUntil();
+      const isSnoozed = snoozedUntil > Date.now();
+
+      // Collect metadata
+      let notes = updateResult.body ?? null;
+      if (!notes) {
+        notes = await fetchReleaseNotes(version);
+      }
+
+      // Determine criticality before deciding whether to honour snooze
+      let critical = !!(notes?.includes('[CRITICAL]'));
+      if (!critical && updateResult.date) {
+        const diffDays = Math.ceil(
+          Math.abs(Date.now() - new Date(updateResult.date).getTime()) / 86_400_000
+        );
+        if (diffDays > deprecatedAfterDays) critical = true;
+      }
+
+      // Store update state regardless so consumers can inspect it
+      setUpdate(updateResult);
+      setAvailableVersion(version);
+      setIsUpdateAvailable(true);
+      setReleaseNotes(notes ?? '');
+      setReleaseDate(updateResult.date ?? null);
+      setIsCritical(critical);
+      setStatus('PENDING');
+
+      // 3. Critical updates bypass snooze entirely
+      if (critical) {
+        clearSnooze(); // reset snooze so next interval also prompts
+        setIsModalOpen(true);
+        return;
+      }
+
+      // 4. Non-critical + snoozed: don't open modal
+      if (isSnoozed) {
+        return;
+      }
+
+      setIsModalOpen(true);
     } catch (e: any) {
       console.error('Failed to check for updates:', e);
       setError(e.message);
@@ -226,20 +276,23 @@ export const UpdaterProvider = ({
     }
   }, [deprecatedAfterDays]);
 
+  // ── Polling ────────────────────────────────────────────────────────────────
+
   useEffect(() => {
     checkForUpdates();
-    let intervalId: NodeJS.Timeout;
-    if (checkInterval > 0) {
-      intervalId = setInterval(checkForUpdates, checkInterval);
-    }
-    return () => clearInterval(intervalId);
+    if (checkInterval <= 0) return;
+    const id = setInterval(checkForUpdates, checkInterval);
+    return () => clearInterval(id);
   }, [checkForUpdates, checkInterval]);
 
-  const value = {
+  // ── Context value ──────────────────────────────────────────────────────────
+
+  const value: UpdaterContextType = {
     isUpdateAvailable,
     isCritical,
     releaseNotes,
     releaseDate,
+    availableVersion,
     status,
     downloadProgress,
     isModalOpen,
@@ -248,27 +301,41 @@ export const UpdaterProvider = ({
     closeModal,
     checkForUpdates,
     startInstall,
+    snoozeUpdate,
+    skipVersion,
   };
 
   return (
     <UpdaterContext.Provider value={value}>
       {children}
-      
-      {/* 1. The Update Dialog */}
-      <UpdateDialog 
+
+      <UpdateDialog
         open={isModalOpen}
-        onOpenChange={(open) => !open && closeModal()} 
-        onClose={closeModal} 
+        onOpenChange={(open) => { if (!open) snoozeUpdate(); }}
+        onClose={snoozeUpdate}
+        onSkip={skipVersion}
         onConfirm={startInstall}
         releaseNotes={releaseNotes}
         isCritical={isCritical}
       />
 
-      {/* 2. The Download Toast */}
-      {status === 'DOWNLOADING' && (
-        <ProgressToast progress={downloadProgress} />
-      )}
-      
+      {status === 'DOWNLOADING' && <ProgressToast progress={downloadProgress} />}
     </UpdaterContext.Provider>
   );
 };
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Access the updater from anywhere inside <UpdaterProvider>.
+ *
+ * @example
+ * const { status, checkForUpdates, snoozeUpdate, skipVersion } = useUpdater();
+ */
+export function useUpdater(): UpdaterContextType {
+  const ctx = useContext(UpdaterContext);
+  if (!ctx) {
+    throw new Error('useUpdater must be used within an <UpdaterProvider>.');
+  }
+  return ctx;
+}

@@ -463,7 +463,9 @@ pub fn search_local(
     location_id: &str,
     query: String,
     category: String,
-) -> Vec<PosProduct> {
+    page: Option<usize>,
+    page_size: Option<usize>,
+) -> crate::models::ProductSearchResponse {
     let products_map = state
         .products_by_location
         .lock()
@@ -472,12 +474,8 @@ pub fn search_local(
     let query = query.trim().to_lowercase();
     let filter_category = category != "all" && !category.is_empty();
 
-    if query.is_empty() && !filter_category {
-        return products.iter().take(50).cloned().collect();
-    }
-
-    products
-        .iter()
+    let filtered: Vec<crate::models::PosProduct> = products
+        .into_iter()
         .filter(|p| {
             let matches_category = !filter_category || p.category == category;
             if !matches_category {
@@ -498,9 +496,20 @@ pub fn search_local(
 
             matches_product_name || matches_variant
         })
-        .take(100)
-        .cloned()
-        .collect()
+        .collect();
+
+    let total_count = filtered.len();
+
+    let p = page.unwrap_or(1);
+    let ps = page_size.unwrap_or(50);
+    let start = (p - 1) * ps;
+
+    let paginated_products = filtered.into_iter().skip(start).take(ps).collect();
+
+    crate::models::ProductSearchResponse {
+        products: paginated_products,
+        total_count,
+    }
 }
 
 pub fn get_products_by_ids(

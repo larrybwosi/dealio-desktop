@@ -31,6 +31,15 @@ import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
 import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
@@ -40,6 +49,8 @@ export function POS() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [inputValue, setInputValue] = useState('');
   const [knownCategories, setKnownCategories] = useState<Set<string>>(new Set());
+  const [page, setPage] = useState(1);
+  const pageSize = 50; 
   
   // 1. Debounce Search
   const [debouncedSearch] = useDebounce(inputValue, 500);
@@ -64,9 +75,12 @@ export function POS() {
     products, 
     isSyncing, 
     triggerSync,
+    totalCount
   } = usePosProducts({
     search: debouncedSearch,
-    category: activeCategory
+    category: activeCategory,
+    page: page,
+    pageSize: pageSize
   });
 
   // 3. Store Actions
@@ -122,7 +136,12 @@ export function POS() {
     }
   }, [products, activeCategory]);
 
-  // 5. Global Keyboard Shortcuts
+  // 5. Reset page on filter change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeCategory]);
+
+  // 6. Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
@@ -130,6 +149,7 @@ export function POS() {
       
       if (e.key === 'Escape') {
         setInputValue('');
+        setPage(1);
         searchInputRef.current?.blur();
       } else if (e.key.length === 1) {
         if (/[a-zA-Z0-9]/.test(e.key)) {
@@ -163,6 +183,7 @@ export function POS() {
 
   const clearSearch = () => {
     setInputValue('');
+    setPage(1);
     searchInputRef.current?.focus();
   };
 
@@ -477,7 +498,10 @@ export function POS() {
                             key={cat} 
                             label={cat} 
                             isActive={activeCategory === cat} 
-                            onClick={() => setActiveCategory(cat)} 
+                            onClick={() => {
+                                setActiveCategory(cat);
+                                setPage(1);
+                            }} 
                         />
                     ))}
                 </div>
@@ -579,11 +603,68 @@ export function POS() {
                         </p>
                         <Button 
                             variant="link" 
-                            onClick={() => {setInputValue(''); setActiveCategory('all');}}
+                            onClick={() => {setInputValue(''); setActiveCategory('all'); setPage(1);}}
                             className="mt-2 text-primary"
                         >
                             Clear filters
                         </Button>
+                    </div>
+                )}
+
+                {totalCount > pageSize && (
+                    <div className="mt-8 mb-4">
+                        <Pagination>
+                            <PaginationContent>
+                                <PaginationItem>
+                                    <PaginationPrevious 
+                                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                                        className={page === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                                
+                                {Array.from({ length: Math.ceil(totalCount / pageSize) }).map((_, i) => {
+                                    const pageNum = i + 1;
+                                    // Basic pagination logic: show current, first, last, and neighbors
+                                    if (
+                                        pageNum === 1 || 
+                                        pageNum === Math.ceil(totalCount / pageSize) || 
+                                        (pageNum >= page - 1 && pageNum <= page + 1)
+                                    ) {
+                                        return (
+                                            <PaginationItem key={pageNum}>
+                                                <PaginationLink 
+                                                    isActive={page === pageNum}
+                                                    onClick={() => setPage(pageNum)}
+                                                    className="cursor-pointer"
+                                                >
+                                                    {pageNum}
+                                                </PaginationLink>
+                                            </PaginationItem>
+                                        );
+                                    } else if (
+                                        pageNum === page - 2 || 
+                                        pageNum === page + 2
+                                    ) {
+                                        return (
+                                            <PaginationItem key={pageNum}>
+                                                <PaginationEllipsis />
+                                            </PaginationItem>
+                                        );
+                                    }
+                                    return null;
+                                })}
+
+                                <PaginationItem>
+                                    <PaginationNext 
+                                        onClick={() => setPage(p => Math.min(Math.ceil(totalCount / pageSize), p + 1))}
+                                        className={page >= Math.ceil(totalCount / pageSize) ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                                    />
+                                </PaginationItem>
+                            </PaginationContent>
+                        </Pagination>
+                        <div className="text-center text-xs text-muted-foreground mt-2">
+                           Showing {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, totalCount)} of {totalCount} products
+                        </div>
                     </div>
                 )}
               </div>

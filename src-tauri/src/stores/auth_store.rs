@@ -1,6 +1,6 @@
 use keyring::Entry;
 use log::info;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use reqwest::header::{HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -142,8 +142,8 @@ impl AuthState {
     }
 
     // --- Helper to get a configured HTTP Client ---
-    // This replaces creating Axios instances in React
-
+    // This provides a request builder utilizing the persistent client and automatically
+    // injects API Key, Bearer token, and Member ID headers.
     pub fn build_request(
         &self,
         method: reqwest::Method,
@@ -202,42 +202,6 @@ impl AuthState {
         }
 
         Ok(request_builder)
-    }
-
-    pub fn get_client(&self) -> Result<(reqwest::Client, String), String> {
-        let config_guard = self
-            .device_config
-            .lock()
-            .map_err(|_| "Failed to lock config")?;
-        let config = config_guard.as_ref().ok_or("Device not initialized")?;
-
-        let token_guard = self
-            .member_token
-            .lock()
-            .map_err(|_| "Failed to lock token")?;
-
-        let mut headers = HeaderMap::new();
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-        if let Ok(val) = HeaderValue::from_str(&config.device_key) {
-            headers.insert("X-Device-Api-Key", val);
-        }
-
-        if let Some(token) = token_guard.as_ref() {
-            let auth_val = format!("Bearer {}", token);
-            if let Ok(val) = HeaderValue::from_str(&auth_val) {
-                headers.insert(AUTHORIZATION, val);
-            }
-        }
-
-        // Return a fresh client for backward compatibility, but strictly calls should migrate to build_request
-        let client = reqwest::Client::builder()
-            .default_headers(headers)
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            .map_err(|e| e.to_string())?;
-
-        Ok((client, config.base_url.clone()))
     }
 
     fn load_token_from_keyring() -> Option<String> {
@@ -315,9 +279,9 @@ pub async fn login_member(
     pin: Option<String>,
     location_id: Option<String>,
 ) -> Result<CheckInResult, String> {
-    // 1. Get Client and URL from state
-    let (client, base_url) = state.get_client()?;
-    let url = format!("{}/{}", base_url, crate::api_config::routes::CHECK_IN);
+    // 1. Build request (handles base_url, persistent client, and headers automatically)
+    let request =
+        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_IN)?;
 
     // 2. Perform Request
     let device_key = {
@@ -332,8 +296,7 @@ pub async fn login_member(
         "deviceKey": device_key
     });
 
-    let res = client
-        .post(&url)
+    let res = request
         .json(&body)
         .send()
         .await
@@ -402,18 +365,19 @@ pub async fn logout_member(
     };
 
     // 1. Attempt to notify the server (Best effort)
-    if let Ok((client, base_url)) = state.get_client() {
+    if let Ok(request) =
+        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+    {
         let device_key = {
             let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
             config_guard.as_ref().map(|c| c.device_key.clone())
         };
 
-        let url = format!("{}/{}", base_url, crate::api_config::routes::CHECK_OUT);
         let body = serde_json::json!({
             "locationId": location_id,
             "deviceKey": device_key
         });
-        let _ = client.post(&url).json(&body).send().await;
+        let _ = request.json(&body).send().await;
     }
 
     // 2. Clear local session
@@ -452,37 +416,22 @@ pub async fn authenticated_api_request(
     path: String,
     body: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    // 1. Get Client and Base URL
-    let (client, base_url) = state.get_client()?;
-
-    // 2. Build full URL
-    let clean_base = base_url.trim_end_matches('/');
-    let clean_path = path.trim_start_matches('/');
-    let url = format!("{}/{}", clean_base, clean_path);
-
-    // 3. Add Member ID header if possible
-    let member_id = {
-        let user_guard = state.current_user.lock().map_err(|_| "Lock error")?;
-        user_guard.as_ref().map(|u| u.id.clone())
-    };
-
-    let mut request = match method.to_uppercase().as_str() {
-        "GET" => client.get(&url),
-        "POST" => client.post(&url),
-        "PUT" => client.put(&url),
-        "DELETE" => client.delete(&url),
+    let req_method = match method.to_uppercase().as_str() {
+        "GET" => reqwest::Method::GET,
+        "POST" => reqwest::Method::POST,
+        "PUT" => reqwest::Method::PUT,
+        "DELETE" => reqwest::Method::DELETE,
         _ => return Err(format!("Unsupported method: {}", method)),
     };
 
-    if let Some(m_id) = member_id {
-        request = request.header("X-Member-Id", m_id);
-    }
+    // 1. Build Request (handles URL formatting and all headers including Member-Id)
+    let mut request = state.build_request(req_method, &path)?;
 
     if let Some(b) = body {
         request = request.json(&b);
     }
 
-    // 4. Send and handle response
+    // 2. Send and handle response
     let res = request
         .send()
         .await
@@ -553,7 +502,7 @@ pub async fn start_device_setup_command(
     device_key: String,
 ) -> Result<(), String> {
     // We store a partial config (no location_id yet) in memory
-    // This allows get_locations_command to work using get_client
+    // This allows get_locations_command to work using build_request
     let mut config = state.device_config.lock().map_err(|_| "Lock error")?;
     *config = Some(DeviceConfig {
         base_url: base_url.clone(),
@@ -576,7 +525,7 @@ pub async fn set_negative_stock_command(
     // 1. Isolate the Mutex lock in its own block to drop it before awaiting
     let config_to_save = {
         let mut config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
-        
+
         if let Some(config) = config_guard.as_mut() {
             config.allow_negative_stock = allow;
             Some(config.clone()) // Clone the data so we can use it safely outside the lock
@@ -587,8 +536,9 @@ pub async fn set_negative_stock_command(
 
     // 2. Await the async save operation without holding the lock
     if let Some(config) = config_to_save {
-        // Assuming save_to_keyring_async takes a reference. If it takes ownership, remove the '&'
-        AuthState::save_to_keyring_async(&config).await.map_err(|e| e.to_string())?;
+        AuthState::save_to_keyring_async(&config)
+            .await
+            .map_err(|e| e.to_string())?;
     } else {
         return Err("Device not configured".to_string());
     }
@@ -600,15 +550,10 @@ pub async fn set_negative_stock_command(
 pub async fn get_locations_command(
     state: State<'_, AuthState>,
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = state.get_client()?;
-    let url = format!(
-        "{}/{}",
-        base_url.trim_end_matches('/'),
-        crate::api_config::routes::LOCATIONS
-    );
+    let request =
+        state.build_request(reqwest::Method::GET, crate::api_config::routes::LOCATIONS)?;
 
-    let res = client
-        .get(&url)
+    let res = request
         .send()
         .await
         .map_err(|e| format!("Network error: {}", e))?;
@@ -634,45 +579,24 @@ pub async fn get_ably_auth_token_command(
     state: State<'_, AuthState>,
     params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    let (client, base_url) = match state.get_client() {
-        Ok(res) => res,
-        Err(e) => {
-            println!("[AuthStore] Failed to get client: {}", e);
-            return Err(e);
-        }
-    };
-
-    let url = format!(
-        "{}/{}",
-        base_url.trim_end_matches('/'),
-        crate::api_config::routes::ABLY_AUTH
-    );
-
-    // Get member ID for header
-    let member_id = {
-        let user_guard = state
-            .current_user
-            .lock()
-            .map_err(|_| "Failed to lock user")?;
-        user_guard.as_ref().map(|u| u.id.clone())
-    };
-
-    let mut req = client.post(&url);
-
-    // Add Member ID Header
-    if let Some(mid) = member_id {
-        req = req.header("X-Member-Id", mid);
-    }
+    let mut request =
+        match state.build_request(reqwest::Method::POST, crate::api_config::routes::ABLY_AUTH) {
+            Ok(req) => req,
+            Err(e) => {
+                println!("[AuthStore] Failed to build request: {}", e);
+                return Err(e);
+            }
+        };
 
     // If params are provided, send them in body
     if let Some(p) = params {
-        req = req.json(&serde_json::json!({ "params": p }));
+        request = request.json(&serde_json::json!({ "params": p }));
     } else {
         // Ensure we send an empty JSON object if server expects JSON
-        req = req.json(&serde_json::json!({}));
+        request = request.json(&serde_json::json!({}));
     }
 
-    let res = req.send().await.map_err(|e| {
+    let res = request.send().await.map_err(|e| {
         println!("[AuthStore] Network request failed: {}", e);
         format!("Network error: {}", e)
     })?;

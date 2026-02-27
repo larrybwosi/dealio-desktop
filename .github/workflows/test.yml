@@ -2,9 +2,9 @@ name: Test Suite
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, beta ]
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, beta ]
 
 jobs:
   test-frontend:
@@ -13,7 +13,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
       - name: Use Node.js
         uses: actions/setup-node@v4
         with:
@@ -64,18 +64,21 @@ jobs:
             pkg-config \
             patchelf
 
+      # Fix: Removed the matrix check since this job strictly runs on ubuntu-latest
       - name: Create dummy binaries for macOS/Linux
-        if: matrix.platform != 'windows-latest'
         run: |
           mkdir -p src-tauri/binaries
           
-          # Create dummy files for all targets you build
           touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
           
-          # Make them executable (Aligned correctly now)
           chmod +x src-tauri/binaries/*
+
+      - name: Generate .env file for tests
+        run: |
+          echo "SENTRY_DSN=dummy_dsn" >> src-tauri/.env
+          echo "APTABASE_KEY=dummy_key" >> src-tauri/.env
 
       - name: Run Backend Tests
         run: pnpm test:backend
@@ -87,7 +90,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
-          version: 8
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -95,6 +98,16 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      # Optimization: Added caching for Playwright browsers
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
 
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps
