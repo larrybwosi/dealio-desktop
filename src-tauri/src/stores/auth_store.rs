@@ -280,7 +280,8 @@ pub async fn login_member(
     location_id: Option<String>,
 ) -> Result<CheckInResult, String> {
     // 1. Build request (handles base_url, persistent client, and headers automatically)
-    let request = state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_IN)?;
+    let request =
+        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_IN)?;
 
     // 2. Perform Request
     let device_key = {
@@ -364,7 +365,9 @@ pub async fn logout_member(
     };
 
     // 1. Attempt to notify the server (Best effort)
-    if let Ok(request) = state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT) {
+    if let Ok(request) =
+        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+    {
         let device_key = {
             let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
             config_guard.as_ref().map(|c| c.device_key.clone())
@@ -522,7 +525,7 @@ pub async fn set_negative_stock_command(
     // 1. Isolate the Mutex lock in its own block to drop it before awaiting
     let config_to_save = {
         let mut config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
-        
+
         if let Some(config) = config_guard.as_mut() {
             config.allow_negative_stock = allow;
             Some(config.clone()) // Clone the data so we can use it safely outside the lock
@@ -533,7 +536,9 @@ pub async fn set_negative_stock_command(
 
     // 2. Await the async save operation without holding the lock
     if let Some(config) = config_to_save {
-        AuthState::save_to_keyring_async(&config).await.map_err(|e| e.to_string())?;
+        AuthState::save_to_keyring_async(&config)
+            .await
+            .map_err(|e| e.to_string())?;
     } else {
         return Err("Device not configured".to_string());
     }
@@ -545,7 +550,8 @@ pub async fn set_negative_stock_command(
 pub async fn get_locations_command(
     state: State<'_, AuthState>,
 ) -> Result<serde_json::Value, String> {
-    let request = state.build_request(reqwest::Method::GET, crate::api_config::routes::LOCATIONS)?;
+    let request =
+        state.build_request(reqwest::Method::GET, crate::api_config::routes::LOCATIONS)?;
 
     let res = request
         .send()
@@ -573,13 +579,14 @@ pub async fn get_ably_auth_token_command(
     state: State<'_, AuthState>,
     params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    let mut request = match state.build_request(reqwest::Method::POST, crate::api_config::routes::ABLY_AUTH) {
-        Ok(req) => req,
-        Err(e) => {
-            println!("[AuthStore] Failed to build request: {}", e);
-            return Err(e);
-        }
-    };
+    let mut request =
+        match state.build_request(reqwest::Method::POST, crate::api_config::routes::ABLY_AUTH) {
+            Ok(req) => req,
+            Err(e) => {
+                println!("[AuthStore] Failed to build request: {}", e);
+                return Err(e);
+            }
+        };
 
     // If params are provided, send them in body
     if let Some(p) = params {

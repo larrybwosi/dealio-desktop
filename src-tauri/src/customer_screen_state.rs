@@ -1,8 +1,8 @@
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use tauri::{AppHandle, Manager, State, WebviewUrl, WebviewWindowBuilder};
-use log::info;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CustomerScreenConfig {

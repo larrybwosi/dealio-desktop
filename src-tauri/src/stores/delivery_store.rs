@@ -19,7 +19,8 @@ pub struct DriverMember {
 
 #[tauri::command]
 pub async fn get_drivers_command(auth_state: State<'_, AuthState>) -> Result<Vec<Driver>, String> {
-    let request = auth_state.build_request(reqwest::Method::GET, crate::api_config::routes::DRIVERS)?;
+    let request =
+        auth_state.build_request(reqwest::Method::GET, crate::api_config::routes::DRIVERS)?;
 
     let res = request.send().await.map_err(|e| e.to_string())?;
 
@@ -42,7 +43,7 @@ pub async fn dispatch_order_command(
         crate::api_config::routes::DELIVERY_DISPATCH,
         transaction_id
     );
-    
+
     let request = auth_state.build_request(reqwest::Method::POST, &path)?;
 
     let res = request
@@ -68,7 +69,10 @@ pub async fn reconcile_delivery_command(
     file_path: Option<String>,
     notes: Option<String>,
 ) -> Result<serde_json::Value, String> {
-    let request = auth_state.build_request(reqwest::Method::POST, crate::api_config::routes::DELIVERY_RECONCILE)?;
+    let request = auth_state.build_request(
+        reqwest::Method::POST,
+        crate::api_config::routes::DELIVERY_RECONCILE,
+    )?;
 
     let mut form = reqwest::multipart::Form::new().text("fulfilmentId", fulfillment_id);
 

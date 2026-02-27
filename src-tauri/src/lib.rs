@@ -1,5 +1,5 @@
 use dotenvy_macro::dotenv;
-use log::{error};
+use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -8,27 +8,27 @@ use tauri_plugin_aptabase::EventTracker;
 pub mod stores;
 use models::Shift;
 
-mod models;
 mod http_server;
+mod models;
+mod scanner_manager;
 mod stock_acceptance;
 mod stock_acceptance_models;
 pub mod stock_transfer;
-mod scanner_manager;
 
-use stores::product_store::{self, ProductState};
-use stores::customer_store::{self, CustomerState};
-use stores::sales_store::{self, SalesState};
-use stores::pricing_store::{self, PricingState};
-use stores::shift_store::{self, ShiftState};
-use stores::auth_store::{self, AuthState};
 use stores::audit_store;
+use stores::auth_store::{self, AuthState};
+use stores::customer_store::{self, CustomerState};
 use stores::delivery_store;
+use stores::pricing_store::{self, PricingState};
+use stores::product_store::{self, ProductState};
+use stores::sales_store::{self, SalesState};
+use stores::shift_store::{self, ShiftState};
 
-mod printer_manager;
-mod sale_manager;
-mod product_manager;
 mod customer_manager;
 mod pricing_manager;
+mod printer_manager;
+mod product_manager;
+mod sale_manager;
 
 mod api_config;
 mod security;
@@ -43,7 +43,6 @@ use network_monitor::NetworkState;
 
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
-
 
 #[cfg(test)]
 mod pricing_tests;
@@ -99,10 +98,13 @@ fn open_shift_command(
             serde_json::json!({ "shift_id": shift.id, "float": float_amount }),
         );
 
-        let _ = app.track_event("shift_opened", Some(serde_json::json!({ 
-            "shift_id": shift.id, 
-            "float": float_amount 
-        })));
+        let _ = app.track_event(
+            "shift_opened",
+            Some(serde_json::json!({
+                "shift_id": shift.id,
+                "float": float_amount
+            })),
+        );
     }
 
     result
@@ -140,11 +142,14 @@ async fn close_shift_command(
         }),
     );
 
-    let _ =app.track_event("shift_closed", Some(serde_json::json!({
-        "shift_id": closed_shift.id,
-        "total_cash_sales": closed_shift.total_cash_sales,
-        "variance": closed_shift.variance
-    })));
+    let _ = app.track_event(
+        "shift_closed",
+        Some(serde_json::json!({
+            "shift_id": closed_shift.id,
+            "total_cash_sales": closed_shift.total_cash_sales,
+            "variance": closed_shift.variance
+        })),
+    );
 
     let report_text = shift_store::generate_z_report_text(&closed_shift);
 
@@ -188,7 +193,9 @@ pub fn run() {
     // -----------------------------
 
     #[cfg(not(debug_assertions))]
-    let builder = tauri::Builder::default().plugin(tauri_plugin_sentry::init(&client));
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build())
+        .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
     let builder = tauri::Builder::default();
@@ -261,7 +268,10 @@ pub fn run() {
             }
 
             // Check for old pending sales and notify user
-            let old_sales = sales_store::check_old_pending_sales(&sales_state, 3);
+            let old_sales = tauri::async_runtime::block_on(
+                sales_store::check_old_pending_sales(&sales_state, 3)
+            );
+            
             if !old_sales.is_empty() {
                 let notification = notification_manager::AppNotification::new(
                     notification_manager::NotificationType::Warning,
@@ -280,7 +290,10 @@ pub fn run() {
             }
 
             // Check for failed sales and notify
-            let failed_sales = sales_store::check_failed_sales(&sales_state, 5);
+            let failed_sales = tauri::async_runtime::block_on(
+                sales_store::check_failed_sales(&sales_state, 5)
+            );
+            
             if !failed_sales.is_empty() {
                 let _ = app.emit("failed-sales-detected", failed_sales);
             }

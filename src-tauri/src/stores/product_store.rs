@@ -499,16 +499,12 @@ pub fn search_local(
         .collect();
 
     let total_count = filtered.len();
-    
+
     let p = page.unwrap_or(1);
     let ps = page_size.unwrap_or(50);
     let start = (p - 1) * ps;
-    
-    let paginated_products = filtered
-        .into_iter()
-        .skip(start)
-        .take(ps)
-        .collect();
+
+    let paginated_products = filtered.into_iter().skip(start).take(ps).collect();
 
     crate::models::ProductSearchResponse {
         products: paginated_products,

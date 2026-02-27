@@ -87,7 +87,6 @@ pub async fn sync_sales_command(
     state: State<'_, SalesState>,
     auth_state: State<'_, AuthState>,
 ) -> Result<String, String> {
-    // Pass auth_state to the logic
     match sales_store::sync_pending_sales(app, &state, &auth_state).await {
         Ok(count) => Ok(format!("Synced {} sales", count)),
         Err(e) => Err(e.to_string()),
@@ -95,8 +94,10 @@ pub async fn sync_sales_command(
 }
 
 #[tauri::command]
-pub fn get_pending_sales_command(state: State<'_, SalesState>) -> Vec<models::QueuedSale> {
-    sales_store::get_queue_status(&state)
+pub async fn get_pending_sales_command(
+    state: State<'_, SalesState>,
+) -> Result<Vec<models::QueuedSale>, String> {
+    Ok(sales_store::get_queue_status(&state).await)
 }
 
 #[tauri::command]
@@ -112,19 +113,19 @@ pub async fn retry_sale_command(
 }
 
 #[tauri::command]
-pub fn check_old_sales_command(
+pub async fn check_old_sales_command(
     state: State<'_, SalesState>,
     days_threshold: u64,
-) -> Vec<models::QueuedSale> {
-    sales_store::check_old_pending_sales(&state, days_threshold)
+) -> Result<Vec<models::QueuedSale>, String> {
+    Ok(sales_store::check_old_pending_sales(&state, days_threshold).await)
 }
 
 #[tauri::command]
-pub fn check_failed_sales_command(
+pub async fn check_failed_sales_command(
     state: State<'_, SalesState>,
     retry_threshold: u32,
-) -> Vec<models::QueuedSale> {
-    sales_store::check_failed_sales(&state, retry_threshold)
+) -> Result<Vec<models::QueuedSale>, String> {
+    Ok(sales_store::check_failed_sales(&state, retry_threshold).await)
 }
 
 #[tauri::command]
