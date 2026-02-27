@@ -1,3 +1,21 @@
+# [3.1.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.0.1...v3.1.0) (2026-02-27)
+
+
+### Bug Fixes
+
+* **auth:** updated the login and delivery store to use the updated auth logic ([5a5ba10](https://github.com/larrybwosi/dealio-desktop/commit/5a5ba10a8eeec4f6c8a457483ccee983c5447e3f))
+* **build and customer screen:** updated the customer screen to have the close button and correted ci ([6c39a10](https://github.com/larrybwosi/dealio-desktop/commit/6c39a1012ea5e143f8858e63dd7f7f27f1c9e949))
+* **build test:** corrected the tests that caused the ci/cd to fail ([f0df0ec](https://github.com/larrybwosi/dealio-desktop/commit/f0df0ecc67c3247c136b886f25cd0ccc86e1e329))
+* **build:** mismatch of packages ([687cf7c](https://github.com/larrybwosi/dealio-desktop/commit/687cf7c37ae44d28bf11155ba108042ff1a5e28e))
+* **sale manager:** sale manager updates and the scanner manger ([27e2ad0](https://github.com/larrybwosi/dealio-desktop/commit/27e2ad005400be94c4e7e550575996acf6c4357d))
+
+
+### Features
+
+* **location switching:** proper logout after location switch to properly login in the  selected loc ([db81f93](https://github.com/larrybwosi/dealio-desktop/commit/db81f93d55e069607c787ec4c7f4f022177951ea))
+* **manual update check:** manual checks and general tab update ([3100cbb](https://github.com/larrybwosi/dealio-desktop/commit/3100cbb58582c574385ecdc5afb67c48ccde2bac))
+* **product pagination:** added proper pagination for large inventories ([d03e9d0](https://github.com/larrybwosi/dealio-desktop/commit/d03e9d066691d665bb41134705693c3869265f13))
+
 # [3.1.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.3...v3.1.0-beta.4) (2026-02-27)
 
 
