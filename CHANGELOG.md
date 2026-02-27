@@ -1,3 +1,11 @@
+# [3.1.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.2...v3.1.0-beta.3) (2026-02-26)
+
+
+### Features
+
+* **location switching:** proper logout after location switch to properly login in the  selected loc ([db81f93](https://github.com/larrybwosi/dealio-desktop/commit/db81f93d55e069607c787ec4c7f4f022177951ea))
+* **manual update check:** manual checks and general tab update ([3100cbb](https://github.com/larrybwosi/dealio-desktop/commit/3100cbb58582c574385ecdc5afb67c48ccde2bac))
+
 # [3.1.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.1...v3.1.0-beta.2) (2026-02-26)
 
 
