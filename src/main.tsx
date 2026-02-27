@@ -7,8 +7,6 @@ import { setupGlobalErrorCapture } from "./lib/logger";
 import './index.css';
 
 // Capture unhandled errors and promise rejections → persisted to log files
-
-// APTABASE = A-EU-2394517177
 setupGlobalErrorCapture();
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
