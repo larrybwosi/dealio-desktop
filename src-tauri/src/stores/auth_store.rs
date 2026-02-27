@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
-#[cfg(test)]
-mod tests;
+
 
 // --- Data Types ---
 

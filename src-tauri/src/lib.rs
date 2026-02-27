@@ -45,9 +45,7 @@ mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
 #[cfg(test)]
-mod pricing_tests;
-#[cfg(test)]
-mod test_utils;
+mod tests;
 
 // --- SHIFT COMMANDS ---
 
