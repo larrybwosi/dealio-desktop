@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
-use std::sync::Mutex;
+use std::sync::RwLock;
 use tauri::{AppHandle, Emitter};
 
 const MAX_NOTIFICATIONS: usize = 100;
@@ -73,52 +73,65 @@ impl AppNotification {
     }
 }
 
+// ─── State – uses RwLock so concurrent reads don't block each other ───────────
 pub struct NotificationState {
-    notifications: Mutex<VecDeque<AppNotification>>,
+    notifications: RwLock<VecDeque<AppNotification>>,
 }
 
 impl NotificationState {
     pub fn new() -> Self {
         Self {
-            notifications: Mutex::new(VecDeque::new()),
+            notifications: RwLock::new(VecDeque::new()),
         }
     }
 
-    pub fn add_notification(&self, notification: AppNotification) {
-        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
+    fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, VecDeque<AppNotification>> {
+        self.notifications
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+    }
 
-        // Auto-clear old notifications before adding new one
+    fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, VecDeque<AppNotification>> {
+        self.notifications
+            .write()
+            .unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Add a notification. Duplicates (same `id`) are silently ignored.
+    pub fn add_notification(&self, notification: AppNotification) {
+        let mut notifications = self.write_lock();
+
+        // ── Deduplication: reject if we already have this ID ──────────────────
+        if notifications.iter().any(|n| n.id == notification.id) {
+            log::debug!(
+                "[NotificationState] Duplicate notification suppressed: {}",
+                notification.id
+            );
+            return;
+        }
+
+        // Auto-clear old read notifications before inserting
         self.auto_clear_old(&mut notifications);
 
-        // Add to front (newest first)
-        notifications.push_front(notification.clone());
+        // Insert newest first
+        notifications.push_front(notification);
 
-        // Keep only MAX_NOTIFICATIONS
+        // Enforce maximum size
         if notifications.len() > MAX_NOTIFICATIONS {
             notifications.truncate(MAX_NOTIFICATIONS);
         }
     }
 
     pub fn get_all(&self) -> Vec<AppNotification> {
-        self.notifications
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .iter()
-            .cloned()
-            .collect()
+        self.read_lock().iter().cloned().collect()
     }
 
     pub fn get_unread_count(&self) -> usize {
-        self.notifications
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|n| !n.read)
-            .count()
+        self.read_lock().iter().filter(|n| !n.read).count()
     }
 
     pub fn mark_read(&self, id: &str) -> bool {
-        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
+        let mut notifications = self.write_lock();
         if let Some(notification) = notifications.iter_mut().find(|n| n.id == id) {
             notification.read = true;
             return true;
@@ -127,14 +140,14 @@ impl NotificationState {
     }
 
     pub fn mark_all_read(&self) {
-        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
+        let mut notifications = self.write_lock();
         for notification in notifications.iter_mut() {
             notification.read = true;
         }
     }
 
     pub fn delete_notification(&self, id: &str) -> bool {
-        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
+        let mut notifications = self.write_lock();
         if let Some(pos) = notifications.iter().position(|n| n.id == id) {
             notifications.remove(pos);
             return true;
@@ -143,8 +156,7 @@ impl NotificationState {
     }
 
     pub fn clear_all(&self) {
-        let mut notifications = self.notifications.lock().unwrap_or_else(|e| e.into_inner());
-        notifications.clear();
+        self.write_lock().clear();
     }
 
     pub fn load_from_store(&self, app: &AppHandle) -> Result<(), String> {
@@ -158,8 +170,7 @@ impl NotificationState {
             if let Ok(loaded_notifications) =
                 serde_json::from_value::<Vec<AppNotification>>(value.clone())
             {
-                let mut notifications =
-                    self.notifications.lock().unwrap_or_else(|e| e.into_inner());
+                let mut notifications = self.write_lock();
                 notifications.clear();
                 notifications.extend(loaded_notifications);
             }
@@ -196,7 +207,7 @@ impl NotificationState {
     }
 }
 
-// Commands
+// ─── Commands ─────────────────────────────────────────────────────────────────
 
 #[tauri::command]
 pub async fn send_native_notification(
@@ -206,31 +217,36 @@ pub async fn send_native_notification(
 ) -> Result<String, String> {
     use tauri_plugin_notification::NotificationExt;
 
-    // Add to state
+    let id = notification.id.clone();
+
+    // Add to in-memory state (dedup check inside)
     state.add_notification(notification.clone());
 
-    // Save to store
-    let _ = state.save_to_store(&app);
+    // Persist
+    if let Err(e) = state.save_to_store(&app) {
+        log::warn!("[NotificationState] save_to_store failed: {}", e);
+    }
 
-    // Send native OS notification
+    // Send native OS notification (best-effort)
     let builder = app
         .notification()
         .builder()
         .title(&notification.title)
         .body(&notification.body);
 
-    builder
-        .show()
-        .map_err(|e| format!("Failed to show notification: {}", e))?;
+    if let Err(e) = builder.show() {
+        log::warn!("[NotificationState] Native notification show failed: {}", e);
+        // Do NOT return an error – the in-app notification already fires from the frontend
+    }
 
-    // Emit event to frontend
+    // Emit event to frontend (so the notification center updates)
     app.emit("notification-received", &notification)
         .map_err(|e| format!("Failed to emit event: {}", e))?;
 
     // Update tray badge
     update_tray_badge(&app, &state)?;
 
-    Ok(notification.id)
+    Ok(id)
 }
 
 #[tauri::command]
@@ -254,8 +270,10 @@ pub fn mark_notification_read(
     let result = state.mark_read(&id);
 
     if result {
-        let _ = state.save_to_store(&app);
-        let _ = update_tray_badge(&app, &state);
+        if let Err(e) = state.save_to_store(&app) {
+            log::warn!("[NotificationState] save_to_store after mark_read failed: {}", e);
+        }
+        update_tray_badge(&app, &state)?;
     }
 
     Ok(result)
@@ -267,8 +285,10 @@ pub fn mark_all_notifications_read(
     state: tauri::State<'_, NotificationState>,
 ) -> Result<(), String> {
     state.mark_all_read();
-    let _ = state.save_to_store(&app);
-    let _ = update_tray_badge(&app, &state);
+    if let Err(e) = state.save_to_store(&app) {
+        log::warn!("[NotificationState] save_to_store after mark_all_read failed: {}", e);
+    }
+    update_tray_badge(&app, &state)?;
     Ok(())
 }
 
@@ -281,8 +301,10 @@ pub fn delete_notification(
     let result = state.delete_notification(&id);
 
     if result {
-        let _ = state.save_to_store(&app);
-        let _ = update_tray_badge(&app, &state);
+        if let Err(e) = state.save_to_store(&app) {
+            log::warn!("[NotificationState] save_to_store after delete failed: {}", e);
+        }
+        update_tray_badge(&app, &state)?;
     }
 
     Ok(result)
@@ -294,21 +316,20 @@ pub fn clear_all_notifications(
     state: tauri::State<'_, NotificationState>,
 ) -> Result<(), String> {
     state.clear_all();
-    let _ = state.save_to_store(&app);
-    let _ = update_tray_badge(&app, &state);
+    if let Err(e) = state.save_to_store(&app) {
+        log::warn!("[NotificationState] save_to_store after clear_all failed: {}", e);
+    }
+    update_tray_badge(&app, &state)?;
     Ok(())
 }
 
-// Helper function to update system tray badge
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+
 fn update_tray_badge(app: &AppHandle, state: &NotificationState) -> Result<(), String> {
     let unread_count = state.get_unread_count();
 
-    // Emit event to frontend to update UI badge
     app.emit("notification-badge-update", unread_count)
         .map_err(|e| format!("Failed to emit badge update: {}", e))?;
-
-    // On Windows, we'll need to dynamically generate tray icon with badge overlay
-    // This will be implemented in lib.rs setup
 
     Ok(())
 }
@@ -316,6 +337,6 @@ fn update_tray_badge(app: &AppHandle, state: &NotificationState) -> Result<(), S
 // Initialize notification state from store on app startup
 pub fn init_notification_state(app: &AppHandle, state: &NotificationState) {
     if let Err(e) = state.load_from_store(app) {
-        eprintln!("Failed to load notification history: {}", e);
+        log::error!("[NotificationState] Failed to load notification history: {}", e);
     }
 }

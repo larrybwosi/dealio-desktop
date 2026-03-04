@@ -1,67 +1,121 @@
 "use client"
 
-import { useEffect } from "react"
-import { usePosStore } from "@/store/store"
-// import { ShoppingCart, Package, AlertCircle, CheckCircle, Info, XCircle } from "lucide-react"
+import { useEffect, useRef } from "react"
+import { toast } from "sonner"
+import { 
+  ShoppingCart, 
+  Package, 
+  AlertCircle, 
+  CheckCircle, 
+  Info, 
+  XCircle,
+  RefreshCw
+} from "lucide-react"
+import { type AppNotification, type NotificationType } from "@/lib/notification-service"
 
+/** 
+ * NotificationToast
+ * Listens to the 'show-notification-toast' CustomEvent dispatched by
+ * NotificationService and renders a Sonner toast for each incoming notification.
+ * High-priority notifications are persistent (no auto-dismiss).
+ */
 export function NotificationToast() {
-  const notifications = usePosStore((state) => state.notifications)
-  const notificationSettings = usePosStore((state) => state.settings.notificationSettings)
+  // Dedup: track recently shown toast IDs to avoid double-firing
+  const shownIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!notificationSettings?.enabled) return
+    const handleToastEvent = (event: Event) => {
+      const notification = (event as CustomEvent<AppNotification>).detail;
 
-    const latestNotification = notifications[0]
-    if (!latestNotification) return
+      if (!notification?.id) return;
 
-    // Check if this notification should be shown as toast
-    const shouldShow =
-      (latestNotification.type === "order" && notificationSettings.showOnlineOrders) ||
-      (latestNotification.type === "stock" && notificationSettings.showLowStock) ||
-      (["system", "warning", "error", "success"].includes(latestNotification.type) &&
-        notificationSettings.showSystemAlerts)
+      // Suppress duplicates
+      if (shownIds.current.has(notification.id)) return;
+      shownIds.current.add(notification.id);
 
-    if (!shouldShow) return
+      // Clean up old entries (keep last 100)
+      if (shownIds.current.size > 100) {
+        const arr = [...shownIds.current];
+        shownIds.current = new Set(arr.slice(-100));
+      }
 
-    // Play sound if enabled
-    if (latestNotification.soundEnabled && notificationSettings.soundEnabled) {
-      const audio = new Audio("/notification-sound.mp3")
-      audio.volume = 0.5
-      audio.play().catch(() => {
-        // Ignore if sound fails to play
-      })
-    }
+      const { title, body, notificationType, priority } = notification;
 
-    // Get icon based on type
-    // const getIcon = () => {
-    //   switch (latestNotification.type) {
-    //     case "order":
-    //       return <ShoppingCart className="h-5 w-5" />
-    //     case "stock":
-    //       return <Package className="h-5 w-5" />
-    //     case "warning":
-    //       return <AlertCircle className="h-5 w-5" />
-    //     case "error":
-    //       return <XCircle className="h-5 w-5" />
-    //     case "success":
-    //       return <CheckCircle className="h-5 w-5" />
-    //     default:
-    //       return <Info className="h-5 w-5" />
-    //   }
-    // }
+      // High-priority notifications stay until dismissed
+      const duration = priority === 'high' ? Infinity : 5_000;
 
-    // Show toast notification using the built-in toast system
-    // toast({
-    //   title: (
-    //     <div className="flex items-center gap-2">
-    //       {getIcon()}
-    //       <span>{latestNotification.title}</span>
-    //     </div>
-    //   ),
-    //   description: latestNotification.message,
-    //   variant: latestNotification.type === "error" ? "destructive" : "default",
-    // })
-  }, [notifications, notificationSettings])
+      const Icon = getIcon(notificationType);
 
-  return null
+      switch (notificationType) {
+        case 'error':
+          toast.error(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4" />,
+          });
+          break;
+
+        case 'warning':
+          toast.warning(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4" />,
+          });
+          break;
+
+        case 'success':
+          toast.success(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4" />,
+          });
+          break;
+
+        case 'sale':
+          toast.success(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4 text-blue-500" />,
+            classNames: {
+              toast: 'border-blue-200 dark:border-blue-800',
+              icon: 'text-blue-500',
+            },
+          });
+          break;
+
+        case 'sync':
+          toast(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4 text-violet-500 animate-spin" />,
+          });
+          break;
+
+        default:
+          toast(title, {
+            description: body,
+            duration,
+            icon: <Icon className="h-4 w-4" />,
+          });
+      }
+    };
+
+    window.addEventListener('show-notification-toast', handleToastEvent);
+    return () => window.removeEventListener('show-notification-toast', handleToastEvent);
+  }, []);
+
+  return null;
+}
+
+// ─── Icon helpers ─────────────────────────────────────────────────────────────
+function getIcon(type: NotificationType) {
+  switch (type) {
+    case 'sale':     return ShoppingCart;
+    case 'sync':     return RefreshCw;
+    case 'warning':  return AlertCircle;
+    case 'error':    return XCircle;
+    case 'success':  return CheckCircle;
+    case 'system':   return Package;
+    default:         return Info;
+  }
 }
