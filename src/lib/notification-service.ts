@@ -92,7 +92,7 @@ class NotificationService {
     });
 
     // Listen for notifications pushed from the backend
-    await listen<AppNotification>('notification-received', (event) => {
+    await listen<AppNotification>('notification-received', event => {
       this.handleIncomingNotification(event.payload);
     });
 
@@ -114,21 +114,20 @@ class NotificationService {
     this.retryQueue = [];
 
     for (const item of batch) {
-      invoke<string>('send_native_notification', { notification: item.notification })
-        .catch((error: unknown) => {
-          if (item.attempt < SEND_MAX_RETRIES) {
-            console.warn(
-              `[NotificationService] Retry ${item.attempt + 1}/${SEND_MAX_RETRIES} for notification "${item.notification.id}"`
-            );
-            this.retryQueue.push({ notification: item.notification, attempt: item.attempt + 1 });
-          } else {
-            console.error(
-              `[NotificationService] Permanently failed to persist notification "${item.notification.id}" after ${SEND_MAX_RETRIES} retries:`,
-              error
-            );
-            this.errorHandlers.forEach((h) => h(item.notification, error));
-          }
-        });
+      invoke<string>('send_native_notification', { notification: item.notification }).catch((error: unknown) => {
+        if (item.attempt < SEND_MAX_RETRIES) {
+          console.warn(
+            `[NotificationService] Retry ${item.attempt + 1}/${SEND_MAX_RETRIES} for notification "${item.notification.id}"`
+          );
+          this.retryQueue.push({ notification: item.notification, attempt: item.attempt + 1 });
+        } else {
+          console.error(
+            `[NotificationService] Permanently failed to persist notification "${item.notification.id}" after ${SEND_MAX_RETRIES} retries:`,
+            error
+          );
+          this.errorHandlers.forEach(h => h(item.notification, error));
+        }
+      });
     }
   }
 
@@ -143,7 +142,7 @@ class NotificationService {
     }
 
     // Notify all listeners
-    this.listeners.forEach((listener) => {
+    this.listeners.forEach(listener => {
       try {
         listener(notification);
       } catch (err) {
@@ -186,7 +185,7 @@ class NotificationService {
     }
 
     // ③ Notify listeners immediately
-    this.listeners.forEach((listener) => {
+    this.listeners.forEach(listener => {
       try {
         listener(notification);
       } catch (err) {
@@ -291,7 +290,7 @@ class NotificationService {
   subscribe(callback: (notification: AppNotification) => void): () => void {
     this.listeners.push(callback);
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== callback);
+      this.listeners = this.listeners.filter(l => l !== callback);
     };
   }
 
@@ -302,7 +301,7 @@ class NotificationService {
   onSendError(handler: (notification: AppNotification, error: unknown) => void): () => void {
     this.errorHandlers.push(handler);
     return () => {
-      this.errorHandlers = this.errorHandlers.filter((h) => h !== handler);
+      this.errorHandlers = this.errorHandlers.filter(h => h !== handler);
     };
   }
 
@@ -329,7 +328,7 @@ class NotificationService {
     try {
       const audio = new Audio(sound.file);
       audio.volume = this.settings.soundVolume;
-      audio.play().catch((e) => console.warn('[NotificationService] Audio play failed:', e));
+      audio.play().catch(e => console.warn('[NotificationService] Audio play failed:', e));
     } catch (error) {
       console.warn('[NotificationService] Failed to create Audio:', error);
     }

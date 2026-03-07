@@ -197,32 +197,18 @@ export function HeldOrdersDialog({ open, onOpenChange }: HeldOrdersDialogProps) 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm" className="gap-1.5">
-                    {sortBy.includes('asc') ? (
-                      <ChevronUp className="w-4 h-4" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4" />
-                    )}
+                    {sortBy.includes('asc') ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                     Sort
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSortBy('time-desc')}>
-                    Newest First
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy('time-asc')}>
-                    Oldest First
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('time-desc')}>Newest First</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('time-asc')}>Oldest First</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSortBy('priority')}>
-                    By Priority
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('priority')}>By Priority</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setSortBy('total-desc')}>
-                    Highest Total
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setSortBy('total-asc')}>
-                    Lowest Total
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('total-desc')}>Highest Total</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSortBy('total-asc')}>Lowest Total</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -313,15 +299,11 @@ export function HeldOrdersDialog({ open, onOpenChange }: HeldOrdersDialogProps) 
                         </div>
 
                         {order.reason && (
-                          <p className="mt-2 text-xs italic text-muted-foreground truncate">
-                            "{order.reason}"
-                          </p>
+                          <p className="mt-2 text-xs italic text-muted-foreground truncate">"{order.reason}"</p>
                         )}
 
                         {order.heldByName && (
-                          <p className="mt-1 text-[10px] text-muted-foreground">
-                            Held by: {order.heldByName}
-                          </p>
+                          <p className="mt-1 text-[10px] text-muted-foreground">Held by: {order.heldByName}</p>
                         )}
                       </div>
 
@@ -400,8 +382,7 @@ export function HeldOrdersDialog({ open, onOpenChange }: HeldOrdersDialogProps) 
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Held Order?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action cannot be undone. The held order and all its items will be permanently
-              removed.
+              This action cannot be undone. The held order and all its items will be permanently removed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

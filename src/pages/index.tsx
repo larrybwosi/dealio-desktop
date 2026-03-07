@@ -29,7 +29,6 @@ export default function Home() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
           <div className="flex items-center gap-6 flex-1">
@@ -50,10 +49,7 @@ export default function Home() {
             <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
               <Settings className="h-5 w-5" />
             </Button>
-            <NotificationSettingsDialog 
-              open={showNotificationSettings} 
-              onOpenChange={setShowNotificationSettings} 
-            />
+            <NotificationSettingsDialog open={showNotificationSettings} onOpenChange={setShowNotificationSettings} />
 
             <Button
               variant="outline"
@@ -72,7 +68,6 @@ export default function Home() {
           </div>
         </header>
       </div>
-
 
       <AlertDialog open={showCheckoutDialog} onOpenChange={setShowCheckoutDialog}>
         <AlertDialogContent>

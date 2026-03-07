@@ -71,8 +71,8 @@ type ExtendedCustomer = Omit<Customer, 'address'> & {
   customerType: string;
   dateOfBirth?: string;
   loyaltyTierId?: string;
-  creationType?:string,
-  deliveryNotes?:string,
+  creationType?: string;
+  deliveryNotes?: string;
 };
 
 export default function CustomerForm({

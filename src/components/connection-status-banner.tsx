@@ -1,8 +1,8 @@
-"use client"
+'use client';
 
-import { useEffect, useState } from "react"
-import { Wifi, WifiOff, RefreshCw, AlertTriangle, X } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { useEffect, useState } from 'react';
+import { Wifi, WifiOff, RefreshCw, AlertTriangle, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type ConnectionState =
   | 'connected'
@@ -75,7 +75,7 @@ function getStatusConfig(state: ConnectionState) {
 
 /**
  * ConnectionStatusBanner
- * 
+ *
  * A non-intrusive banner that appears at the top of the app only when the
  * Ably connection is degraded. Disappears automatically once reconnected.
  * Staff can also manually dismiss it (it will reappear if state worsens again).
@@ -114,25 +114,15 @@ export function ConnectionStatusBanner() {
       role="alert"
       aria-live="polite"
       className={cn(
-        "fixed top-0 inset-x-0 z-[200] flex items-center justify-between gap-3",
-        "px-4 py-2 text-sm border-b backdrop-blur-sm transition-all duration-300",
+        'fixed top-0 inset-x-0 z-[200] flex items-center justify-between gap-3',
+        'px-4 py-2 text-sm border-b backdrop-blur-sm transition-all duration-300',
         config.className
       )}
     >
       <div className="flex items-center gap-2 min-w-0">
-        <Icon
-          className={cn(
-            "h-4 w-4 shrink-0",
-            config.iconClass,
-            config.spinning && "animate-spin"
-          )}
-        />
+        <Icon className={cn('h-4 w-4 shrink-0', config.iconClass, config.spinning && 'animate-spin')} />
         <span className="font-medium truncate">{config.label}</span>
-        {config.sublabel && (
-          <span className="text-xs opacity-70 truncate hidden sm:inline">
-            — {config.sublabel}
-          </span>
-        )}
+        {config.sublabel && <span className="text-xs opacity-70 truncate hidden sm:inline">— {config.sublabel}</span>}
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
@@ -150,5 +140,5 @@ export function ConnectionStatusBanner() {
         </button>
       </div>
     </div>
-  )
+  );
 }

@@ -2,13 +2,20 @@
 
 import { useState } from 'react';
 import { useReconcileDeliveryMutation } from '@/hooks/deliveries';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { CheckCircle2, XCircle, Upload, X, ImageIcon } from 'lucide-react';
-import { toast } from "sonner";
+import { toast } from 'sonner';
 
 interface ReconciliationDialogProps {
   open: boolean;
@@ -23,16 +30,12 @@ interface ReconcileForm {
   proofImage: File | null;
 }
 
-export function ReconciliationDialog({ 
-  open, 
-  onOpenChange, 
-  fulfillmentId 
-}: ReconciliationDialogProps) {
+export function ReconciliationDialog({ open, onOpenChange, fulfillmentId }: ReconciliationDialogProps) {
   const [reconcileForm, setReconcileForm] = useState<ReconcileForm>({
     outcome: 'DELIVERED',
     receivedBy: '',
     failureReason: '',
-    proofImage: null
+    proofImage: null,
   });
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
@@ -40,7 +43,7 @@ export function ReconciliationDialog({
     fulfillmentId: fulfillmentId || null,
     onSuccess: () => {
       handleClose();
-    }
+    },
   });
 
   const handleClose = () => {
@@ -54,18 +57,18 @@ export function ReconciliationDialog({
     if (file) {
       // Validate file size (10MB)
       if (file.size > 10 * 1024 * 1024) {
-        toast.error("File size must be less than 10MB");
+        toast.error('File size must be less than 10MB');
         return;
       }
 
       // Validate file type
       if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-        toast.error("Only JPG, PNG, and WebP images are allowed");
+        toast.error('Only JPG, PNG, and WebP images are allowed');
         return;
       }
 
       setReconcileForm(p => ({ ...p, proofImage: file }));
-      
+
       // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -82,19 +85,19 @@ export function ReconciliationDialog({
 
   const submitReconciliation = () => {
     if (!fulfillmentId) {
-      toast.error("No fulfillment ID found for this transaction");
+      toast.error('No fulfillment ID found for this transaction');
       return;
     }
 
     // Validation
     if (reconcileForm.outcome === 'FAILED' && !reconcileForm.failureReason.trim()) {
-      toast.error("Please provide a failure reason");
+      toast.error('Please provide a failure reason');
       return;
     }
 
     const formData = new FormData();
     formData.append('outcome', reconcileForm.outcome);
-    
+
     if (reconcileForm.outcome === 'DELIVERED' && reconcileForm.receivedBy.trim()) {
       formData.append('receivedBy', reconcileForm.receivedBy);
     }
@@ -108,9 +111,8 @@ export function ReconciliationDialog({
     reconcileMutation.mutate(formData);
   };
 
-  const isSubmitDisabled = 
-    reconcileMutation.isPending || 
-    (reconcileForm.outcome === 'FAILED' && !reconcileForm.failureReason.trim());
+  const isSubmitDisabled =
+    reconcileMutation.isPending || (reconcileForm.outcome === 'FAILED' && !reconcileForm.failureReason.trim());
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -122,46 +124,50 @@ export function ReconciliationDialog({
             <span className="font-mono text-foreground font-medium">{fulfillmentId}</span>
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="space-y-6 py-4">
           {/* Outcome Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Delivery Outcome *</Label>
             <div className="grid grid-cols-2 gap-3">
-              <Button 
+              <Button
                 type="button"
                 variant={reconcileForm.outcome === 'DELIVERED' ? 'default' : 'outline'}
                 size="lg"
                 className={`h-auto py-4 transition-all ${
-                  reconcileForm.outcome === 'DELIVERED' 
-                    ? 'bg-green-600 hover:bg-green-700 border-green-600' 
+                  reconcileForm.outcome === 'DELIVERED'
+                    ? 'bg-green-600 hover:bg-green-700 border-green-600'
                     : 'hover:border-green-600 hover:text-green-600'
                 }`}
-                onClick={() => setReconcileForm(p => ({
-                  ...p, 
-                  outcome: 'DELIVERED',
-                  failureReason: '' // Clear failure reason when switching
-                }))}
+                onClick={() =>
+                  setReconcileForm(p => ({
+                    ...p,
+                    outcome: 'DELIVERED',
+                    failureReason: '', // Clear failure reason when switching
+                  }))
+                }
               >
                 <div className="flex flex-col items-center gap-2">
                   <CheckCircle2 className="h-5 w-5" />
                   <span className="font-semibold">Delivered</span>
                 </div>
               </Button>
-              <Button 
+              <Button
                 type="button"
                 variant={reconcileForm.outcome === 'FAILED' ? 'default' : 'outline'}
                 size="lg"
                 className={`h-auto py-4 transition-all ${
-                  reconcileForm.outcome === 'FAILED' 
-                    ? 'bg-red-600 hover:bg-red-700 border-red-600' 
+                  reconcileForm.outcome === 'FAILED'
+                    ? 'bg-red-600 hover:bg-red-700 border-red-600'
                     : 'hover:border-red-600 hover:text-red-600'
                 }`}
-                onClick={() => setReconcileForm(p => ({
-                  ...p, 
-                  outcome: 'FAILED',
-                  receivedBy: '' // Clear receivedBy when switching
-                }))}
+                onClick={() =>
+                  setReconcileForm(p => ({
+                    ...p,
+                    outcome: 'FAILED',
+                    receivedBy: '', // Clear receivedBy when switching
+                  }))
+                }
               >
                 <div className="flex flex-col items-center gap-2">
                   <XCircle className="h-5 w-5" />
@@ -177,32 +183,28 @@ export function ReconciliationDialog({
               <Label htmlFor="receivedBy" className="text-sm font-medium">
                 Received By <span className="text-muted-foreground font-normal">(Optional)</span>
               </Label>
-              <Input 
+              <Input
                 id="receivedBy"
                 placeholder="e.g. John Doe, Front Desk"
                 value={reconcileForm.receivedBy}
-                onChange={(e) => setReconcileForm(p => ({...p, receivedBy: e.target.value}))}
+                onChange={e => setReconcileForm(p => ({ ...p, receivedBy: e.target.value }))}
                 className="h-10"
               />
-              <p className="text-xs text-muted-foreground">
-                Name of the person who received the delivery
-              </p>
+              <p className="text-xs text-muted-foreground">Name of the person who received the delivery</p>
             </div>
           ) : (
             <div className="space-y-2">
               <Label htmlFor="failureReason" className="text-sm font-medium">
                 Failure Reason <span className="text-red-500">*</span>
               </Label>
-              <Textarea 
+              <Textarea
                 id="failureReason"
                 className="min-h-[100px] resize-none border-red-200 focus-visible:ring-red-500"
                 placeholder="Describe why the delivery failed (e.g., Customer not home, Wrong address, Customer refused delivery)"
                 value={reconcileForm.failureReason}
-                onChange={(e) => setReconcileForm(p => ({...p, failureReason: e.target.value}))}
+                onChange={e => setReconcileForm(p => ({ ...p, failureReason: e.target.value }))}
               />
-              <p className="text-xs text-muted-foreground">
-                This information will be logged for the delivery record
-              </p>
+              <p className="text-xs text-muted-foreground">This information will be logged for the delivery record</p>
             </div>
           )}
 
@@ -211,17 +213,17 @@ export function ReconciliationDialog({
             <Label htmlFor="proofImage" className="text-sm font-medium">
               Proof of Delivery Image <span className="text-muted-foreground font-normal">(Optional)</span>
             </Label>
-            
+
             {!imagePreview ? (
               <div className="relative">
-                <input 
+                <input
                   id="proofImage"
-                  type="file" 
+                  type="file"
                   accept="image/png,image/jpeg,image/webp"
                   className="hidden"
                   onChange={handleFileChange}
                 />
-                <label 
+                <label
                   htmlFor="proofImage"
                   className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                 >
@@ -236,11 +238,7 @@ export function ReconciliationDialog({
               </div>
             ) : (
               <div className="relative rounded-lg border overflow-hidden">
-                <img 
-                  src={imagePreview} 
-                  alt="Proof of delivery preview" 
-                  className="w-full h-48 object-cover"
-                />
+                <img src={imagePreview} alt="Proof of delivery preview" className="w-full h-48 object-cover" />
                 <Button
                   type="button"
                   variant="destructive"
@@ -262,17 +260,15 @@ export function ReconciliationDialog({
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button 
-            variant="outline" 
-            onClick={handleClose}
-            disabled={reconcileMutation.isPending}
-          >
+          <Button variant="outline" onClick={handleClose} disabled={reconcileMutation.isPending}>
             Cancel
           </Button>
-          <Button 
-            onClick={submitReconciliation} 
+          <Button
+            onClick={submitReconciliation}
             disabled={isSubmitDisabled}
-            className={reconcileForm.outcome === 'DELIVERED' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}
+            className={
+              reconcileForm.outcome === 'DELIVERED' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
+            }
           >
             {reconcileMutation.isPending ? (
               <>

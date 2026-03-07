@@ -29,7 +29,7 @@ export default function AddCustomerSheet({ open, onOpenChange }: AddCustomerShee
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl p-4">
         <SheetHeader className="mb-6">
-          <SheetTitle className='text-xl'>Add New Customer</SheetTitle>
+          <SheetTitle className="text-xl">Add New Customer</SheetTitle>
           <SheetDescription>
             Fill in the details below to create a new customer profile. Fields marked with{' '}
             <span className="text-red-500">*</span> are required.

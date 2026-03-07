@@ -1,60 +1,60 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { AlertCircle, ShieldCheck } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useState } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { AlertCircle, ShieldCheck } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface AgeVerificationDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onVerified: () => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onVerified: () => void;
 }
 
 export function AgeVerificationDialog({ open, onOpenChange, onVerified }: AgeVerificationDialogProps) {
-  const [dateOfBirth, setDateOfBirth] = useState("")
-  const [idNumber, setIdNumber] = useState("")
-  const [error, setError] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+  const [error, setError] = useState('');
 
   const handleVerify = () => {
-    setError("")
+    setError('');
 
     if (!dateOfBirth) {
-      setError("Please enter date of birth")
-      return
+      setError('Please enter date of birth');
+      return;
     }
 
-    const birthDate = new Date(dateOfBirth)
-    const today = new Date()
-    let age = today.getFullYear() - birthDate.getFullYear()
-    const monthDiff = today.getMonth() - birthDate.getMonth()
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
 
     if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--
+      age--;
     }
 
     if (age < 18) {
-      setError("Customer must be 18 years or older to purchase")
-      return
+      setError('Customer must be 18 years or older to purchase');
+      return;
     }
 
     if (!idNumber || idNumber.length < 4) {
-      setError("Please enter a valid ID number")
-      return
+      setError('Please enter a valid ID number');
+      return;
     }
 
     // Success - call onVerified callback
-    onVerified()
-    onOpenChange(false)
+    onVerified();
+    onOpenChange(false);
 
     // Reset form
-    setDateOfBirth("")
-    setIdNumber("")
-    setError("")
-  }
+    setDateOfBirth('');
+    setIdNumber('');
+    setError('');
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -76,8 +76,8 @@ export function AgeVerificationDialog({ open, onOpenChange, onVerified }: AgeVer
               id="dob"
               type="date"
               value={dateOfBirth}
-              onChange={(e) => setDateOfBirth(e.target.value)}
-              max={new Date().toISOString().split("T")[0]}
+              onChange={e => setDateOfBirth(e.target.value)}
+              max={new Date().toISOString().split('T')[0]}
             />
           </div>
 
@@ -88,7 +88,7 @@ export function AgeVerificationDialog({ open, onOpenChange, onVerified }: AgeVer
               type="text"
               placeholder="Enter ID number"
               value={idNumber}
-              onChange={(e) => setIdNumber(e.target.value)}
+              onChange={e => setIdNumber(e.target.value)}
               maxLength={10}
             />
           </div>
@@ -111,5 +111,5 @@ export function AgeVerificationDialog({ open, onOpenChange, onVerified }: AgeVer
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -18,7 +18,7 @@ export interface Variant {
   variantId: string;
   variantName: string;
   barcode: string;
-  updatedAt?: string; 
+  updatedAt?: string;
 }
 
 export interface PosProduct {
@@ -49,12 +49,12 @@ interface UsePosProductsParams {
 export function usePosProducts({ search, category, page = 1, pageSize = 50, enabled = true }: UsePosProductsParams) {
   const queryClient = useQueryClient();
   const setProducts = usePosStore(state => state.setProducts);
-  
+
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
-  const locationId = useAuthStore((state) => state.currentLocation?.id);
+  const locationId = useAuthStore(state => state.currentLocation?.id);
 
   // 2. Debounce the search input (500ms delay)
-  const safeSearch = search || "";
+  const safeSearch = search || '';
   const [debouncedSearch] = useDebounce(safeSearch, 500);
 
   // --- QUERY: Local Search ---
@@ -72,15 +72,15 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
       // Map backend totalStock to frontend stock
       return {
         products: response.products.map(p => ({
-            ...p,
-            stock: p.stock ?? p.totalStock ?? 0 
+          ...p,
+          stock: p.stock ?? p.totalStock ?? 0,
         })),
-        totalCount: response.totalCount
+        totalCount: response.totalCount,
       };
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
-    enabled: enabled, 
-    placeholderData: (prev) => prev,
+    enabled: enabled,
+    placeholderData: prev => prev,
   });
 
   const products = searchResponse.products;
@@ -91,13 +91,13 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
   // so that features like Low Stock Alerts works.
   useEffect(() => {
     if (products.length > 0 && !debouncedSearch && category === 'all' && page === 1) {
-        setProducts(products as any);
+      setProducts(products as any);
     }
   }, [products, debouncedSearch, category, page, setProducts]);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      if (!locationId) throw new Error("No Location ID");
+      if (!locationId) throw new Error('No Location ID');
 
       const res = await invoke('sync_products_command', {});
       return res;
@@ -106,7 +106,7 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
       // After syncing, invalidate the search cache so the new products appear immediately
       queryClient.invalidateQueries({ queryKey: ['pos-products'] });
     },
-    onError: (err) => console.error("Sync Failed:", err)
+    onError: err => console.error('Sync Failed:', err),
   });
 
   const handleSync = useCallback(() => {
@@ -121,6 +121,6 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
     isLoading: isSearching && products.length === 0, // Only show loading on initial load
     isSyncing: syncMutation.isPending,
     triggerSync: handleSync, // Attach this to a "Sync" button or a "Pull to Refresh"
-    error: syncMutation.error
+    error: syncMutation.error,
   };
 }

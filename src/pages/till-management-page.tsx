@@ -1,87 +1,87 @@
-"use client"
+'use client';
 
-import { useState, useMemo } from "react"
-import { usePosStore } from "@/store/store"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DollarSign, TrendingUp, TrendingDown, AlertCircle, Lock, Unlock, Plus, Minus, Calculator } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { useState, useMemo } from 'react';
+import { usePosStore } from '@/store/store';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { DollarSign, TrendingUp, TrendingDown, AlertCircle, Lock, Unlock, Plus, Minus, Calculator } from 'lucide-react';
+import { cn } from '@/lib/utils';
 // import { trackEvent } from "@aptabase/tauri";
 
 export default function TillManagementPage() {
-  const settings = usePosStore((state) => state.settings)
-  const cashDrawers = usePosStore((state) => state.cashDrawers)
-  const activeCashDrawerId = usePosStore((state) => state.activeCashDrawerId)
-  const openCashDrawer = usePosStore((state) => state.openCashDrawer)
-  const closeCashDrawer = usePosStore((state) => state.closeCashDrawer)
-  const addCashTransaction = usePosStore((state) => state.addCashTransaction)
+  const settings = usePosStore(state => state.settings);
+  const cashDrawers = usePosStore(state => state.cashDrawers);
+  const activeCashDrawerId = usePosStore(state => state.activeCashDrawerId);
+  const openCashDrawer = usePosStore(state => state.openCashDrawer);
+  const closeCashDrawer = usePosStore(state => state.closeCashDrawer);
+  const addCashTransaction = usePosStore(state => state.addCashTransaction);
   // const currentEmployeeId = usePosStore((state) => state.currentEmployeeId)
   // const employees = usePosStore((state) => state.employees)
 
-  const [openingBalance, setOpeningBalance] = useState("")
-  const [closingBalance, setClosingBalance] = useState("")
-  const [transactionAmount, setTransactionAmount] = useState("")
-  const [transactionNotes, setTransactionNotes] = useState("")
+  const [openingBalance, setOpeningBalance] = useState('');
+  const [closingBalance, setClosingBalance] = useState('');
+  const [transactionAmount, setTransactionAmount] = useState('');
+  const [transactionNotes, setTransactionNotes] = useState('');
 
-  const activeDrawer = cashDrawers.find((d) => d.id === activeCashDrawerId)
+  const activeDrawer = cashDrawers.find(d => d.id === activeCashDrawerId);
   // const currentEmployee = employees.find((e) => e.id === currentEmployeeId)
 
   // Calculate current balance
   const currentBalance = useMemo(() => {
-    if (!activeDrawer) return 0
-    const salesTotal = activeDrawer.transactions.filter((t) => t.type === "sale").reduce((sum, t) => sum + t.amount, 0)
-    const cashIn = activeDrawer.transactions.filter((t) => t.type === "cash-in").reduce((sum, t) => sum + t.amount, 0)
-    const cashOut = activeDrawer.transactions.filter((t) => t.type === "cash-out").reduce((sum, t) => sum + t.amount, 0)
-    const refunds = activeDrawer.transactions.filter((t) => t.type === "refund").reduce((sum, t) => sum + t.amount, 0)
+    if (!activeDrawer) return 0;
+    const salesTotal = activeDrawer.transactions.filter(t => t.type === 'sale').reduce((sum, t) => sum + t.amount, 0);
+    const cashIn = activeDrawer.transactions.filter(t => t.type === 'cash-in').reduce((sum, t) => sum + t.amount, 0);
+    const cashOut = activeDrawer.transactions.filter(t => t.type === 'cash-out').reduce((sum, t) => sum + t.amount, 0);
+    const refunds = activeDrawer.transactions.filter(t => t.type === 'refund').reduce((sum, t) => sum + t.amount, 0);
 
-    return activeDrawer.openingBalance + salesTotal + cashIn - cashOut - refunds
-  }, [activeDrawer])
+    return activeDrawer.openingBalance + salesTotal + cashIn - cashOut - refunds;
+  }, [activeDrawer]);
 
   const handleOpenDrawer = () => {
-    const amount = Number.parseFloat(openingBalance)
-    if (isNaN(amount) || amount < 0) return
-    openCashDrawer(amount)
+    const amount = Number.parseFloat(openingBalance);
+    if (isNaN(amount) || amount < 0) return;
+    openCashDrawer(amount);
     // trackEvent("cash_drawer_opened", { opening_balance: amount });
-    setOpeningBalance("")
-  }
+    setOpeningBalance('');
+  };
 
   const handleCloseDrawer = () => {
-    const amount = Number.parseFloat(closingBalance)
-    if (isNaN(amount) || amount < 0) return
-    // trackEvent("cash_drawer_closed", { 
-    //     closing_balance: amount, 
+    const amount = Number.parseFloat(closingBalance);
+    if (isNaN(amount) || amount < 0) return;
+    // trackEvent("cash_drawer_closed", {
+    //     closing_balance: amount,
     //     expected_balance: currentBalance,
     //     difference: amount - currentBalance
     // });
-    closeCashDrawer(amount)
-    setClosingBalance("")
-  }
+    closeCashDrawer(amount);
+    setClosingBalance('');
+  };
 
   const handleCashIn = () => {
-    const amount = Number.parseFloat(transactionAmount)
-    if (isNaN(amount) || amount <= 0) return
-    addCashTransaction("cash-in", amount, transactionNotes)
+    const amount = Number.parseFloat(transactionAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    addCashTransaction('cash-in', amount, transactionNotes);
     // trackEvent("cash_in_out", { type: "cash-in", amount });
-    setTransactionAmount("")
-    setTransactionNotes("")
-  }
+    setTransactionAmount('');
+    setTransactionNotes('');
+  };
 
   const handleCashOut = () => {
-    const amount = Number.parseFloat(transactionAmount)
-    if (isNaN(amount) || amount <= 0) return
-    addCashTransaction("cash-out", amount, transactionNotes)
+    const amount = Number.parseFloat(transactionAmount);
+    if (isNaN(amount) || amount <= 0) return;
+    addCashTransaction('cash-out', amount, transactionNotes);
     // trackEvent("cash_in_out", { type: "cash-out", amount });
-    setTransactionAmount("")
-    setTransactionNotes("")
-  }
+    setTransactionAmount('');
+    setTransactionNotes('');
+  };
 
   const formatCurrency = (amount: number) => {
-    return `${settings.currency} ${amount.toLocaleString()}`
-  }
+    return `${settings.currency} ${amount.toLocaleString()}`;
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -129,7 +129,7 @@ export default function TillManagementPage() {
         </Card>
       )}
 
-      <Tabs defaultValue={activeDrawer ? "operations" : "open"} className="space-y-6">
+      <Tabs defaultValue={activeDrawer ? 'operations' : 'open'} className="space-y-6">
         <TabsList>
           <TabsTrigger value="open" disabled={!!activeDrawer}>
             Open Till
@@ -160,7 +160,7 @@ export default function TillManagementPage() {
                     type="number"
                     placeholder="0.00"
                     value={openingBalance}
-                    onChange={(e) => setOpeningBalance(e.target.value)}
+                    onChange={e => setOpeningBalance(e.target.value)}
                     className="pl-10"
                   />
                 </div>
@@ -197,9 +197,7 @@ export default function TillManagementPage() {
                   <CardContent>
                     <div className="text-2xl font-bold text-emerald-600">
                       {formatCurrency(
-                        activeDrawer.transactions
-                          .filter((t) => t.type === "sale")
-                          .reduce((sum, t) => sum + t.amount, 0),
+                        activeDrawer.transactions.filter(t => t.type === 'sale').reduce((sum, t) => sum + t.amount, 0)
                       )}
                     </div>
                   </CardContent>
@@ -214,8 +212,8 @@ export default function TillManagementPage() {
                     <div className="text-2xl font-bold text-red-600">
                       {formatCurrency(
                         activeDrawer.transactions
-                          .filter((t) => t.type === "cash-out")
-                          .reduce((sum, t) => sum + t.amount, 0),
+                          .filter(t => t.type === 'cash-out')
+                          .reduce((sum, t) => sum + t.amount, 0)
                       )}
                     </div>
                   </CardContent>
@@ -249,7 +247,7 @@ export default function TillManagementPage() {
                           type="number"
                           placeholder="0.00"
                           value={transactionAmount}
-                          onChange={(e) => setTransactionAmount(e.target.value)}
+                          onChange={e => setTransactionAmount(e.target.value)}
                           className="pl-10"
                         />
                       </div>
@@ -260,7 +258,7 @@ export default function TillManagementPage() {
                         id="cashInNotes"
                         placeholder="Reason for cash in"
                         value={transactionNotes}
-                        onChange={(e) => setTransactionNotes(e.target.value)}
+                        onChange={e => setTransactionNotes(e.target.value)}
                       />
                     </div>
                     <Button onClick={handleCashIn} className="w-full" variant="default">
@@ -285,7 +283,7 @@ export default function TillManagementPage() {
                           type="number"
                           placeholder="0.00"
                           value={transactionAmount}
-                          onChange={(e) => setTransactionAmount(e.target.value)}
+                          onChange={e => setTransactionAmount(e.target.value)}
                           className="pl-10"
                         />
                       </div>
@@ -296,7 +294,7 @@ export default function TillManagementPage() {
                         id="cashOutNotes"
                         placeholder="Reason for cash out"
                         value={transactionNotes}
-                        onChange={(e) => setTransactionNotes(e.target.value)}
+                        onChange={e => setTransactionNotes(e.target.value)}
                       />
                     </div>
                     <Button onClick={handleCashOut} className="w-full" variant="destructive">
@@ -326,20 +324,20 @@ export default function TillManagementPage() {
                             <div className="flex items-center gap-3">
                               <div
                                 className={cn(
-                                  "w-8 h-8 rounded-full flex items-center justify-center",
-                                  transaction.type === "sale" || transaction.type === "cash-in"
-                                    ? "bg-emerald-500/10 text-emerald-600"
-                                    : "bg-red-500/10 text-red-600",
+                                  'w-8 h-8 rounded-full flex items-center justify-center',
+                                  transaction.type === 'sale' || transaction.type === 'cash-in'
+                                    ? 'bg-emerald-500/10 text-emerald-600'
+                                    : 'bg-red-500/10 text-red-600'
                                 )}
                               >
-                                {transaction.type === "sale" || transaction.type === "cash-in" ? (
+                                {transaction.type === 'sale' || transaction.type === 'cash-in' ? (
                                   <TrendingUp className="w-4 h-4" />
                                 ) : (
                                   <TrendingDown className="w-4 h-4" />
                                 )}
                               </div>
                               <div>
-                                <div className="font-medium capitalize">{transaction.type.replace("-", " ")}</div>
+                                <div className="font-medium capitalize">{transaction.type.replace('-', ' ')}</div>
                                 <div className="text-xs text-muted-foreground">
                                   {new Date(transaction.timestamp).toLocaleString()}
                                   {transaction.notes && ` • ${transaction.notes}`}
@@ -348,13 +346,13 @@ export default function TillManagementPage() {
                             </div>
                             <div
                               className={cn(
-                                "font-semibold",
-                                transaction.type === "sale" || transaction.type === "cash-in"
-                                  ? "text-emerald-600"
-                                  : "text-red-600",
+                                'font-semibold',
+                                transaction.type === 'sale' || transaction.type === 'cash-in'
+                                  ? 'text-emerald-600'
+                                  : 'text-red-600'
                               )}
                             >
-                              {transaction.type === "sale" || transaction.type === "cash-in" ? "+" : "-"}
+                              {transaction.type === 'sale' || transaction.type === 'cash-in' ? '+' : '-'}
                               {formatCurrency(transaction.amount)}
                             </div>
                           </div>
@@ -396,7 +394,7 @@ export default function TillManagementPage() {
                       type="number"
                       placeholder="0.00"
                       value={closingBalance}
-                      onChange={(e) => setClosingBalance(e.target.value)}
+                      onChange={e => setClosingBalance(e.target.value)}
                       className="pl-10"
                     />
                   </div>
@@ -405,18 +403,18 @@ export default function TillManagementPage() {
                 {closingBalance && (
                   <div
                     className={cn(
-                      "p-4 rounded-lg flex items-center gap-3",
+                      'p-4 rounded-lg flex items-center gap-3',
                       Math.abs(Number.parseFloat(closingBalance) - currentBalance) > 0.01
-                        ? "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800"
-                        : "bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800",
+                        ? 'bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800'
+                        : 'bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800'
                     )}
                   >
                     <AlertCircle
                       className={cn(
-                        "w-5 h-5",
+                        'w-5 h-5',
                         Math.abs(Number.parseFloat(closingBalance) - currentBalance) > 0.01
-                          ? "text-amber-600"
-                          : "text-emerald-600",
+                          ? 'text-amber-600'
+                          : 'text-emerald-600'
                       )}
                     />
                     <div>
@@ -425,10 +423,10 @@ export default function TillManagementPage() {
                       </div>
                       <div className="text-sm text-muted-foreground">
                         {Number.parseFloat(closingBalance) > currentBalance
-                          ? "Overage"
+                          ? 'Overage'
                           : Number.parseFloat(closingBalance) < currentBalance
-                            ? "Shortage"
-                            : "Balanced"}
+                            ? 'Shortage'
+                            : 'Balanced'}
                       </div>
                     </div>
                   </div>
@@ -452,21 +450,21 @@ export default function TillManagementPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {cashDrawers.filter((d) => d.status === "closed").length === 0 ? (
+                {cashDrawers.filter(d => d.status === 'closed').length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No previous sessions</p>
                 ) : (
                   cashDrawers
-                    .filter((d) => d.status === "closed")
+                    .filter(d => d.status === 'closed')
                     .slice()
                     .reverse()
-                    .map((drawer) => (
+                    .map(drawer => (
                       <div key={drawer.id} className="p-4 rounded-lg border space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="font-semibold">{drawer.employeeName}</div>
                             <div className="text-sm text-muted-foreground">
-                              {new Date(drawer.openedAt).toLocaleDateString()} •{" "}
-                              {new Date(drawer.openedAt).toLocaleTimeString()} -{" "}
+                              {new Date(drawer.openedAt).toLocaleDateString()} •{' '}
+                              {new Date(drawer.openedAt).toLocaleTimeString()} -{' '}
                               {drawer.closedAt && new Date(drawer.closedAt).toLocaleTimeString()}
                             </div>
                           </div>
@@ -474,11 +472,11 @@ export default function TillManagementPage() {
                             variant="secondary"
                             className={cn(
                               drawer.difference && Math.abs(drawer.difference) > 0.01
-                                ? "bg-amber-500/10 text-amber-700"
-                                : "bg-emerald-500/10 text-emerald-700",
+                                ? 'bg-amber-500/10 text-amber-700'
+                                : 'bg-emerald-500/10 text-emerald-700'
                             )}
                           >
-                            {drawer.difference && Math.abs(drawer.difference) > 0.01 ? "Variance" : "Balanced"}
+                            {drawer.difference && Math.abs(drawer.difference) > 0.01 ? 'Variance' : 'Balanced'}
                           </Badge>
                         </div>
                         <div className="grid grid-cols-4 gap-4 text-sm">
@@ -498,15 +496,15 @@ export default function TillManagementPage() {
                             <div className="text-muted-foreground">Difference</div>
                             <div
                               className={cn(
-                                "font-medium",
+                                'font-medium',
                                 drawer.difference && drawer.difference > 0
-                                  ? "text-emerald-600"
+                                  ? 'text-emerald-600'
                                   : drawer.difference && drawer.difference < 0
-                                    ? "text-red-600"
-                                    : "",
+                                    ? 'text-red-600'
+                                    : ''
                               )}
                             >
-                              {drawer.difference ? formatCurrency(Math.abs(drawer.difference)) : "-"}
+                              {drawer.difference ? formatCurrency(Math.abs(drawer.difference)) : '-'}
                             </div>
                           </div>
                         </div>
@@ -519,5 +517,5 @@ export default function TillManagementPage() {
         </TabsContent>
       </Tabs>
     </div>
-  )
+  );
 }

@@ -18,55 +18,54 @@ export const usePrinter = () => {
     setError(null);
     try {
       const printers = await invoke<any[]>('get_system_printers');
-      
-      const formatted: PrinterDevice[] = printers.map((p) => ({
-        id: p, 
+
+      const formatted: PrinterDevice[] = printers.map(p => ({
+        id: p,
         name: p,
-        description: '', 
+        description: '',
         driver_name: 'System Driver',
-        status: 'Ready'
+        status: 'Ready',
       }));
-      
+
       store.setPrinters(formatted);
-      
+
       // 3. Also load the saved assignments
       await store.loadConfig();
-      
     } catch (err: any) {
-      console.error("Printer Error:", err);
-      setError("Failed to load printers.");
+      console.error('Printer Error:', err);
+      setError('Failed to load printers.');
     } finally {
       setLoading(false);
     }
   };
 
-const printDocument = async (
-    type: PrinterJobType, 
-    data: string, 
-    isPdf: boolean = false,
+  const printDocument = async (
+    type: PrinterJobType,
+    data: string,
+    isPdf: boolean = false
     // options?: any
   ) => {
     // Note: We don't need to look up printerId manually here anymore,
     // because the backend 'print_job' does that lookup based on the 'type' (job_type).
-    
+
     // However, we should check if the store has a config for it to fail fast UI side
     const printerId = store.assignments[type];
     if (!printerId) {
-       // Optional: You can keep this check if you want UI feedback before hitting Rust
-       throw new Error(`No printer assigned for ${type}s.`);
+      // Optional: You can keep this check if you want UI feedback before hitting Rust
+      throw new Error(`No printer assigned for ${type}s.`);
     }
 
     try {
       const result = await invoke('print_job', {
-        jobType: type,    // Matches Rust: job_type
-        content: data,    // Matches Rust: content
-        isPath: isPdf     // Matches Rust: is_path (Tauri converts camelCase to snake_case automatically)
+        jobType: type, // Matches Rust: job_type
+        content: data, // Matches Rust: content
+        isPath: isPdf, // Matches Rust: is_path (Tauri converts camelCase to snake_case automatically)
       });
-      
-      console.log("Print Job Success:", result);
+
+      console.log('Print Job Success:', result);
       return true;
     } catch (err) {
-      console.error("Print Failed:", err);
+      console.error('Print Failed:', err);
       throw err;
     }
   };
@@ -77,16 +76,16 @@ const printDocument = async (
     copies: number = 1
   ): Promise<PrintResult> => {
     const jobId = uuidv4();
-    store.addPrintJob({ 
-        id: jobId,
-        orderId: order.id,
-        orderNumber: order.orderNumber,
-        timestamp: new Date(),
-        status: 'printing',
-        format: 'pdf',
-        retryCount: 0,
-        maxRetries: 2,
-        jobType: 'customer',
+    store.addPrintJob({
+      id: jobId,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      timestamp: new Date(),
+      status: 'printing',
+      format: 'pdf',
+      retryCount: 0,
+      maxRetries: 2,
+      jobType: 'customer',
     });
 
     try {
@@ -108,7 +107,7 @@ const printDocument = async (
   };
 
   const retryPrintJob = async (queueItem: any): Promise<PrintResult> => {
-      return printPdfReceipt(queueItem.orderData, queueItem.orderData.settings, 1);
+    return printPdfReceipt(queueItem.orderData, queueItem.orderData.settings, 1);
   };
 
   useEffect(() => {

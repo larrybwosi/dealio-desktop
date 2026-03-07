@@ -2,17 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Markdown from 'markdown-to-jsx';
-import {
-  ShieldAlert,
-  Sparkles,
-  X,
-  Download,
-  ArrowRight,
-  ScrollText,
-  AlertTriangle,
-  Zap,
-  BellOff,
-} from 'lucide-react';
+import { ShieldAlert, Sparkles, X, Download, ArrowRight, ScrollText, AlertTriangle, Zap, BellOff } from 'lucide-react';
 
 // ─── Markdown Overrides ───────────────────────────────────────────────────────
 
@@ -20,21 +10,30 @@ const markdownOptions = {
   overrides: {
     h1: {
       component: ({ children, ...props }: any) => (
-        <h1 {...props} className="mt-5 first:mt-0 text-[13px] font-semibold tracking-[0.04em] uppercase text-zinc-800 dark:text-zinc-100">
+        <h1
+          {...props}
+          className="mt-5 first:mt-0 text-[13px] font-semibold tracking-[0.04em] uppercase text-zinc-800 dark:text-zinc-100"
+        >
           {children}
         </h1>
       ),
     },
     h2: {
       component: ({ children, ...props }: any) => (
-        <h2 {...props} className="mt-4 first:mt-0 text-[13px] font-semibold tracking-[0.03em] uppercase text-zinc-700 dark:text-zinc-200">
+        <h2
+          {...props}
+          className="mt-4 first:mt-0 text-[13px] font-semibold tracking-[0.03em] uppercase text-zinc-700 dark:text-zinc-200"
+        >
           {children}
         </h2>
       ),
     },
     h3: {
       component: ({ children, ...props }: any) => (
-        <h3 {...props} className="mt-3 first:mt-0 text-[12px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+        <h3
+          {...props}
+          className="mt-3 first:mt-0 text-[12px] font-semibold uppercase tracking-wider text-zinc-600 dark:text-zinc-300"
+        >
           {children}
         </h3>
       ),
@@ -55,28 +54,42 @@ const markdownOptions = {
     },
     li: {
       component: ({ children, ...props }: any) => (
-        <li {...props} className="relative text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400 before:absolute before:-left-4 before:top-[0.45em] before:h-1 before:w-1 before:rounded-full before:bg-zinc-300 dark:before:bg-zinc-600">
+        <li
+          {...props}
+          className="relative text-[13px] leading-relaxed text-zinc-500 dark:text-zinc-400 before:absolute before:-left-4 before:top-[0.45em] before:h-1 before:w-1 before:rounded-full before:bg-zinc-300 dark:before:bg-zinc-600"
+        >
           {children}
         </li>
       ),
     },
     a: {
       component: ({ children, ...props }: any) => (
-        <a {...props} className="text-blue-500 underline underline-offset-2 hover:text-blue-400 transition-colors" target="_blank" rel="noopener noreferrer">
+        <a
+          {...props}
+          className="text-blue-500 underline underline-offset-2 hover:text-blue-400 transition-colors"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           {children}
         </a>
       ),
     },
     code: {
       component: ({ children, ...props }: any) => (
-        <code {...props} className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+        <code
+          {...props}
+          className="rounded bg-zinc-100 px-1.5 py-0.5 font-mono text-[11px] font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+        >
           {children}
         </code>
       ),
     },
     blockquote: {
       component: ({ children, ...props }: any) => (
-        <blockquote {...props} className="mt-3 border-l border-zinc-200 pl-4 italic text-zinc-400 dark:border-zinc-700 dark:text-zinc-500">
+        <blockquote
+          {...props}
+          className="mt-3 border-l border-zinc-200 pl-4 italic text-zinc-400 dark:border-zinc-700 dark:text-zinc-500"
+        >
           {children}
         </blockquote>
       ),
@@ -274,9 +287,11 @@ export function UpdateDialog({
                 <div
                   className={`
                     relative flex h-11 w-11 items-center justify-center rounded-xl
-                    ${isCritical
-                      ? 'ud-critical-badge text-red-600 dark:text-red-400'
-                      : 'bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'}
+                    ${
+                      isCritical
+                        ? 'ud-critical-badge text-red-600 dark:text-red-400'
+                        : 'bg-zinc-900 text-zinc-50 dark:bg-zinc-50 dark:text-zinc-900'
+                    }
                   `}
                 >
                   {isCritical ? <ShieldAlert className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
@@ -385,9 +400,11 @@ export function UpdateDialog({
                   inline-flex items-center gap-2
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2
                   disabled:cursor-not-allowed disabled:opacity-60
-                  ${isCritical
-                    ? 'bg-red-500 text-white hover:bg-red-500/90 focus-visible:ring-red-400 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950'
-                    : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 focus-visible:ring-zinc-400 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950'}
+                  ${
+                    isCritical
+                      ? 'bg-red-500 text-white hover:bg-red-500/90 focus-visible:ring-red-400 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950'
+                      : 'bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 focus-visible:ring-zinc-400 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950'
+                  }
                 `}
               >
                 {isLoading ? (

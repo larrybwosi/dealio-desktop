@@ -4,7 +4,7 @@ import { mockInvoke } from '@/test/mocks/tauri';
 
 // Mock API_ENDPOINT
 vi.mock('@/lib/axios', () => ({
-  API_ENDPOINT: 'http://localhost:3000'
+  API_ENDPOINT: 'http://localhost:3000',
 }));
 
 describe('PosAuthStore', () => {
@@ -30,7 +30,7 @@ describe('PosAuthStore', () => {
   it('should initialize from backend successfully', async () => {
     mockInvoke.mockResolvedValueOnce({
       location_id: 'loc-1',
-      allow_negative_stock: false
+      allow_negative_stock: false,
     });
 
     await useAuthStore.getState().initializeFromBackend();
@@ -52,15 +52,17 @@ describe('PosAuthStore', () => {
 
   it('should register device and set configured state', async () => {
     mockInvoke.mockResolvedValueOnce({});
-    
+
     const location = { id: 'loc-1', name: 'Test' } as any;
     await useAuthStore.getState().registerDevice('test-key', location);
 
-    expect(mockInvoke).toHaveBeenCalledWith('set_device_config', expect.objectContaining({
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'set_device_config',
+      expect.objectContaining({
         deviceKey: 'test-key',
-        locationId: 'loc-1'
-    }));
+        locationId: 'loc-1',
+      })
+    );
     expect(useAuthStore.getState().isConfigured).toBe(true);
   });
 });
-

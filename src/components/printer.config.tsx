@@ -1,48 +1,27 @@
-import { 
-  Printer, 
-  RefreshCcw, 
-  Settings2, 
-  FileText, 
-  Receipt, 
-  ChefHat 
-} from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+import { Printer, RefreshCcw, Settings2, FileText, Receipt, ChefHat } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { usePrinter } from '@/hooks/use-printer';
 import { PrinterJobType } from '@/store/printer-store';
 import { usePosStore } from '@/store/store';
 
 export default function PrinterSettings() {
-  const { 
-    availablePrinters, 
-    assignments, 
-    assignPrinter,
-    refreshPrinters, 
-    loading,
-    printDocument 
-  } = usePrinter();
+  const { availablePrinters, assignments, assignPrinter, refreshPrinters, loading, printDocument } = usePrinter();
 
   const settings = usePosStore(state => state.settings);
   const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
-
 
   // Helper to test specific roles
   const handleTest = async (type: PrinterJobType) => {
     try {
       const timestamp = new Date().toLocaleTimeString();
-      
-      // We send HTML for the test. 
+
+      // We send HTML for the test.
       // Note: We pass `false` for the isPdf argument.
       const testContent = `
         <html>
@@ -57,11 +36,11 @@ export default function PrinterSettings() {
       `;
 
       await printDocument(type, testContent, false);
-      
+
       alert(`Sent test to ${type} printer!`);
     } catch (e: any) {
       console.error(e);
-      alert(`Error: ${e.message || "Print failed"}`);
+      alert(`Error: ${e.message || 'Print failed'}`);
     }
   };
 
@@ -80,19 +59,18 @@ export default function PrinterSettings() {
         </div>
         <Button variant="outline" size="sm" onClick={refreshPrinters} disabled={loading}>
           <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? "Searching..." : "Refresh List"}
+          {loading ? 'Searching...' : 'Refresh List'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
         {/* LEFT COLUMN: Role Assignments */}
         <div className="space-y-6">
           <h3 className="font-medium flex items-center gap-2">
             <Settings2 className="h-4 w-4" />
             Role Assignments
           </h3>
-          
+
           <div className="space-y-4">
             {/* 1. Receipt Printer Assignment */}
             <div className="bg-background p-4 rounded-lg border">
@@ -101,18 +79,17 @@ export default function PrinterSettings() {
                 <label className="text-sm font-semibold">Receipt Printer</label>
               </div>
               <p className="text-xs text-muted-foreground mb-3">Used for POS thermal receipts (58mm/80mm)</p>
-              
+
               <div className="flex gap-2">
-                <Select 
-                  value={assignments.receipt || ''} 
-                  onValueChange={(val) => assignPrinter('receipt', val)}
-                >
+                <Select value={assignments.receipt || ''} onValueChange={val => assignPrinter('receipt', val)}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Select a printer..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {availablePrinters.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -129,18 +106,17 @@ export default function PrinterSettings() {
                 <label className="text-sm font-semibold">Invoice Printer</label>
               </div>
               <p className="text-xs text-muted-foreground mb-3">Used for A4 invoices and reports</p>
-              
+
               <div className="flex gap-2">
-                <Select 
-                  value={assignments.invoice || ''} 
-                  onValueChange={(val) => assignPrinter('invoice', val)}
-                >
+                <Select value={assignments.invoice || ''} onValueChange={val => assignPrinter('invoice', val)}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Select a printer..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {availablePrinters.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -157,27 +133,26 @@ export default function PrinterSettings() {
                 <label className="text-sm font-semibold">Kitchen Printer</label>
               </div>
               <div className="flex gap-2">
-                <Select 
-                  value={assignments.kitchen || ''} 
-                  onValueChange={(val) => assignPrinter('kitchen', val)}
-                >
+                <Select value={assignments.kitchen || ''} onValueChange={val => assignPrinter('kitchen', val)}>
                   <SelectTrigger className="bg-white">
                     <SelectValue placeholder="Select a printer..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {availablePrinters.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                 <Button variant="outline" size="icon" onClick={() => handleTest('kitchen')}>
+                <Button variant="outline" size="icon" onClick={() => handleTest('kitchen')}>
                   <Printer className="h-4 w-4" />
                 </Button>
               </div>
             </div>
 
             <Separator className="my-4" />
-            
+
             <div className="bg-background p-4 rounded-lg border">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col gap-1">
@@ -187,45 +162,45 @@ export default function PrinterSettings() {
                   </div>
                   <p className="text-xs text-muted-foreground">Automatically print receipt after completing payment</p>
                 </div>
-                <Switch 
-                  checked={settings.enableAutoPrint} 
-                  onCheckedChange={(val) => updateBusinessSettings({ enableAutoPrint: val })} 
+                <Switch
+                  checked={settings.enableAutoPrint}
+                  onCheckedChange={val => updateBusinessSettings({ enableAutoPrint: val })}
                 />
               </div>
             </div>
-
           </div>
         </div>
 
         {/* RIGHT COLUMN: Available Devices List */}
         <div>
-           <h3 className="font-medium mb-4">Detected Devices ({availablePrinters.length})</h3>
-           <div className="space-y-2 max-h-[400px] overflow-y-auto">
-             {availablePrinters.length === 0 && (
-                <div className="text-sm text-muted-foreground italic">No printers found.</div>
-             )}
-             {availablePrinters.map((printer) => {
-               // Check if this printer is assigned to anythings
-               const roles = (Object.keys(assignments) as PrinterJobType[])
-                 .filter(role => assignments[role] === printer.id);
+          <h3 className="font-medium mb-4">Detected Devices ({availablePrinters.length})</h3>
+          <div className="space-y-2 max-h-[400px] overflow-y-auto">
+            {availablePrinters.length === 0 && (
+              <div className="text-sm text-muted-foreground italic">No printers found.</div>
+            )}
+            {availablePrinters.map(printer => {
+              // Check if this printer is assigned to anythings
+              const roles = (Object.keys(assignments) as PrinterJobType[]).filter(
+                role => assignments[role] === printer.id
+              );
 
-               return (
-                 <div key={printer.id} className="p-3 border rounded text-sm hover:bg-background">
-                   <div className="font-medium">{printer.name}</div>
-                   <div className="text-xs text-muted-foreground truncate">{printer.driver_name}</div>
-                   
-                   {/* Badges for active roles */}
-                   <div className="flex gap-1 mt-2">
-                     {roles.map(role => (
-                       <Badge key={role} variant="secondary" className="text-[10px] uppercase">
-                         {role}
-                       </Badge>
-                     ))}
-                   </div>
-                 </div>
-               )
-             })}
-           </div>
+              return (
+                <div key={printer.id} className="p-3 border rounded text-sm hover:bg-background">
+                  <div className="font-medium">{printer.name}</div>
+                  <div className="text-xs text-muted-foreground truncate">{printer.driver_name}</div>
+
+                  {/* Badges for active roles */}
+                  <div className="flex gap-1 mt-2">
+                    {roles.map(role => (
+                      <Badge key={role} variant="secondary" className="text-[10px] uppercase">
+                        {role}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </Card>

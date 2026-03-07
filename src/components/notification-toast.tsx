@@ -1,19 +1,11 @@
-"use client"
+'use client';
 
-import { useEffect, useRef } from "react"
-import { toast } from "sonner"
-import { 
-  ShoppingCart, 
-  Package, 
-  AlertCircle, 
-  CheckCircle, 
-  Info, 
-  XCircle,
-  RefreshCw
-} from "lucide-react"
-import { type AppNotification, type NotificationType } from "@/lib/notification-service"
+import { useEffect, useRef } from 'react';
+import { toast } from 'sonner';
+import { ShoppingCart, Package, AlertCircle, CheckCircle, Info, XCircle, RefreshCw } from 'lucide-react';
+import { type AppNotification, type NotificationType } from '@/lib/notification-service';
 
-/** 
+/**
  * NotificationToast
  * Listens to the 'show-notification-toast' CustomEvent dispatched by
  * NotificationService and renders a Sonner toast for each incoming notification.
@@ -110,12 +102,19 @@ export function NotificationToast() {
 // ─── Icon helpers ─────────────────────────────────────────────────────────────
 function getIcon(type: NotificationType) {
   switch (type) {
-    case 'sale':     return ShoppingCart;
-    case 'sync':     return RefreshCw;
-    case 'warning':  return AlertCircle;
-    case 'error':    return XCircle;
-    case 'success':  return CheckCircle;
-    case 'system':   return Package;
-    default:         return Info;
+    case 'sale':
+      return ShoppingCart;
+    case 'sync':
+      return RefreshCw;
+    case 'warning':
+      return AlertCircle;
+    case 'error':
+      return XCircle;
+    case 'success':
+      return CheckCircle;
+    case 'system':
+      return Package;
+    default:
+      return Info;
   }
 }

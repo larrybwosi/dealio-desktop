@@ -32,5 +32,5 @@ export const PrinterService = {
     } catch (err) {
       return { success: false, message: String(err) };
     }
-  }
+  },
 };

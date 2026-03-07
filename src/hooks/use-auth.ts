@@ -6,7 +6,6 @@ import { useCallback, useEffect } from 'react';
 // import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
 
-
 // Types for API mutations
 interface CheckInResponse {
   member: Member;
@@ -18,10 +17,9 @@ interface CheckInVariables {
   password?: string; // Optional depending on your auth flow
 }
 
-
 export function useAuth() {
   const queryClient = useQueryClient();
-  
+
   // Get state and actions directly from the Zustand store
   const { currentMember, currentLocation, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
     useAuthStore(state => ({
@@ -30,7 +28,7 @@ export function useAuth() {
       setDeviceKey: state.setDeviceKey,
       setMemberSession: state.setMemberSession,
       clearMemberSession: state.clearMemberSession,
-      currentLocation: state.currentLocation
+      currentLocation: state.currentLocation,
     }));
 
   /**
@@ -48,10 +46,10 @@ export function useAuth() {
     error: checkInError,
   } = useMutation<CheckInResponse, Error, CheckInVariables>({
     mutationFn: variables =>
-      invoke<CheckInResponse>('login_member', { 
-        cardId: variables.cardId, 
-        pin: variables.password, 
-        locationId: currentLocation?.id 
+      invoke<CheckInResponse>('login_member', {
+        cardId: variables.cardId,
+        pin: variables.password,
+        locationId: currentLocation?.id,
       }),
     onSuccess: data => {
       // On success, update the global store with member AND restoration status

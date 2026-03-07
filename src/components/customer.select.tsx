@@ -50,7 +50,7 @@ interface CustomerSelectProps {
 export function CustomerSelect({ value, onValueChange, onSelect, className }: CustomerSelectProps) {
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   // Local state to store the full object of the selected customer
   // This ensures we can display the name even if they aren't in the current search results
   const [selectedCustomer, setSelectedCustomer] = useState<SearchResultCustomer | null>(null);
@@ -63,25 +63,29 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
   // -------------------------------------------------------
   const { customers: localCustomers, isSyncing } = usePosCustomers({
     search: debouncedSearchTerm,
-    enabled: open // Only filter/search when open
+    enabled: open, // Only filter/search when open
   });
 
   // console.log("localCustomers", localCustomers);
-  const searchResults: SearchResultCustomer[] = useMemo(() => localCustomers.map(c => ({
-    id: c.id,
-    name: c.name,
-    email: c.email || null,
-    phone: c.phone || null,
-    loyaltyPoints: c.loyaltyPoints || 0,
-    customerType: c.customerType || null,
-    businessAccountId: c.businessAccountId || null,
-    company: c.company || null,
-    // Derive type if not present. simplified logic:
-    type: (c.customerType === 'business' || c.businessAccountId) ? 'B2B' : 'B2C',
-    // Derive primary address
-    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null,
-    addresses: c.addresses || []
-  })), [localCustomers]);
+  const searchResults: SearchResultCustomer[] = useMemo(
+    () =>
+      localCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        email: c.email || null,
+        phone: c.phone || null,
+        loyaltyPoints: c.loyaltyPoints || 0,
+        customerType: c.customerType || null,
+        businessAccountId: c.businessAccountId || null,
+        company: c.company || null,
+        // Derive type if not present. simplified logic:
+        type: c.customerType === 'business' || c.businessAccountId ? 'B2B' : 'B2C',
+        // Derive primary address
+        primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null,
+        addresses: c.addresses || [],
+      })),
+    [localCustomers]
+  );
 
   const isLoading = isSyncing && localCustomers.length === 0;
   const isFetching = isSyncing;
@@ -89,7 +93,7 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
   // -------------------------------------------------------
   // 2. Sync State Logic
   // -------------------------------------------------------
-  
+
   // If the parent passes a value (ID) that matches a result in our current search list,
   // update our local display object. This helps keeps the UI in sync.
   useEffect(() => {
@@ -109,22 +113,21 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
     }
   }, [value]);
 
-
   // -------------------------------------------------------
   // 3. Selection Handler
   // -------------------------------------------------------
   const handleSelectCustomer = (customer: SearchResultCustomer | 'walk-in') => {
     if (customer === 'walk-in') {
-      onValueChange('walk-in'); 
-      setSelectedCustomer(null); 
-      
+      onValueChange('walk-in');
+      setSelectedCustomer(null);
+
       if (onSelect) {
-         onSelect({ id: 'walk-in', name: 'Walk-in Customer', customerType: 'retail' });
+        onSelect({ id: 'walk-in', name: 'Walk-in Customer', customerType: 'retail' });
       }
     } else {
       // 1. Notify Parent of ID Change
       onValueChange(customer.id);
-      
+
       // 2. Update Local Display
       setSelectedCustomer(customer);
 
@@ -139,7 +142,7 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
           customerType: customer.type === 'B2B' ? 'b2b' : 'retail',
           businessName: customer.company || undefined,
           primaryAddress: customer.primaryAddress,
-          addresses: customer.addresses
+          addresses: customer.addresses,
         };
         onSelect(mappedCustomer);
       }
@@ -162,7 +165,7 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className={cn("w-full justify-between bg-transparent", className)}
+          className={cn('w-full justify-between bg-transparent', className)}
         >
           {selectedCustomer ? (
             <div className="flex items-center gap-2 overflow-hidden text-left">
@@ -174,12 +177,12 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
               )}
 
               <div className="flex flex-col overflow-hidden">
-                  <span className="truncate text-sm leading-none">{selectedCustomer.name}</span>
-                  {selectedCustomer.company && (
-                    <span className="text-[10px] text-muted-foreground truncate leading-none mt-1">
-                      {selectedCustomer.company}
-                    </span>
-                  )}
+                <span className="truncate text-sm leading-none">{selectedCustomer.name}</span>
+                {selectedCustomer.company && (
+                  <span className="text-[10px] text-muted-foreground truncate leading-none mt-1">
+                    {selectedCustomer.company}
+                  </span>
+                )}
               </div>
 
               {/* B2B Badge */}
@@ -190,10 +193,10 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
               )}
             </div>
           ) : isWalkIn ? (
-             <div className="flex items-center gap-2">
-               <User className="w-4 h-4" />
-               <span>Walk-in Customer</span>
-             </div>
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4" />
+              <span>Walk-in Customer</span>
+            </div>
           ) : (
             <div className="flex items-center gap-2 text-muted-foreground">
               <User className="w-4 h-4" />
@@ -224,8 +227,8 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
 
             {/* Walk-In Option */}
             <CommandGroup heading="Quick Select">
-              <CommandItem 
-                value="walk-in-customer" 
+              <CommandItem
+                value="walk-in-customer"
                 onSelect={() => handleSelectCustomer('walk-in')}
                 className="cursor-pointer"
               >
@@ -247,9 +250,7 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
                     onSelect={() => handleSelectCustomer(customer)}
                     className="cursor-pointer"
                   >
-                    <Check
-                      className={cn('mr-2 h-4 w-4', value === customer.id ? 'opacity-100' : 'opacity-0')}
-                    />
+                    <Check className={cn('mr-2 h-4 w-4', value === customer.id ? 'opacity-100' : 'opacity-0')} />
                     <div className="flex flex-col flex-1 overflow-hidden">
                       <div className="flex items-center justify-between">
                         <span className="font-medium truncate">{customer.name}</span>
@@ -260,12 +261,12 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
                         {customer.phone && <span>{customer.phone}</span>}
                         {customer.email && <span className="truncate">• {customer.email}</span>}
                       </div>
-                      
+
                       {customer.primaryAddress && (
-                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{customer.primaryAddress}</span>
-                         </div>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{customer.primaryAddress}</span>
+                        </div>
                       )}
                     </div>
                   </CommandItem>
@@ -283,9 +284,7 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
                     onSelect={() => handleSelectCustomer(customer)}
                     className="cursor-pointer"
                   >
-                    <Check
-                      className={cn('mr-2 h-4 w-4', value === customer.id ? 'opacity-100' : 'opacity-0')}
-                    />
+                    <Check className={cn('mr-2 h-4 w-4', value === customer.id ? 'opacity-100' : 'opacity-0')} />
                     <div className="flex flex-col flex-1 overflow-hidden">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 truncate">
@@ -305,12 +304,12 @@ export function CustomerSelect({ value, onValueChange, onSelect, className }: Cu
                         {customer.phone && <span>{customer.phone}</span>}
                         {customer.email && <span className="truncate">• {customer.email}</span>}
                       </div>
-                       
-                       {customer.primaryAddress && (
-                         <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                            <MapPin className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{customer.primaryAddress}</span>
-                         </div>
+
+                      {customer.primaryAddress && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                          <MapPin className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{customer.primaryAddress}</span>
+                        </div>
                       )}
                     </div>
                   </CommandItem>

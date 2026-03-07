@@ -6,9 +6,11 @@ import { AuthOptions, ErrorInfo, Realtime } from 'ably';
 import { useAuthStore } from './pos-auth-store';
 
 const AblyConfigSchema = z.object({
-  tokenRequest: z.object({
-    token: z.string(),
-  }).loose(),
+  tokenRequest: z
+    .object({
+      token: z.string(),
+    })
+    .loose(),
   metadata: z.object({
     paymentChannel: z.string(),
     organizationId: z.string().optional(),
@@ -26,18 +28,11 @@ function jitteredBackoff(attempt: number): number {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-type AblyConnectionState =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnected'
-  | 'suspended'
-  | 'failed'
-  | 'closed';
+type AblyConnectionState = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'suspended' | 'failed' | 'closed';
 
 interface AblyState {
   client: Realtime | null;
@@ -135,7 +130,7 @@ export const useAblyStore = create<AblyState>((set, get) => ({
     });
 
     // ── Connection state listener ─────────────────────────────────────────────
-    client.connection.on((stateChange) => {
+    client.connection.on(stateChange => {
       const state = stateChange.current as AblyConnectionState;
       console.log(`[AblyStore] Connection: ${stateChange.previous} → ${state}`, stateChange.reason?.message ?? '');
       set({ connectionState: state });
@@ -156,7 +151,7 @@ export const useAblyStore = create<AblyState>((set, get) => ({
           const presenceChannel = client.channels.get(`presence:${locationId}`);
           presenceChannel.presence
             .enter({ id: member.id, name: member.name, lastSeen: new Date().toISOString() })
-            .catch((err) => console.error('[AblyStore] Presence enter error:', err));
+            .catch(err => console.error('[AblyStore] Presence enter error:', err));
         }
       } else if (['disconnected', 'suspended', 'failed', 'closed'].includes(state)) {
         invoke('update_network_status_command', { isOnline: false }).catch(console.error);

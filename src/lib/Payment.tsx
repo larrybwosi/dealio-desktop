@@ -11,14 +11,14 @@ interface PaymentNotificationContextType {
 
 const PaymentNotificationContext = createContext<PaymentNotificationContextType | null>(null);
 
-export function PaymentNotificationProvider({ 
-  children, 
-  organizationId 
-}: { 
+export function PaymentNotificationProvider({
+  children,
+  organizationId,
+}: {
   children: React.ReactNode;
   organizationId: string;
 }) {
-  const client = useAblyStore((state) => state.client);
+  const client = useAblyStore(state => state.client);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -30,7 +30,7 @@ export function PaymentNotificationProvider({
     const onPaymentUpdate = (message: Ably.Message) => {
       const { transactionId, status, data } = message.data;
       console.log('[Payment] Update received:', { transactionId, status, data });
-      
+
       if (status === 'COMPLETED' || status === 'PAID') {
         toast.success(`Payment Received: KES ${data.amount || ''}`, {
           description: `Receipt: ${data.receipt}. transaction updated.`,
@@ -38,7 +38,7 @@ export function PaymentNotificationProvider({
         });
 
         // Optional: Refresh data or Redirect
-        // router.refresh(); 
+        // router.refresh();
       } else if (status === 'FAILED') {
         toast.error('Payment Failed', {
           description: data.description,
@@ -56,9 +56,9 @@ export function PaymentNotificationProvider({
         action: {
           label: 'Assign',
           onClick: () => {
-             // Logic to open a modal to assign this receipt to the current cart
-             console.log('Open manual assignment modal for', receipt);
-          }
+            // Logic to open a modal to assign this receipt to the current cart
+            console.log('Open manual assignment modal for', receipt);
+          },
         },
         duration: Infinity, // Keep it open until acknowledged
       });
@@ -81,8 +81,6 @@ export function PaymentNotificationProvider({
   }, [organizationId, client]);
 
   return (
-    <PaymentNotificationContext.Provider value={{ lastPayment: null }}>
-      {children}
-    </PaymentNotificationContext.Provider>
+    <PaymentNotificationContext.Provider value={{ lastPayment: null }}>{children}</PaymentNotificationContext.Provider>
   );
 }

@@ -1,37 +1,37 @@
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
-import { useFormattedCurrency } from "@/lib/utils"
-import { OrganizationData, PaymentData, ReceiptConfig } from "./types"
-import { CartItem } from "@/types"
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { useFormattedCurrency } from '@/lib/utils';
+import { OrganizationData, PaymentData, ReceiptConfig } from './types';
+import { CartItem } from '@/types';
 
 const createStyles = (config: ReceiptConfig) =>
   StyleSheet.create({
     page: {
-      flexDirection: "column",
+      flexDirection: 'column',
       backgroundColor: config.backgroundColor,
       padding: config.padding * 0.5, // Reduced padding
       width: config.width,
-      minHeight: "auto",
+      minHeight: 'auto',
       fontSize: config.bodySize - 2, // Reduced base font size
-      fontFamily: "Helvetica",
+      fontFamily: 'Helvetica',
     },
     header: {
-      alignItems: config.logoPosition === "left" ? "flex-start" : 
-                config.logoPosition === "right" ? "flex-end" : "center",
+      alignItems:
+        config.logoPosition === 'left' ? 'flex-start' : config.logoPosition === 'right' ? 'flex-end' : 'center',
       marginBottom: config.spacing, // Reduced spacing
       paddingBottom: config.spacing * 0.5,
       ...(config.showDivider && {
         borderBottomWidth: config.dividerWidth,
         borderBottomColor: config.primaryColor,
-        borderBottomStyle: "solid",
+        borderBottomStyle: 'solid',
       }),
     },
     companyName: {
       fontSize: config.titleSize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
       marginBottom: 1,
       textAlign: config.logoPosition,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     companyDetails: {
       fontSize: config.bodySize - 2,
@@ -41,12 +41,12 @@ const createStyles = (config: ReceiptConfig) =>
     },
     invoiceTitle: {
       fontSize: config.headerSize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
       marginTop: config.spacing * 0.5,
       marginBottom: config.spacing * 0.5,
       textAlign: config.logoPosition,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     invoiceDetails: {
       fontSize: config.bodySize - 2,
@@ -59,26 +59,26 @@ const createStyles = (config: ReceiptConfig) =>
     },
     sectionTitle: {
       fontSize: config.headerSize - 4,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
       marginBottom: config.spacing * 0.5,
-      textAlign: "left",
-      textTransform: "uppercase",
-      fontFamily: "Helvetica-Bold",
+      textAlign: 'left',
+      textTransform: 'uppercase',
+      fontFamily: 'Helvetica-Bold',
     },
     customerInfo: {
       marginBottom: config.spacing * 0.5,
     },
     customerRow: {
-      flexDirection: "row",
+      flexDirection: 'row',
       marginBottom: 1,
     },
     customerLabel: {
       fontSize: config.bodySize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       width: 40,
       color: config.primaryColor,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     customerValue: {
       fontSize: config.bodySize - 2,
@@ -86,62 +86,62 @@ const createStyles = (config: ReceiptConfig) =>
       flex: 1,
     },
     table: {
-      width: "100%",
+      width: '100%',
     },
     tableHeader: {
-      flexDirection: "row",
+      flexDirection: 'row',
       paddingBottom: 1,
       marginBottom: 1,
       ...(config.showDivider && {
         borderBottomWidth: config.dividerWidth * 0.5,
         borderBottomColor: config.secondaryColor,
-        borderBottomStyle: "solid",
+        borderBottomStyle: 'solid',
       }),
     },
     tableHeaderCell: {
       fontSize: config.bodySize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     tableRow: {
-      flexDirection: "row",
+      flexDirection: 'row',
       marginBottom: 1,
-      alignItems: "flex-start",
+      alignItems: 'flex-start',
     },
     itemName: {
-      width: "55%", // Slightly wider for name
+      width: '55%', // Slightly wider for name
       fontSize: config.bodySize - 2,
       color: config.primaryColor,
     },
     itemQty: {
-      width: "10%",
+      width: '10%',
       fontSize: config.bodySize - 2,
       color: config.secondaryColor,
-      textAlign: "center",
+      textAlign: 'center',
     },
     itemPrice: {
-      width: "17.5%",
+      width: '17.5%',
       fontSize: config.bodySize - 2,
       color: config.secondaryColor,
-      textAlign: "right",
+      textAlign: 'right',
     },
     itemTotal: {
-      width: "17.5%",
+      width: '17.5%',
       fontSize: config.bodySize - 2,
       color: config.primaryColor,
-      textAlign: "right",
+      textAlign: 'right',
     },
     itemVariant: {
       fontSize: config.bodySize - 3,
       color: config.secondaryColor,
-      marginTop: 0, 
+      marginTop: 0,
     },
     divider: {
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.primaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
       marginVertical: config.spacing * 0.5,
     },
@@ -149,8 +149,8 @@ const createStyles = (config: ReceiptConfig) =>
       marginTop: config.spacing * 0.5,
     },
     totalsRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       marginBottom: 1,
     },
     totalsLabel: {
@@ -160,31 +160,31 @@ const createStyles = (config: ReceiptConfig) =>
     totalsValue: {
       fontSize: config.bodySize - 2,
       color: config.primaryColor,
-      textAlign: "right",
+      textAlign: 'right',
     },
     totalRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       marginTop: config.spacing * 0.5,
       paddingTop: config.spacing * 0.5,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.primaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
     },
     totalLabel: {
       fontSize: config.headerSize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     totalValue: {
       fontSize: config.headerSize - 2,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
-      textAlign: "right",
-      fontFamily: "Helvetica-Bold",
+      textAlign: 'right',
+      fontFamily: 'Helvetica-Bold',
     },
     paymentSection: {
       marginTop: config.spacing,
@@ -192,40 +192,40 @@ const createStyles = (config: ReceiptConfig) =>
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.primaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
     },
     paymentRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
+      flexDirection: 'row',
+      justifyContent: 'space-between',
       marginBottom: 1,
     },
     paymentLabel: {
       fontSize: config.bodySize - 2,
       color: config.primaryColor,
-      fontWeight: "bold",
-      fontFamily: "Helvetica-Bold",
+      fontWeight: 'bold',
+      fontFamily: 'Helvetica-Bold',
     },
     paymentValue: {
       fontSize: config.bodySize - 2,
       color: config.secondaryColor,
-      textAlign: "right",
+      textAlign: 'right',
     },
     footer: {
       marginTop: config.spacing * 2,
-      textAlign: "center",
+      textAlign: 'center',
       paddingTop: config.spacing,
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
     },
     footerText: {
       fontSize: config.bodySize - 2,
       color: config.secondaryColor,
       marginBottom: 1,
-      textAlign: "center",
+      textAlign: 'center',
     },
     orderNotes: {
       marginTop: config.spacing,
@@ -233,15 +233,15 @@ const createStyles = (config: ReceiptConfig) =>
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
     },
     noteTitle: {
       fontSize: config.bodySize - 1,
-      fontWeight: "bold",
+      fontWeight: 'bold',
       color: config.primaryColor,
       marginBottom: 1,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: 'Helvetica-Bold',
     },
     noteText: {
       fontSize: config.bodySize - 2,
@@ -254,27 +254,35 @@ const createStyles = (config: ReceiptConfig) =>
       ...(config.showDivider && {
         borderTopWidth: config.dividerWidth,
         borderTopColor: config.secondaryColor,
-        borderTopStyle: "solid",
+        borderTopStyle: 'solid',
       }),
     },
     perforation: {
       marginTop: config.spacing,
-      borderTopStyle: "solid",
+      borderTopStyle: 'solid',
       borderTopWidth: 1,
       borderTopColor: config.secondaryColor,
       height: 10,
     },
-  })
+  });
 
 // Helper components for better organization
-const HeaderSection = ({ organization, config, paymentData, orderType, currentDate, currentTime, styles }: {
-  organization: OrganizationData
-  config: ReceiptConfig
-  paymentData: PaymentData
-  orderType?: string
-  currentDate: string
-  currentTime: string
-  styles: any
+const HeaderSection = ({
+  organization,
+  config,
+  paymentData,
+  orderType,
+  currentDate,
+  currentTime,
+  styles,
+}: {
+  organization: OrganizationData;
+  config: ReceiptConfig;
+  paymentData: PaymentData;
+  orderType?: string;
+  currentDate: string;
+  currentTime: string;
+  styles: any;
 }) => (
   <View style={styles.header}>
     <Text style={styles.companyName}>{organization.name}</Text>
@@ -292,18 +300,12 @@ const HeaderSection = ({ organization, config, paymentData, orderType, currentDa
       </Text>
     )}
     {orderType && config.showOrderType && (
-      <Text style={styles.invoiceDetails}>
-        Order Type: {orderType.charAt(0).toUpperCase() + orderType.slice(1)}
-      </Text>
+      <Text style={styles.invoiceDetails}>Order Type: {orderType.charAt(0).toUpperCase() + orderType.slice(1)}</Text>
     )}
   </View>
-)
+);
 
-const CustomerSection = ({  paymentData, styles }: {
-  config: ReceiptConfig
-  paymentData: PaymentData
-  styles: any
-}) => (
+const CustomerSection = ({ paymentData, styles }: { config: ReceiptConfig; paymentData: PaymentData; styles: any }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>Customer</Text>
     <View style={styles.customerInfo}>
@@ -321,12 +323,16 @@ const CustomerSection = ({  paymentData, styles }: {
       )}
     </View>
   </View>
-)
+);
 
-const ItemsSection = ({ items, formatCurrency, styles }: {
-  items: CartItem[]
-  formatCurrency: (amount: number) => string
-  styles: any
+const ItemsSection = ({
+  items,
+  formatCurrency,
+  styles,
+}: {
+  items: CartItem[];
+  formatCurrency: (amount: number) => string;
+  styles: any;
 }) => (
   <View style={styles.section}>
     <Text style={styles.sectionTitle}>Items</Text>
@@ -339,17 +345,20 @@ const ItemsSection = ({ items, formatCurrency, styles }: {
       </View>
 
       {items.map((item, index) => {
-         const shouldShowVariant = item.variant && 
-          !["default", "default variant", "n/a"].includes(item.variant.toLowerCase()) &&
-                {/* @ts-ignore */}
-          // item.variant.toLowerCase() !== item.name.toLowerCase();
-          
-         return (
+        const shouldShowVariant =
+          item.variant &&
+          !['default', 'default variant', 'n/a'].includes(item.variant.toLowerCase()) &&
+          {
+            /* @ts-ignore */
+          };
+        // item.variant.toLowerCase() !== item.name.toLowerCase();
+
+        return (
           <View key={index}>
             <View style={styles.tableRow}>
               <View style={styles.itemName}>
                 <Text>
-                {/* @ts-ignore */}
+                  {/* @ts-ignore */}
                   {item.name}
                   {shouldShowVariant ? ` - ${item.variant}` : ''}
                 </Text>
@@ -360,20 +369,28 @@ const ItemsSection = ({ items, formatCurrency, styles }: {
               <Text style={styles.itemTotal}>{formatCurrency(item.price * item.quantity)}</Text>
             </View>
           </View>
-        )
+        );
       })}
     </View>
   </View>
-)
+);
 
-const TotalsSection = ({ config, subtotal, discount, tax, total, formatCurrency, styles }: {
-  config: ReceiptConfig
-  subtotal: number
-  discount: number
-  tax: number
-  total: number
-  formatCurrency: (amount: number) => string
-  styles: any
+const TotalsSection = ({
+  config,
+  subtotal,
+  discount,
+  tax,
+  total,
+  formatCurrency,
+  styles,
+}: {
+  config: ReceiptConfig;
+  subtotal: number;
+  discount: number;
+  tax: number;
+  total: number;
+  formatCurrency: (amount: number) => string;
+  styles: any;
 }) => (
   <View style={styles.totalsSection}>
     <View style={styles.totalsRow}>
@@ -397,13 +414,18 @@ const TotalsSection = ({ config, subtotal, discount, tax, total, formatCurrency,
       <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
     </View>
   </View>
-)
+);
 
-const PaymentSection = ({ config, paymentData, formatCurrency, styles }: {
-  config: ReceiptConfig
-  paymentData: PaymentData
-  formatCurrency: (amount: number) => string
-  styles: any
+const PaymentSection = ({
+  config,
+  paymentData,
+  formatCurrency,
+  styles,
+}: {
+  config: ReceiptConfig;
+  paymentData: PaymentData;
+  formatCurrency: (amount: number) => string;
+  styles: any;
 }) => (
   <View style={styles.paymentSection}>
     <Text style={styles.sectionTitle}>Payment</Text>
@@ -414,8 +436,8 @@ const PaymentSection = ({ config, paymentData, formatCurrency, styles }: {
           {paymentData.paymentMethod === 'cash'
             ? 'Cash'
             : paymentData.paymentMethod === 'mobile'
-            ? 'Mobile Payment'
-            : 'Card Payment'}
+              ? 'Mobile Payment'
+              : 'Card Payment'}
         </Text>
       </View>
     )}
@@ -432,14 +454,20 @@ const PaymentSection = ({ config, paymentData, formatCurrency, styles }: {
       </View>
     )}
   </View>
-)
+);
 
-const NotesSection = ({ config, notes, specialInstructions, promoCode, styles }: {
-  config: ReceiptConfig
-  notes?: string
-  specialInstructions?: string
-  promoCode?: string
-  styles: any
+const NotesSection = ({
+  config,
+  notes,
+  specialInstructions,
+  promoCode,
+  styles,
+}: {
+  config: ReceiptConfig;
+  notes?: string;
+  specialInstructions?: string;
+  promoCode?: string;
+  styles: any;
 }) => (
   <>
     {config.showOrderNotes && notes && (
@@ -463,30 +491,34 @@ const NotesSection = ({ config, notes, specialInstructions, promoCode, styles }:
       </View>
     )}
   </>
-)
+);
 
-const FooterSection = ({ config, organization, styles }: {
-  config: ReceiptConfig
-  organization: OrganizationData
-  styles: any
+const FooterSection = ({
+  config,
+  organization,
+  styles,
+}: {
+  config: ReceiptConfig;
+  organization: OrganizationData;
+  styles: any;
 }) => (
   <View style={styles.footer}>
     <Text style={styles.footerText}>{config.thankYouMessage}</Text>
     {organization.email && <Text style={styles.footerText}>Questions? Email: {organization.email}</Text>}
     <Text style={styles.footerText}>{config.footerText}</Text>
   </View>
-)
+);
 
 export interface EnhancedThermalReceiptPDFProps {
-  items: CartItem[]
-  paymentData: PaymentData
-  qrCodeImage?: string
-  organization: OrganizationData
-  config: ReceiptConfig
-  orderType?: "dine-in" | "takeaway" | "delivery"
-  notes?: string
-  promoCode?: string
-  specialInstructions?: string
+  items: CartItem[];
+  paymentData: PaymentData;
+  qrCodeImage?: string;
+  organization: OrganizationData;
+  config: ReceiptConfig;
+  orderType?: 'dine-in' | 'takeaway' | 'delivery';
+  notes?: string;
+  promoCode?: string;
+  specialInstructions?: string;
 }
 
 export const EnhancedThermalReceiptPDF = ({
@@ -499,25 +531,25 @@ export const EnhancedThermalReceiptPDF = ({
   promoCode,
   specialInstructions,
 }: EnhancedThermalReceiptPDFProps) => {
-  const styles = createStyles(config)
-  const formatCurrency = useFormattedCurrency()
+  const styles = createStyles(config);
+  const formatCurrency = useFormattedCurrency();
 
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const discount = config.showDiscount ? subtotal * 0.1 : 0
-  const tax = config.showTax ? subtotal * 0.025 : 0
-  const total = subtotal - discount + tax
+  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discount = config.showDiscount ? subtotal * 0.1 : 0;
+  const tax = config.showTax ? subtotal * 0.025 : 0;
+  const total = subtotal - discount + tax;
 
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
 
-  const currentTime = new Date().toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
+  const currentTime = new Date().toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
-  })
+  });
 
   return (
     <Document>
@@ -537,21 +569,11 @@ export const EnhancedThermalReceiptPDF = ({
 
         {/* Customer Information */}
         {config.showCustomerInfo && (paymentData.customerName || paymentData.customerPhone) && (
-          <CustomerSection
-            config={config}
-            paymentData={paymentData}
-            styles={styles}
-          />
+          <CustomerSection config={config} paymentData={paymentData} styles={styles} />
         )}
 
         {/* Order Items */}
-        {config.showItemsSection && (
-          <ItemsSection
-            items={items}
-            formatCurrency={formatCurrency}
-            styles={styles}
-          />
-        )}
+        {config.showItemsSection && <ItemsSection items={items} formatCurrency={formatCurrency} styles={styles} />}
 
         {config.showDivider && <View style={styles.divider} />}
 
@@ -570,12 +592,7 @@ export const EnhancedThermalReceiptPDF = ({
 
         {/* Payment Information */}
         {config.showPaymentSection && (
-          <PaymentSection
-            config={config}
-            paymentData={paymentData}
-            formatCurrency={formatCurrency}
-            styles={styles}
-          />
+          <PaymentSection config={config} paymentData={paymentData} formatCurrency={formatCurrency} styles={styles} />
         )}
 
         {/* Notes Section */}
@@ -588,17 +605,11 @@ export const EnhancedThermalReceiptPDF = ({
         />
 
         {/* Footer */}
-        {config.showFooter && (
-          <FooterSection
-            config={config}
-            organization={organization}
-            styles={styles}
-          />
-        )}
+        {config.showFooter && <FooterSection config={config} organization={organization} styles={styles} />}
 
         {/* Perforation */}
         {config.showPerforation && <View style={styles.perforation} />}
       </Page>
     </Document>
-  )
-}
+  );
+};

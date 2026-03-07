@@ -1,104 +1,104 @@
-"use client"
+'use client';
 
-import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { usePosStore } from "@/store/store"
-import { Scan, AlertCircle } from "lucide-react"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useState, useEffect, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { usePosStore } from '@/store/store';
+import { Scan, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface BarcodeScannerDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialogProps) {
-  const [barcode, setBarcode] = useState("")
-  const [error, setError] = useState("")
-  const [scannedBuffer, setScannedBuffer] = useState("")
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [barcode, setBarcode] = useState('');
+  const [error, setError] = useState('');
+  const [scannedBuffer, setScannedBuffer] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const products = usePosStore((state) => state.products)
-  const addItemToOrder = usePosStore((state) => state.addItemToOrder)
+  const products = usePosStore(state => state.products);
+  const addItemToOrder = usePosStore(state => state.addItemToOrder);
 
   useEffect(() => {
     if (open) {
-      inputRef.current?.focus()
-      setBarcode("")
-      setError("")
-      setScannedBuffer("")
+      inputRef.current?.focus();
+      setBarcode('');
+      setError('');
+      setScannedBuffer('');
     }
-  }, [open])
+  }, [open]);
 
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
 
     const handleKeyPress = (e: KeyboardEvent) => {
       // Barcode scanners typically send Enter after scanning
-      if (e.key === "Enter" && scannedBuffer) {
-        handleBarcodeSubmit(scannedBuffer)
-        setScannedBuffer("")
+      if (e.key === 'Enter' && scannedBuffer) {
+        handleBarcodeSubmit(scannedBuffer);
+        setScannedBuffer('');
       } else if (e.key.length === 1) {
         // Accumulate characters from scanner
-        setScannedBuffer((prev) => prev + e.key)
+        setScannedBuffer(prev => prev + e.key);
       }
-    }
+    };
 
     // Clear buffer after 100ms of inactivity (scanners are very fast)
     const timeoutId = setTimeout(() => {
       if (scannedBuffer && scannedBuffer.length > 3) {
-        handleBarcodeSubmit(scannedBuffer)
+        handleBarcodeSubmit(scannedBuffer);
       }
-      setScannedBuffer("")
-    }, 100)
+      setScannedBuffer('');
+    }, 100);
 
-    window.addEventListener("keypress", handleKeyPress)
+    window.addEventListener('keypress', handleKeyPress);
 
     return () => {
-      window.removeEventListener("keypress", handleKeyPress)
-      clearTimeout(timeoutId)
-    }
-  }, [open, scannedBuffer])
+      window.removeEventListener('keypress', handleKeyPress);
+      clearTimeout(timeoutId);
+    };
+  }, [open, scannedBuffer]);
 
   const handleBarcodeSubmit = (scannedCode: string) => {
-    setError("")
+    setError('');
 
     if (!scannedCode.trim()) {
-      setError("Please enter a barcode")
-      return
+      setError('Please enter a barcode');
+      return;
     }
 
-    const product = products.find((p) => p.barcode === scannedCode.trim())
+    const product = products.find(p => p.barcode === scannedCode.trim());
 
     if (!product) {
-      setError(`Product not found for barcode: ${scannedCode}`)
-      setBarcode("")
-      return
+      setError(`Product not found for barcode: ${scannedCode}`);
+      setBarcode('');
+      return;
     }
 
     if (product.stock <= 0) {
-      setError(`${product.productName} is out of stock`)
-      setBarcode("")
-      return
+      setError(`${product.productName} is out of stock`);
+      setBarcode('');
+      return;
     }
 
-    const defaultUnit = product.sellableUnits.find((u) => u.isBaseUnit) || product.sellableUnits[0]
-    addItemToOrder(product, defaultUnit, 1)
+    const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
+    addItemToOrder(product, defaultUnit, 1);
 
     // Success feedback
-    setBarcode("")
-    setError("")
+    setBarcode('');
+    setError('');
 
     // Auto-close after successful scan
     setTimeout(() => {
-      onOpenChange(false)
-    }, 500)
-  }
+      onOpenChange(false);
+    }, 500);
+  };
 
   const handleManualSubmit = () => {
-    handleBarcodeSubmit(barcode)
-  }
+    handleBarcodeSubmit(barcode);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -116,10 +116,10 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
               ref={inputRef}
               placeholder="Scan or enter barcode..."
               value={barcode}
-              onChange={(e) => setBarcode(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  handleManualSubmit()
+              onChange={e => setBarcode(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  handleManualSubmit();
                 }
               }}
               className="text-lg text-center"
@@ -148,5 +148,5 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

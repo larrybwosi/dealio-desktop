@@ -1,17 +1,8 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { 
-  Printer, 
-  Download, 
-  Check, 
-  Loader2, 
-  Receipt, 
-  ArrowRight, 
-  CreditCard, 
-  Wallet 
-} from 'lucide-react';
-import QRCode from 'qrcode'; 
+import { Printer, Download, Check, Loader2, Receipt, ArrowRight, CreditCard, Wallet } from 'lucide-react';
+import QRCode from 'qrcode';
 import bwipjs from '@bwip-js/browser';
 
 // UI Components
@@ -31,7 +22,7 @@ import { ReceiptPreviewWrapper } from './pos/receipt-preview-wrapper';
 interface ReceiptDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  completedOrder: any; 
+  completedOrder: any;
   onClose: () => void;
 }
 
@@ -68,10 +59,32 @@ const formatOrderForReceipt = (order: any): Order | null => {
 };
 
 // --- Sub-component: Summary Card ---
-const SummaryMetric = ({ label, value, currency, highlight = false }: { label: string, value: number, currency: string, highlight?: boolean }) => (
-  <div className={cn("flex flex-col gap-1 p-3 rounded-lg border", highlight ? "bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900" : "bg-card border-border")}>
+const SummaryMetric = ({
+  label,
+  value,
+  currency,
+  highlight = false,
+}: {
+  label: string;
+  value: number;
+  currency: string;
+  highlight?: boolean;
+}) => (
+  <div
+    className={cn(
+      'flex flex-col gap-1 p-3 rounded-lg border',
+      highlight
+        ? 'bg-emerald-50/50 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900'
+        : 'bg-card border-border'
+    )}
+  >
     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</span>
-    <span className={cn("text-lg font-bold tabular-nums", highlight ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+    <span
+      className={cn(
+        'text-lg font-bold tabular-nums',
+        highlight ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'
+      )}
+    >
       <span className="text-xs opacity-70 mr-0.5">{currency}</span>
       {value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
     </span>
@@ -119,7 +132,9 @@ const ActionPanel = ({
                   {formattedOrder.orderNumber}
                 </Badge>
                 <span>•</span>
-                <span className="text-xs">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-xs">
+                  {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
               </div>
             </div>
           </div>
@@ -149,10 +164,10 @@ const ActionPanel = ({
             <SummaryMetric label="Total Bill" value={formattedOrder.total} currency={currency} />
             <SummaryMetric label="Amount Paid" value={amountPaid} currency={currency} />
           </div>
-          
+
           <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
             <span className="flex items-center gap-1.5">
-              <CreditCard className="h-4 w-4" /> 
+              <CreditCard className="h-4 w-4" />
               Method: <span className="font-medium text-foreground">{formattedOrder.paymentMethod}</span>
             </span>
             <span>{formattedOrder.items.length} items</span>
@@ -163,10 +178,10 @@ const ActionPanel = ({
       {/* Action Buttons */}
       <div className="space-y-3 mt-auto pt-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button 
-            onClick={onPrint} 
-            disabled={isPrinting} 
-            className="h-12 shadow-sm transition-all active:scale-[0.98]" 
+          <Button
+            onClick={onPrint}
+            disabled={isPrinting}
+            className="h-12 shadow-sm transition-all active:scale-[0.98]"
             variant="default"
           >
             {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
@@ -191,7 +206,7 @@ const ActionPanel = ({
           size="lg"
           className="w-full h-12 text-base font-medium bg-primary text-primary-foreground shadow-md hover:shadow-lg transition-all group"
         >
-          Start New Order 
+          Start New Order
           <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
         </Button>
       </div>
@@ -212,10 +227,10 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const formattedOrder = useMemo(() => {
     const order = formatOrderForReceipt(completedOrder);
     if (order && currentMember?.name) {
-       // If the order doesn't have a specific cashier saved (or is generic), override with current logged-in user
-       if (order.cashierName === 'Staff' || !order.cashierName) {
-         order.cashierName = currentMember.name;
-       }
+      // If the order doesn't have a specific cashier saved (or is generic), override with current logged-in user
+      if (order.cashierName === 'Staff' || !order.cashierName) {
+        order.cashierName = currentMember.name;
+      }
     }
     return order;
   }, [completedOrder, currentMember]);
@@ -255,13 +270,15 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
 
   // Document Instance
   const DocumentInstance = useMemo(() => {
-    return <ReceiptPdfDocument 
-      order={formattedOrder!} 
-      settings={settings} 
-      qrCodeUrl={qrCodePdfUrl} 
-      barcodeUrl={barcodeUrl}
-      branchName={useAuthStore.getState().currentLocation?.name} 
-    />;
+    return (
+      <ReceiptPdfDocument
+        order={formattedOrder!}
+        settings={settings}
+        qrCodeUrl={qrCodePdfUrl}
+        barcodeUrl={barcodeUrl}
+        branchName={useAuthStore.getState().currentLocation?.name}
+      />
+    );
   }, [formattedOrder, settings, qrCodePdfUrl, barcodeUrl]);
 
   if (!formattedOrder) return null;
@@ -271,7 +288,6 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] md:max-w-[1000px] p-0 overflow-hidden border-border bg-background shadow-2xl duration-300">
         <div className="grid grid-cols-1 md:grid-cols-2 h-[90vh] md:h-[700px]">
-          
           {/* LEFT: Actions Panel */}
           <div className="order-2 md:order-1 bg-background h-full flex flex-col border-t md:border-t-0 md:border-r border-border/60">
             <ActionPanel
@@ -288,11 +304,14 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
 
           {/* RIGHT: Live Preview */}
           <div className="order-1 md:order-2 relative bg-neutral-100 dark:bg-neutral-900/50 flex flex-col h-full overflow-hidden">
-            
             {/* Background Pattern for Texture */}
-            <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none" 
-                 style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)', backgroundSize: '24px 24px' }}>
-            </div>
+            <div
+              className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none"
+              style={{
+                backgroundImage: 'radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)',
+                backgroundSize: '24px 24px',
+              }}
+            ></div>
 
             {/* Preview Label */}
             <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 dark:bg-black/40 backdrop-blur-md border border-black/5 dark:border-white/10 shadow-sm">
@@ -301,12 +320,9 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             </div>
 
             <div className="flex-1 w-full h-full relative p-6 flex items-center justify-center">
-               <ReceiptPreviewWrapper 
-                 document={DocumentInstance} 
-               />
+              <ReceiptPreviewWrapper document={DocumentInstance} />
             </div>
           </div>
-          
         </div>
       </DialogContent>
     </Dialog>

@@ -17,36 +17,39 @@ export function useCashDrawer() {
    * Opens the physical cash drawer hardware.
    * Uses the configured serial port from settings.
    */
-  const openPhysicalDrawer = useCallback(async (portOverride?: string) => {
-    const port = portOverride ?? settings.cashDrawerPort;
-    
-    if (!port) {
-      toast.error('No cash drawer port configured', {
-        description: 'Please configure a serial port in Settings → Hardware',
-      });
-      return false;
-    }
+  const openPhysicalDrawer = useCallback(
+    async (portOverride?: string) => {
+      const port = portOverride ?? settings.cashDrawerPort;
 
-    if (!settings.enableCashDrawer) {
-      console.log('[CashDrawer] Cash drawer disabled in settings');
-      return false;
-    }
+      if (!port) {
+        toast.error('No cash drawer port configured', {
+          description: 'Please configure a serial port in Settings → Hardware',
+        });
+        return false;
+      }
 
-    setIsOpening(true);
-    try {
-      const result = await invoke<string>('open_cash_drawer', { portName: port });
-      console.log('[CashDrawer] Drawer opened:', result);
-      return true;
-    } catch (error) {
-      console.error('[CashDrawer] Failed to open drawer:', error);
-      toast.error('Failed to open cash drawer', {
-        description: String(error),
-      });
-      return false;
-    } finally {
-      setIsOpening(false);
-    }
-  }, [settings.cashDrawerPort, settings.enableCashDrawer]);
+      if (!settings.enableCashDrawer) {
+        console.log('[CashDrawer] Cash drawer disabled in settings');
+        return false;
+      }
+
+      setIsOpening(true);
+      try {
+        const result = await invoke<string>('open_cash_drawer', { portName: port });
+        console.log('[CashDrawer] Drawer opened:', result);
+        return true;
+      } catch (error) {
+        console.error('[CashDrawer] Failed to open drawer:', error);
+        toast.error('Failed to open cash drawer', {
+          description: String(error),
+        });
+        return false;
+      } finally {
+        setIsOpening(false);
+      }
+    },
+    [settings.cashDrawerPort, settings.enableCashDrawer]
+  );
 
   /**
    * Fetches the list of available serial ports from the system.

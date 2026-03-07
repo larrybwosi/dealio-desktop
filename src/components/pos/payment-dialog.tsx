@@ -132,7 +132,11 @@ const CustomerBadge = memo(({ customer }: { customer: Customer | null }) => {
       </Badge>
     );
   }
-  return <Badge variant="outline" className="text-xs">Regular</Badge>;
+  return (
+    <Badge variant="outline" className="text-xs">
+      Regular
+    </Badge>
+  );
 });
 CustomerBadge.displayName = 'CustomerBadge';
 
@@ -159,10 +163,7 @@ const PaymentProgress = ({ paid, total }: ProgressBarProps) => {
     <div className="space-y-1.5">
       <div className="h-2 w-full bg-muted overflow-hidden">
         <motion.div
-          className={cn(
-            'h-full transition-colors',
-            isComplete ? 'bg-emerald-500' : 'bg-primary'
-          )}
+          className={cn('h-full transition-colors', isComplete ? 'bg-emerald-500' : 'bg-primary')}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ type: 'spring', stiffness: 120, damping: 20 }}
@@ -270,10 +271,10 @@ const PaymentModal = ({
 
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
-  const settings = usePosStore((state) => state.settings);
-  const deductStockForOrderItems = usePosStore((state) => state.deductStockForOrderItems);
+  const settings = usePosStore(state => state.settings);
+  const deductStockForOrderItems = usePosStore(state => state.deductStockForOrderItems);
   const autoPrintConfig = settings.autoPrintConfig;
-  const locationId = useAuthStore((state) => state.currentLocation?.id);
+  const locationId = useAuthStore(state => state.currentLocation?.id);
   const taxRate = settings?.taxRate;
 
   const organizationName = settings?.businessName || 'My Business';
@@ -291,7 +292,9 @@ const PaymentModal = ({
   const fullSaleNumber = saleNumber;
 
   // ── Sync discount prop ──
-  useEffect(() => { setEditableDiscount(discount); }, [discount]);
+  useEffect(() => {
+    setEditableDiscount(discount);
+  }, [discount]);
 
   // ── Calculations ──
   const { totalPayable, priceBeforeTax, calculatedTax } = useMemo(() => {
@@ -330,8 +333,8 @@ const PaymentModal = ({
   }, [isOpen]);
 
   // ── QR data ──
-  const mpesaQrData = useMemo(() =>
-    generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance),
+  const mpesaQrData = useMemo(
+    () => generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance),
     [mpesaMode, organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
   );
 
@@ -339,17 +342,37 @@ const PaymentModal = ({
   useEffect(() => {
     if (!isOpen) return;
     if (selectedTab === 'MOBILE_PAYMENT' && (mpesaMode === 'QR' || mpesaMode === 'PAYBILL')) {
-      emit('payment-update', { type: 'MPESA_QR', amount: remainingBalance, qrData: mpesaQrData, paybill: paybillNumber, tillNo: tillNumber, accountRef: paybillAccountNo, mode: mpesaMode });
+      emit('payment-update', {
+        type: 'MPESA_QR',
+        amount: remainingBalance,
+        qrData: mpesaQrData,
+        paybill: paybillNumber,
+        tillNo: tillNumber,
+        accountRef: paybillAccountNo,
+        mode: mpesaMode,
+      });
     } else if (selectedTab === 'MOBILE_PAYMENT' && mpesaMode === 'STK') {
       emit('payment-update', { type: 'MPESA_STK', amount: remainingBalance, phoneNumber: mpesaPhone });
     } else {
       emit('payment-update', { type: 'GENERIC_TOTAL', amount: remainingBalance, totalPaid, change: changeDue });
     }
-  }, [isOpen, selectedTab, mpesaMode, mpesaQrData, remainingBalance, paybillNumber, tillNumber, paybillAccountNo, totalPaid, changeDue, mpesaPhone]);
+  }, [
+    isOpen,
+    selectedTab,
+    mpesaMode,
+    mpesaQrData,
+    remainingBalance,
+    paybillNumber,
+    tillNumber,
+    paybillAccountNo,
+    totalPaid,
+    changeDue,
+    mpesaPhone,
+  ]);
 
   // ── Ably listener ──
-  const paymentChannel = useAblyStore((state) => state.paymentChannel);
-  const ably = useAblyStore((state) => state.client);
+  const paymentChannel = useAblyStore(state => state.paymentChannel);
+  const ably = useAblyStore(state => state.client);
 
   useEffect(() => {
     if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably || !paymentChannel) return;
@@ -385,13 +408,13 @@ const PaymentModal = ({
 
   // ── Payment helpers ──
   const addPayment = useCallback((payment: Omit<AddedPayment, 'id'>) => {
-    setCurrentPayments((prev) => [...prev, { ...payment, id: uuidv4() }]);
+    setCurrentPayments(prev => [...prev, { ...payment, id: uuidv4() }]);
     setAmountInput('');
     setValidationErrors([]);
   }, []);
 
   const removePayment = useCallback((id: string) => {
-    setCurrentPayments((prev) => prev.filter((p) => p.id !== id));
+    setCurrentPayments(prev => prev.filter(p => p.id !== id));
   }, []);
 
   // ── Handlers ──
@@ -433,7 +456,11 @@ const PaymentModal = ({
         method: PaymentMethod.MPESA,
         amount: data.amount,
         reference: data.receipt,
-        meta: { mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL, mpesaPhoneNumber: data.phone || mpesaPhone, ...data },
+        meta: {
+          mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL,
+          mpesaPhoneNumber: data.phone || mpesaPhone,
+          ...data,
+        },
       });
       setDetectedPayment(null);
       setMpesaStatus('IDLE');
@@ -473,7 +500,7 @@ const PaymentModal = ({
   };
 
   const getCommonPayloadFields = (): any => ({
-    cartItems: cartItems.map((item) => ({
+    cartItems: cartItems.map(item => ({
       productId: item.productId || '',
       productName: item.productName || 'Unknown Product',
       variantId: item.variantId || '',
@@ -504,12 +531,17 @@ const PaymentModal = ({
       paymentStatus: PaymentStatus.COMPLETED,
       amountReceived: totalPaid,
       change: changeDue,
-      payments: currentPayments.map((p) => ({ method: p.method, amount: p.amount, reference: p.reference, meta: p.meta })),
+      payments: currentPayments.map(p => ({
+        method: p.method,
+        amount: p.amount,
+        reference: p.reference,
+        meta: p.meta,
+      })),
     };
 
     const result = ProcessSaleInputSchema.safeParse(payload);
     if (!result.success) {
-      setValidationErrors(result.error.errors.map((e) => e.message));
+      setValidationErrors(result.error.errors.map(e => e.message));
       return;
     }
 
@@ -534,12 +566,12 @@ const PaymentModal = ({
         amountPaid: totalPaid,
         change: changeDue,
       };
-      if (currentPayments.some((p) => p.method === PaymentMethod.CASH) && autoPrintConfig.openCashDrawer) {
+      if (currentPayments.some(p => p.method === PaymentMethod.CASH) && autoPrintConfig.openCashDrawer) {
         openPhysicalDrawer();
       }
       emit('payment-update', { type: 'CLEAR_COMPLETED' });
       // trackEvent("sale_processed", { amount: totalPayable, payment_method: primaryMethod });
-      
+
       // Deduct local stock immediately on sale
       deductStockForOrderItems(cartItems);
 
@@ -554,7 +586,7 @@ const PaymentModal = ({
   return (
     <Dialog
       open={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={open => {
         if (!open && (isProcessing || mpesaWaiting)) return;
         onClose();
       }}
@@ -579,14 +611,29 @@ const PaymentModal = ({
                   <div className="absolute inset-0 bg-green-100 dark:bg-green-900/40 flex items-center justify-center">
                     <Smartphone className="w-10 h-10 text-green-600 dark:text-green-400" />
                   </div>
-                  <svg className="absolute inset-0 w-full h-full -rotate-90 animate-spin" style={{ animationDuration: '2s' }}>
-                    <circle cx="48" cy="48" r="44" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"
-                      className="text-green-500" strokeDasharray="220" strokeDashoffset="60" />
+                  <svg
+                    className="absolute inset-0 w-full h-full -rotate-90 animate-spin"
+                    style={{ animationDuration: '2s' }}
+                  >
+                    <circle
+                      cx="48"
+                      cy="48"
+                      r="44"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      className="text-green-500"
+                      strokeDasharray="220"
+                      strokeDashoffset="60"
+                    />
                   </svg>
                 </div>
                 <div>
                   <h3 className="text-xl font-bold tracking-tight mb-1">Check Customer's Phone</h3>
-                  <p className="text-muted-foreground text-sm">STK push sent to <span className="font-semibold text-foreground">{mpesaPhone}</span></p>
+                  <p className="text-muted-foreground text-sm">
+                    STK push sent to <span className="font-semibold text-foreground">{mpesaPhone}</span>
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">Waiting for PIN confirmation…</p>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setMpesaWaiting(false)} className="gap-2">
@@ -623,10 +670,8 @@ const PaymentModal = ({
 
         {/* ── Body ── */}
         <div className="grid grid-cols-12 overflow-hidden" style={{ height: 580 }}>
-
           {/* ──────── LEFT PANEL ──────── */}
           <div className="col-span-7 border-r flex flex-col overflow-hidden">
-
             {/* Discount strip */}
             <div className="flex items-center justify-between gap-3 px-5 py-3 bg-muted/10 border-b">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -634,18 +679,26 @@ const PaymentModal = ({
                 <span>Discount</span>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"
-                  onClick={() => setEditableDiscount((v) => Math.max(0, v - 1))}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setEditableDiscount(v => Math.max(0, v - 1))}
+                >
                   <Minus className="w-3 h-3" />
                 </Button>
                 <Input
                   type="number"
                   className="h-8 w-24 text-center font-semibold text-sm no-spinners"
                   value={editableDiscount}
-                  onChange={(e) => setEditableDiscount(Math.min(parseFloat(e.target.value) || 0, subtotal))}
+                  onChange={e => setEditableDiscount(Math.min(parseFloat(e.target.value) || 0, subtotal))}
                 />
-                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg"
-                  onClick={() => setEditableDiscount((v) => Math.min(v + 1, subtotal))}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setEditableDiscount(v => Math.min(v + 1, subtotal))}
+                >
                   <Plus className="w-3 h-3" />
                 </Button>
               </div>
@@ -653,10 +706,13 @@ const PaymentModal = ({
 
             {/* Payment method tabs */}
             <div className="flex gap-1 p-3 border-b bg-background">
-              {PAYMENT_METHODS.map((method) => (
+              {PAYMENT_METHODS.map(method => (
                 <button
                   key={method.id}
-                  onClick={() => { setSelectedTab(method.id); setValidationErrors([]); }}
+                  onClick={() => {
+                    setSelectedTab(method.id);
+                    setValidationErrors([]);
+                  }}
                   className={cn(
                     'flex-1 flex flex-col items-center gap-1 py-2.5 px-2 text-xs font-medium transition-all duration-150',
                     selectedTab === method.id
@@ -684,14 +740,18 @@ const PaymentModal = ({
                   {selectedTab === 'CASH' && (
                     <div className="space-y-4">
                       <div className="space-y-3">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Amount Tendered</Label>
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          Amount Tendered
+                        </Label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">KSh</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                            KSh
+                          </span>
                           <Input
                             type="number"
                             value={amountInput}
-                            onChange={(e) => setAmountInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddCash()}
+                            onChange={e => setAmountInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAddCash()}
                             className="pl-12 text-xl font-bold h-14 no-spinners"
                             placeholder={remainingBalance.toFixed(2)}
                             autoFocus
@@ -700,7 +760,7 @@ const PaymentModal = ({
                       </div>
                       {/* Quick amounts */}
                       <div className="grid grid-cols-3 gap-2">
-                        {CASH_PRESETS.map((val) => (
+                        {CASH_PRESETS.map(val => (
                           <Button
                             key={val}
                             variant="outline"
@@ -734,7 +794,9 @@ const PaymentModal = ({
                       {changeDue > 0 && (
                         <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-sm">
                           <span className="text-amber-700 dark:text-amber-400 font-medium">Change Due</span>
-                          <span className="font-bold text-amber-600 dark:text-amber-300 text-base">{formatCurrency(changeDue)}</span>
+                          <span className="font-bold text-amber-600 dark:text-amber-300 text-base">
+                            {formatCurrency(changeDue)}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -745,10 +807,14 @@ const PaymentModal = ({
                     <div className="space-y-4">
                       {/* Mode toggle */}
                       <div className="grid grid-cols-4 gap-1.5 p-1.5 bg-muted">
-                        {(['STK', 'QR', 'PAYBILL', 'BUY_GOODS'] as MpesaMode[]).map((mode) => (
+                        {(['STK', 'QR', 'PAYBILL', 'BUY_GOODS'] as MpesaMode[]).map(mode => (
                           <button
                             key={mode}
-                            onClick={() => { setMpesaMode(mode); setDetectedPayment(null); setMpesaStatus('IDLE'); }}
+                            onClick={() => {
+                              setMpesaMode(mode);
+                              setDetectedPayment(null);
+                              setMpesaStatus('IDLE');
+                            }}
                             className={cn(
                               'py-1.5 rounded-lg text-xs font-semibold transition-all',
                               mpesaMode === mode
@@ -765,11 +831,13 @@ const PaymentModal = ({
                       <div className="space-y-1.5">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Amount</Label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">KSh</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                            KSh
+                          </span>
                           <Input
                             type="number"
                             value={amountInput}
-                            onChange={(e) => setAmountInput(e.target.value)}
+                            onChange={e => setAmountInput(e.target.value)}
                             placeholder={remainingBalance.toFixed(2)}
                             className="pl-12 text-lg font-bold h-12 no-spinners"
                           />
@@ -780,10 +848,12 @@ const PaymentModal = ({
                       {mpesaMode === 'STK' && (
                         <div className="space-y-3">
                           <div className="space-y-1.5">
-                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Phone Number</Label>
+                            <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                              Phone Number
+                            </Label>
                             <Input
                               value={mpesaPhone}
-                              onChange={(e) => setMpesaPhone(e.target.value)}
+                              onChange={e => setMpesaPhone(e.target.value)}
                               placeholder="07XX XXX XXX"
                               className="h-11 font-mono"
                             />
@@ -794,9 +864,13 @@ const PaymentModal = ({
                             disabled={mpesaStatus === 'WAITING' || !mpesaPhone || !amountInput}
                           >
                             {mpesaStatus === 'WAITING' ? (
-                              <><Loader2 className="w-4 h-4 animate-spin" /> Sending…</>
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" /> Sending…
+                              </>
                             ) : (
-                              <><Smartphone className="w-4 h-4" /> Send STK Push</>
+                              <>
+                                <Smartphone className="w-4 h-4" /> Send STK Push
+                              </>
                             )}
                           </Button>
                           <MpesaStatusBanner
@@ -856,12 +930,14 @@ const PaymentModal = ({
                       <div className="space-y-3">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Swipe Amount</Label>
                         <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">KSh</span>
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                            KSh
+                          </span>
                           <Input
                             type="number"
                             value={amountInput}
-                            onChange={(e) => setAmountInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleAddCard()}
+                            onChange={e => setAmountInput(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleAddCard()}
                             className="pl-12 text-xl font-bold h-14 no-spinners"
                             placeholder={remainingBalance.toFixed(2)}
                           />
@@ -870,7 +946,8 @@ const PaymentModal = ({
                       <div className="flex items-start gap-3 p-4 bg-muted/30 border border-dashed">
                         <CreditCard className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
                         <p className="text-sm text-muted-foreground leading-relaxed">
-                          Process the card on your external terminal first, then record the amount here to complete the sale.
+                          Process the card on your external terminal first, then record the amount here to complete the
+                          sale.
                         </p>
                       </div>
                       <Button
@@ -887,10 +964,12 @@ const PaymentModal = ({
                   {selectedTab === 'GIFT_CARD' && (
                     <div className="space-y-4">
                       <form onSubmit={handleGiftCardScan} className="space-y-3">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Scan or Enter Code</Label>
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          Scan or Enter Code
+                        </Label>
                         <Input
                           value={giftCardCode}
-                          onChange={(e) => setGiftCardCode(e.target.value.toUpperCase())}
+                          onChange={e => setGiftCardCode(e.target.value.toUpperCase())}
                           placeholder="GIFT-XXXX-XXXX"
                           autoFocus
                           className="font-mono text-lg h-14 tracking-widest text-center uppercase"
@@ -901,9 +980,13 @@ const PaymentModal = ({
                           disabled={!giftCardCode || isValidatingGC}
                         >
                           {isValidatingGC ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Validating…</>
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" /> Validating…
+                            </>
                           ) : (
-                            <><Gift className="w-4 h-4" /> Redeem Gift Card</>
+                            <>
+                              <Gift className="w-4 h-4" /> Redeem Gift Card
+                            </>
                           )}
                         </Button>
                       </form>
@@ -949,7 +1032,7 @@ const PaymentModal = ({
                     <p className="text-xs text-muted-foreground/60 mt-1">Select a method on the left</p>
                   </motion.div>
                 ) : (
-                  currentPayments.map((p) => (
+                  currentPayments.map(p => (
                     <motion.div
                       key={p.id}
                       initial={{ opacity: 0, scale: 0.95, y: -8 }}
@@ -1018,7 +1101,9 @@ const PaymentModal = ({
                 {changeDue > 0 && (
                   <div className="flex justify-between items-center p-2.5 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-800">
                     <span className="text-amber-700 dark:text-amber-400 font-medium text-sm">Change Due</span>
-                    <span className="tabular-nums font-bold text-amber-600 dark:text-amber-300">{formatCurrency(changeDue)}</span>
+                    <span className="tabular-nums font-bold text-amber-600 dark:text-amber-300">
+                      {formatCurrency(changeDue)}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1026,15 +1111,12 @@ const PaymentModal = ({
               <Input
                 placeholder="Add sale note (optional)…"
                 value={notes}
-                onChange={(e) => setNotes(e.target.value)}
+                onChange={e => setNotes(e.target.value)}
                 className="h-9 text-xs rounded-lg"
               />
 
               {validationErrors.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                >
+                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
                   <Alert variant="destructive" className="py-2">
                     <AlertCircle className="h-3.5 w-3.5" />
                     <AlertDescription className="text-xs ml-1">{validationErrors[0]}</AlertDescription>
@@ -1054,11 +1136,17 @@ const PaymentModal = ({
                 onClick={handleCompleteSale}
               >
                 {isProcessing ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Processing…</>
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Processing…
+                  </>
                 ) : changeDue > 0 ? (
-                  <><CheckCircle2 className="w-4 h-4" /> Complete · Give {formatCurrency(changeDue)} Change</>
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Complete · Give {formatCurrency(changeDue)} Change
+                  </>
                 ) : (
-                  <><CheckCircle2 className="w-4 h-4" /> Complete Sale <ArrowRight className="w-4 h-4 ml-auto" /></>
+                  <>
+                    <CheckCircle2 className="w-4 h-4" /> Complete Sale <ArrowRight className="w-4 h-4 ml-auto" />
+                  </>
                 )}
               </Button>
             </div>

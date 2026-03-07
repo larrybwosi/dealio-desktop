@@ -3,23 +3,15 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
-import { 
-  Plus, 
-  Search, 
-  AlertCircle,
-  Banknote,
-  Truck,
-  RefreshCw, 
-  Loader2    
-} from 'lucide-react';
-import { toast } from 'sonner'; 
+import { Plus, Search, AlertCircle, Banknote, Truck, RefreshCw, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { processFileDownload } from '@/lib/utils';
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PaymentDialog } from '@/components/pending-page/payment';
 import { ReconciliationDialog } from '@/components/pending-page/reconcile';
 import { DispatchDialog } from '@/components/pending-page/dispatch-dialog';
@@ -53,7 +45,7 @@ export default function PendingTransactionsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const navigate = useNavigate();
-  
+
   // Get the ID from URL if it exists (e.g., /transactions?id=123)
   const [highlightId] = searchParams;
 
@@ -61,7 +53,7 @@ export default function PendingTransactionsPage() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isReconcileOpen, setIsReconcileOpen] = useState(false);
   const [isDispatchOpen, setIsDispatchOpen] = useState(false);
-  
+
   // State to control which dropdown is open programmatically
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -69,20 +61,18 @@ export default function PendingTransactionsPage() {
   const [isDownloading, setIsDownloading] = useState(false);
 
   // --- Query: Get Transactions ---
-  const { 
-    data: transactions = [], 
-    isLoading, 
-    isRefetching, 
-    refetch 
+  const {
+    data: transactions = [],
+    isLoading,
+    isRefetching,
+    refetch,
   } = useQuery({
     queryKey: ['transactions'],
     queryFn: () => fetchTransactions(),
   });
 
   // --- Query: Get Drivers ---
-  const { 
-    data: drivers = [], 
-  } = useQuery<DriverOption[]>({
+  const { data: drivers = [] } = useQuery<DriverOption[]>({
     queryKey: ['drivers'],
     queryFn: () => fetchDrivers(),
     enabled: isDispatchOpen, // Only fetch when dispatch dialog is open
@@ -135,10 +125,10 @@ export default function PendingTransactionsPage() {
     if (isDownloading) return;
 
     setIsDownloading(true);
-    
+
     // Create a loading toast
     const loadingToastId = toast.loading('Downloading invoice...', {
-      description: `Order: ${tx.number || tx.id}`
+      description: `Order: ${tx.number || tx.id}`,
     });
 
     try {
@@ -153,7 +143,7 @@ export default function PendingTransactionsPage() {
       console.error('Download error:', error);
       toast.error('Failed to save invoice', {
         description: 'Please try again',
-        id: loadingToastId
+        id: loadingToastId,
       });
     } finally {
       setIsDownloading(false);
@@ -165,17 +155,17 @@ export default function PendingTransactionsPage() {
   const handleDownloadWaybill = async (tx: Transaction) => {
     // Waybills usually require a fulfillment/dispatch to exist
     if (!tx.fulfillmentId) {
-        toast.error("This transaction has not been dispatched yet.");
-        return;
+      toast.error('This transaction has not been dispatched yet.');
+      return;
     }
 
     if (isDownloading) return;
 
     setIsDownloading(true);
-    
+
     // Create a loading toast
     const loadingToastId = toast.loading('Downloading waybill...', {
-      description: `Order: ${tx.number || tx.id}`
+      description: `Order: ${tx.number || tx.id}`,
     });
 
     try {
@@ -184,7 +174,7 @@ export default function PendingTransactionsPage() {
       const blob = await invoke<number[]>('get_invoice_blob_command', { url });
       const uint8Array = new Uint8Array(blob);
       const blobObj = new Blob([uint8Array], { type: 'application/pdf' });
-      
+
       const safeOrderNum = (tx.number || tx.id).replace(/[^a-z0-9]/gi, '_');
       const fileName = `Waybill_${safeOrderNum}.pdf`;
 
@@ -193,7 +183,7 @@ export default function PendingTransactionsPage() {
       console.error('Waybill download error:', error);
       toast.error('Failed to save waybill', {
         description: 'Please try again',
-        id: loadingToastId
+        id: loadingToastId,
       });
     } finally {
       setIsDownloading(false);
@@ -201,12 +191,11 @@ export default function PendingTransactionsPage() {
     }
   };
 
-
   const handleOpenMenuChange = (isOpen: boolean, txId: string) => {
     setOpenMenuId(isOpen ? txId : null);
   };
 
-  const formatCurrency = (amount: number) => 
+  const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'KSH' }).format(amount);
 
   const getActiveTransaction = () => transactions.find(t => t.id === activeTxId);
@@ -243,20 +232,20 @@ export default function PendingTransactionsPage() {
             </TableCell>
           </TableRow>
         ) : (
-          data.map((tx) => (
+          data.map(tx => (
             <TransactionRow
               key={tx.id}
               tx={tx}
               isHighlighted={tx.id === highlightId?.get('id')}
               isDownloading={isDownloading}
               openMenuId={openMenuId}
-              onOpenMenuChange={(isOpen) => handleOpenMenuChange(isOpen, tx.id)}
+              onOpenMenuChange={isOpen => handleOpenMenuChange(isOpen, tx.id)}
               onCopyId={handleCopyId}
               onDownloadInvoice={handleDownloadInvoice}
               onDownloadWaybill={handleDownloadWaybill}
               onOpenReconcile={handleOpenReconcile}
               onOpenPayment={handleOpenPayment}
-              onOpenDispatch={handleOpenDispatch} 
+              onOpenDispatch={handleOpenDispatch}
             />
           ))
         )}
@@ -275,17 +264,13 @@ export default function PendingTransactionsPage() {
           <p className="text-muted-foreground mt-1">Manage payments, balances, and outstanding invoices.</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleRefresh}
-            disabled={isLoading || isRefetching}
-          >
+          <Button variant="outline" onClick={handleRefresh} disabled={isLoading || isRefetching}>
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Button
             onClick={() => {
-              navigate('/create-order')
+              navigate('/create-order');
             }}
           >
             <Plus className="mr-2 h-4 w-4" /> Create Invoice
@@ -294,7 +279,7 @@ export default function PendingTransactionsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className='rounded-none'>
+        <Card className="rounded-none">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Outstanding Balance</CardTitle>
             <Banknote className="h-4 w-4 text-muted-foreground" />
@@ -303,7 +288,7 @@ export default function PendingTransactionsPage() {
             <div className="text-2xl font-bold">{formatCurrency(totalOutstanding)}</div>
           </CardContent>
         </Card>
-        <Card className='rounded-none'>
+        <Card className="rounded-none">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Dispatched / En-Route</CardTitle>
             <Truck className="h-4 w-4 text-blue-500" />
@@ -313,7 +298,7 @@ export default function PendingTransactionsPage() {
             <p className="text-xs text-muted-foreground">Require reconciliation</p>
           </CardContent>
         </Card>
-        <Card className='rounded-none'>
+        <Card className="rounded-none">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Action Required</CardTitle>
             <AlertCircle className="h-4 w-4 text-destructive" />
@@ -333,7 +318,7 @@ export default function PendingTransactionsPage() {
             <TabsTrigger value="dispatched">Dispatched</TabsTrigger>
             <TabsTrigger value="pending">Unpaid</TabsTrigger>
           </TabsList>
-          
+
           <div className="relative w-full sm:w-64">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search..." className="pl-8" />
@@ -341,22 +326,30 @@ export default function PendingTransactionsPage() {
         </div>
 
         <TabsContent value="all">
-          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={transactions} /></CardContent></Card>
+          <Card className="rounded-none">
+            <CardContent className="p-0">
+              <TransactionTable data={transactions} />
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="dispatched">
-          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={dispatchedTx} /></CardContent></Card>
+          <Card className="rounded-none">
+            <CardContent className="p-0">
+              <TransactionTable data={dispatchedTx} />
+            </CardContent>
+          </Card>
         </TabsContent>
         <TabsContent value="pending">
-          <Card className='rounded-none'><CardContent className="p-0"><TransactionTable data={pendingTx} /></CardContent></Card>
+          <Card className="rounded-none">
+            <CardContent className="p-0">
+              <TransactionTable data={pendingTx} />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
       {/* Dialog Components */}
-      <PaymentDialog
-        open={isPaymentOpen}
-        onOpenChange={setIsPaymentOpen}
-        transactionId={activeTxId}
-      />
+      <PaymentDialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen} transactionId={activeTxId} />
 
       <ReconciliationDialog
         open={isReconcileOpen}
