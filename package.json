@@ -18,7 +18,9 @@
     "test:backend": "cd src-tauri && cargo test",
     "test:e2e": "playwright test",
     "test:all": "pnpm run test:frontend && pnpm run test:backend && pnpm run test:e2e",
-    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy"
+    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy",
+    "format": "npx prettier --write .",
+    "cz": "cz"
   },
   "dependencies": {
     "@aptabase/tauri": "^0.4.1",

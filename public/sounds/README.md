@@ -30,6 +30,7 @@ The application requires notification sound files. Place the following MP3 files
 ## Sources for Sounds
 
 You can create or download sounds from:
+
 - [Freesound.org](https://freesound.org)
 - [Zapsplat.com](https://zapsplat.com)
 - [Mixkit.co](https://mixkit.co/free-sound-effects/notification/)

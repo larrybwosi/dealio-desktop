@@ -93,7 +93,7 @@ jobs:
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: "./src-tauri -> target"
+          workspaces: './src-tauri -> target'
 
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -130,10 +130,10 @@ jobs:
         run: |
           FULL_VERSION="${{ needs.release-management.outputs.new_release_version }}"
           CLEAN_VERSION="${FULL_VERSION%%-*}"
-          
+
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
-          
+
           echo "Bumping Tauri config version to $CLEAN_VERSION"
           jq --arg v "$CLEAN_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 

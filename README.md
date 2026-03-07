@@ -1,6 +1,6 @@
 # Dealio Desktop
 
-![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![Version](https://img.shields.io/badge/version-3.1.0--beta.4-blue.svg)
 [![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial-red.svg)](LICENSE)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/larrybwosi/dealio-desktop/actions)
 
@@ -14,6 +14,7 @@
   - [📋 Table of Contents](#-table-of-contents)
   - [🚀 Features](#-features)
     - [Core Capabilities](#core-capabilities)
+    - [Enterprise Features](#enterprise-features)
     - [Business-Specific Functionality](#business-specific-functionality)
   - [🛠️ Tech Stack](#-tech-stack)
   - [📦 Installation & Getting Started](#-installation--getting-started)
@@ -34,20 +35,31 @@ Dealio Desktop is versatile, adaptable to various business models through pre-co
 
 ### Core Capabilities
 
--   **Seamless Sales Processing**: Fast checkout with product search, cart management, and mixed payment methods (Cash, Card, M-Pesa).
--   **Robust Inventory**: Real-time stock tracking, variant management (sizes, colors), batch tracking, and low-stock alerts.
--   **Offline-First Architecture**: Continue operations without an internet connection; data syncs automatically when online.
--   **Customer CRM**: Maintain detailed customer profiles, purchase history, and loyalty points.
--   **Comprehensive Analytics**: Visual dashboards for sales trends, top products, and revenue analysis.
--   **Receipt customization**: Professional PDF receipt generation with custom logos, headers, and footers.
--   **Peripherals Support**: Integration with thermal printers, barcode scanners, and cash drawers.
+- **Seamless Sales Processing**: Fast checkout with product search, cart management, and mixed payment methods (Cash, Card, M-Pesa).
+- **Robust Inventory**: Real-time stock tracking, variant management (sizes, colors), batch tracking, and low-stock alerts.
+- **Product Pagination**: Efficiently manage large inventories with high-performance pagination.
+- **Offline-First Architecture**: Continue operations without an internet connection; data syncs automatically when online.
+- **Customer CRM**: Maintain detailed customer profiles, purchase history, and loyalty points.
+- **Comprehensive Analytics**: Visual dashboards for sales trends, top products, and revenue analysis.
+- **Receipt customization**: Professional PDF receipt generation with custom logos, headers, and footers.
+- **Receipt Preview**: Modern, reliable receipt generation and preview using React PDF.
+- **Peripherals Support**: Integration with thermal printers, barcode scanners, and cash drawers.
+- **Network Printing**: Support for network-connected thermal printers for flexible kitchen and counter setups.
+
+### Enterprise Features
+
+- **Background Sale Syncing**: Reliable data synchronization that works in the background without interrupting your flow.
+- **Manual Update Checks**: Stay up-to-date with the latest versions and features via manual check-for-updates.
+- **Location Switching**: Seamlessly manage and switch between multiple business locations within a single session.
+- **Stock Transfers**: Comprehensive inventory movements including creation, acceptance, and quality check validation.
+- **Integrated Telemetry**: Robust error reporting (Sentry) and usage analytics (Aptabase) to ensure system health and reliability.
 
 ### Business-Specific Functionality
 
--   **🍽️ Restaurants & Cafes**: Table management, Kitchen Display System (KDS), dine-in/takeaway splitting.
--   **💊 Pharmacies**: Prescription management and doctor tracking.
--   **🏬 Retail**: Barcode scanning, wholesale/B2B pricing, and bulk purchasing.
--   **🔖 Specialized**: ISBN tracking for bookstores, warranty management for electronics.
+- **🍽️ Restaurants & Cafes**: Table management, Kitchen Display System (KDS), dine-in/takeaway splitting.
+- **💊 Pharmacies**: Prescription management and doctor tracking.
+- **🏬 Retail**: Barcode scanning, wholesale/B2B pricing, and bulk purchasing.
+- **🔖 Specialized**: ISBN tracking for bookstores, warranty management for electronics.
 
 ---
 
@@ -55,16 +67,18 @@ Dealio Desktop is versatile, adaptable to various business models through pre-co
 
 We use cutting-edge technologies to ensure stability, performance, and maintainability.
 
-| Category | Technology | Description |
-| :--- | :--- | :--- |
-| **Backend** | [Tauri v2](https://tauri.app/) | Secure, lightweight desktop app framework |
-| **Language** | [Rust](https://www.rust-lang.org/) | Performance-critical backend logic |
-| **Frontend** | [React 19](https://react.dev/) | UI library |
-| **Language** | [TypeScript](https://www.typescriptlang.org/) | Static typing for reliability |
-| **State** | [Zustand](https://github.com/pmndrs/zustand) | Lightweight state management |
-| **Styling** | [Tailwind CSS 4](https://tailwindcss.com/) | Utility-first CSS framework |
-| **Database** | Tauri Plug-in Store | Persistent local storage |
-| **Realtime** | [Ably](https://ably.com/) | Real-time notifications and updates |
+| Category       | Technology                                    | Description                                  |
+| :------------- | :-------------------------------------------- | :------------------------------------------- |
+| **Backend**    | [Tauri v2](https://tauri.app/)                | Secure, lightweight desktop app framework    |
+| **Language**   | [Rust](https://www.rust-lang.org/)            | Performance-critical backend logic           |
+| **Frontend**   | [React 19](https://react.dev/)                | UI library                                   |
+| **Language**   | [TypeScript](https://www.typescriptlang.org/) | Static typing for reliability                |
+| **State**      | [Zustand](https://github.com/pmndrs/zustand)  | Lightweight state management                 |
+| **Styling**    | [Tailwind CSS 4](https://tailwindcss.com/)    | Utility-first CSS framework                  |
+| **Database**   | Tauri Plug-in Store / SQL                     | Persistent local storage and structured data |
+| **Realtime**   | [Ably](https://ably.com/)                     | Real-time notifications and updates          |
+| **Monitoring** | [Sentry](https://sentry.io/)                  | Error tracking and crash reporting           |
+| **Analytics**  | [Aptabase](https://aptabase.com/)             | Privacy-first telemetry and usage tracking   |
 
 ---
 
@@ -74,29 +88,32 @@ We use cutting-edge technologies to ensure stability, performance, and maintaina
 
 Ensure you have the following installed on your system:
 
--   **Node.js** (v18 or later)
--   **pnpm** (preferred package manager)
--   **Rust** (v1.70+ for Tauri compilation)
--   **Build Tools**:
-    -   *Windows*: Visual Studio C++ Build Tools
-    -   *macOS*: Xcode Command Line Tools
-    -   *Linux*: `build-essential`, `libwebkit2gtk-4.0-dev`, etc.
+- **Node.js** (v18 or later)
+- **pnpm** (preferred package manager)
+- **Rust** (v1.70+ for Tauri compilation)
+- **Build Tools**:
+  - _Windows_: Visual Studio C++ Build Tools
+  - _macOS_: Xcode Command Line Tools
+  - _Linux_: `build-essential`, `libwebkit2gtk-4.0-dev`, etc.
 
 ### Setup Guide
 
 1.  **Clone the Repository**
+
     ```bash
     git clone https://github.com/larrybwosi/dealio-desktop.git
     cd dealio-desktop
     ```
 
 2.  **Install Dependencies**
+
     ```bash
     pnpm install
     ```
 
 3.  **Run in Development Mode**
     This starts the frontend server and the Tauri window.
+
     ```bash
     pnpm tauri dev
     ```
@@ -115,9 +132,9 @@ Ensure you have the following installed on your system:
 1.  **Onboarding**: Upon first launch, enter your API key to register the device and download your business configuration.
 2.  **Dashboard**: Overview of daily performance.
 3.  **Point of Sale**:
-    -   Select items from the catalog.
-    -   Scan barcodes for quick addition.
-    -   Click "Charge" to select payment methods.
+    - Select items from the catalog.
+    - Scan barcodes for quick addition.
+    - Click "Charge" to select payment methods.
 4.  **Settings**: Configure printers, receipt templates, and tax rates.
 
 ---
@@ -125,12 +142,15 @@ Ensure you have the following installed on your system:
 ## 🔧 Configuration
 
 ### Receipt Templates
+
 Customize your receipts via **Settings > Receipt Settings**. You can toggle:
--   Business Logo
--   Order ID / Cashier Name
--   Promotional Footers
+
+- Business Logo
+- Order ID / Cashier Name
+- Promotional Footers
 
 ### Hardware
+
 Dealio auto-detects connected USB thermal printers. Configure paper width (58mm/80mm) in printer settings.
 
 ---
@@ -138,9 +158,10 @@ Dealio auto-detects connected USB thermal printers. Configure paper width (58mm/
 ## 🔌 API Integration
 
 Dealio Desktop is designed to work with the **Dealio API** for centralized management.
--   **Sync**: Products and Categories are pulled from the cloud.
--   **Upload**: Sales and Customers are pushed to the cloud.
--   **Websockets**: Instant order notifications via Ably.
+
+- **Sync**: Products and Categories are pulled from the cloud.
+- **Upload**: Sales and Customers are pushed to the cloud.
+- **Websockets**: Instant order notifications via Ably.
 
 ---
 
@@ -170,9 +191,9 @@ See [LICENSE](LICENSE) for more information.
 
 If you encounter issues or have questions:
 
--   **Issues**: [GitHub Issues](https://github.com/larrybwosi/dealio-desktop/issues)
--   **Email**: support@dealio.app
+- **Issues**: [GitHub Issues](https://github.com/larrybwosi/dealio-desktop/issues)
+- **Email**: support@dealio.app
 
 ---
 
-*Made with ❤️ by the Dealio Team.*
+_Made with ❤️ by the Dealio Team._
