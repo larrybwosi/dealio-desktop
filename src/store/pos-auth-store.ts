@@ -56,7 +56,7 @@ export type Member = {
 };
 
 interface PosAuthState {
-  deviceKey: string | null;
+  isConfigured: boolean;
   currentMember: Member | null;
   currentLocation: InventoryLocation | null;
   isRestoredSession: boolean;
@@ -66,7 +66,6 @@ interface PosAuthState {
 }
 
 interface PosAuthActions {
-  setDeviceKey: (key: string) => void;
   setMemberSession: (member: Member, isRestored?: boolean) => void;
   clearMemberSession: () => void;
   setCurrentLocation: (location: InventoryLocation) => void;
@@ -86,7 +85,7 @@ const ONE_HOUR_MS = 60 * 60 * 1000;
 const STORAGE_KEY = 'pos-auth-storage-v3';
 
 const initialState: PosAuthState = {
-  deviceKey: null,
+  isConfigured: false,
   currentMember: null,
   currentLocation: null,
   isRestoredSession: false,
@@ -100,20 +99,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
     (set, get) => ({
       ...initialState,
 
-      setDeviceKey: async (key) => {
-        try {
-          await invoke('start_device_setup_command', {
-            baseUrl: API_ENDPOINT,
-            deviceKey: key
-          });
-          set({ deviceKey: key });
-        } catch (error) {
-          console.error("Failed to set device key in backend:", error);
-          throw error;
-        }
-      },
-
-      setMemberSession: (member, isRestored = false) => {
+      setMemberSession: (member: Member, isRestored = false) => {
         set({
           currentMember: member,
           isRestoredSession: isRestored,
@@ -136,7 +122,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         }
       },
 
-      setCurrentLocation: (location) => {
+      setCurrentLocation: (location: InventoryLocation) => {
         set({ currentLocation: location });
       },
 
@@ -150,22 +136,16 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
       resetDevice: () => {
         set({
-          deviceKey: null,
+          isConfigured: false,
           currentLocation: null,
         });
       },
 
       initializeFromBackend: async () => {
         try {
-          // rust struct: DeviceConfig { base_url, location_id, device_key, allow_negative_stock }
-          const config = await invoke<{ device_key: string, location_id: string, base_url: string, allow_negative_stock: boolean } | null>('get_device_config');
+          // rust struct: SanitizedDeviceConfig { location_id, allow_negative_stock }
+          const config = await invoke<{ location_id: string, allow_negative_stock: boolean } | null>('get_device_config');
           if (config) {
-             set({ 
-               deviceKey: config.device_key,
-               allowNegativeStock: config.allow_negative_stock 
-             });
-             console.log("[AuthStore] Device key loaded from backend");
-             
              // If currentLocation is not already hydrated from localStorage, fetch it
              const { currentLocation } = get();
              if (!currentLocation?.id && config.location_id) {
@@ -181,7 +161,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
                  console.error("[AuthStore] Failed to fetch location:", fetchError);
                }
              }
-             set({ isInitialized: true });
+             set({ isInitialized: true, isConfigured: true });
              
              // Sync existing session to Rust if present
              const { currentMember } = get();
@@ -197,11 +177,11 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
              }
 
           } else {
-             set({ isInitialized: true });
+             set({ isInitialized: true, isConfigured: false });
           }
         } catch (error) {
            console.error("Failed to initialize auth store:", error);
-           set({ isInitialized: true });
+           set({ isInitialized: true, isConfigured: false });
         }
       },
 
@@ -214,7 +194,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
              });
              
              // Update local state
-             set({ deviceKey: apiKey, currentLocation: location });
+             set({ isConfigured: true, currentLocation: location });
          } catch (error) {
              console.error("Failed to register device:", error);
              throw error;
@@ -223,19 +203,11 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
       switchLocation: async (location) => {
         const previousLocation = get().currentLocation;
-        const deviceKey = get().deviceKey;
-        
-        if (!deviceKey) {
-            console.error("Cannot switch location: Device key missing");
-            return;
-        }
 
         // 1. Update location in backend config
         try {
-            await invoke('set_device_config', {
-                baseUrl: API_ENDPOINT,
+            await invoke('update_device_location', {
                 locationId: location.id,
-                deviceKey: deviceKey
             });
             
             // 2. Update local state
@@ -277,6 +249,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
 
       partialize: (state) => ({
         // REMOVED deviceKey and memberToken from here for security
+        isConfigured: state.isConfigured,
         currentLocation: state.currentLocation,
         currentMember: state.currentMember,
         isRestoredSession: state.isRestoredSession,

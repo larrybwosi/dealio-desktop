@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { API_ENDPOINT } from '@/lib/axios';
 import { toast } from 'sonner';
+import { invoke } from '@tauri-apps/api/core';
 
 // --- Types ---
 interface Location {
@@ -95,7 +96,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
   const [apiKey, setApiKey] = useState('');
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
-  const { setDeviceKey } = useAuthStore()
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,7 +107,10 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
     setError('');
     setIsValidating(true);
     try {
-      await setDeviceKey(apiKey);
+      await invoke('start_device_setup_command', {
+        baseUrl: API_ENDPOINT,
+        deviceKey: apiKey
+      });
       setIsValidating(false);
       onNext(apiKey);
     } catch {
@@ -114,6 +118,7 @@ const ApiKeyStep = ({ onNext, onShowInstructions }: { onNext: (k: string) => voi
       setError('Failed to initialize connection');
     }
   };
+
 
   return (
     <form onSubmit={handleSubmit} className="space-y-8 w-full max-w-md mx-auto">

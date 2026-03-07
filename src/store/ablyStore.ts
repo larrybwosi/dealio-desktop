@@ -2,7 +2,7 @@ import { createWithEqualityFn as create } from 'zustand/traditional';
 import { z } from 'zod';
 import { invoke } from '@tauri-apps/api/core';
 import { isAxiosError } from 'axios';
-import { AuthOptions, Realtime } from 'ably';
+import { AuthOptions, ErrorInfo, Realtime } from 'ably';
 import { useAuthStore } from './pos-auth-store';
 
 const AblyConfigSchema = z.object({
@@ -113,7 +113,7 @@ export const useAblyStore = create<AblyState>((set, get) => ({
           if (authAttempt >= BACKOFF_MAX_RETRIES) {
             console.error('[AblyStore] Max auth retries reached. Giving up.');
             set({ status: 'error', error: errorMessage });
-            callback(new Ably.ErrorInfo(errorMessage, 40_001, 401), null);
+            callback(new ErrorInfo(errorMessage, 40_001, 401), null);
             return;
           }
 

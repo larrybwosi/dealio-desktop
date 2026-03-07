@@ -45,7 +45,7 @@ const LayoutWrapper = () => {
 };
 
 const AppRoutes = () => {
-  const { deviceKey, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
+  const { isConfigured, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -60,7 +60,8 @@ const AppRoutes = () => {
       )
   }
 
-  if (!deviceKey || !currentLocation?.id) {
+  if (!isConfigured || !currentLocation?.id) {
+
     return <SetupPage />;
   }
 
