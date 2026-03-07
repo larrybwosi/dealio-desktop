@@ -1,3 +1,10 @@
+# [3.1.0-beta.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.4...v3.1.0-beta.5) (2026-03-07)
+
+
+### Bug Fixes
+
+* **frontend device key leakage:** removed the checking of the device key from the auth store ([597d4d2](https://github.com/larrybwosi/dealio-desktop/commit/597d4d2d0eaeb343c3128d2f1ecbb4caca29c78e))
+
 # [3.1.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0-beta.3...v3.1.0-beta.4) (2026-02-27)
 
 ### Bug Fixes
