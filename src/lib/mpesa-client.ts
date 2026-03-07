@@ -30,7 +30,7 @@ export function subscribeToAbly(
   }
 ) {
   // Get the Ably channel for M-Pesa payments
-  const ably = useAblyStore((state) => state.client);
+  const ably = useAblyStore(state => state.client);
   const channel = ably?.channels.get('mpesa-payments');
 
   // Define the subscription callback

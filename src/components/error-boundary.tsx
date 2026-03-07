@@ -1,7 +1,7 @@
-import { Component, ErrorInfo, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { logger } from "@/lib/logger";
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { logger } from '@/lib/logger';
 
 interface Props {
   children?: ReactNode;
@@ -23,13 +23,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log to system log file for developer troubleshooting
-    logger.error(
-      "[CRASH] React ErrorBoundary caught an unhandled error",
-      error,
-      {
-        componentStack: errorInfo.componentStack ?? "N/A",
-      }
-    );
+    logger.error('[CRASH] React ErrorBoundary caught an unhandled error', error, {
+      componentStack: errorInfo.componentStack ?? 'N/A',
+    });
   }
 
   public handleReload = () => {
@@ -44,29 +40,21 @@ export class ErrorBoundary extends Component<Props, State> {
             <div className="h-16 w-16 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-500 rounded-full flex items-center justify-center mb-6">
               <AlertTriangle className="h-8 w-8" />
             </div>
-            
-            <h1 className="text-2xl font-bold text-foreground mb-2">
-              Something went wrong
-            </h1>
-            
+
+            <h1 className="text-2xl font-bold text-foreground mb-2">Something went wrong</h1>
+
             <p className="text-muted-foreground mb-6">
               The application encountered an unexpected error. The error has been logged for your support team.
             </p>
-            
+
             {this.state.error && (
               <div className="w-full bg-muted/50 rounded-md p-3 mb-6 text-left overflow-hidden">
-                <p className="text-xs font-mono text-muted-foreground break-all">
-                  {this.state.error.toString()}
-                </p>
+                <p className="text-xs font-mono text-muted-foreground break-all">{this.state.error.toString()}</p>
               </div>
             )}
 
             <div className="flex gap-4 w-full">
-              <Button 
-                onClick={this.handleReload} 
-                className="w-full gap-2 items-center"
-                size="lg"
-              >
+              <Button onClick={this.handleReload} className="w-full gap-2 items-center" size="lg">
                 <RotateCcw className="h-4 w-4" />
                 Reload Application
               </Button>
@@ -79,4 +67,3 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
-

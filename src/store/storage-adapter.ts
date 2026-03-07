@@ -13,14 +13,14 @@ export const tauriStorage: StateStorage = {
     const value = await tauriStore.get<string>(name);
     return value || null;
   },
-  
+
   setItem: async (name: string, value: string): Promise<void> => {
     // Set the value
     await tauriStore.set(name, value);
     // Important: You must manually save to disk!
-    await tauriStore.save(); 
+    await tauriStore.save();
   },
-  
+
   removeItem: async (name: string): Promise<void> => {
     await tauriStore.delete(name);
     await tauriStore.save();

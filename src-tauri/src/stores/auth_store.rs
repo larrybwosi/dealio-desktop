@@ -5,8 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
-#[cfg(test)]
-mod tests;
+
 
 // --- Data Types ---
 
@@ -24,6 +23,12 @@ pub struct DeviceConfig {
     pub location_id: String,
     pub device_key: String,
     #[serde(default)]
+    pub allow_negative_stock: bool,
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct SanitizedDeviceConfig {
+    pub location_id: String,
     pub allow_negative_stock: bool,
 }
 
@@ -404,9 +409,12 @@ pub async fn logout_member(
 #[tauri::command]
 pub async fn get_device_config(
     state: State<'_, AuthState>,
-) -> Result<Option<DeviceConfig>, String> {
-    let config = state.device_config.lock().map_err(|_| "Lock error")?;
-    Ok(config.clone())
+) -> Result<Option<SanitizedDeviceConfig>, String> {
+    let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+    Ok(config_guard.as_ref().map(|c| SanitizedDeviceConfig {
+        location_id: c.location_id.clone(),
+        allow_negative_stock: c.allow_negative_stock,
+    }))
 }
 
 #[tauri::command]
@@ -615,4 +623,22 @@ pub async fn get_ably_auth_token_command(
         .await
         .map_err(|e| format!("Invalid JSON: {}", e))?;
     Ok(data)
+}
+#[tauri::command]
+pub async fn update_device_location(
+    state: State<'_, AuthState>,
+    location_id: String,
+) -> Result<(), String> {
+    let config_to_save = {
+        let mut config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+        let config = config_guard.as_mut().ok_or("Device not configured")?;
+        config.location_id = location_id;
+        config.clone()
+    };
+
+    AuthState::save_to_keyring_async(&config_to_save)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
 }

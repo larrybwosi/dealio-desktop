@@ -20,14 +20,7 @@ interface PrintRetryDialogProps {
   orderNumber: string;
 }
 
-export function PrintRetryDialog({
-  isOpen,
-  onClose,
-  onRetry,
-  onQueue,
-  error,
-  orderNumber,
-}: PrintRetryDialogProps) {
+export function PrintRetryDialog({ isOpen, onClose, onRetry, onQueue, error, orderNumber }: PrintRetryDialogProps) {
   const [isRetrying, setIsRetrying] = useState(false);
 
   const handleRetry = async () => {
@@ -56,9 +49,7 @@ export function PrintRetryDialog({
             <AlertCircle className="h-5 w-5 text-destructive" />
             Receipt Print Failed
           </DialogTitle>
-          <DialogDescription>
-            Failed to print receipt for order {orderNumber}
-          </DialogDescription>
+          <DialogDescription>Failed to print receipt for order {orderNumber}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -70,9 +61,7 @@ export function PrintRetryDialog({
           </Alert>
 
           <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              The receipt could not be printed. You can:
-            </p>
+            <p className="text-sm text-muted-foreground">The receipt could not be printed. You can:</p>
             <ul className="text-sm space-y-1 ml-4 list-disc text-muted-foreground">
               <li>Try printing again (check printer connection)</li>
               <li>Queue the print job to retry later</li>
@@ -82,26 +71,14 @@ export function PrintRetryDialog({
         </div>
 
         <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="w-full sm:w-auto"
-          >
+          <Button variant="outline" onClick={onClose} className="w-full sm:w-auto">
             Skip Printing
           </Button>
-          <Button
-            variant="secondary"
-            onClick={handleQueue}
-            className="w-full sm:w-auto"
-          >
+          <Button variant="secondary" onClick={handleQueue} className="w-full sm:w-auto">
             <Clock className="mr-2 h-4 w-4" />
             Queue for Later
           </Button>
-          <Button
-            onClick={handleRetry}
-            disabled={isRetrying}
-            className="w-full sm:w-auto"
-          >
+          <Button onClick={handleRetry} disabled={isRetrying} className="w-full sm:w-auto">
             {isRetrying ? (
               <>
                 <RefreshCcw className="mr-2 h-4 w-4 animate-spin" />

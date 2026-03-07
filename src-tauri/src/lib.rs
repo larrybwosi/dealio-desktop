@@ -45,9 +45,7 @@ mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
 #[cfg(test)]
-mod pricing_tests;
-#[cfg(test)]
-mod test_utils;
+mod tests;
 
 // --- SHIFT COMMANDS ---
 
@@ -487,7 +485,10 @@ pub fn run() {
             auth_store::restore_member_session,
             auth_store::reset_device_config,
             auth_store::authenticated_api_request,
+            auth_store::update_device_location,
+
             notification_manager::send_native_notification,
+
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,
             notification_manager::mark_notification_read,

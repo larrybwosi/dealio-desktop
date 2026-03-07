@@ -2,14 +2,32 @@
 'use client';
 
 import { useState } from 'react';
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
-import { TableCell, TableRow } from "@/components/ui/table";
-import { CheckCircle2, Download, Loader2, MoreHorizontal, Plus, Truck, Package, FileText, ChevronDown, ChevronUp, ShoppingBag } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Transaction } from "@/types";
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Progress } from '@/components/ui/progress';
+import { TableCell, TableRow } from '@/components/ui/table';
+import {
+  CheckCircle2,
+  Download,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  Truck,
+  Package,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  ShoppingBag,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Transaction } from '@/types';
 
 interface TransactionRowProps {
   tx: Transaction;
@@ -39,8 +57,8 @@ export function TransactionRow({
   onOpenDispatch,
 }: TransactionRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
-  const formatCurrency = (amount: number) => 
+
+  const formatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'KSH' }).format(amount);
 
   const getStatusColor = (status: string) => {
@@ -62,13 +80,13 @@ export function TransactionRow({
 
   return (
     <>
-      <TableRow 
-        key={tx.id} 
+      <TableRow
+        key={tx.id}
         id={`tx-row-${tx.id}`}
         className={cn(
-          "transition-all duration-300 hover:bg-muted/50 cursor-pointer group",
-          isHighlighted ? "bg-indigo-50 dark:bg-indigo-950/30 border-l-4 border-l-indigo-500" : "",
-          isExpanded ? "bg-muted/30" : ""
+          'transition-all duration-300 hover:bg-muted/50 cursor-pointer group',
+          isHighlighted ? 'bg-indigo-50 dark:bg-indigo-950/30 border-l-4 border-l-indigo-500' : '',
+          isExpanded ? 'bg-muted/30' : ''
         )}
         onClick={() => hasItems && setIsExpanded(!isExpanded)}
       >
@@ -77,7 +95,7 @@ export function TransactionRow({
             {hasItems && (
               <button
                 className="p-1 hover:bg-muted rounded transition-colors"
-                onClick={(e) => {
+                onClick={e => {
                   e.stopPropagation();
                   setIsExpanded(!isExpanded);
                 }}
@@ -99,12 +117,7 @@ export function TransactionRow({
           </div>
         </TableCell>
         <TableCell>
-          <Badge 
-            className={cn(
-              "capitalize shadow-sm transition-all",
-              getStatusColor(tx.status)
-            )}
-          >
+          <Badge className={cn('capitalize shadow-sm transition-all', getStatusColor(tx.status))}>
             {tx.status === 'dispatched' && <Truck className="w-3 h-3 mr-1" />}
             {tx.status.replace('_', ' ')}
           </Badge>
@@ -113,14 +126,9 @@ export function TransactionRow({
           <div className="space-y-1">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Paid: {formatCurrency(tx.paidAmount)}</span>
-              <span className="font-medium text-foreground">
-                {Math.round((tx.paidAmount / tx.totalAmount) * 100)}%
-              </span>
+              <span className="font-medium text-foreground">{Math.round((tx.paidAmount / tx.totalAmount) * 100)}%</span>
             </div>
-            <Progress 
-              value={(tx.paidAmount / tx.totalAmount) * 100} 
-              className="h-2 bg-muted" 
-            />
+            <Progress value={(tx.paidAmount / tx.totalAmount) * 100} className="h-2 bg-muted" />
           </div>
         </TableCell>
         <TableCell className="text-right">
@@ -128,29 +136,26 @@ export function TransactionRow({
             <span className="font-bold font-mono text-lg text-foreground">
               {formatCurrency(tx.totalAmount - tx.paidAmount)}
             </span>
-            <span className="text-xs text-muted-foreground">
-              of {formatCurrency(tx.totalAmount)}
-            </span>
+            <span className="text-xs text-muted-foreground">of {formatCurrency(tx.totalAmount)}</span>
           </div>
         </TableCell>
-        <TableCell onClick={(e) => e.stopPropagation()}>
-          <DropdownMenu 
-            open={openMenuId === tx.id} 
-            onOpenChange={onOpenMenuChange}
-          >
+        <TableCell onClick={e => e.stopPropagation()}>
+          <DropdownMenu open={openMenuId === tx.id} onOpenChange={onOpenMenuChange}>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              >
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => onCopyId(tx.id)}>
-                Copy ID
-              </DropdownMenuItem>
-              
+              <DropdownMenuItem onClick={() => onCopyId(tx.id)}>Copy ID</DropdownMenuItem>
+
               {tx.invoiceLink && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => onDownloadInvoice(tx)}
                   disabled={isDownloading}
                   className="text-green-600 focus:text-green-600 cursor-pointer"
@@ -158,30 +163,30 @@ export function TransactionRow({
                   {isDownloading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <Download className="mr-2 h-4 w-4" /> 
+                    <Download className="mr-2 h-4 w-4" />
                   )}
                   Download Invoice
                 </DropdownMenuItem>
               )}
 
               {tx.fulfillmentId && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => onDownloadWaybill(tx)}
                   disabled={isDownloading}
                   className="cursor-pointer"
                 >
-                   {isDownloading ? (
+                  {isDownloading ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    <FileText className="mr-2 h-4 w-4" /> 
+                    <FileText className="mr-2 h-4 w-4" />
                   )}
                   Download Waybill
                 </DropdownMenuItem>
               )}
 
               {tx.status !== 'dispatched' && (
-                <DropdownMenuItem 
-                  onClick={() => onOpenDispatch(tx.id)} 
+                <DropdownMenuItem
+                  onClick={() => onOpenDispatch(tx.id)}
                   className="text-purple-600 focus:text-purple-600"
                 >
                   <Package className="mr-2 h-4 w-4" /> Dispatch Order
@@ -211,18 +216,18 @@ export function TransactionRow({
                 <ShoppingBag className="h-4 w-4" />
                 <span>Order Items ({tx.items?.length || 0})</span>
               </div>
-              
+
               <div className="grid gap-3">
-                {tx.items?.map((item) => (
-                  <div 
-                    key={item.id} 
+                {tx.items?.map(item => (
+                  <div
+                    key={item.id}
                     className="flex items-center justify-between p-4 bg-background rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow"
                   >
                     <div className="flex items-center gap-4 flex-1">
                       <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center">
                         <Package className="h-6 w-6 text-muted-foreground" />
                       </div>
-                      
+
                       <div className="flex-1">
                         <h4 className="font-medium text-foreground">{item.productName}</h4>
                         <div className="flex items-center gap-3 mt-1">
@@ -239,18 +244,18 @@ export function TransactionRow({
                         </div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-6 text-sm">
                       <div className="text-right">
                         <div className="text-muted-foreground text-xs">Quantity</div>
                         <div className="font-semibold text-foreground">{item.quantity}</div>
                       </div>
-                      
+
                       <div className="text-right">
                         <div className="text-muted-foreground text-xs">Unit Price</div>
                         <div className="font-mono text-foreground">{formatCurrency(item.unitPrice)}</div>
                       </div>
-                      
+
                       <div className="text-right min-w-[100px]">
                         <div className="text-muted-foreground text-xs">Total</div>
                         <div className="font-bold font-mono text-foreground text-lg">

@@ -61,11 +61,7 @@ export const ReceiptPreviewWrapper = ({ document }: { document: React.ReactEleme
       )}
 
       {stableUrl ? (
-        <Document
-          file={stableUrl}
-          loading={null}
-          className="shadow-2xl"
-        >
+        <Document file={stableUrl} loading={null} className="shadow-2xl">
           <Page
             pageNumber={1}
             renderTextLayer={false}

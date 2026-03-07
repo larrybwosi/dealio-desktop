@@ -11,18 +11,11 @@ export const AllTheProviders = ({ children }: { children: React.ReactNode }) => 
     },
   });
 
-  return (
-    <QueryClientProvider client={queryClient}>
-        {children}
-    </QueryClientProvider>
-  );
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 };
 
 // Create a custom render function that includes providers
-const customRender = (
-  ui: ReactElement,
-  options?: Omit<RenderOptions, 'wrapper'>
-) => {
+const customRender = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) => {
   return render(ui, { wrapper: AllTheProviders, ...options });
 };
 

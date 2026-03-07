@@ -1,34 +1,34 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
-import { Volume2, VolumeX, Bell, Info, CheckCircle, AlertTriangle, XCircle, DollarSign } from "lucide-react"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { notificationService, type NotificationSettings } from "@/lib/notification-service"
+import { useState, useEffect } from 'react';
+import { Volume2, VolumeX, Bell, Info, CheckCircle, AlertTriangle, XCircle, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { notificationService, type NotificationSettings } from '@/lib/notification-service';
 
 interface NotificationSettingsDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function NotificationSettingsDialog({ open, onOpenChange }: NotificationSettingsDialogProps) {
-  const [settings, setSettings] = useState<NotificationSettings>(notificationService.getSettings())
+  const [settings, setSettings] = useState<NotificationSettings>(notificationService.getSettings());
 
   useEffect(() => {
     if (open) {
-      setSettings(notificationService.getSettings())
+      setSettings(notificationService.getSettings());
     }
-  }, [open])
+  }, [open]);
 
   const updateSetting = <K extends keyof NotificationSettings>(key: K, value: NotificationSettings[K]) => {
-    const newSettings = { ...settings, [key]: value }
-    setSettings(newSettings)
-    notificationService.updateSettings(newSettings)
-  }
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    notificationService.updateSettings(newSettings);
+  };
 
   const testSound = (type: 'info' | 'success' | 'warning' | 'error' | 'sale') => {
     const soundMap = {
@@ -37,19 +37,19 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
       warning: { file: '/sounds/notification-warning.mp3', enabled: 'warningSoundEnabled' as const },
       error: { file: '/sounds/notification-error.mp3', enabled: 'errorSoundEnabled' as const },
       sale: { file: '/sounds/notification-sale.mp3', enabled: 'saleSoundEnabled' as const },
-    }
+    };
 
-    const sound = soundMap[type]
+    const sound = soundMap[type];
     if (settings[sound.enabled] && settings.soundEnabled) {
       try {
-        const audio = new Audio(sound.file)
-        audio.volume = settings.soundVolume
-        audio.play().catch(e => console.error('Failed to play test sound:', e))
+        const audio = new Audio(sound.file);
+        audio.volume = settings.soundVolume;
+        audio.play().catch(e => console.error('Failed to play test sound:', e));
       } catch (error) {
-        console.error('Failed to create audio:', error)
+        console.error('Failed to create audio:', error);
       }
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -59,9 +59,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
             <Bell className="h-5 w-5" />
             Notification Settings
           </DialogTitle>
-          <DialogDescription>
-            Configure how you receive and hear notifications
-          </DialogDescription>
+          <DialogDescription>Configure how you receive and hear notifications</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -73,13 +71,11 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                   {settings.soundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                   Sound Notifications
                 </Label>
-                <p className="text-sm text-muted-foreground">
-                  Enable or disable all notification sounds
-                </p>
+                <p className="text-sm text-muted-foreground">Enable or disable all notification sounds</p>
               </div>
               <Switch
                 checked={settings.soundEnabled}
-                onCheckedChange={(checked) => updateSetting('soundEnabled', checked)}
+                onCheckedChange={checked => updateSetting('soundEnabled', checked)}
               />
             </div>
 
@@ -90,7 +86,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                   <VolumeX className="h-4 w-4 text-muted-foreground" />
                   <Slider
                     value={[settings.soundVolume * 100]}
-                    onValueChange={(value) => updateSetting('soundVolume', value[0] / 100)}
+                    onValueChange={value => updateSetting('soundVolume', value[0] / 100)}
                     max={100}
                     step={5}
                     className="flex-1"
@@ -136,7 +132,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                 </Button>
                 <Switch
                   checked={settings.infoSoundEnabled}
-                  onCheckedChange={(checked) => updateSetting('infoSoundEnabled', checked)}
+                  onCheckedChange={checked => updateSetting('infoSoundEnabled', checked)}
                   disabled={!settings.soundEnabled}
                 />
               </div>
@@ -165,7 +161,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                 </Button>
                 <Switch
                   checked={settings.successSoundEnabled}
-                  onCheckedChange={(checked) => updateSetting('successSoundEnabled', checked)}
+                  onCheckedChange={checked => updateSetting('successSoundEnabled', checked)}
                   disabled={!settings.soundEnabled}
                 />
               </div>
@@ -194,7 +190,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                 </Button>
                 <Switch
                   checked={settings.warningSoundEnabled}
-                  onCheckedChange={(checked) => updateSetting('warningSoundEnabled', checked)}
+                  onCheckedChange={checked => updateSetting('warningSoundEnabled', checked)}
                   disabled={!settings.soundEnabled}
                 />
               </div>
@@ -223,7 +219,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                 </Button>
                 <Switch
                   checked={settings.errorSoundEnabled}
-                  onCheckedChange={(checked) => updateSetting('errorSoundEnabled', checked)}
+                  onCheckedChange={checked => updateSetting('errorSoundEnabled', checked)}
                   disabled={!settings.soundEnabled}
                 />
               </div>
@@ -252,7 +248,7 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
                 </Button>
                 <Switch
                   checked={settings.saleSoundEnabled}
-                  onCheckedChange={(checked) => updateSetting('saleSoundEnabled', checked)}
+                  onCheckedChange={checked => updateSetting('saleSoundEnabled', checked)}
                   disabled={!settings.soundEnabled}
                 />
               </div>
@@ -261,5 +257,5 @@ export function NotificationSettingsDialog({ open, onOpenChange }: NotificationS
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

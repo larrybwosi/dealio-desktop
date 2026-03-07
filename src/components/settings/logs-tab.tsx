@@ -9,17 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  FileText, 
-  History, 
-  RefreshCcw, 
-  Search, 
-  ChevronLeft, 
+import {
+  FileText,
+  History,
+  RefreshCcw,
+  Search,
+  ChevronLeft,
   ChevronRight,
   AlertCircle,
   Info,
   AlertTriangle,
-  Download
+  Download,
 } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { format } from 'date-fns';
@@ -55,7 +55,7 @@ export default function LogsTab() {
         action: actionFilter || null,
         level: levelFilter === 'ALL' ? null : levelFilter,
         limit: pageSize,
-        offset: page * pageSize
+        offset: page * pageSize,
       });
       setAuditLogs(logs);
     } catch (error) {
@@ -87,11 +87,23 @@ export default function LogsTab() {
   const getLevelBadge = (level: string) => {
     switch (level) {
       case 'Critical':
-        return <Badge variant="destructive" className="gap-1"><AlertCircle className="h-3 w-3" /> Critical</Badge>;
+        return (
+          <Badge variant="destructive" className="gap-1">
+            <AlertCircle className="h-3 w-3" /> Critical
+          </Badge>
+        );
       case 'Warning':
-        return <Badge variant="outline" className="text-amber-600 border-amber-600 bg-amber-50 gap-1 font-bold"><AlertTriangle className="h-3 w-3" /> Warning</Badge>;
+        return (
+          <Badge variant="outline" className="text-amber-600 border-amber-600 bg-amber-50 gap-1 font-bold">
+            <AlertTriangle className="h-3 w-3" /> Warning
+          </Badge>
+        );
       default:
-        return <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50 gap-1"><Info className="h-3 w-3" /> Info</Badge>;
+        return (
+          <Badge variant="outline" className="text-blue-600 border-blue-600 bg-blue-50 gap-1">
+            <Info className="h-3 w-3" /> Info
+          </Badge>
+        );
     }
   };
 
@@ -120,9 +132,17 @@ export default function LogsTab() {
               <FileText className="h-4 w-4" /> System Logs
             </TabsTrigger>
           </TabsList>
-          
+
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => { fetchAuditLogs(); fetchSystemLogs(); }} disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                fetchAuditLogs();
+                fetchSystemLogs();
+              }}
+              disabled={loading}
+            >
               <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
@@ -140,19 +160,28 @@ export default function LogsTab() {
                 <Label htmlFor="action-filter">Action</Label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
+                  <Input
                     id="action-filter"
-                    placeholder="Filter by action (e.g. SALE_PROCESSED)..." 
+                    placeholder="Filter by action (e.g. SALE_PROCESSED)..."
                     className="pl-9"
                     value={actionFilter}
-                    onChange={(e) => { setActionFilter(e.target.value); setPage(0); }}
+                    onChange={e => {
+                      setActionFilter(e.target.value);
+                      setPage(0);
+                    }}
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2 w-[150px]">
                 <Label htmlFor="level-filter">Level</Label>
-                <Select value={levelFilter} onValueChange={(v) => { setLevelFilter(v); setPage(0); }}>
+                <Select
+                  value={levelFilter}
+                  onValueChange={v => {
+                    setLevelFilter(v);
+                    setPage(0);
+                  }}
+                >
                   <SelectTrigger id="level-filter">
                     <SelectValue placeholder="All Levels" />
                   </SelectTrigger>
@@ -186,21 +215,19 @@ export default function LogsTab() {
                         </td>
                       </tr>
                     ) : (
-                      auditLogs.map((log) => (
+                      auditLogs.map(log => (
                         <tr key={log.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-mono text-[12px] whitespace-nowrap">
                             {format(new Date(log.timestamp), 'MMM dd, HH:mm:ss')}
                           </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            {getLevelBadge(log.level)}
-                          </td>
-                          <td className="px-4 py-3 font-semibold text-primary">
-                            {log.action}
-                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">{getLevelBadge(log.level)}</td>
+                          <td className="px-4 py-3 font-semibold text-primary">{log.action}</td>
                           <td className="px-4 py-3">
                             <div className="flex flex-col">
                               <span className="font-medium text-foreground">{log.actor_name || 'System'}</span>
-                              <span className="text-[10px] text-muted-foreground font-mono">{log.actor_id || 'ID: N/A'}</span>
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                {log.actor_id || 'ID: N/A'}
+                              </span>
                             </div>
                           </td>
                           <td className="px-4 py-3 max-w-[300px]">
@@ -219,22 +246,20 @@ export default function LogsTab() {
             </div>
 
             <div className="flex items-center justify-between mt-4">
-              <p className="text-xs text-muted-foreground">
-                Showing {auditLogs.length} events
-              </p>
+              <p className="text-xs text-muted-foreground">Showing {auditLogs.length} events</p>
               <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={page === 0 || loading}
                   onClick={() => setPage(p => p - 1)}
                 >
                   <ChevronLeft className="h-4 w-4 mr-2" /> Previous
                 </Button>
                 <span className="text-sm font-medium">Page {page + 1}</span>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={auditLogs.length < pageSize || loading}
                   onClick={() => setPage(p => p + 1)}
                 >
@@ -256,9 +281,7 @@ export default function LogsTab() {
             </div>
             <ScrollArea className="h-[600px] w-full">
               {systemLogs ? (
-                <pre className="text-[12px] leading-relaxed select-all">
-                  {systemLogs}
-                </pre>
+                <pre className="text-[12px] leading-relaxed select-all">{systemLogs}</pre>
               ) : (
                 <div className="h-full flex items-center justify-center text-zinc-600 italic">
                   No system logs available for the last session.

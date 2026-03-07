@@ -4,7 +4,7 @@ import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { trackEvent } from "@aptabase/tauri";
+import { trackEvent } from '@aptabase/tauri';
 import AppLayout from '@/components/app.layout';
 import { HistoryPage } from '@/pages/history-page';
 import AnalyticsPage from '@/pages/analytics-page';
@@ -24,6 +24,17 @@ import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
 
+// Hook to track page views
+// const usePageTracking = () => {
+//   const location = useLocation();
+
+//   useEffect(() => {
+//     // Sanitize path for tracking
+//     const path = location.pathname === '/' ? 'pos' : location.pathname.substring(1).replace(/\//g, '_');
+//     trackEvent("page_view", { page: path });
+//   }, [location.pathname]);
+// };
+
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
   return (
@@ -34,7 +45,7 @@ const LayoutWrapper = () => {
 };
 
 const AppRoutes = () => {
-  const { deviceKey, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
+  const { isConfigured, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -42,14 +53,14 @@ const AppRoutes = () => {
   }, [initializeFromBackend]);
 
   if (!isInitialized) {
-      return (
-          <div className="h-screen w-screen flex items-center justify-center bg-zinc-950 text-white">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
-          </div>
-      )
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-zinc-950 text-white">
+        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+      </div>
+    );
   }
 
-  if (!deviceKey || !currentLocation?.id) {
+  if (!isConfigured || !currentLocation?.id) {
     return <SetupPage />;
   }
 
@@ -61,7 +72,7 @@ const AppRoutes = () => {
     <Routes>
       {/* Routes with AppLayout wrapper */}
       <Route element={<LayoutWrapper />}>
-        <Route index path='/' element={<POS />} />
+        <Route index path="/" element={<POS />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
@@ -77,7 +88,7 @@ const AppRoutes = () => {
         <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
         <Route path="/stock-transfer" element={<StockTransferCreate />} />
       </Route>
-      
+
       {/* Routes without AppLayout */}
       <Route path="/checkin" element={<CheckinPage />} />
       <Route path="/setup" element={<SetupPage />} />
@@ -89,9 +100,10 @@ const AppRoutes = () => {
 
 const DynamicRenderer = () => {
   useSessionActivityListener();
+  // usePageTracking();
 
   useEffect(() => {
-    trackEvent("app_started");
+    trackEvent('app_started');
     // Hide and remove the splashscreen from index.html
     const splash = document.getElementById('splash-root');
     if (splash) {

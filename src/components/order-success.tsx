@@ -7,37 +7,37 @@ import { Button } from './ui/button';
 import { processFileDownload } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 
-function OrderSuccessView({ 
-  orderId, 
+function OrderSuccessView({
+  orderId,
   invoiceUrl,
-  onReset 
-}: { 
-  orderId: string, 
-  invoiceUrl: string,
-  onReset: () => void 
+  onReset,
+}: {
+  orderId: string;
+  invoiceUrl: string;
+  onReset: () => void;
 }) {
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownloadInvoice = async () => {
     if (!invoiceUrl || isDownloading) return;
-    
+
     const loadingToastId = toast.loading('Preparing your document...', {
-      description: `Order: ${orderId}`
+      description: `Order: ${orderId}`,
     });
 
     setIsDownloading(true);
     try {
       const pdfBytes = await invoke<number[]>('get_invoice_blob_command', { url: invoiceUrl });
       const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
-      const safeOrderNum = (orderId).replace(/[^a-z0-9]/gi, '_');
+      const safeOrderNum = orderId.replace(/[^a-z0-9]/gi, '_');
       const fileName = `Invoice_${safeOrderNum}.pdf`;
 
       await processFileDownload(blob, fileName, loadingToastId);
     } catch {
       toast.error('Download failed', {
         description: 'Please try again or contact support.',
-        id: loadingToastId
+        id: loadingToastId,
       });
     } finally {
       setIsDownloading(false);
@@ -55,7 +55,7 @@ function OrderSuccessView({
               <CheckCircle2 className="h-12 w-12 text-green-600 dark:text-green-400" />
             </div>
           </div>
-          
+
           <div className="space-y-2 mb-8">
             <h2 className="text-3xl font-extrabold tracking-tight text-zinc-900 dark:text-zinc-100">
               Order Confirmed!
@@ -70,17 +70,17 @@ function OrderSuccessView({
 
           {/* Action Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-8">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
               onClick={handleDownloadInvoice}
               disabled={!invoiceUrl || isDownloading}
             >
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin"/> : <Printer className="h-4 w-4" />}
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
               Save Invoice
             </Button>
-            
-            <Button 
+
+            <Button
               variant="outline"
               className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
               onClick={() => navigate(`/pending-transactions?id=${orderId}`)}
@@ -92,8 +92,8 @@ function OrderSuccessView({
 
           <hr className="w-full border-zinc-100 dark:border-zinc-800 mb-8" />
 
-          <Button 
-            size="lg" 
+          <Button
+            size="lg"
             className="w-full sm:w-auto px-10 h-12 bg-zinc-900 hover:bg-zinc-800 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 text-white font-semibold transition-all group"
             onClick={onReset}
           >

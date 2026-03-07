@@ -46,7 +46,6 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
           <div className="flex items-center gap-6 flex-1">
-
             <div className="relative max-w-md flex-1">
               <GlobalSearch />
             </div>
@@ -57,10 +56,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
             <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
               <Settings className="h-5 w-5" />
             </Button>
-            <NotificationSettingsDialog 
-              open={showNotificationSettings} 
-              onOpenChange={setShowNotificationSettings} 
-            />
+            <NotificationSettingsDialog open={showNotificationSettings} onOpenChange={setShowNotificationSettings} />
 
             <Button variant="outline" className="gap-2 bg-transparent">
               <Calendar className="w-4 h-4" />
@@ -69,9 +65,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto">
-          {children}
-        </div>
+        <div className="flex-1 overflow-auto">{children}</div>
       </div>
 
       {showCart && <Cart />}

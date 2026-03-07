@@ -4,13 +4,10 @@
  * Wraps @tauri-apps/plugin-log to provide a consistent, structured logging
  * API across the frontend. All logs are persisted to the backend log file.
  */
-import {
-  debug as tauriDebug,
-  info as tauriInfo,
-  warn as tauriWarn,
-  error as tauriError,
-} from "@tauri-apps/plugin-log";
-import { invoke } from "@tauri-apps/api/core";
+import { debug as tauriDebug, info as tauriInfo, warn as tauriWarn, error as tauriError } from '@tauri-apps/plugin-log';
+import { invoke } from '@tauri-apps/api/core';
+import * as Sentry from '@sentry/browser';
+// import { trackEvent } from "@aptabase/tauri";
 
 // ============================================================
 // Public Logger API
@@ -18,35 +15,52 @@ import { invoke } from "@tauri-apps/api/core";
 
 export const logger = {
   debug: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context
-      ? `${message} | ${JSON.stringify(context)}`
-      : message;
+    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
     tauriDebug(formatted).catch(() => {});
   },
 
   info: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context
-      ? `${message} | ${JSON.stringify(context)}`
-      : message;
+    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
     tauriInfo(formatted).catch(() => {});
+
+    // Add breadcrumb to Sentry for better context on future errors
+    Sentry.addBreadcrumb({
+      category: 'log',
+      message: message,
+      level: 'info',
+      data: context,
+    });
   },
 
   warn: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context
-      ? `${message} | ${JSON.stringify(context)}`
-      : message;
+    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
     tauriWarn(formatted).catch(() => {});
+
+    Sentry.addBreadcrumb({
+      category: 'log',
+      message: message,
+      level: 'warning',
+      data: context,
+    });
   },
 
   error: (message: string, error?: unknown, context?: Record<string, unknown>) => {
-    const errStr =
-      error instanceof Error
-        ? `${error.message}\n${error.stack ?? ""}`
-        : String(error ?? "");
+    const errStr = error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error ?? '');
     const formatted = context
       ? `${message} | error: ${errStr} | ${JSON.stringify(context)}`
       : `${message} | error: ${errStr}`;
     tauriError(formatted).catch(() => {});
+
+    // Report to Sentry
+    Sentry.captureException(error instanceof Error ? error : new Error(String(error ?? message)), {
+      extra: { context_msg: message, ...context },
+    });
+
+    // Track critical errors in Aptabase for analytics (success rates)
+    // trackEvent("app_error", {
+    //   message: message.substring(0, 100), // Aptabase limit/clutter
+    //   is_crash: message.includes("[CRASH]") ? "true" : "false"
+    // });
   },
 };
 
@@ -56,7 +70,7 @@ export const logger = {
 
 export interface AuditOptions {
   action: string;
-  level?: "INFO" | "WARNING" | "CRITICAL";
+  level?: 'INFO' | 'WARNING' | 'CRITICAL';
   actorId?: string;
   actorName?: string;
   locationId?: string;
@@ -69,9 +83,9 @@ export interface AuditOptions {
  */
 export async function writeAudit(opts: AuditOptions): Promise<void> {
   try {
-    await invoke("write_audit_log", {
+    await invoke('write_audit_log', {
       action: opts.action,
-      level: opts.level ?? "INFO",
+      level: opts.level ?? 'INFO',
       actorId: opts.actorId ?? null,
       actorName: opts.actorName ?? null,
       locationId: opts.locationId ?? null,
@@ -95,11 +109,11 @@ export async function writeAudit(opts: AuditOptions): Promise<void> {
  * unhandled promise rejections and window errors to file.
  */
 export function setupGlobalErrorCapture(): void {
-  window.addEventListener("unhandledrejection", (event) => {
-    logger.error("[Unhandled Promise Rejection]", event.reason);
+  window.addEventListener('unhandledrejection', event => {
+    logger.error('[Unhandled Promise Rejection]', event.reason);
   });
 
-  window.addEventListener("error", (event) => {
-    logger.error("[Uncaught Error]", event.error ?? event.message);
+  window.addEventListener('error', event => {
+    logger.error('[Uncaught Error]', event.error ?? event.message);
   });
 }

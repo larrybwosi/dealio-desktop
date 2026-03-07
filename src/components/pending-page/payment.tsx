@@ -2,13 +2,20 @@
 
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 
 type PaymentMethod = 'credit_card' | 'bank_transfer' | 'cash' | 'check';
@@ -32,7 +39,7 @@ export function PaymentDialog({ open, onOpenChange, transactionId }: PaymentDial
     amount: '',
     method: '',
     reference: '',
-    notes: ''
+    notes: '',
   });
 
   const paymentMutation = useMutation({
@@ -42,17 +49,17 @@ export function PaymentDialog({ open, onOpenChange, transactionId }: PaymentDial
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       onOpenChange(false);
-      toast.success("Payment recorded successfully");
+      toast.success('Payment recorded successfully');
       setPaymentForm({ amount: '', method: '', reference: '', notes: '' });
     },
-    onError: () => toast.error("Failed to record payment")
+    onError: () => toast.error('Failed to record payment'),
   });
 
   const submitPayment = () => {
     if (!transactionId) return;
     paymentMutation.mutate({
       transactionId,
-      ...paymentForm
+      ...paymentForm,
     });
   };
 
@@ -63,14 +70,14 @@ export function PaymentDialog({ open, onOpenChange, transactionId }: PaymentDial
           <DialogTitle>Record Payment</DialogTitle>
           <DialogDescription>Add a payment for transaction.</DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label>Method</Label>
-              <Select 
-                value={paymentForm.method} 
-                onValueChange={(val: PaymentMethod) => setPaymentForm(p => ({...p, method: val}))}
+              <Select
+                value={paymentForm.method}
+                onValueChange={(val: PaymentMethod) => setPaymentForm(p => ({ ...p, method: val }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select..." />
@@ -85,24 +92,26 @@ export function PaymentDialog({ open, onOpenChange, transactionId }: PaymentDial
             </div>
             <div className="grid gap-2">
               <Label>Amount</Label>
-              <Input 
-                type="number" 
-                value={paymentForm.amount} 
-                onChange={(e) => setPaymentForm(p => ({...p, amount: e.target.value}))} 
+              <Input
+                type="number"
+                value={paymentForm.amount}
+                onChange={e => setPaymentForm(p => ({ ...p, amount: e.target.value }))}
               />
             </div>
           </div>
           <div className="grid gap-2">
             <Label>Notes</Label>
-            <Textarea 
-              value={paymentForm.notes} 
-              onChange={(e) => setPaymentForm(p => ({...p, notes: e.target.value}))}
+            <Textarea
+              value={paymentForm.notes}
+              onChange={e => setPaymentForm(p => ({ ...p, notes: e.target.value }))}
             />
           </div>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
           <Button onClick={submitPayment} disabled={paymentMutation.isPending || !paymentForm.amount}>
             {paymentMutation.isPending ? 'Processing...' : 'Confirm Payment'}
           </Button>

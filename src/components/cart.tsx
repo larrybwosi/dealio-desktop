@@ -8,25 +8,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogFooter,
-  DialogDescription
+  DialogDescription,
 } from '@/components/ui/dialog';
-import { 
-  Trash2, 
-  Edit2, 
-  Minus, 
-  Plus, 
-  PanelRightClose, 
-  PanelRightOpen, 
-  ShoppingCart,
-  Pause,
-  Clock, 
-} from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { AgeVerificationDialog } from '@/components/age-verification-dialog';
@@ -100,7 +90,7 @@ export function Cart() {
       if (isResizing) {
         const newWidth = document.body.clientWidth - mouseMoveEvent.clientX;
         if (newWidth > 320 && newWidth < 800) {
-            setWidth(newWidth);
+          setWidth(newWidth);
         }
       }
     },
@@ -109,12 +99,12 @@ export function Cart() {
 
   useEffect(() => {
     if (isResizing) {
-        window.addEventListener("mousemove", resize);
-        window.addEventListener("mouseup", stopResizing);
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
     }
     return () => {
-        window.removeEventListener("mousemove", resize);
-        window.removeEventListener("mouseup", stopResizing);
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
     };
   }, [isResizing, resize, stopResizing]);
 
@@ -143,24 +133,23 @@ export function Cart() {
           name: item.productName,
           variant: item.variantName || '',
           qty: item.quantity,
-          price: item.selectedUnit?.price || 0
+          price: item.selectedUnit?.price || 0,
         }));
 
         await emitTo('customer', 'cart-update', {
           items: displayItems,
           subtotal: subTotal,
           tax: taxAmount,
-          discount: 0, 
-          finalTotal: total
+          discount: 0,
+          finalTotal: total,
         });
       } catch (e) {
-        console.warn("Failed to emit to customer screen:", e);
+        console.warn('Failed to emit to customer screen:', e);
       }
     };
 
     syncToCustomerScreen();
   }, [currentOrder.items, subTotal, taxAmount, total]);
-
 
   // --- Mappers ---
   const mappedCartItems: CartItem[] = useMemo(() => {
@@ -175,7 +164,7 @@ export function Cart() {
       unitId: item.selectedUnit?.unitId,
       unitName: item.selectedUnit?.unitName,
       selectedUnit: item.selectedUnit,
-      notes: item.notes 
+      notes: item.notes,
     }));
   }, [currentOrder.items]);
 
@@ -200,9 +189,9 @@ export function Cart() {
   const handleSaveEdit = () => {
     if (!editingItem) return;
     updateItemInOrder({
-        ...editingItem,
-        quantity: editQuantity,
-        notes: editNotes
+      ...editingItem,
+      quantity: editQuantity,
+      notes: editNotes,
     });
     setIsEditDialogOpen(false);
     setEditingItem(null);
@@ -250,210 +239,225 @@ export function Cart() {
 
   return (
     <>
-      <div 
+      <div
         ref={sidebarRef}
         className="relative flex h-screen bg-card shadow-xl z-20 border-l border-border"
-        style={{ 
-            width: isCollapsed ? 0 : width,
-            transition: isResizing ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)' 
+        style={{
+          width: isCollapsed ? 0 : width,
+          transition: isResizing ? 'none' : 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)',
         }}
       >
-        
         {/* --- 1. Expand Button --- */}
         <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(false)}
-            className={cn(
-                "absolute top-4 -left-12 h-10 w-10 rounded-r-none rounded-l-md border border-r-0 border-border z-50 bg-card hover:bg-muted transition-all duration-300 shadow-sm",
-                isCollapsed ? "opacity-100 translate-x-0" : "opacity-0 translate-x-4 pointer-events-none"
-            )}
-            title="Open Cart"
+          variant="ghost"
+          size="icon"
+          onClick={() => setIsCollapsed(false)}
+          className={cn(
+            'absolute top-4 -left-12 h-10 w-10 rounded-r-none rounded-l-md border border-r-0 border-border z-50 bg-card hover:bg-muted transition-all duration-300 shadow-sm',
+            isCollapsed ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+          )}
+          title="Open Cart"
         >
-            <PanelRightOpen className="h-4 w-4" />
-            {currentOrder.items.length > 0 && (
-                <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in zoom-in shadow-sm">
-                    {currentOrder.items.length}
-                </span>
-            )}
+          <PanelRightOpen className="h-4 w-4" />
+          {currentOrder.items.length > 0 && (
+            <span className="absolute -top-2 -right-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground animate-in zoom-in shadow-sm">
+              {currentOrder.items.length}
+            </span>
+          )}
         </Button>
 
         {/* --- 2. Resize Handle --- */}
-        <div 
-            className={cn(
-                "absolute top-0 bottom-0 -left-1.5 w-3 cursor-col-resize hover:bg-primary/10 transition-colors z-50 flex items-center justify-center group touch-none",
-                isCollapsed ? "hidden" : "block"
-            )}
-            onMouseDown={startResizing}
+        <div
+          className={cn(
+            'absolute top-0 bottom-0 -left-1.5 w-3 cursor-col-resize hover:bg-primary/10 transition-colors z-50 flex items-center justify-center group touch-none',
+            isCollapsed ? 'hidden' : 'block'
+          )}
+          onMouseDown={startResizing}
         >
-            <div className="h-12 w-1 rounded-full bg-border group-hover:bg-primary transition-colors" />
+          <div className="h-12 w-1 rounded-full bg-border group-hover:bg-primary transition-colors" />
         </div>
 
         {/* --- 3. Inner Content Wrapper --- */}
-        <div className={cn(
-            "flex flex-col h-full w-full overflow-hidden bg-background",
-            isCollapsed ? "invisible opacity-0" : "visible opacity-100 transition-opacity duration-300"
-        )}>
-          
+        <div
+          className={cn(
+            'flex flex-col h-full w-full overflow-hidden bg-background',
+            isCollapsed ? 'invisible opacity-0' : 'visible opacity-100 transition-opacity duration-300'
+          )}
+        >
           {/* --- Header Section --- */}
           <div className="p-4 border-b border-border bg-card shrink-0 space-y-3 shadow-sm z-10">
             <div className="flex items-center justify-between">
-                <div>
-                     <h2 className="text-lg font-bold tracking-tight">Current Order</h2>
-                     <p className="text-xs text-muted-foreground">Order #{'New'}</p>
-                </div>
-                <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-muted-foreground hover:text-foreground -mr-2"
-                    onClick={() => setIsCollapsed(true)}
-                    title="Collapse Cart"
-                >
-                    <PanelRightClose className="h-5 w-5" />
-                </Button>
+              <div>
+                <h2 className="text-lg font-bold tracking-tight">Current Order</h2>
+                <p className="text-xs text-muted-foreground">Order #{'New'}</p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-muted-foreground hover:text-foreground -mr-2"
+                onClick={() => setIsCollapsed(true)}
+                title="Collapse Cart"
+              >
+                <PanelRightClose className="h-5 w-5" />
+              </Button>
             </div>
 
             {/* Customer & Type Selectors */}
             <div className="grid grid-cols-5 gap-2">
-                 <div className="col-span-3">
-                    <CustomerSelector />
-                 </div>
-                 <div className="col-span-2">
-                    <Select value={currentOrder.orderType} onValueChange={(value: any) => setOrderType(value)}>
-                        <SelectTrigger className="h-10 text-xs bg-muted/40">
-                             <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {availableOrderTypes.map(t => (
-                                <SelectItem key={t} value={t}>{getNormalizedOrderType(t)}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                 </div>
+              <div className="col-span-3">
+                <CustomerSelector />
+              </div>
+              <div className="col-span-2">
+                <Select value={currentOrder.orderType} onValueChange={(value: any) => setOrderType(value)}>
+                  <SelectTrigger className="h-10 text-xs bg-muted/40">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableOrderTypes.map(t => (
+                      <SelectItem key={t} value={t}>
+                        {getNormalizedOrderType(t)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Table & Notes */}
             <div className="grid grid-cols-1 gap-2">
-                  {showTableField && (
-                      <Select value={currentOrder.tableNumber || 'No Table'} onValueChange={setTableNumber}>
-                        <SelectTrigger className="h-9 text-xs flex-1 bg-muted/40">
-                              <SelectValue placeholder="Select Table" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="No Table">No Table</SelectItem>
-                            {availableTables.map(table => (
-                            <SelectItem key={table.id} value={table.number}>
-                                Table {table.number} ({table.capacity} pax)
-                            </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                  )}
-                  
-                   <div className="relative">
-                        <Textarea
-                            placeholder="Add order notes regarding preparation..."
-                            value={currentOrder.instructions || ''}
-                            onChange={e => setInstructions(e.target.value)}
-                            rows={1}
-                            className="resize-none text-xs min-h-[38px] bg-muted/40 pr-8"
-                        />
-                        <Edit2 className="w-3 h-3 absolute right-3 top-3 text-muted-foreground opacity-50" />
-                   </div>
+              {showTableField && (
+                <Select value={currentOrder.tableNumber || 'No Table'} onValueChange={setTableNumber}>
+                  <SelectTrigger className="h-9 text-xs flex-1 bg-muted/40">
+                    <SelectValue placeholder="Select Table" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="No Table">No Table</SelectItem>
+                    {availableTables.map(table => (
+                      <SelectItem key={table.id} value={table.number}>
+                        Table {table.number} ({table.capacity} pax)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
+              <div className="relative">
+                <Textarea
+                  placeholder="Add order notes regarding preparation..."
+                  value={currentOrder.instructions || ''}
+                  onChange={e => setInstructions(e.target.value)}
+                  rows={1}
+                  className="resize-none text-xs min-h-[38px] bg-muted/40 pr-8"
+                />
+                <Edit2 className="w-3 h-3 absolute right-3 top-3 text-muted-foreground opacity-50" />
+              </div>
             </div>
           </div>
 
           {/* --- Cart Items List --- */}
           <div className="flex-1 overflow-y-auto bg-muted/5 p-2 space-y-2">
-            
             {currentOrder.items.length > 0 ? (
               currentOrder.items.map((item, index) => {
-                  const unitId = item.selectedUnit?.unitId || 'default';
-                  const unitName = item.selectedUnit?.unitName || 'Unit';
-                  const price = item.selectedUnit?.price || 0;
-  
-                  return (
-                    <Card key={`${item.productId}-${unitId}-${index}`} className="group relative flex gap-3 p-2 bg-card hover:bg-accent/5 transition-colors border-border/40 rounded-none shadow-sm">
-                      
-                      {/* Image */}
-                      <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
-                        <img
-                          src={convertFileSrc(item.imageUrl|| '') || '/placeholder.svg?height=64&width=64'}
-                          alt={item.productName}
-                          className="object-cover w-full h-full"
-                        />
-                      </div>
-                      
-                      {/* Content */}
-                      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-                          <div className="flex justify-between items-start gap-2">
-                              <div className="min-w-0">
-                                  <h4 className="font-semibold text-sm truncate text-foreground leading-tight">
-                                      {item.productName}
-                                  </h4>
-                                  <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-                                      <span className="truncate max-w-[100px]">{item.variantName}</span>
-                                      <span className="text-border mx-1">|</span>
-                                      <span>{unitName}</span>
-                                  </div>
-                                    {item.notes && (
-                                        <div className="text-[10px] text-amber-600 italic bg-amber-50 dark:bg-amber-950/30 px-1 py-0.5 rounded mt-1 inline-block truncate max-w-full">
-                                          Note: "{item.notes}"
-                                        </div>
-                                    )}
-                              </div>
-                              <div className="text-right shrink-0">
-                                    <div className="font-bold text-sm">{price.toLocaleString()}</div>
-                              </div>
+                const unitId = item.selectedUnit?.unitId || 'default';
+                const unitName = item.selectedUnit?.unitName || 'Unit';
+                const price = item.selectedUnit?.price || 0;
+
+                return (
+                  <Card
+                    key={`${item.productId}-${unitId}-${index}`}
+                    className="group relative flex gap-3 p-2 bg-card hover:bg-accent/5 transition-colors border-border/40 rounded-none shadow-sm"
+                  >
+                    {/* Image */}
+                    <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
+                      <img
+                        src={convertFileSrc(item.imageUrl || '') || '/placeholder.svg?height=64&width=64'}
+                        alt={item.productName}
+                        className="object-cover w-full h-full"
+                      />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
+                          <h4 className="font-semibold text-sm truncate text-foreground leading-tight">
+                            {item.productName}
+                          </h4>
+                          <div className="text-[11px] text-muted-foreground flex flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
+                            <span className="truncate max-w-[100px]">{item.variantName}</span>
+                            <span className="text-border mx-1">|</span>
+                            <span>{unitName}</span>
                           </div>
-  
-                          <div className="flex items-center justify-between mt-1">
-                              <div className="flex items-center gap-1 bg-muted/50 rounded-md border border-border/50 h-7 px-1">
-                                  <button 
-                                      className="h-full px-2 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                                      onClick={() => updateItemInOrder({...item, quantity: Math.max(1, item.quantity - 1)})}
-                                      disabled={item.quantity <= 1}
-                                  >
-                                      <Minus className="w-3 h-3" />
-                                  </button>
-                                  <span className="text-xs font-mono font-medium min-w-[1.5rem] text-center">{item.quantity}</span>
-                                  <button 
-                                      className="h-full px-2 text-muted-foreground hover:text-foreground"
-                                      onClick={() => updateItemInOrder({...item, quantity: item.quantity + 1})}
-                                  >
-                                      <Plus className="w-3 h-3" />
-                                  </button>
-                              </div>
-                              
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => handleOpenEdit(item)}>
-                                      <Edit2 className="w-3.5 h-3.5" />
-                                  </Button>
-                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeItemFromOrder(item.productId, unitId)}>
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
-                              </div>
-                          </div>
+                          {item.notes && (
+                            <div className="text-[10px] text-amber-600 italic bg-amber-50 dark:bg-amber-950/30 px-1 py-0.5 rounded mt-1 inline-block truncate max-w-full">
+                              Note: "{item.notes}"
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="font-bold text-sm">{price.toLocaleString()}</div>
+                        </div>
                       </div>
-                    </Card>
-                  );
-                })
+
+                      <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center gap-1 bg-muted/50 rounded-md border border-border/50 h-7 px-1">
+                          <button
+                            className="h-full px-2 text-muted-foreground hover:text-foreground disabled:opacity-30"
+                            onClick={() => updateItemInOrder({ ...item, quantity: Math.max(1, item.quantity - 1) })}
+                            disabled={item.quantity <= 1}
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span className="text-xs font-mono font-medium min-w-[1.5rem] text-center">
+                            {item.quantity}
+                          </span>
+                          <button
+                            className="h-full px-2 text-muted-foreground hover:text-foreground"
+                            onClick={() => updateItemInOrder({ ...item, quantity: item.quantity + 1 })}
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-primary"
+                            onClick={() => handleOpenEdit(item)}
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                            onClick={() => removeItemFromOrder(item.productId, unitId)}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })
             ) : (
-                <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground/50 space-y-4">
-                  <div className="p-6 bg-muted/30 rounded-full border border-dashed border-border">
-                    <ShoppingCart className="w-10 h-10" />
-                  </div>
-                  <div className="text-center px-6">
-                      <p className="font-medium text-foreground/80">Your cart is empty</p>
-                      <p className="text-xs mt-1">Select items from the product list to start an order.</p>
-                  </div>
+              <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground/50 space-y-4">
+                <div className="p-6 bg-muted/30 rounded-full border border-dashed border-border">
+                  <ShoppingCart className="w-10 h-10" />
                 </div>
+                <div className="text-center px-6">
+                  <p className="font-medium text-foreground/80">Your cart is empty</p>
+                  <p className="text-xs mt-1">Select items from the product list to start an order.</p>
+                </div>
+              </div>
             )}
           </div>
 
           {/* --- Footer --- */}
           <div className="p-4 bg-card border-t border-border shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)] z-20 space-y-3">
-             {/* Totals */}
+            {/* Totals */}
             <div className="space-y-1.5 text-sm">
               <div className="flex justify-between text-muted-foreground text-xs">
                 <span>Subtotal</span>
@@ -463,74 +467,74 @@ export function Cart() {
                 <span>Tax ({taxRate}%)</span>
                 <span>{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-              
+
               <div className="my-2 h-px bg-border/60 w-full" />
-              
+
               <div className="flex justify-between items-end">
                 <span className="font-bold text-base">Total</span>
                 <span className="text-xl font-extrabold text-primary tracking-tight">
-                  <span className="text-sm font-normal text-muted-foreground mr-1">KSH</span> 
+                  <span className="text-sm font-normal text-muted-foreground mr-1">KSH</span>
                   {total.toLocaleString()}
                 </span>
               </div>
-              
+
               <div className="flex justify-between items-center pt-1">
-                 <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
-                    {currentOrder.items.reduce((acc, i) => acc + i.quantity, 0)} items
-                 </span>
-                 <Button 
-                    variant="link" 
-                    size="sm" 
-                    className="h-auto p-0 text-xs text-destructive hover:text-destructive/80"
-                    onClick={resetOrder}
-                    disabled={currentOrder.items.length === 0}
-                 >
-                    Clear Cart
-                 </Button>
+                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">
+                  {currentOrder.items.reduce((acc, i) => acc + i.quantity, 0)} items
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto p-0 text-xs text-destructive hover:text-destructive/80"
+                  onClick={resetOrder}
+                  disabled={currentOrder.items.length === 0}
+                >
+                  Clear Cart
+                </Button>
               </div>
             </div>
 
             {/* Main Actions */}
             <div className="grid grid-cols-4 gap-2">
-                 {enableHoldSale && (
-                     <Button 
-                        variant="outline"
-                        className="col-span-1 h-12 flex-col gap-0.5 border-dashed"
-                        onClick={() => setShowHoldDialog(true)}
-                        disabled={currentOrder.items.length === 0}
-                        title="Hold Order"
-                     >
-                         <Pause className="w-4 h-4" />
-                         <span className="text-[10px] font-medium">Hold</span>
-                     </Button>
-                 )}
-
-                 <Button
-                    className={cn(
-                        "h-12 shadow-md text-sm font-bold uppercase tracking-wide",
-                        enableHoldSale ? "col-span-3" : "col-span-4"
-                    )}
-                    onClick={handleConfirmPayment}
-                    disabled={currentOrder.items.length === 0}
+              {enableHoldSale && (
+                <Button
+                  variant="outline"
+                  className="col-span-1 h-12 flex-col gap-0.5 border-dashed"
+                  onClick={() => setShowHoldDialog(true)}
+                  disabled={currentOrder.items.length === 0}
+                  title="Hold Order"
                 >
-                    Checkout
+                  <Pause className="w-4 h-4" />
+                  <span className="text-[10px] font-medium">Hold</span>
                 </Button>
+              )}
+
+              <Button
+                className={cn(
+                  'h-12 shadow-md text-sm font-bold uppercase tracking-wide',
+                  enableHoldSale ? 'col-span-3' : 'col-span-4'
+                )}
+                onClick={handleConfirmPayment}
+                disabled={currentOrder.items.length === 0}
+              >
+                Checkout
+              </Button>
             </div>
-            
-             {/* Secondary Actions Row */}
-             {enableHoldSale && heldOrders.length > 0 && (
-                <div className="flex justify-center">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs text-muted-foreground gap-2 h-7"
-                        onClick={() => setShowHeldOrdersDialog(true)}
-                    >
-                        <Clock className="w-3.5 h-3.5" />
-                        View {heldOrders.length} Held Order{heldOrders.length !== 1 ? 's' : ''}
-                    </Button>
-                </div>
-             )}
+
+            {/* Secondary Actions Row */}
+            {enableHoldSale && heldOrders.length > 0 && (
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs text-muted-foreground gap-2 h-7"
+                  onClick={() => setShowHeldOrdersDialog(true)}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  View {heldOrders.length} Held Order{heldOrders.length !== 1 ? 's' : ''}
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -540,51 +544,55 @@ export function Cart() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Item</DialogTitle>
-            <DialogDescription>
-               Make changes to {editingItem?.productName}
-            </DialogDescription>
+            <DialogDescription>Make changes to {editingItem?.productName}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-             <div className="flex items-center justify-between">
-                <Label htmlFor="quantity" className="text-right">
-                  Quantity
-                </Label>
-                <div className="flex items-center gap-3">
-                    <Button 
-                        variant="outline" size="icon" className="h-8 w-8"
-                        onClick={() => setEditQuantity(prev => Math.max(1, prev - 1))}
-                    >
-                        <Minus className="h-4 w-4" />
-                    </Button>
-                    <Input
-                        id="quantity"
-                        type="number"
-                        value={editQuantity}
-                        onChange={(e) => setEditQuantity(parseInt(e.target.value) || 1)}
-                        className="w-16 text-center h-8"
-                    />
-                    <Button 
-                        variant="outline" size="icon" className="h-8 w-8"
-                        onClick={() => setEditQuantity(prev => prev + 1)}
-                    >
-                        <Plus className="h-4 w-4" />
-                    </Button>
-                </div>
-             </div>
-             <div className="grid gap-2">
-                <Label htmlFor="notes">Item Notes</Label>
-                <Textarea
-                    id="notes"
-                    value={editNotes}
-                    onChange={(e) => setEditNotes(e.target.value)}
-                    placeholder="e.g., No Sugar, Extra Spicy..."
-                    className="resize-none"
-                    rows={3}
+            <div className="flex items-center justify-between">
+              <Label htmlFor="quantity" className="text-right">
+                Quantity
+              </Label>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setEditQuantity(prev => Math.max(1, prev - 1))}
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Input
+                  id="quantity"
+                  type="number"
+                  value={editQuantity}
+                  onChange={e => setEditQuantity(parseInt(e.target.value) || 1)}
+                  className="w-16 text-center h-8"
                 />
-             </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setEditQuantity(prev => prev + 1)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Item Notes</Label>
+              <Textarea
+                id="notes"
+                value={editNotes}
+                onChange={e => setEditNotes(e.target.value)}
+                placeholder="e.g., No Sugar, Extra Spicy..."
+                className="resize-none"
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancel
+            </Button>
             <Button onClick={handleSaveEdit}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>
@@ -607,7 +615,7 @@ export function Cart() {
         tableNumber={currentOrder.tableNumber}
         onPaymentComplete={handlePaymentComplete}
       />
-      
+
       <ReceiptDialog
         open={receiptDialogOpen}
         onOpenChange={setReceiptDialogOpen}
@@ -616,15 +624,9 @@ export function Cart() {
       />
 
       {/* Hold Sale Dialogs (Enterprise) */}
-      <HoldOrderDialog
-        open={showHoldDialog}
-        onOpenChange={setShowHoldDialog}
-      />
-      
-      <HeldOrdersDialog
-        open={showHeldOrdersDialog}
-        onOpenChange={setShowHeldOrdersDialog}
-      />
+      <HoldOrderDialog open={showHoldDialog} onOpenChange={setShowHoldDialog} />
+
+      <HeldOrdersDialog open={showHeldOrdersDialog} onOpenChange={setShowHeldOrdersDialog} />
     </>
   );
 }

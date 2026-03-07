@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useEffect } from "react"
 import { usePosStore } from "@/store/store"
 import { NotificationToast } from "@/components/notification-toast"
+import { ConnectionStatusBanner } from "@/components/connection-status-banner"
 import { Toaster } from "sonner"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { UpdaterProvider } from "@/lib/providers/UpdateProvider"
@@ -102,6 +103,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     <>
       <AblyInitializer/>
       <NotificationToast />
+      <ConnectionStatusBanner />
       <QueryClientProvider client={queryClient}>
         <UpdaterProvider checkInterval={60 * 60 * 1000 * 4}>
           <ServerNotificationProvider>

@@ -5,34 +5,34 @@ import { useScannerStore } from '@/store/barcode-scanner';
 
 interface ScanPayload {
   message: string;
-  source: string; 
+  source: string;
 }
 
 export const useScanner = () => {
   const store = useScannerStore();
-  
+
   const isMounted = useRef(false);
   const unlisteners = useRef<UnlistenFn[]>([]);
 
   const startScanner = async () => {
     if (store.isScanning) return;
-    
+
     if (!store.vid || !store.pid) {
-      store.setError("Vendor ID and Product ID are missing.");
-      return; 
+      store.setError('Vendor ID and Product ID are missing.');
+      return;
     }
 
     store.setError(null);
 
     try {
-      const unlistenData = await listen<ScanPayload>('scanner-data', (event) => {
+      const unlistenData = await listen<ScanPayload>('scanner-data', event => {
         // You can now log/use the source (e.g., 'USB' or 'Network')
         console.log(`[${event.payload.source}] Barcode Received:`, event.payload.message);
         store.addScannedItem(event.payload.message);
       });
       unlisteners.current.push(unlistenData);
 
-      const unlistenStatus = await listen<string>('scanner-status', (event) => {
+      const unlistenStatus = await listen<string>('scanner-status', event => {
         const status = event.payload;
         // UPDATE 2: Use .includes() to catch "Connected (USB)" or "Network Server Listening"
         if (status.includes('Connected') || status.includes('Listening')) {
@@ -44,7 +44,7 @@ export const useScanner = () => {
       });
       unlisteners.current.push(unlistenStatus);
 
-      const unlistenError = await listen<string>('scanner-error', (event) => {
+      const unlistenError = await listen<string>('scanner-error', event => {
         store.setError(event.payload);
         store.setIsConnected(false);
       });
@@ -56,7 +56,6 @@ export const useScanner = () => {
       });
 
       store.setIsScanning(true);
-
     } catch (err: any) {
       console.error('Failed to start scanner:', err);
       store.setError(typeof err === 'string' ? err : 'Unknown error');
@@ -67,7 +66,7 @@ export const useScanner = () => {
 
   const stopScanner = () => {
     unlisteners.current.forEach(fn => fn());
-    unlisteners.current = []; 
+    unlisteners.current = [];
 
     store.setIsScanning(false);
     store.setIsConnected(false);

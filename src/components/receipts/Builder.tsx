@@ -1,18 +1,18 @@
 import React, { useState } from 'react';
-import { PDFViewer,  } from '@react-pdf/renderer';
-import { 
-  Settings, 
-  Layout, 
-  Type, 
-  FileText, 
-  Code, 
-  ChevronDown, 
+import { PDFViewer } from '@react-pdf/renderer';
+import {
+  Settings,
+  Layout,
+  Type,
+  FileText,
+  Code,
+  ChevronDown,
   ChevronRight,
   RefreshCcw,
   Check,
   Smartphone,
   CreditCard,
-  User
+  User,
 } from 'lucide-react';
 
 // Import your existing components
@@ -22,7 +22,6 @@ import { cn } from '@/lib/utils';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Card } from '../ui/card';
-
 
 const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <div className="relative">
@@ -34,20 +33,28 @@ const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   </div>
 );
 
-const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) => (
+const Toggle = ({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) => (
   <div className="flex items-center justify-between py-2">
     <span className="text-sm text-gray-700 font-medium">{label}</span>
     <button
       onClick={() => onChange(!checked)}
       className={cn(
-        "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2",
-        checked ? "bg-blue-600" : "bg-gray-200"
+        'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2',
+        checked ? 'bg-blue-600' : 'bg-gray-200'
       )}
     >
       <span
         className={cn(
-          "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
-          checked ? "translate-x-6" : "translate-x-1"
+          'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+          checked ? 'translate-x-6' : 'translate-x-1'
         )}
       />
     </button>
@@ -58,14 +65,11 @@ const ColorPicker = ({ label, value, onChange }: { label: string; value: string;
   <div className="flex items-center justify-between py-2">
     <span className="text-sm text-gray-700 font-medium">{label}</span>
     <div className="flex items-center gap-2">
-      <div 
-        className="w-8 h-8 rounded-full border border-gray-200 shadow-inner"
-        style={{ backgroundColor: value }}
-      />
+      <div className="w-8 h-8 rounded-full border border-gray-200 shadow-inner" style={{ backgroundColor: value }} />
       <input
         type="text"
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={e => onChange(e.target.value)}
         className="w-24 px-2 py-1 text-xs bg-gray-50 border border-gray-200 rounded font-mono"
       />
     </div>
@@ -79,7 +83,7 @@ const AccordionItem = ({ title, icon: Icon, children, isOpen, onToggle }: any) =
       className="w-full flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
     >
       <div className="flex items-center gap-3">
-        <div className={cn("p-2 rounded-lg", isOpen ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500")}>
+        <div className={cn('p-2 rounded-lg', isOpen ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500')}>
           <Icon className="w-4 h-4" />
         </div>
         <span className="font-semibold text-gray-900 text-sm">{title}</span>
@@ -96,15 +100,15 @@ const DEFAULT_CONFIG: ReceiptConfig = {
   width: 80, // mm
   padding: 10,
   spacing: 5,
-  backgroundColor: "#FFFFFF",
+  backgroundColor: '#FFFFFF',
   titleSize: 18,
   headerSize: 12,
   bodySize: 9,
-  primaryColor: "#000000",
-  secondaryColor: "#4B5563",
+  primaryColor: '#000000',
+  secondaryColor: '#4B5563',
   showHeader: true,
   logoPosition: 'center',
-  receiptTitle: "RECEIPT",
+  receiptTitle: 'RECEIPT',
   showReceiptNumber: true,
   showDateTime: true,
   showOrderType: true,
@@ -114,9 +118,9 @@ const DEFAULT_CONFIG: ReceiptConfig = {
   showPaymentSection: true,
   showOrderNotes: true,
   showSpecialInstructions: true,
-  currency: "USD",
-  locale: "en-US",
-  taxLabel: "Tax",
+  currency: 'USD',
+  locale: 'en-US',
+  taxLabel: 'Tax',
   showPromoCode: true,
   showFooter: true,
   showPerforation: true,
@@ -127,30 +131,30 @@ const DEFAULT_CONFIG: ReceiptConfig = {
   showPaymentMethod: true,
   showAmountReceived: true,
   showChange: true,
-  notesTitle: "Notes",
-  instructionsTitle: "Instructions",
-  promoCodeText: "Promo Code Applied",
-  thankYouMessage: "Thank you for dining with us!",
-  footerText: "Powered by NeoReceipts",
+  notesTitle: 'Notes',
+  instructionsTitle: 'Instructions',
+  promoCodeText: 'Promo Code Applied',
+  thankYouMessage: 'Thank you for dining with us!',
+  footerText: 'Powered by NeoReceipts',
   itemSpacing: 5,
 };
 
 const DEFAULT_ORG: OrganizationData = {
-  name: "Acme Bistro & Bar",
-  address: "123 Culinary Avenue, Food District, NY 10012",
-  phone: "+1 (555) 123-4567",
-  email: "hello@acmebistro.com",
-  website: "www.acmebistro.com",
-  tagline: "Taste the Excellence"
+  name: 'Acme Bistro & Bar',
+  address: '123 Culinary Avenue, Food District, NY 10012',
+  phone: '+1 (555) 123-4567',
+  email: 'hello@acmebistro.com',
+  website: 'www.acmebistro.com',
+  tagline: 'Taste the Excellence',
 };
 
 const DEFAULT_PAYMENT: PaymentData = {
-  orderId: "ORD-2023-8492",
-  paymentMethod: "card",
-  amountPaid: 45.50,
+  orderId: 'ORD-2023-8492',
+  paymentMethod: 'card',
+  amountPaid: 45.5,
   change: 0,
-  customerName: "Alex Richardson",
-  customerPhone: "+1 (555) 987-6543"
+  customerName: 'Alex Richardson',
+  customerPhone: '+1 (555) 987-6543',
 };
 
 // --- Main Builder Component ---
@@ -158,7 +162,7 @@ const DEFAULT_PAYMENT: PaymentData = {
 export default function ReceiptBuilderPage() {
   const [activeTab, setActiveTab] = useState<'design' | 'content'>('design');
   const [openSection, setOpenSection] = useState<string | null>('branding');
-  
+
   // State for the Receipt
   const [config, setConfig] = useState<ReceiptConfig>(DEFAULT_CONFIG);
   const [organization, setOrganization] = useState<OrganizationData>(DEFAULT_ORG);
@@ -172,15 +176,13 @@ export default function ReceiptBuilderPage() {
 
   const copyConfigJSON = () => {
     navigator.clipboard.writeText(JSON.stringify(config, null, 2));
-    alert("Configuration JSON copied to clipboard!");
+    alert('Configuration JSON copied to clipboard!');
   };
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans text-gray-900 overflow-hidden">
-      
       {/* --- LEFT SIDEBAR: CONFIGURATION --- */}
       <div className="w-[450px] flex flex-col bg-white border-r border-gray-200 shadow-xl z-10">
-        
         {/* Header */}
         <div className="p-6 border-b border-gray-100">
           <div className="flex items-center gap-3 mb-2">
@@ -197,10 +199,10 @@ export default function ReceiptBuilderPage() {
           <button
             onClick={() => setActiveTab('design')}
             className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'design' 
-                ? "border-blue-600 text-blue-600" 
-                : "border-transparent text-gray-500 hover:text-gray-700"
+              'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'design'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             )}
           >
             Design & Layout
@@ -208,10 +210,10 @@ export default function ReceiptBuilderPage() {
           <button
             onClick={() => setActiveTab('content')}
             className={cn(
-              "px-4 py-3 text-sm font-medium border-b-2 transition-colors",
-              activeTab === 'content' 
-                ? "border-blue-600 text-blue-600" 
-                : "border-transparent text-gray-500 hover:text-gray-700"
+              'px-4 py-3 text-sm font-medium border-b-2 transition-colors',
+              activeTab === 'content'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             )}
           >
             Data Content
@@ -220,137 +222,175 @@ export default function ReceiptBuilderPage() {
 
         {/* Scrollable Settings Area */}
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
-          
           {activeTab === 'design' ? (
             <div className="pb-10">
               {/* Branding Section */}
-              <AccordionItem 
-                title="Branding & Organization" 
-                icon={Settings} 
-                isOpen={openSection === 'branding'} 
+              <AccordionItem
+                title="Branding & Organization"
+                icon={Settings}
+                isOpen={openSection === 'branding'}
                 onToggle={() => setOpenSection(openSection === 'branding' ? null : 'branding')}
               >
                 <div className="space-y-4">
                   <div>
                     <Label>Organization Name</Label>
                     <Input
-                      value={organization.name} 
-                      onChange={(e) => setOrganization({...organization, name: e.target.value})} 
+                      value={organization.name}
+                      onChange={e => setOrganization({ ...organization, name: e.target.value })}
                     />
                   </div>
                   <div>
                     <Label>Logo Position</Label>
-                    <Select 
-                      value={config.logoPosition} 
-                      onChange={(e) => updateConfig('logoPosition', e.target.value)}
-                    >
+                    <Select value={config.logoPosition} onChange={e => updateConfig('logoPosition', e.target.value)}>
                       <option value="left">Left</option>
                       <option value="center">Center</option>
                       <option value="right">Right</option>
                     </Select>
                   </div>
-                  <ColorPicker 
-                    label="Primary Color" 
-                    value={config.primaryColor} 
-                    onChange={(val) => updateConfig('primaryColor', val)} 
+                  <ColorPicker
+                    label="Primary Color"
+                    value={config.primaryColor}
+                    onChange={val => updateConfig('primaryColor', val)}
                   />
-                  <ColorPicker 
-                    label="Secondary Color" 
-                    value={config.secondaryColor} 
-                    onChange={(val) => updateConfig('secondaryColor', val)} 
+                  <ColorPicker
+                    label="Secondary Color"
+                    value={config.secondaryColor}
+                    onChange={val => updateConfig('secondaryColor', val)}
                   />
                 </div>
               </AccordionItem>
 
               {/* Layout & Dimensions */}
-              <AccordionItem 
-                title="Dimensions & Spacing" 
-                icon={Layout} 
-                isOpen={openSection === 'layout'} 
+              <AccordionItem
+                title="Dimensions & Spacing"
+                icon={Layout}
+                isOpen={openSection === 'layout'}
                 onToggle={() => setOpenSection(openSection === 'layout' ? null : 'layout')}
               >
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label>Width (mm)</Label>
-                      <Input 
-                        type="number" 
-                        value={config.width} 
-                        onChange={(e) => updateConfig('width', Number(e.target.value))} 
+                      <Input
+                        type="number"
+                        value={config.width}
+                        onChange={e => updateConfig('width', Number(e.target.value))}
                       />
                     </div>
                     <div>
                       <Label>Padding</Label>
-                      <Input 
-                        type="number" 
-                        value={config.padding} 
-                        onChange={(e) => updateConfig('padding', Number(e.target.value))} 
+                      <Input
+                        type="number"
+                        value={config.padding}
+                        onChange={e => updateConfig('padding', Number(e.target.value))}
                       />
                     </div>
                   </div>
                   <div>
                     <Label>Spacing Density</Label>
-                    <input 
-                      type="range" min="0" max="20" 
-                      value={config.spacing} 
-                      onChange={(e) => updateConfig('spacing', Number(e.target.value))}
-                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" 
+                    <input
+                      type="range"
+                      min="0"
+                      max="20"
+                      value={config.spacing}
+                      onChange={e => updateConfig('spacing', Number(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                     />
                   </div>
                 </div>
               </AccordionItem>
 
               {/* Typography */}
-              <AccordionItem 
-                title="Typography" 
-                icon={Type} 
-                isOpen={openSection === 'typography'} 
+              <AccordionItem
+                title="Typography"
+                icon={Type}
+                isOpen={openSection === 'typography'}
                 onToggle={() => setOpenSection(openSection === 'typography' ? null : 'typography')}
               >
                 <div className="space-y-4">
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <Label>Title</Label>
-                      <Input type="number" value={config.titleSize} onChange={e => updateConfig('titleSize', Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        value={config.titleSize}
+                        onChange={e => updateConfig('titleSize', Number(e.target.value))}
+                      />
                     </div>
                     <div>
                       <Label>Header</Label>
-                      <Input type="number" value={config.headerSize} onChange={e => updateConfig('headerSize', Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        value={config.headerSize}
+                        onChange={e => updateConfig('headerSize', Number(e.target.value))}
+                      />
                     </div>
                     <div>
                       <Label>Body</Label>
-                      <Input type="number" value={config.bodySize} onChange={e => updateConfig('bodySize', Number(e.target.value))} />
+                      <Input
+                        type="number"
+                        value={config.bodySize}
+                        onChange={e => updateConfig('bodySize', Number(e.target.value))}
+                      />
                     </div>
                   </div>
                 </div>
               </AccordionItem>
 
               {/* Sections & Toggles */}
-              <AccordionItem 
-                title="Section Visibility" 
-                icon={Check} 
-                isOpen={openSection === 'visibility'} 
+              <AccordionItem
+                title="Section Visibility"
+                icon={Check}
+                isOpen={openSection === 'visibility'}
                 onToggle={() => setOpenSection(openSection === 'visibility' ? null : 'visibility')}
               >
                 <div className="space-y-0 divide-y divide-gray-50">
-                  <Toggle label="Show Header" checked={config.showHeader} onChange={v => updateConfig('showHeader', v)} />
-                  <Toggle label="Show Customer Info" checked={config.showCustomerInfo} onChange={v => updateConfig('showCustomerInfo', v)} />
-                  <Toggle label="Show Items Section" checked={config.showItemsSection} onChange={v => updateConfig('showItemsSection', v)} />
-                  <Toggle label="Show Divider Lines" checked={config.showDivider} onChange={v => updateConfig('showDivider', v)} />
-                  <Toggle label="Show Payment Details" checked={config.showPaymentSection} onChange={v => updateConfig('showPaymentSection', v)} />
-                  <Toggle label="Show Footer" checked={config.showFooter} onChange={v => updateConfig('showFooter', v)} />
-                  <Toggle label="Show Paper Perforation" checked={config.showPerforation} onChange={v => updateConfig('showPerforation', v)} />
+                  <Toggle
+                    label="Show Header"
+                    checked={config.showHeader}
+                    onChange={v => updateConfig('showHeader', v)}
+                  />
+                  <Toggle
+                    label="Show Customer Info"
+                    checked={config.showCustomerInfo}
+                    onChange={v => updateConfig('showCustomerInfo', v)}
+                  />
+                  <Toggle
+                    label="Show Items Section"
+                    checked={config.showItemsSection}
+                    onChange={v => updateConfig('showItemsSection', v)}
+                  />
+                  <Toggle
+                    label="Show Divider Lines"
+                    checked={config.showDivider}
+                    onChange={v => updateConfig('showDivider', v)}
+                  />
+                  <Toggle
+                    label="Show Payment Details"
+                    checked={config.showPaymentSection}
+                    onChange={v => updateConfig('showPaymentSection', v)}
+                  />
+                  <Toggle
+                    label="Show Footer"
+                    checked={config.showFooter}
+                    onChange={v => updateConfig('showFooter', v)}
+                  />
+                  <Toggle
+                    label="Show Paper Perforation"
+                    checked={config.showPerforation}
+                    onChange={v => updateConfig('showPerforation', v)}
+                  />
                 </div>
               </AccordionItem>
 
               {/* Labels */}
-              <AccordionItem 
-                title="Text Labels" 
-                icon={FileText} 
-                isOpen={openSection === 'labels'} 
+              <AccordionItem
+                title="Text Labels"
+                icon={FileText}
+                isOpen={openSection === 'labels'}
                 onToggle={() => setOpenSection(openSection === 'labels' ? null : 'labels')}
               >
-                 <div className="space-y-4">
+                <div className="space-y-4">
                   <div>
                     <Label>Receipt Title</Label>
                     <Input value={config.receiptTitle} onChange={e => updateConfig('receiptTitle', e.target.value)} />
@@ -361,7 +401,10 @@ export default function ReceiptBuilderPage() {
                   </div>
                   <div>
                     <Label>Thank You Message</Label>
-                    <Input value={config.thankYouMessage} onChange={e => updateConfig('thankYouMessage', e.target.value)} />
+                    <Input
+                      value={config.thankYouMessage}
+                      onChange={e => updateConfig('thankYouMessage', e.target.value)}
+                    />
                   </div>
                 </div>
               </AccordionItem>
@@ -370,45 +413,45 @@ export default function ReceiptBuilderPage() {
             <div className="p-6 space-y-6 pb-20">
               {/* Content Editor Tab */}
               <div>
-                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                   <User className="w-4 h-4"/> Customer
-                 </h3>
-                 <div className="grid gap-4">
-                   <Input 
-                      placeholder="Customer Name" 
-                      value={payment.customerName} 
-                      onChange={e => setPayment({...payment, customerName: e.target.value})} 
-                   />
-                   <Input 
-                      placeholder="Customer Phone" 
-                      value={payment.customerPhone} 
-                      onChange={e => setPayment({...payment, customerPhone: e.target.value})} 
-                   />
-                 </div>
+                <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <User className="w-4 h-4" /> Customer
+                </h3>
+                <div className="grid gap-4">
+                  <Input
+                    placeholder="Customer Name"
+                    value={payment.customerName}
+                    onChange={e => setPayment({ ...payment, customerName: e.target.value })}
+                  />
+                  <Input
+                    placeholder="Customer Phone"
+                    value={payment.customerPhone}
+                    onChange={e => setPayment({ ...payment, customerPhone: e.target.value })}
+                  />
+                </div>
               </div>
 
               <hr className="border-gray-100" />
 
               <div>
                 <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                   <CreditCard className="w-4 h-4"/> Payment Info
-                 </h3>
-                 <div className="grid gap-4">
-                   <Select 
-                      value={payment.paymentMethod}
-                      onChange={e => setPayment({...payment, paymentMethod: e.target.value as any})}
-                    >
-                      <option value="cash">Cash</option>
-                      <option value="card">Card</option>
-                      <option value="mobile">Mobile</option>
-                   </Select>
-                   <Input 
-                      type="number"
-                      placeholder="Amount Paid" 
-                      value={payment.amountPaid} 
-                      onChange={e => setPayment({...payment, amountPaid: Number(e.target.value)})} 
-                   />
-                 </div>
+                  <CreditCard className="w-4 h-4" /> Payment Info
+                </h3>
+                <div className="grid gap-4">
+                  <Select
+                    value={payment.paymentMethod}
+                    onChange={e => setPayment({ ...payment, paymentMethod: e.target.value as any })}
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="mobile">Mobile</option>
+                  </Select>
+                  <Input
+                    type="number"
+                    placeholder="Amount Paid"
+                    value={payment.amountPaid}
+                    onChange={e => setPayment({ ...payment, amountPaid: Number(e.target.value) })}
+                  />
+                </div>
               </div>
             </div>
           )}
@@ -416,14 +459,14 @@ export default function ReceiptBuilderPage() {
 
         {/* Footer Actions */}
         <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-2">
-          <button 
+          <button
             onClick={copyConfigJSON}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
           >
             <Code className="w-4 h-4" />
             Copy JSON
           </button>
-          <button 
+          <button
             onClick={() => setConfig(DEFAULT_CONFIG)}
             className="p-2 bg-white border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             title="Reset to Defaults"
@@ -442,7 +485,7 @@ export default function ReceiptBuilderPage() {
               <Smartphone className="w-4 h-4" /> Preview Mode
             </span>
           </div>
-          
+
           {/* <PDFDownloadLink
             document={
               <EnhancedThermalReceiptPDF
@@ -473,15 +516,15 @@ export default function ReceiptBuilderPage() {
         {/* PDF Stage */}
         <div className="flex-1 flex items-center justify-center p-8 overflow-hidden relative">
           <div className="absolute inset-0 pattern-grid-lg opacity-5 pointer-events-none" />
-          
+
           <Card className="h-full w-full max-w-2xl bg-gray-500 shadow-2xl ring-8 ring-gray-200/50">
-             <PDFViewer 
-               width="100%" 
-               height="100%" 
-               className="w-full h-full border-0"
-               showToolbar={false} // Clean look
-             >
-                {/* <EnhancedThermalReceiptPDF
+            <PDFViewer
+              width="100%"
+              height="100%"
+              className="w-full h-full border-0"
+              showToolbar={false} // Clean look
+            >
+              {/* <EnhancedThermalReceiptPDF
                   items={items}
                   paymentData={payment}
                   organization={organization}
@@ -490,7 +533,7 @@ export default function ReceiptBuilderPage() {
                   notes="Please handle with care"
                   promoCode="SUMMER2024"
                 /> */}
-             </PDFViewer>
+            </PDFViewer>
           </Card>
         </div>
       </div>

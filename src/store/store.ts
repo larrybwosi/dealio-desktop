@@ -1,5 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
+// import { trackEvent } from "@aptabase/tauri";
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
@@ -112,11 +113,11 @@ export interface HeldOrder {
 
   // Hold-specific metadata
   heldAt: Date;
-  heldBy?: string;         // Cashier/Employee ID
-  heldByName?: string;     // Cashier/Employee Name
-  reason?: string;         // Reason for holding
+  heldBy?: string; // Cashier/Employee ID
+  heldByName?: string; // Cashier/Employee Name
+  reason?: string; // Reason for holding
   priority: HeldOrderPriority;
-  expiresAt?: Date;        // Optional auto-expiry
+  expiresAt?: Date; // Optional auto-expiry
 
   // Calculated totals at hold time
   subTotal: number;
@@ -379,9 +380,6 @@ export interface BusinessSettings {
   maxHeldOrders: number;
   heldOrderExpiryHours?: number;
   requireHoldReason: boolean;
-
-  
-
 }
 
 export interface Customer {
@@ -782,9 +780,8 @@ const getDefaultNotificationSettings = (): NotificationSettings => ({
 export const usePosStore = create<PosStore>()(
   persist(
     (set, get) => ({
-
       currentLocationId: null,
-      setCurrentLocationId: (id) => set({ currentLocationId: id }),
+      setCurrentLocationId: id => set({ currentLocationId: id }),
 
       currentOrder: {
         customerName: '',
@@ -836,34 +833,34 @@ export const usePosStore = create<PosStore>()(
             {
               id: 'slide_1',
               type: 'qr',
-              title: "Join & Save 5%",
-              subtitle: "Scan to register instantly",
-              payload: "https://example.com/register",
-              background: "bg-gradient-to-br from-indigo-600 to-blue-700",
-              textColor: "text-white",
-              enabled: true
+              title: 'Join & Save 5%',
+              subtitle: 'Scan to register instantly',
+              payload: 'https://example.com/register',
+              background: 'bg-gradient-to-br from-indigo-600 to-blue-700',
+              textColor: 'text-white',
+              enabled: true,
             },
             {
               id: 'slide_2',
               type: 'icon',
-              title: "New Arrivals",
-              subtitle: "Ask about our seasonal catalog",
+              title: 'New Arrivals',
+              subtitle: 'Ask about our seasonal catalog',
               iconName: 'Store',
-              background: "bg-gradient-to-br from-emerald-600 to-teal-700",
-              textColor: "text-white",
-              enabled: true
+              background: 'bg-gradient-to-br from-emerald-600 to-teal-700',
+              textColor: 'text-white',
+              enabled: true,
             },
             {
               id: 'slide_3',
               type: 'icon',
-              title: "Secure Payments",
-              subtitle: "We accept all major cards",
+              title: 'Secure Payments',
+              subtitle: 'We accept all major cards',
               iconName: 'ShieldCheck',
-              background: "bg-gradient-to-br from-slate-700 to-gray-800",
-              textColor: "text-white",
-              enabled: true
-            }
-          ]
+              background: 'bg-gradient-to-br from-slate-700 to-gray-800',
+              textColor: 'text-white',
+              enabled: true,
+            },
+          ],
         },
         kitchenTicketConfig: getDefaultKitchenTicketConfig(),
         cashDrawerPort: '', // No port configured by default
@@ -975,13 +972,12 @@ export const usePosStore = create<PosStore>()(
           },
         })),
 
-      updateItemInOrder: (updatedItem) =>
+      updateItemInOrder: updatedItem =>
         set(state => ({
           currentOrder: {
             ...state.currentOrder,
             items: state.currentOrder.items.map(item =>
-              item.productId === updatedItem.productId && 
-              item.selectedUnit.unitId === updatedItem.selectedUnit.unitId
+              item.productId === updatedItem.productId && item.selectedUnit.unitId === updatedItem.selectedUnit.unitId
                 ? { ...item, ...updatedItem }
                 : item
             ),
@@ -999,8 +995,6 @@ export const usePosStore = create<PosStore>()(
         })),
 
       setProducts: products => set({ products }),
-
-
 
       resetStore: () =>
         set({
@@ -1085,34 +1079,34 @@ export const usePosStore = create<PosStore>()(
                 {
                   id: 'slide_1',
                   type: 'qr',
-                  title: "Join & Save 5%",
-                  subtitle: "Scan to register instantly",
-                  payload: "https://example.com/register",
-                  background: "bg-gradient-to-br from-indigo-600 to-blue-700",
-                  textColor: "text-white",
-                  enabled: true
+                  title: 'Join & Save 5%',
+                  subtitle: 'Scan to register instantly',
+                  payload: 'https://example.com/register',
+                  background: 'bg-gradient-to-br from-indigo-600 to-blue-700',
+                  textColor: 'text-white',
+                  enabled: true,
                 },
                 {
                   id: 'slide_2',
                   type: 'icon',
-                  title: "New Arrivals",
-                  subtitle: "Ask about our seasonal catalog",
+                  title: 'New Arrivals',
+                  subtitle: 'Ask about our seasonal catalog',
                   iconName: 'Store',
-                  background: "bg-gradient-to-br from-emerald-600 to-teal-700",
-                  textColor: "text-white",
-                  enabled: true
+                  background: 'bg-gradient-to-br from-emerald-600 to-teal-700',
+                  textColor: 'text-white',
+                  enabled: true,
                 },
                 {
                   id: 'slide_3',
                   type: 'icon',
-                  title: "Secure Payments",
-                  subtitle: "We accept all major cards",
+                  title: 'Secure Payments',
+                  subtitle: 'We accept all major cards',
                   iconName: 'ShieldCheck',
-                  background: "bg-gradient-to-br from-slate-700 to-gray-800",
-                  textColor: "text-white",
-                  enabled: true
-                }
-              ]
+                  background: 'bg-gradient-to-br from-slate-700 to-gray-800',
+                  textColor: 'text-white',
+                  enabled: true,
+                },
+              ],
             },
             kitchenTicketConfig: getDefaultKitchenTicketConfig(),
             cashDrawerPort: '',
@@ -1121,7 +1115,6 @@ export const usePosStore = create<PosStore>()(
             enableHoldSale: true,
             maxHeldOrders: 20,
             heldOrderExpiryHours: 24,
-
           },
           employees: [],
           notifications: [],
@@ -1141,7 +1134,8 @@ export const usePosStore = create<PosStore>()(
         });
       },
 
-      resetOrder: () =>
+      resetOrder: () => {
+        // trackEvent("cart_cleared");
         set({
           currentOrder: {
             customerName: '',
@@ -1154,7 +1148,8 @@ export const usePosStore = create<PosStore>()(
             customerPhone: '',
             loyaltyPoints: 0,
           },
-        }),
+        });
+      },
 
       completeOrder: (paymentMethod, discountAmount) =>
         set(state => {
@@ -1227,16 +1222,15 @@ export const usePosStore = create<PosStore>()(
 
           // --- LOGIC: Clear Table if Associated ---
           const tableToClear = state.tables.find(
-            t => t.number === state.currentOrder.tableNumber || t.currentOrderId === state.currentOrder.metadata?.orderId
+            t =>
+              t.number === state.currentOrder.tableNumber || t.currentOrderId === state.currentOrder.metadata?.orderId
           );
-          
+
           let updatedTables = state.tables;
           if (tableToClear) {
-              updatedTables = state.tables.map(t => 
-                  t.id === tableToClear.id 
-                    ? { ...t, status: 'available', currentOrderId: undefined } 
-                    : t
-              );
+            updatedTables = state.tables.map(t =>
+              t.id === tableToClear.id ? { ...t, status: 'available', currentOrderId: undefined } : t
+            );
           }
 
           return {
@@ -1466,17 +1460,17 @@ export const usePosStore = create<PosStore>()(
           products: state.products.map(p => (p.productId === productId ? { ...p, stock: newStock } : p)),
         })),
 
-      deductStockForOrderItems: (items) =>
-        set((state) => {
+      deductStockForOrderItems: items =>
+        set(state => {
           const newProducts = [...state.products];
           let updated = false;
 
           for (const item of items) {
-            const productIndex = newProducts.findIndex((p) => p.productId === item.productId);
+            const productIndex = newProducts.findIndex(p => p.productId === item.productId);
             if (productIndex !== -1) {
               const conversion = item.selectedUnit?.conversion || 1;
               const deductedAmount = item.quantity * conversion;
-              
+
               const product = newProducts[productIndex];
               newProducts[productIndex] = {
                 ...product,
@@ -1939,7 +1933,7 @@ export const usePosStore = create<PosStore>()(
           };
         }),
 
-      retrieveHeldOrder: (id) =>
+      retrieveHeldOrder: id =>
         set(state => {
           const heldOrder = state.heldOrders.find(o => o.id === id);
           if (!heldOrder) return state;
@@ -1961,19 +1955,16 @@ export const usePosStore = create<PosStore>()(
           };
         }),
 
-      deleteHeldOrder: (id) =>
+      deleteHeldOrder: id =>
         set(state => ({
           heldOrders: state.heldOrders.filter(o => o.id !== id),
         })),
 
-      clearAllHeldOrders: () =>
-        set({ heldOrders: [] }),
+      clearAllHeldOrders: () => set({ heldOrders: [] }),
 
       updateHeldOrderPriority: (id, priority) =>
         set(state => ({
-          heldOrders: state.heldOrders.map(o =>
-            o.id === id ? { ...o, priority } : o
-          ),
+          heldOrders: state.heldOrders.map(o => (o.id === id ? { ...o, priority } : o)),
         })),
     }),
     {
@@ -2001,16 +1992,15 @@ export const usePosStore = create<PosStore>()(
   )
 );
 
-
 if (typeof window !== 'undefined') {
   window.addEventListener('location-changed', (e: Event) => {
     const customEvent = e as CustomEvent;
     const { locationId, products } = customEvent.detail;
-    
+
     // Update products in store
     usePosStore.getState().setProducts(products);
     usePosStore.getState().setCurrentLocationId(locationId);
-    
+
     // Re-check low stock alerts for new location
     usePosStore.getState().checkLowStockAlerts();
   });

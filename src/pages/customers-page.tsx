@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+// import { trackEvent } from "@aptabase/tauri"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -22,6 +23,15 @@ export default function CustomersPage() {
       customer?.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       customer?.phone?.includes(searchQuery),
   )
+
+  useEffect(() => {
+    if (searchQuery) {
+      const timer = setTimeout(() => {
+        // trackEvent("customer_search", { query: searchQuery.substring(0, 50) });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery]);
 
   const formatCurrency = useFormattedCurrency()
 

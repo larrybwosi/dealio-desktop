@@ -4,7 +4,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { toast } from 'sonner';
 import CustomerForm from './customer-form';
 import { useCreateCustomer } from '@/hooks/customers';
-import { trackEvent } from "@aptabase/tauri";
+// import { trackEvent } from "@aptabase/tauri";
 
 interface AddCustomerSheetProps {
   open: boolean;
@@ -17,7 +17,7 @@ export default function AddCustomerSheet({ open, onOpenChange }: AddCustomerShee
   const handleAddCustomer = async (data: unknown) => {
     try {
       await createCustomer(data);
-      trackEvent("customer_created");
+      // trackEvent("customer_created");
       toast.success('Customer added successfully!');
       onOpenChange(false);
     } catch {
@@ -29,7 +29,7 @@ export default function AddCustomerSheet({ open, onOpenChange }: AddCustomerShee
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-2xl p-4">
         <SheetHeader className="mb-6">
-          <SheetTitle className='text-xl'>Add New Customer</SheetTitle>
+          <SheetTitle className="text-xl">Add New Customer</SheetTitle>
           <SheetDescription>
             Fill in the details below to create a new customer profile. Fields marked with{' '}
             <span className="text-red-500">*</span> are required.

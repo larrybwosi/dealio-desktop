@@ -9,10 +9,10 @@ export const dispatchOrder = async (transactionId: string, payload: any) => {
     ...payload,
     estimatedTime: payload.estimatedTime ? payload.estimatedTime.toISOString() : undefined,
   };
-  
+
   const response = await invoke('dispatch_order_command', {
     transactionId,
-    payload: formattedPayload
+    payload: formattedPayload,
   });
   return response;
 };
@@ -23,11 +23,7 @@ interface UseDispatchOrderMutationOptions {
   onError?: (error: any) => void;
 }
 
-export function useDispatchOrderMutation({ 
-  transactionId, 
-  onSuccess, 
-  onError 
-}: UseDispatchOrderMutationOptions) {
+export function useDispatchOrderMutation({ transactionId, onSuccess, onError }: UseDispatchOrderMutationOptions) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (values: any) => dispatchOrder(transactionId, values),
@@ -48,48 +44,47 @@ export function useDispatchOrderMutation({
   });
 }
 
-
 interface UseReconcileDeliveryMutationOptions {
   fulfillmentId: string | null;
   onSuccess?: () => void;
   onError?: (error: any) => void;
 }
 
-export function useReconcileDeliveryMutation({ 
-  fulfillmentId, 
-  onSuccess, 
-  onError 
+export function useReconcileDeliveryMutation({
+  fulfillmentId,
+  onSuccess,
+  onError,
 }: UseReconcileDeliveryMutationOptions) {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (formData: FormData) => {
       if (!fulfillmentId) {
-        throw new Error("No fulfillment ID provided");
+        throw new Error('No fulfillment ID provided');
       }
-      
+
       // Note: For file upload, we need to handle this differently with Tauri
       // For now, we'll use a simpler approach - the reconcile command expects file_path
       // We'll need to use Tauri's file dialog to get the file path first
       // This is a temporary workaround - ideally the dialog should be handled before calling this
       const notes = formData.get('notes') as string | null;
       const filePath = formData.get('filePath') as string | null; // This should be set by the calling code
-      
+
       return await invoke('reconcile_delivery_command', {
         fulfillmentId,
         filePath,
-        notes
+        notes,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
-      toast.success("Delivery reconciled successfully");
+      toast.success('Delivery reconciled successfully');
       onSuccess?.();
     },
     onError: (error: any) => {
       console.error('Reconciliation error:', error);
-      toast.error(error.response?.data?.error || "Reconciliation failed");
+      toast.error(error.response?.data?.error || 'Reconciliation failed');
       onError?.(error);
-    }
+    },
   });
 }

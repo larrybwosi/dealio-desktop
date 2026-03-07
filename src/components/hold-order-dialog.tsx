@@ -15,15 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import {
-  Pause,
-  Clock,
-  AlertTriangle,
-  AlertCircle,
-  ShoppingBag,
-  User,
-  MessageSquare,
-} from 'lucide-react';
+import { Pause, Clock, AlertTriangle, AlertCircle, ShoppingBag, User, MessageSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -43,7 +35,13 @@ const QUICK_REASONS = [
 ];
 
 // Updated priorityOptions with dark-mode safe semantic colors
-const priorityOptions: { value: HeldOrderPriority; label: string; description: string; color: string; iconColor: string }[] = [
+const priorityOptions: {
+  value: HeldOrderPriority;
+  label: string;
+  description: string;
+  color: string;
+  iconColor: string;
+}[] = [
   {
     value: 'normal',
     label: 'Normal',
@@ -62,7 +60,8 @@ const priorityOptions: { value: HeldOrderPriority; label: string; description: s
     value: 'urgent',
     label: 'Urgent',
     description: 'Immediate attention needed',
-    color: 'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 dark:border-destructive/20 dark:bg-destructive/10',
+    color:
+      'border-destructive/30 bg-destructive/5 hover:bg-destructive/10 dark:border-destructive/20 dark:bg-destructive/10',
     iconColor: 'text-destructive',
   },
 ];
@@ -98,7 +97,7 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
     }
 
     holdCurrentOrder(reason.trim() || undefined, priority);
-    
+
     toast.success('Order Held', {
       description: `${itemsCount} item${itemsCount !== 1 ? 's' : ''} held successfully`,
       icon: <Pause className="w-4 h-4" />,
@@ -172,7 +171,7 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
             onChange={e => setReason(e.target.value)}
             className={cn(!reasonValid && 'border-destructive focus-visible:ring-destructive')}
           />
-          
+
           <div className="flex flex-wrap gap-1.5">
             {QUICK_REASONS.map(quickReason => (
               <Badge
@@ -212,8 +211,8 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
                 )}
               >
                 <div className="flex items-center justify-center gap-1 mb-1">
-                  {option.value === 'high' && <AlertTriangle className={cn("w-3 h-3", option.iconColor)} />}
-                  {option.value === 'urgent' && <AlertCircle className={cn("w-3 h-3", option.iconColor)} />}
+                  {option.value === 'high' && <AlertTriangle className={cn('w-3 h-3', option.iconColor)} />}
+                  {option.value === 'urgent' && <AlertCircle className={cn('w-3 h-3', option.iconColor)} />}
                   <span className="font-semibold text-xs">{option.label}</span>
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-tight">{option.description}</p>
@@ -226,11 +225,7 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button
-            onClick={handleHold}
-            disabled={!canHold || !reasonValid || itemsCount === 0}
-            className="gap-2"
-          >
+          <Button onClick={handleHold} disabled={!canHold || !reasonValid || itemsCount === 0} className="gap-2">
             <Pause className="w-4 h-4" />
             Hold Order
           </Button>

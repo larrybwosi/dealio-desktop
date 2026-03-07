@@ -1,80 +1,80 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
-import type { Order } from "@/store/store"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Download, Printer, ShoppingBag, Truck, UtensilsCrossed, ChefHat } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { usePosStore } from "@/store/store"
+import { useState, useEffect } from 'react';
+import type { Order } from '@/store/store';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { Download, Printer, ShoppingBag, Truck, UtensilsCrossed, ChefHat } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { usePosStore } from '@/store/store';
 
-import { PDFReceipt } from "@/components/receipts/pdf-receipt"
-import { PDFKitchenTicket } from "@/components/receipts/pdf-kitchen-ticket"
-import QRCode from "qrcode"
-import { format } from "date-fns"
-import { usePdfActions } from "@/hooks/use-pdf-actions"
+import { PDFReceipt } from '@/components/receipts/pdf-receipt';
+import { PDFKitchenTicket } from '@/components/receipts/pdf-kitchen-ticket';
+import QRCode from 'qrcode';
+import { format } from 'date-fns';
+import { usePdfActions } from '@/hooks/use-pdf-actions';
 
 interface OrderDetailsDialogProps {
-  order: Order | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  order: Order | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDialogProps) {
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("")
-  const settings = usePosStore((state) => state.settings)
-  const businessConfig = usePosStore((state) => state.getBusinessConfig())
-  const showKitchenTicket = businessConfig.features.kitchenDisplay
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
+  const settings = usePosStore(state => state.settings);
+  const businessConfig = usePosStore(state => state.getBusinessConfig());
+  const showKitchenTicket = businessConfig.features.kitchenDisplay;
 
-  const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions()
-  const isGenerating = isPrinting || isDownloading
+  const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
+  const isGenerating = isPrinting || isDownloading;
 
   useEffect(() => {
     if (order && settings.receiptConfig?.showQrCode) {
       const qrData = JSON.stringify({
         orderNumber: order.orderNumber,
         total: order.total,
-        date: format(new Date(order.createdAt), "yyyy-MM-dd HH:mm"),
-      })
+        date: format(new Date(order.createdAt), 'yyyy-MM-dd HH:mm'),
+      });
 
       QRCode.toDataURL(qrData, { width: 200, margin: 1 })
-        .then((url) => setQrCodeDataUrl(url))
-        .catch((err) => console.error("QR Code generation error:", err))
+        .then(url => setQrCodeDataUrl(url))
+        .catch(err => console.error('QR Code generation error:', err));
     }
-  }, [order, settings.receiptConfig?.showQrCode])
+  }, [order, settings.receiptConfig?.showQrCode]);
 
-  if (!order) return null
+  if (!order) return null;
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "waiting":
-        return "bg-status-waiting text-status-waiting"
-      case "ready":
-        return "bg-status-ready text-status-ready"
-      case "canceled":
-        return "bg-status-canceled text-status-canceled"
-      case "completed":
-        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100"
+      case 'waiting':
+        return 'bg-status-waiting text-status-waiting';
+      case 'ready':
+        return 'bg-status-ready text-status-ready';
+      case 'canceled':
+        return 'bg-status-canceled text-status-canceled';
+      case 'completed':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100';
       default:
-        return "bg-muted text-muted-foreground"
+        return 'bg-muted text-muted-foreground';
     }
-  }
+  };
 
   const getOrderIcon = (type: string) => {
     switch (type) {
-      case "takeaway":
-        return <ShoppingBag className="w-4 h-4" />
-      case "delivery":
-        return <Truck className="w-4 h-4" />
-      case "dine-in":
-        return <UtensilsCrossed className="w-4 h-4" />
+      case 'takeaway':
+        return <ShoppingBag className="w-4 h-4" />;
+      case 'delivery':
+        return <Truck className="w-4 h-4" />;
+      case 'dine-in':
+        return <UtensilsCrossed className="w-4 h-4" />;
       default:
-        return <ShoppingBag className="w-4 h-4" />
+        return <ShoppingBag className="w-4 h-4" />;
     }
-  }
+  };
 
   const onPrintReceipt = () => {
     handlePrint(
@@ -87,8 +87,8 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
         qrCodeDataUrl={qrCodeDataUrl}
       />,
       `receipt-${order.orderNumber}`
-    )
-  }
+    );
+  };
 
   const onDownloadReceipt = () => {
     handleDownload(
@@ -101,15 +101,12 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
         qrCodeDataUrl={qrCodeDataUrl}
       />,
       `receipt-${order.orderNumber}`
-    )
-  }
+    );
+  };
 
   const onDownloadKitchenTicket = () => {
-    handleDownload(
-      <PDFKitchenTicket order={order} />,
-      `ticket-${order.orderNumber}`
-    )
-  }
+    handleDownload(<PDFKitchenTicket order={order} />, `ticket-${order.orderNumber}`);
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,10 +114,10 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <span>Order Details</span>
-            <Badge className={cn("capitalize", getStatusColor(order.status))}>{order.status}</Badge>
+            <Badge className={cn('capitalize', getStatusColor(order.status))}>{order.status}</Badge>
           </DialogTitle>
           <DialogDescription>
-            Order placed on {new Date(order.createdAt).toLocaleDateString()} at{" "}
+            Order placed on {new Date(order.createdAt).toLocaleDateString()} at{' '}
             {new Date(order.createdAt).toLocaleTimeString()}
           </DialogDescription>
         </DialogHeader>
@@ -142,7 +139,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
                 <div className="flex items-center gap-2">
                   {getOrderIcon(order.orderType)}
                   <span className="font-semibold capitalize">
-                    {order.orderType === "dine-in" ? "Dine In" : order.orderType}
+                    {order.orderType === 'dine-in' ? 'Dine In' : order.orderType}
                   </span>
                 </div>
               </div>
@@ -175,7 +172,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
                   <div className="flex gap-3">
                     <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted flex-shrink-0">
                       <img
-                        src={item.imageUrl || "/placeholder.svg?height=64&width=64"}
+                        src={item.imageUrl || '/placeholder.svg?height=64&width=64'}
                         alt={item.productName}
                         className="object-cover"
                       />
@@ -183,7 +180,7 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
                     <div className="flex-1">
                       <h4 className="font-medium">{item.productName}</h4>
                       <p className="text-sm text-muted-foreground">Variant: {item.variantName}</p>
-                      <p className="text-sm text-muted-foreground">Unit: {item.selectedUnit?.unitName || "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">Unit: {item.selectedUnit?.unitName || 'N/A'}</p>
                       <div className="flex items-center justify-between mt-2">
                         <span className="text-sm">Qty: {item.quantity}</span>
                         <span className="font-semibold">
@@ -237,11 +234,11 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
                 disabled={isGenerating}
               >
                 <Printer className="w-4 h-4 mr-2" />
-                {isGenerating ? "Processing..." : "Print Receipt"}
+                {isGenerating ? 'Processing...' : 'Print Receipt'}
               </Button>
               <Button onClick={onDownloadReceipt} disabled={isGenerating} className="flex-1">
                 <Download className="w-4 h-4 mr-2" />
-                {isGenerating ? "Processing..." : "Download Receipt"}
+                {isGenerating ? 'Processing...' : 'Download Receipt'}
               </Button>
             </div>
 
@@ -253,12 +250,12 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
                 className="w-full bg-transparent"
               >
                 <ChefHat className="w-4 h-4 mr-2" />
-                {isGenerating ? "Processing..." : "Download Kitchen Ticket"}
+                {isGenerating ? 'Processing...' : 'Download Kitchen Ticket'}
               </Button>
             )}
           </div>
         </div>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

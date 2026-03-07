@@ -8,9 +8,9 @@ import { mockInvoke } from '@/test/mocks/tauri';
 // Mock axios
 vi.mock('@/lib/axios', () => ({
   apiClient: {
-    post: vi.fn()
+    post: vi.fn(),
   },
-  API_ENDPOINT: 'http://localhost:3000'
+  API_ENDPOINT: 'http://localhost:3000',
 }));
 
 // Mock toast
@@ -18,8 +18,8 @@ vi.mock('sonner', () => ({
   toast: {
     success: vi.fn(),
     error: vi.fn(),
-    info: vi.fn()
-  }
+    info: vi.fn(),
+  },
 }));
 
 describe('useAuth Hook', () => {
@@ -30,20 +30,20 @@ describe('useAuth Hook', () => {
 
   it('should return initial auth state', () => {
     const { result } = renderHook(() => useAuth(), { wrapper });
-    
+
     expect(result.current.currentMember).toBeNull();
     expect(result.current.isAuthenticated).toBe(false);
   });
 
   it('should verify authentication when store has data', () => {
     const member = { id: '1', name: 'Test' } as any;
-    
+
     act(() => {
-        useAuthStore.getState().setMemberSession(member);
+      useAuthStore.getState().setMemberSession(member);
     });
 
     const { result } = renderHook(() => useAuth(), { wrapper });
-    
+
     expect(result.current.currentMember).toEqual(member);
     expect(result.current.isAuthenticated).toBe(true);
   });
@@ -52,10 +52,10 @@ describe('useAuth Hook', () => {
     const mockMember = { id: '1', name: 'Test User', role: 'staff' };
     const mockResponse = {
       member: mockMember,
-      restoredSession: false
+      restoredSession: false,
     };
 
-    mockInvoke.mockImplementation(async (cmd) => {
+    mockInvoke.mockImplementation(async cmd => {
       if (cmd === 'login_member') return mockResponse;
       if (cmd === 'restore_member_session') return undefined;
       return undefined;
@@ -72,10 +72,10 @@ describe('useAuth Hook', () => {
   });
 
   it('should handle check-out', async () => {
-     // Setup initial state
-     const member = { id: '1', name: 'Test' } as any;
-     act(() => {
-        useAuthStore.getState().setMemberSession(member);
+    // Setup initial state
+    const member = { id: '1', name: 'Test' } as any;
+    act(() => {
+      useAuthStore.getState().setMemberSession(member);
     });
 
     mockInvoke.mockResolvedValue(undefined);

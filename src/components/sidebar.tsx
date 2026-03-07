@@ -2,10 +2,28 @@
 
 import { cn } from '@/lib/utils';
 import {
-  ShoppingBag, Package, History, BarChart3, CreditCard, DollarSign,
-  Table, Settings, Receipt, Users, UserCheck, Calculator,
-  SidebarClose, SidebarOpen, Clock, Plus, Banknote, Wallet, LogOut,
-  QrCode, LayoutGrid, MapPin
+  ShoppingBag,
+  Package,
+  History,
+  BarChart3,
+  CreditCard,
+  DollarSign,
+  Table,
+  Settings,
+  Receipt,
+  Users,
+  UserCheck,
+  Calculator,
+  SidebarClose,
+  SidebarOpen,
+  Clock,
+  Plus,
+  Banknote,
+  Wallet,
+  LogOut,
+  QrCode,
+  LayoutGrid,
+  MapPin,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -13,7 +31,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button';
-import { ScanOrderDialog } from "./scan-order-dialog";
+import { ScanOrderDialog } from './scan-order-dialog';
 
 const routeMap: Record<string, string> = {
   order: '/',
@@ -33,9 +51,24 @@ const routeMap: Record<string, string> = {
 };
 
 const iconMap: Record<string, any> = {
-  ShoppingBag, Package, History, BarChart3, CreditCard, DollarSign,
-  Table, Users, UserCheck, Calculator, Clock, Plus, Receipt,
-  Settings, LayoutGrid, QrCode, Wallet, Banknote,
+  ShoppingBag,
+  Package,
+  History,
+  BarChart3,
+  CreditCard,
+  DollarSign,
+  Table,
+  Users,
+  UserCheck,
+  Calculator,
+  Clock,
+  Plus,
+  Receipt,
+  Settings,
+  LayoutGrid,
+  QrCode,
+  Wallet,
+  Banknote,
 };
 
 interface SidebarProps {
@@ -45,7 +78,7 @@ interface SidebarProps {
 export function Sidebar({ onCheckout }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
-  
+
   const sidebarItems = usePosStore(state => state.settings.sidebarItems.filter(item => item.enabled));
   const businessName = usePosStore(state => state.settings.businessName);
   const { currentMember, currentLocation } = useAuth();
@@ -64,16 +97,21 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
   return (
     <>
-      <div className={cn(
-        'border-r bg-card h-screen flex flex-col transition-all duration-300',
-        isCollapsed ? 'w-16' : 'w-64'
-      )}>
+      <div
+        className={cn(
+          'border-r bg-card h-screen flex flex-col transition-all duration-300',
+          isCollapsed ? 'w-16' : 'w-64'
+        )}
+      >
         {/* Header Section */}
         <div className="p-6 border-b flex items-center gap-3 relative">
-          <Link to="/" className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity overflow-hidden">
+          <Link
+            to="/"
+            className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity overflow-hidden"
+          >
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
               <span className="text-primary-foreground font-bold text-sm">
-                {(businessName || "DL").substring(0, 2).toUpperCase()}
+                {(businessName || 'DL').substring(0, 2).toUpperCase()}
               </span>
             </div>
             {!isCollapsed && (
@@ -106,27 +144,27 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const Icon = iconMap[item.icon] || ShoppingBag;
             const route = routeMap[item.id] || `/${item.id}`;
             const isActive = isRouteActive(route);
-            
+
             return (
               <Button
                 key={item.id}
                 asChild
-                variant={isActive ? "secondary" : "ghost"}
+                variant={isActive ? 'secondary' : 'ghost'}
                 className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
                 title={isCollapsed ? item.label : undefined}
               >
                 <Link to={route}>
-                  <Icon className={cn("w-4 h-4 shrink-0", isActive && "text-primary")} />
-                  {!isCollapsed && <span className={cn("truncate", isActive && "font-semibold")}>{item.label}</span>}
+                  <Icon className={cn('w-4 h-4 shrink-0', isActive && 'text-primary')} />
+                  {!isCollapsed && <span className={cn('truncate', isActive && 'font-semibold')}>{item.label}</span>}
                 </Link>
               </Button>
             );
           })}
-          
+
           <div className="my-4 border-t pt-4">
             {/* Hardcoded Items with correct isActive check */}
             <Button
-              variant={isScanOpen ? "secondary" : "ghost"}
+              variant={isScanOpen ? 'secondary' : 'ghost'}
               className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
               onClick={() => setIsScanOpen(true)}
             >
@@ -138,18 +176,18 @@ export function Sidebar({ onCheckout }: SidebarProps) {
               { id: 'pending-transactions', label: 'Pending', icon: Clock, route: '/pending-transactions' },
               { id: 'create-order', label: 'Create Order', icon: Plus, route: '/create-order' },
               { id: 'cash-drawer', label: 'Cash Drawer', icon: Wallet, route: '/cash-drawer' },
-            ].map((item) => {
+            ].map(item => {
               const isActive = isRouteActive(item.route);
               return (
                 <Button
                   key={item.id}
                   asChild
-                  variant={isActive ? "secondary" : "ghost"}
+                  variant={isActive ? 'secondary' : 'ghost'}
                   className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
                 >
                   <Link to={item.route}>
-                    <item.icon className={cn("w-4 h-4 shrink-0", isActive && "text-primary")} />
-                    {!isCollapsed && <span className={cn("truncate", isActive && "font-semibold")}>{item.label}</span>}
+                    <item.icon className={cn('w-4 h-4 shrink-0', isActive && 'text-primary')} />
+                    {!isCollapsed && <span className={cn('truncate', isActive && 'font-semibold')}>{item.label}</span>}
                   </Link>
                 </Button>
               );
@@ -159,26 +197,26 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
         {/* Footer / Settings Section */}
         <div className="p-4 border-t space-y-2">
-          {['/receipt-settings', '/settings'].map((route) => {
-             const isActive = isRouteActive(route);
-             const label = route.includes('receipt') ? 'Receipt Settings' : 'Settings';
-             const Icon = route.includes('receipt') ? Receipt : Settings;
-             return (
+          {['/receipt-settings', '/settings'].map(route => {
+            const isActive = isRouteActive(route);
+            const label = route.includes('receipt') ? 'Receipt Settings' : 'Settings';
+            const Icon = route.includes('receipt') ? Receipt : Settings;
+            return (
               <Button
                 key={route}
                 asChild
-                variant={isActive ? "secondary" : "ghost"}
+                variant={isActive ? 'secondary' : 'ghost'}
                 className={cn('w-full justify-start gap-3', isCollapsed && 'justify-center px-0')}
               >
                 <Link to={route}>
-                  <Icon className={cn("w-4 h-4 shrink-0", isActive && "text-primary")} />
+                  <Icon className={cn('w-4 h-4 shrink-0', isActive && 'text-primary')} />
                   {!isCollapsed && <span className="truncate">{label}</span>}
                 </Link>
               </Button>
-             )
+            );
           })}
 
-          <div className={cn("mt-4 p-3 rounded-lg bg-muted flex items-center gap-3", isCollapsed && "justify-center")}>
+          <div className={cn('mt-4 p-3 rounded-lg bg-muted flex items-center gap-3', isCollapsed && 'justify-center')}>
             <Avatar className="w-8 h-8 shrink-0">
               <AvatarImage src={currentMember?.image} />
               <AvatarFallback>{currentMember?.name?.substring(0, 2).toUpperCase() || 'U'}</AvatarFallback>
@@ -189,13 +227,18 @@ export function Sidebar({ onCheckout }: SidebarProps) {
                 <div className="text-xs text-muted-foreground truncate">{currentMember?.email}</div>
               </div>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={onCheckout}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              onClick={onCheckout}
+            >
               <LogOut className="w-4 h-4" />
             </Button>
           </div>
         </div>
       </div>
-      
+
       <ScanOrderDialog open={isScanOpen} onOpenChange={setIsScanOpen} />
     </>
   );

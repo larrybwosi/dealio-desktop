@@ -56,7 +56,7 @@ export function CustomerSelector() {
   // -------------------------------------------------------
   const { customers: localCustomers, isSyncing } = usePosCustomers({
     search: debouncedSearchTerm,
-    enabled: open // Only filter/search when open
+    enabled: open, // Only filter/search when open
   });
 
   const searchResults: SearchResultCustomer[] = localCustomers.map(c => ({
@@ -69,9 +69,9 @@ export function CustomerSelector() {
     businessAccountId: c.businessAccountId || null,
     company: c.company || null,
     // Derive type if not present. simplified logic:
-    type: (c.customerType === 'business' || c.businessAccountId) ? 'B2B' : 'B2C',
+    type: c.customerType === 'business' || c.businessAccountId ? 'B2B' : 'B2C',
     // Derive primary address
-    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null
+    primaryAddress: c.addresses?.find((a: any) => a.isDefault)?.street1 || c.addresses?.[0]?.street1 || null,
   }));
 
   const isLoading = isSyncing && localCustomers.length === 0;
@@ -81,8 +81,7 @@ export function CustomerSelector() {
   // 2. Selection Logic
   // -------------------------------------------------------
   // Find the selected customer object. Check search results first, then fallback to store.
-  const selectedCustomer =
-    searchResults.find(c => c.id === currentOrder.customerId);
+  const selectedCustomer = searchResults.find(c => c.id === currentOrder.customerId);
 
   const handleSelectCustomer = (customer: SearchResultCustomer | 'walk-in') => {
     if (customer === 'walk-in') {
@@ -94,7 +93,7 @@ export function CustomerSelector() {
         totalPurchases: 0,
         lastVisit: new Date(),
         loyaltyPoints: 0,
-        customerType: 'retail'
+        customerType: 'retail',
       });
     } else {
       // Map SearchResultCustomer to Customer interface
@@ -178,8 +177,8 @@ export function CustomerSelector() {
 
             {/* Walk-In Option */}
             <CommandGroup heading="Quick Select">
-              <CommandItem 
-                value="walk-in-customer" 
+              <CommandItem
+                value="walk-in-customer"
                 onSelect={() => handleSelectCustomer('walk-in')}
                 className="cursor-pointer"
               >

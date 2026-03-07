@@ -5,7 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dealio</title>
-    
+
     <style>
       /* SPLASH VARIABLES */
       :root {
@@ -14,7 +14,7 @@
         --splash-glow: rgba(99, 102, 241, 0.15);
         --splash-glow-intense: rgba(99, 102, 241, 0.3);
       }
-      
+
       /* SPLASH CONTAINER */
       #splash-root {
         position: fixed;
@@ -26,7 +26,9 @@
         justify-content: center;
         background: linear-gradient(135deg, #0a0e1a 0%, #0f1419 50%, #0a0e1a 100%);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        transition: opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.6s;
+        transition:
+          opacity 0.6s cubic-bezier(0.4, 0, 0.2, 1),
+          visibility 0.6s;
         overflow: hidden;
       }
 
@@ -39,7 +41,7 @@
         pointer-events: none;
         animation: float 20s ease-in-out infinite;
       }
-      
+
       .splash-orb-1 {
         width: 500px;
         height: 500px;
@@ -48,7 +50,7 @@
         right: -250px;
         animation-delay: 0s;
       }
-      
+
       .splash-orb-2 {
         width: 400px;
         height: 400px;
@@ -62,7 +64,7 @@
       .splash-grid {
         position: absolute;
         inset: 0;
-        background-image: 
+        background-image:
           linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
           linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
         background-size: 50px 50px;
@@ -100,13 +102,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 
+        box-shadow:
           0 0 0 1px rgba(255, 255, 255, 0.1),
           0 8px 32px rgba(0, 0, 0, 0.4),
           0 0 60px var(--splash-glow);
         animation: icon-glow 3s ease-in-out infinite;
       }
-      
+
       /* ICON INNER DESIGN - Minimalist Chip/Terminal Symbol */
       .brand-icon::before {
         content: '';
@@ -116,7 +118,7 @@
         border-radius: 8px;
         position: relative;
       }
-      
+
       .brand-icon::after {
         content: '';
         position: absolute;
@@ -176,11 +178,7 @@
         top: 0;
         height: 100%;
         width: 40%;
-        background: linear-gradient(90deg, 
-          transparent 0%,
-          var(--splash-primary) 50%,
-          transparent 100%
-        );
+        background: linear-gradient(90deg, transparent 0%, var(--splash-primary) 50%, transparent 100%);
         animation: shimmer 2s ease-in-out infinite;
         box-shadow: 0 0 12px var(--splash-glow-intense);
       }
@@ -217,46 +215,48 @@
 
       /* ANIMATIONS */
       @keyframes fade-in {
-        from { 
-          opacity: 0; 
+        from {
+          opacity: 0;
           transform: translateY(10px);
         }
-        to { 
-          opacity: 1; 
+        to {
+          opacity: 1;
           transform: translateY(0);
         }
       }
 
       @keyframes float {
-        0%, 100% { 
+        0%,
+        100% {
           transform: translate(0, 0) scale(1);
         }
-        33% { 
+        33% {
           transform: translate(30px, -30px) scale(1.1);
         }
-        66% { 
+        66% {
           transform: translate(-20px, 20px) scale(0.9);
         }
       }
 
       @keyframes shimmer {
-        0% { 
-          transform: translateX(-100%); 
+        0% {
+          transform: translateX(-100%);
         }
-        100% { 
-          transform: translateX(350%); 
+        100% {
+          transform: translateX(350%);
         }
       }
 
       @keyframes icon-glow {
-        0%, 100% { 
-          box-shadow: 
+        0%,
+        100% {
+          box-shadow:
             0 0 0 1px rgba(255, 255, 255, 0.1),
             0 8px 32px rgba(0, 0, 0, 0.4),
             0 0 60px var(--splash-glow);
         }
-        50% { 
-          box-shadow: 
+        50% {
+          box-shadow:
             0 0 0 1px rgba(255, 255, 255, 0.15),
             0 8px 32px rgba(0, 0, 0, 0.4),
             0 0 80px var(--splash-glow-intense);
@@ -275,7 +275,7 @@
       <!-- Animated gradient orbs -->
       <div class="splash-orb splash-orb-1"></div>
       <div class="splash-orb splash-orb-2"></div>
-      
+
       <!-- Subtle grid pattern -->
       <div class="splash-grid"></div>
 
@@ -283,7 +283,7 @@
       <div class="splash-content">
         <div class="brand-lockup">
           <div class="brand-icon"></div>
-          
+
           <div class="brand-text">
             <span class="brand-name">Dealio</span>
             <span class="brand-tagline">Enterprise POS</span>
@@ -294,7 +294,7 @@
           <div class="loader-track">
             <div class="loader-progress"></div>
           </div>
-          
+
           <div class="status-text">Initializing secure environment...</div>
         </div>
       </div>
@@ -307,7 +307,7 @@
       </div>
     </div>
     <div id="root"></div>
-    
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

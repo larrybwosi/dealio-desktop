@@ -32,42 +32,40 @@ interface ScannerState {
 
 export const useScannerStore = create<ScannerState>()(
   persist(
-    (set) => ({
+    set => ({
       // Defaults (Replace with your most common device)
-      vid: '0xE851', 
+      vid: '0xE851',
       pid: '0x2100',
-      
+
       isConnected: false,
       isScanning: false,
       lastScanned: null,
       scanHistory: [],
       error: null,
 
-      setVid: (vid) => set({ vid }),
-      setPid: (pid) => set({ pid }),
-      
-      setIsConnected: (isConnected) => set({ isConnected }),
-      setIsScanning: (isScanning) => set({ isScanning }),
-      
-      addScannedItem: (code) =>
-        set((state) => ({
+      setVid: vid => set({ vid }),
+      setPid: pid => set({ pid }),
+
+      setIsConnected: isConnected => set({ isConnected }),
+      setIsScanning: isScanning => set({ isScanning }),
+
+      addScannedItem: code =>
+        set(state => ({
           lastScanned: code,
           // Keep the last 50 items only to prevent memory bloat
-          scanHistory: [
-            { code, timestamp: new Date().toLocaleTimeString() },
-            ...state.scanHistory,
-          ].slice(0, 50),
+          scanHistory: [{ code, timestamp: new Date().toLocaleTimeString() }, ...state.scanHistory].slice(0, 50),
         })),
 
-      setError: (error) => set({ error }),
-      
+      setError: error => set({ error }),
+
       clearHistory: () => set({ scanHistory: [], lastScanned: null }),
-      
+
       clearLastScanned: () => set({ lastScanned: null }),
     }),
-    {name: 'scanner-config', // Key name inside the JSON file
-      storage: createJSONStorage(() => tauriStorage), 
-      partialize: (state) => ({ vid: state.vid, pid: state.pid }),
+    {
+      name: 'scanner-config', // Key name inside the JSON file
+      storage: createJSONStorage(() => tauriStorage),
+      partialize: state => ({ vid: state.vid, pid: state.pid }),
     }
   )
 );

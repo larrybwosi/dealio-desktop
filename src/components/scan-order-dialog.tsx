@@ -1,12 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { QrCode, Loader2, AlertCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { listen } from "@tauri-apps/api/event";
-import { toast } from "sonner";
+import { useState, useEffect, useRef } from 'react';
+import { invoke } from '@tauri-apps/api/core';
+import { QrCode, Loader2, AlertCircle } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { listen } from '@tauri-apps/api/event';
+import { toast } from 'sonner';
 
 interface ScanOrderDialogProps {
   open: boolean;
@@ -31,7 +31,7 @@ interface TransactionDetails {
 }
 
 export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<TransactionDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +43,7 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
       setTimeout(() => {
         inputRef.current?.focus();
       }, 100);
-      setCode("");
+      setCode('');
       setDetails(null);
       setError(null);
     }
@@ -53,15 +53,15 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
   useEffect(() => {
     if (!open) return;
 
-    const unlisten = listen<{ message: string }>("scanner-data", (event) => {
+    const unlisten = listen<{ message: string }>('scanner-data', event => {
       const scannedCode = event.payload.message;
-      console.log("Dialog received scan:", scannedCode);
+      console.log('Dialog received scan:', scannedCode);
       setCode(scannedCode);
       handleScan(scannedCode);
     });
 
     return () => {
-      unlisten.then((f) => f());
+      unlisten.then(f => f());
     };
   }, [open]);
 
@@ -73,23 +73,22 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
     setDetails(null);
 
     try {
-      const response = await invoke<{ success: boolean; data: TransactionDetails }>(
-        "scan_transaction_code",
-        { code: scanCode }
-      );
+      const response = await invoke<{ success: boolean; data: TransactionDetails }>('scan_transaction_code', {
+        code: scanCode,
+      });
 
       if (response.success && response.data) {
         setDetails(response.data);
-        toast("Scan Successful",{
-          description: `Transaction ${response.data.number || ""} found.`,
+        toast('Scan Successful', {
+          description: `Transaction ${response.data.number || ''} found.`,
         });
       } else {
-        setError("Invalid response format or transaction not found.");
+        setError('Invalid response format or transaction not found.');
       }
     } catch (err: any) {
-      console.error("Scan error:", err);
-      setError(err.toString() || "Failed to validate code.");
-      toast("Scan Failed",{
+      console.error('Scan error:', err);
+      setError(err.toString() || 'Failed to validate code.');
+      toast('Scan Failed', {
         description: err.toString(),
       });
     } finally {
@@ -98,7 +97,7 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
+    if (e.key === 'Enter') {
       handleScan(code);
     }
   };
@@ -120,13 +119,13 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
               ref={inputRef}
               placeholder="Scan QR code or type reference..."
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={e => setCode(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={loading}
               className="text-lg font-mono"
             />
             <Button onClick={() => handleScan(code)} disabled={loading || !code}>
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Validate"}
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Validate'}
             </Button>
           </div>
 
@@ -136,20 +135,18 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
               <div className="flex items-start justify-between">
                 <div>
                   <h3 className="font-semibold text-lg">{details.customerName}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Order #{details.number || details.id}
-                  </p>
+                  <p className="text-sm text-muted-foreground">Order #{details.number || details.id}</p>
                 </div>
                 <Badge
                   variant={
-                    details.paymentStatus === "PAID" || details.paymentStatus === "COMPLETED"
-                      ? "default" // Using default (black/primary) for success-like states if "success" variant doesn't exist, or specific styles
-                      : "secondary"
+                    details.paymentStatus === 'PAID' || details.paymentStatus === 'COMPLETED'
+                      ? 'default' // Using default (black/primary) for success-like states if "success" variant doesn't exist, or specific styles
+                      : 'secondary'
                   }
                   className={
-                     details.paymentStatus === "PAID" 
-                     ? "bg-green-600 hover:bg-green-700" 
-                     : "bg-yellow-600 hover:bg-yellow-700"
+                    details.paymentStatus === 'PAID'
+                      ? 'bg-green-600 hover:bg-green-700'
+                      : 'bg-yellow-600 hover:bg-yellow-700'
                   }
                 >
                   {details.paymentStatus}
@@ -158,34 +155,41 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                    <span className="text-muted-foreground block">Total Amount</span>
-                    <span className="text-xl font-bold">KES {details.total.toLocaleString()}</span>
+                  <span className="text-muted-foreground block">Total Amount</span>
+                  <span className="text-xl font-bold">KES {details.total.toLocaleString()}</span>
                 </div>
                 <div>
-                    <span className="text-muted-foreground block">Date</span>
-                    <span>{new Date(details.createdAt).toLocaleString()}</span>
+                  <span className="text-muted-foreground block">Date</span>
+                  <span>{new Date(details.createdAt).toLocaleString()}</span>
                 </div>
               </div>
 
               <div className="border-t pt-3">
-                 <h4 className="text-sm font-medium mb-2">Items ({details.itemCount})</h4>
-                 <div className="max-h-40 overflow-y-auto space-y-2">
-                    {details.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                            <span>{item.quantity}x {item.name}</span>
-                            <span className="font-mono">{item.total.toLocaleString()}</span>
-                        </div>
-                    ))}
-                 </div>
+                <h4 className="text-sm font-medium mb-2">Items ({details.itemCount})</h4>
+                <div className="max-h-40 overflow-y-auto space-y-2">
+                  {details.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span>
+                        {item.quantity}x {item.name}
+                      </span>
+                      <span className="font-mono">{item.total.toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
-                 <Button variant="outline" onClick={() => { setDetails(null); setCode(""); inputRef.current?.focus(); }}>
-                    Scan Next
-                 </Button>
-                 <Button onClick={() => onOpenChange(false)}>
-                    Close
-                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDetails(null);
+                    setCode('');
+                    inputRef.current?.focus();
+                  }}
+                >
+                  Scan Next
+                </Button>
+                <Button onClick={() => onOpenChange(false)}>Close</Button>
               </div>
             </div>
           )}
@@ -197,14 +201,13 @@ export function ScanOrderDialog({ open, onOpenChange }: ScanOrderDialogProps) {
               <p className="text-sm font-medium">{error}</p>
             </div>
           )}
-          
-          {!details && !error && (
-             <div className="text-center py-8 text-muted-foreground">
-                <QrCode className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                <p>Ready to scan. Point scanner at the QR code.</p>
-             </div>
-          )}
 
+          {!details && !error && (
+            <div className="text-center py-8 text-muted-foreground">
+              <QrCode className="h-12 w-12 mx-auto mb-3 opacity-20" />
+              <p>Ready to scan. Point scanner at the QR code.</p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -44,22 +44,22 @@ export enum PaymentStatus {
 }
 
 export const FulfillmentType = {
-  IMMEDIATE: "IMMEDIATE",
-  PICKUP: "PICKUP",
-  DELIVERY: "DELIVERY",
-  SHIPPING: "SHIPPING",
-  DIGITAL: "DIGITAL",
-  DINE_IN: "DINE_IN",
-  SERVICE: "SERVICE"
+  IMMEDIATE: 'IMMEDIATE',
+  PICKUP: 'PICKUP',
+  DELIVERY: 'DELIVERY',
+  SHIPPING: 'SHIPPING',
+  DIGITAL: 'DIGITAL',
+  DINE_IN: 'DINE_IN',
+  SERVICE: 'SERVICE',
 } as const;
 
 export enum TransactionType {
-  POS_SALE = "POS_SALE",
-  ONLINE_ORDER = "ONLINE_ORDER",
-  SALES_ORDER = "SALES_ORDER",
-  SERVICE_BOOKING = "SERVICE_BOOKING",
-  SUBSCRIPTION = "SUBSCRIPTION",
-  QUOTE = "QUOTE"
+  POS_SALE = 'POS_SALE',
+  ONLINE_ORDER = 'ONLINE_ORDER',
+  SALES_ORDER = 'SALES_ORDER',
+  SERVICE_BOOKING = 'SERVICE_BOOKING',
+  SUBSCRIPTION = 'SUBSCRIPTION',
+  QUOTE = 'QUOTE',
 }
 
 // --- Rust Response Types ---
@@ -71,7 +71,7 @@ interface RustSaleResponse {
 
 interface RustQueuedSale {
   id: string;
-  status: "PENDING" | "SYNCING" | "SYNCED" | "FAILED";
+  status: 'PENDING' | 'SYNCING' | 'SYNCED' | 'FAILED';
   retryCount: number;
   timestamp: number;
   locationId: string;
@@ -79,8 +79,8 @@ interface RustQueuedSale {
   transactionData: {
     saleNumber: string;
     customerId: string | null;
-    paymentMethod: "CASH" | "MPESA" | "CARD";
-    paymentStatus: "COMPLETED" | "PENDING" | "FAILED";
+    paymentMethod: 'CASH' | 'MPESA' | 'CARD';
+    paymentStatus: 'COMPLETED' | 'PENDING' | 'FAILED';
     mpesaPhoneNumber?: string;
     amountReceived: number;
     change: number;
@@ -119,7 +119,7 @@ export const useProcessSale = () => {
 
   return useMutation({
     mutationFn: async (data: ProcessSaleInput) => {
-      if (!locationId) throw new Error("Location ID is missing");
+      if (!locationId) throw new Error('Location ID is missing');
 
       // Generate a UUID for the sale to track it locally and remotely
       const saleId = crypto.randomUUID();
@@ -127,7 +127,7 @@ export const useProcessSale = () => {
       // Combine data for Rust
       const payload = {
         ...data,
-        locationId
+        locationId,
       };
 
       // Call Rust Command (Non-blocking background process)
@@ -138,7 +138,7 @@ export const useProcessSale = () => {
 
       return { ...response, saleId };
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       // Invalidate queries to update local stock counts or sales lists
       queryClient.invalidateQueries({ queryKey: ['sales'] });
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
@@ -148,7 +148,7 @@ export const useProcessSale = () => {
       // If it was an offline queue or background process
       if (data.message.toLowerCase().includes('background') || data.message.toLowerCase().includes('offline')) {
         // Don't show success toast here for M-Pesa, the UI handles the "Waiting" state
-        console.log("Sale processed in background:", data.message);
+        console.log('Sale processed in background:', data.message);
       } else {
         toast.success('Sale Processed', {
           description: 'Transaction saved successfully.',
@@ -156,36 +156,40 @@ export const useProcessSale = () => {
         });
       }
     },
-    onError: (error) => {
-      console.error("Critical error processing sale:", error);
-      toast.error("System Error", {
-        description: "Failed to process sale. Please check logs.",
+    onError: error => {
+      console.error('Critical error processing sale:', error);
+      toast.error('System Error', {
+        description: 'Failed to process sale. Please check logs.',
       });
-    }
+    },
   });
 };
 
 export const usePendingSales = () => {
-  const { data: pendingSales = [], isLoading, error } = useQuery({
+  const {
+    data: pendingSales = [],
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['pos-sales-queue'],
     queryFn: async () => {
-       const sales = await invoke<RustQueuedSale[]>('get_pending_sales_command');
-       return sales;
+      const sales = await invoke<RustQueuedSale[]>('get_pending_sales_command');
+      return sales;
     },
-    refetchInterval: 5000 // Poll every 5s to see if queue clears
+    refetchInterval: 5000, // Poll every 5s to see if queue clears
   });
 
   const queryClient = useQueryClient();
   const syncMutation = useMutation({
     mutationFn: async () => {
-       // Trigger manual sync
-       const count = await invoke<number>('sync_sales_command', {});
-       return count;
+      // Trigger manual sync
+      const count = await invoke<number>('sync_sales_command', {});
+      return count;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-sales-queue'] });
-      toast.success("Sync Complete");
-    }
+      toast.success('Sync Complete');
+    },
   });
 
   return {
@@ -194,14 +198,14 @@ export const usePendingSales = () => {
     pendingCount: pendingSales.length,
     pendingSales,
     isLoading,
-    error
+    error,
   };
 };
 
 // Hook to monitor network status
 export const useNetworkStatus = () => {
   const [isOnline, setIsOnline] = useState(true);
-  
+
   useEffect(() => {
     const checkStatus = async () => {
       try {
@@ -298,10 +302,10 @@ export const useOldSalesCheck = () => {
   useEffect(() => {
     const checkOldSales = async () => {
       try {
-        const oldSales = await invoke<RustQueuedSale[]>('check_old_sales_command', { 
-          daysThreshold: 3 
+        const oldSales = await invoke<RustQueuedSale[]>('check_old_sales_command', {
+          daysThreshold: 3,
         });
-        
+
         if (oldSales.length > 0) {
           toast.warning('Old Pending Sales', {
             description: `You have ${oldSales.length} sales older than 3 days. Please connect to sync them.`,
@@ -360,18 +364,18 @@ export const useCreateOrder = (options: UseCreateOrderOptions = {}) => {
 
   return useMutation({
     mutationFn: async (newOrder: OrderFormValues) => {
-      if (!locationId) throw new Error("Location ID is missing");
-      
+      if (!locationId) throw new Error('Location ID is missing');
+
       const response = await invoke<any>('create_order_command', {
         locationId,
-        order: newOrder
+        order: newOrder,
       });
       return response;
     },
-    onSuccess: (data) => {
+    onSuccess: data => {
       options.onSuccess?.(data);
     },
-    onError: (error) => {
+    onError: error => {
       console.error('Failed to create order:', error);
       options.onError?.(error as Error);
     },

@@ -1,4 +1,4 @@
-import { PaymentMethod } from "@/hooks/sales";
+import { PaymentMethod } from '@/hooks/sales';
 
 export type OrderType = 'Dine in' | 'Takeaway' | 'Delivery' | 'Pickup' | 'Online';
 
@@ -81,9 +81,9 @@ export interface Transaction {
   totalAmount: number;
   paidAmount: number;
   date: string;
-  status: 'pending' | 'partially_paid' | 'paid' | 'dispatched'; 
+  status: 'pending' | 'partially_paid' | 'paid' | 'dispatched';
   fulfillmentId?: string | null;
-  invoiceLink?: string; 
+  invoiceLink?: string;
   deliveryId?: string;
   items?: TransactionItem[];
 }

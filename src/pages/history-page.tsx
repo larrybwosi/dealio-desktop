@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+// import { trackEvent } from "@aptabase/tauri"
 import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -42,6 +43,27 @@ export function HistoryPage() {
   // Receipt Printing State
   const [receiptOpen, setReceiptOpen] = useState(false)
   const [receiptOrder, setReceiptOrder] = useState<Order | null>(null)
+
+  useEffect(() => {
+    if (searchQuery) {
+      const timer = setTimeout(() => {
+        // trackEvent("history_search", { query: searchQuery.substring(0, 50) });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery]);
+
+  useEffect(() => {
+    if (statusFilter !== "all") {
+      // trackEvent("history_filter_status", { status: statusFilter });
+    }
+  }, [statusFilter]);
+
+  useEffect(() => {
+    if (dateFilter !== "all") {
+      // trackEvent("history_filter_date", { date: dateFilter });
+    }
+  }, [dateFilter]);
 
   const handlePrintReceipt = (transaction: any) => {
     // Map transaction data to Order type for receipt dialog

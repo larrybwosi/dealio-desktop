@@ -4,7 +4,7 @@ import { mockInvoke } from '@/test/mocks/tauri';
 
 // Mock API_ENDPOINT
 vi.mock('@/lib/axios', () => ({
-  API_ENDPOINT: 'http://localhost:3000'
+  API_ENDPOINT: 'http://localhost:3000',
 }));
 
 describe('PosAuthStore', () => {
@@ -21,71 +21,22 @@ describe('PosAuthStore', () => {
 
   it('should have initial state', () => {
     const state = useAuthStore.getState();
-    expect(state.deviceKey).toBeNull();
+    expect((state as any).deviceKey).toBeUndefined();
+    expect(state.isConfigured).toBe(false);
     expect(state.currentMember).toBeNull();
     expect(state.isInitialized).toBe(false);
   });
 
-  it('should set device key', async () => {
-    await useAuthStore.getState().setDeviceKey('test-key');
-    expect(useAuthStore.getState().deviceKey).toBe('test-key');
-  });
-
-  it('should set member session', () => {
-    const member = { 
-        id: '1', 
-        name: 'Test User',
-        organizationId: 'org-1',
-        userId: 'user-1',
-        isActive: true,
-        image: '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        phone: null,
-        email: null,
-        address: null,
-        age: null,
-        gender: null,
-        tags: null,
-        cardId: null,
-        isCheckedIn: false,
-        lastCheckInTime: null,
-        currentCheckInLocationId: null,
-        currentAttendanceLogId: null
-    };
-    
-    useAuthStore.getState().setMemberSession(member);
-    
-    expect(useAuthStore.getState().currentMember).toEqual(member);
-    expect(useAuthStore.getState().sessionUpdatedAt).toBeDefined();
-  });
-
-  it('should clear member session', () => {
-     const member = { 
-        id: '1', 
-        name: 'Test User',
-        organizationId: 'org-1',
-        userId: 'user-1',
-        isActive: true,
-        image: ''
-    } as any;
-    useAuthStore.getState().setMemberSession(member);
-    useAuthStore.getState().clearMemberSession();
-
-    expect(useAuthStore.getState().currentMember).toBeNull();
-    expect(useAuthStore.getState().sessionUpdatedAt).toBeNull();
-  });
-
   it('should initialize from backend successfully', async () => {
     mockInvoke.mockResolvedValueOnce({
-      device_key: 'backend-key',
       location_id: 'loc-1',
-      base_url: 'http://api'
+      allow_negative_stock: false,
     });
 
     await useAuthStore.getState().initializeFromBackend();
 
-    expect(useAuthStore.getState().deviceKey).toBe('backend-key');
+    expect((useAuthStore.getState() as any).deviceKey).toBeUndefined();
+    expect(useAuthStore.getState().isConfigured).toBe(true);
     expect(mockInvoke).toHaveBeenCalledWith('get_device_config');
     expect(useAuthStore.getState().isInitialized).toBe(true);
   });
@@ -96,6 +47,22 @@ describe('PosAuthStore', () => {
     await useAuthStore.getState().initializeFromBackend();
 
     expect(useAuthStore.getState().isInitialized).toBe(true); // Should still mark initialized
-    expect(useAuthStore.getState().deviceKey).toBeNull();
+    expect(useAuthStore.getState().isConfigured).toBe(false);
+  });
+
+  it('should register device and set configured state', async () => {
+    mockInvoke.mockResolvedValueOnce({});
+
+    const location = { id: 'loc-1', name: 'Test' } as any;
+    await useAuthStore.getState().registerDevice('test-key', location);
+
+    expect(mockInvoke).toHaveBeenCalledWith(
+      'set_device_config',
+      expect.objectContaining({
+        deviceKey: 'test-key',
+        locationId: 'loc-1',
+      })
+    );
+    expect(useAuthStore.getState().isConfigured).toBe(true);
   });
 });

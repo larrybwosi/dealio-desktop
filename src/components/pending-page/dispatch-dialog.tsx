@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle
+  DialogTitle,
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,7 +40,6 @@ interface DispatchDialogProps {
   drivers: DriverOption[]; // Pass fetched drivers here
   open: boolean; // Receive open state from parent
   onOpenChange: (open: boolean) => void; // Receive open state change handler from parent
-
 }
 
 export function DispatchDialog({ transactionId, drivers, open, onOpenChange }: DispatchDialogProps) {
@@ -73,7 +72,7 @@ export function DispatchDialog({ transactionId, drivers, open, onOpenChange }: D
   const isDateDisabled = (date: Date) => {
     const today = startOfDay(new Date());
     const selectedDate = startOfDay(date);
-    
+
     // Only disable dates before today (not today itself)
     return selectedDate < today;
   };

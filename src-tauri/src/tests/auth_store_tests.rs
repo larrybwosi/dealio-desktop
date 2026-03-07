@@ -1,4 +1,4 @@
-use super::*;
+use crate::stores::auth_store::*;
 use std::sync::Mutex;
 
 #[test]
