@@ -2,6 +2,7 @@ import { Component, ErrorInfo, ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RotateCcw } from 'lucide-react';
 import { logger } from '@/lib/logger';
+import posthog from 'posthog-js';
 
 interface Props {
   children?: ReactNode;
@@ -26,6 +27,7 @@ export class ErrorBoundary extends Component<Props, State> {
     logger.error('[CRASH] React ErrorBoundary caught an unhandled error', error, {
       componentStack: errorInfo.componentStack ?? 'N/A',
     });
+    posthog.captureException(error, { componentStack: errorInfo.componentStack ?? 'N/A' });
   }
 
   public handleReload = () => {

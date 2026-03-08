@@ -2,11 +2,10 @@ use dotenvy_macro::dotenv;
 use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{Emitter, Manager};
 use tauri_plugin_aptabase::EventTracker;
 
 pub mod stores;
-use models::Shift;
 
 mod http_server;
 mod models;
@@ -60,7 +59,7 @@ pub fn run() {
     // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
     let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
         api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
-        host: Some(dotenv!("PUBLIC_POSTHOG_HOST").into()),
+        // host: Some("https://eu.i.posthog.com".into()),
         ..Default::default()
     });
     // ------------------------------------

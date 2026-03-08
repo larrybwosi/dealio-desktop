@@ -24,8 +24,8 @@ import { format } from 'date-fns';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/store/pos-auth-store';
-// import { trackEvent } from "@aptabase/tauri";
 import { FileReceiveDialog } from '@/components/file-receive';
+import posthog from 'posthog-js';
 
 // --- Interfaces matching Rust Data Structures ---
 
@@ -253,7 +253,12 @@ export default function StockAcceptancePage() {
         });
       }
 
-      // trackEvent("stock_transfer_completed");
+      posthog.capture('stock_delivery_accepted', {
+        shipment_id: selectedShipment.id,
+        shipment_type: selectedShipment.type,
+        items_count: itemsPayload.length,
+        reference_number: selectedShipment.referenceNumber,
+      });
       toast.success('Shipment received successfully');
       setIsReceiveDialogOpen(false);
       fetchShipments(); // Refresh list
