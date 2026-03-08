@@ -1,3 +1,10 @@
+## [3.1.1-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1-beta.1...v3.1.1-beta.2) (2026-03-07)
+
+
+### Bug Fixes
+
+* **sentry config:** updated the sentry configuration to properly initialize ([e94c58d](https://github.com/larrybwosi/dealio-desktop/commit/e94c58dcc7af14ce4bbb927932ae1174317396b5))
+
 ## [3.1.1-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.0...v3.1.1-beta.1) (2026-03-07)
 
 
