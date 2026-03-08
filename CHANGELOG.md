@@ -1,3 +1,11 @@
+# [3.2.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1-beta.2...v3.2.0-beta.1) (2026-03-08)
+
+
+### Features
+
+* **posthog init:** initialized posthog ([9ff2dc9](https://github.com/larrybwosi/dealio-desktop/commit/9ff2dc9f762db3a3e54c427efb803165b716489e))
+* **posthog integration:** configured the instance to collect the telementaty properly ([6d6e55f](https://github.com/larrybwosi/dealio-desktop/commit/6d6e55f7b5f2d6e2db96c7225a4407d58a6fcb1b))
+
 ## [3.1.1-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1-beta.1...v3.1.1-beta.2) (2026-03-07)
 
 
