@@ -1,3 +1,10 @@
+# [3.2.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.2...v3.2.0-beta.3) (2026-03-08)
+
+
+### Bug Fixes
+
+* **build:** posthog env ([9e895e1](https://github.com/larrybwosi/dealio-desktop/commit/9e895e1117205f91eba48b49aa2f0456c5a18c86))
+
 # [3.2.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.1...v3.2.0-beta.2) (2026-03-08)
 
 
