@@ -134,6 +134,7 @@ export function POS() {
     setPage(1);
     if (debouncedSearch) {
       // trackEvent("pos_search", { query: debouncedSearch.substring(0, 50) });
+      posthog.capture("pos_search", { query: debouncedSearch.substring(0, 50) });
     }
   }, [debouncedSearch]);
 

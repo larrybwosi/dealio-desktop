@@ -3,7 +3,7 @@ use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-use tauri_plugin_aptabase::EventTracker;
+// use tauri_plugin_aptabase::EventTracker;
 
 pub mod stores;
 
@@ -43,6 +43,12 @@ use network_monitor::NetworkState;
 
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
+
+pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
+    log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
+    // TODO: Fix better_posthog::capture when the exact API is confirmed
+    // let _ = better_posthog::capture(event_name, properties);
+}
 
 #[cfg(test)]
 mod tests;
@@ -101,7 +107,8 @@ pub fn run() {
         .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
             
-            let _ = app.track_event("app_started", None);
+            // let _ = app.track_event("app_started", None);
+            capture_event("app_started", None);
             // --- 1. Load Data (Existing Code) ---
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
@@ -325,7 +332,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
+        // .plugin(tauri_plugin_aptabase::init(...))
         .plugin(tauri_plugin_better_posthog::init())
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,

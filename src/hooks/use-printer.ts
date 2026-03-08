@@ -6,7 +6,7 @@ import { Order, BusinessSettings } from '@/store/store';
 import { generateReceiptPDF, savePdfToTempFile } from '@/lib/receipt-generator';
 import { PrintResult } from '@/types/print-types';
 import { v4 as uuidv4 } from 'uuid';
-// import { trackEvent } from '@aptabase/tauri';
+import posthog from 'posthog-js';
 
 export const usePrinter = () => {
   const store = usePrinterStore();
@@ -97,7 +97,7 @@ export const usePrinter = () => {
       }
 
       store.updatePrintJob(jobId, { status: 'success' });
-      // trackEvent("receipt_printed", { job_type: 'receipt' });
+      posthog.capture("receipt_printed", { job_type: 'receipt' });
       return { success: true, jobId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';

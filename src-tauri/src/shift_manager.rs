@@ -1,5 +1,5 @@
 use tauri::{AppHandle, State};
-use tauri_plugin_aptabase::EventTracker;
+// use tauri_plugin_aptabase::EventTracker;
 
 use crate::models::Shift;
 use crate::stores::auth_store::AuthState;
@@ -54,7 +54,16 @@ pub fn open_shift_command(
             serde_json::json!({ "shift_id": shift.id, "float": float_amount }),
         );
 
+        /*
         let _ = app.track_event(
+            "shift_opened",
+            Some(serde_json::json!({
+                "shift_id": shift.id,
+                "float": float_amount
+            })),
+        );
+        */
+        crate::capture_event(
             "shift_opened",
             Some(serde_json::json!({
                 "shift_id": shift.id,
@@ -98,7 +107,17 @@ pub async fn close_shift_command(
         }),
     );
 
+    /*
     let _ = app.track_event(
+        "shift_closed",
+        Some(serde_json::json!({
+            "shift_id": closed_shift.id,
+            "total_cash_sales": closed_shift.total_cash_sales,
+            "variance": closed_shift.variance
+        })),
+    );
+    */
+    crate::capture_event(
         "shift_closed",
         Some(serde_json::json!({
             "shift_id": closed_shift.id,

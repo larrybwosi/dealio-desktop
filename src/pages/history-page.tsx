@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
-// import { trackEvent } from "@aptabase/tauri"
+import posthog from 'posthog-js';
 import { usePosStore } from "@/store/store"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -47,7 +47,7 @@ export function HistoryPage() {
   useEffect(() => {
     if (searchQuery) {
       const timer = setTimeout(() => {
-        // trackEvent("history_search", { query: searchQuery.substring(0, 50) });
+        posthog.capture("history_search", { query: searchQuery.substring(0, 50) });
       }, 1000);
       return () => clearTimeout(timer);
     }
@@ -55,13 +55,13 @@ export function HistoryPage() {
 
   useEffect(() => {
     if (statusFilter !== "all") {
-      // trackEvent("history_filter_status", { status: statusFilter });
+      posthog.capture("history_filter_status", { status: statusFilter });
     }
   }, [statusFilter]);
 
   useEffect(() => {
     if (dateFilter !== "all") {
-      // trackEvent("history_filter_date", { date: dateFilter });
+      posthog.capture("history_filter_date", { date: dateFilter });
     }
   }, [dateFilter]);
 

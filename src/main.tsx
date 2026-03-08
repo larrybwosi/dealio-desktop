@@ -26,7 +26,6 @@ posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   // Route ALL events through the Rust backend
   before_send: [
     (captureResult) => {
-      console.log(captureResult)
       if (captureResult) {
         const { event, properties } = captureResult;
         

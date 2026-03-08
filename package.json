@@ -23,7 +23,6 @@
     "cz": "cz"
   },
   "dependencies": {
-    "@aptabase/tauri": "^0.4.1",
     "@bwip-js/browser": "^4.8.0",
     "@hookform/resolvers": "^5.2.2",
     "@posthog/react": "^1.8.2",

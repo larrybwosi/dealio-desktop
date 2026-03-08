@@ -61,7 +61,7 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-process = "2"
 tauri-plugin-websocket = "2"
 dotenvy_macro = "0.15.7"
-tauri-plugin-aptabase = { git = "https://github.com/aptabase/tauri-plugin-aptabase" }
+# tauri-plugin-aptabase = { git = "https://github.com/aptabase/tauri-plugin-aptabase" }
 
 sentry = "0.42"
 tauri-plugin-sentry = "0.5"
