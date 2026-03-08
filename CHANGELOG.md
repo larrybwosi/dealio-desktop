@@ -1,3 +1,10 @@
+# [3.2.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.1...v3.2.0-beta.2) (2026-03-08)
+
+
+### Features
+
+* **posthog inplace of aptabase:** aptabase reaplaced with posthog, including the comments ([3ca2942](https://github.com/larrybwosi/dealio-desktop/commit/3ca29425dd4f5480cf598b8a45cecb2d56b61806))
+
 # [3.2.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1-beta.2...v3.2.0-beta.1) (2026-03-08)
 
 
