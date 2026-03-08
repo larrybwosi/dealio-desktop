@@ -77,8 +77,9 @@ jobs:
 
       - name: Generate .env file for tests
         run: |
-          echo "SENTRY_DSN=dummy_dsn" >> src-tauri/.env
-          echo "APTABASE_KEY=dummy_key" >> src-tauri/.env
+          echo "SENTRY_DSN=${{ secrets.SENTRY_DSN }}" >> src-tauri/.env
+          echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> src-tauri/.env
+          echo "POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}" >> src-tauri/.env
 
       - name: Run Backend Tests
         run: pnpm test:backend
