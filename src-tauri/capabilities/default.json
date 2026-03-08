@@ -45,6 +45,7 @@
     "process:default",
     "os:default",
     "sentry:default",
+    "better-posthog:default",
     {
       "identifier": "opener:allow-open-path",
       "allow": [
