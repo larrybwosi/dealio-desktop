@@ -13,7 +13,7 @@ import { DollarSign, ArrowUp, ArrowDown, Lock, Unlock } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useCashDrawer } from "@/hooks/use-cash-drawer"
 import { DoorOpen, RefreshCcw } from "lucide-react"
-// import { trackEvent } from "@aptabase/tauri";
+import posthog from 'posthog-js';
 
 export default function CashDrawerPage() {
   const settings = usePosStore((state) => state.settings)
@@ -52,7 +52,7 @@ export default function CashDrawerPage() {
     const amount = Number.parseFloat(openingBalance)
     if (!isNaN(amount) && amount >= 0) {
       openCashDrawer(amount)
-      // trackEvent("cash_drawer_opened", { opening_balance: amount });
+      posthog.capture("cash_drawer_opened", { opening_balance: amount });
       setOpeningBalance("")
       setIsOpenDrawerDialogOpen(false)
     }
@@ -77,7 +77,7 @@ export default function CashDrawerPage() {
     const amount = Number.parseFloat(cashAmount)
     if (!isNaN(amount) && amount > 0) {
       addCashTransaction("cash-in", amount, cashNotes)
-      // trackEvent("cash_in_out", { type: "cash-in", amount });
+      posthog.capture("cash_in_out", { type: "cash-in", amount });
       setCashAmount("")
       setCashNotes("")
       setIsCashInDialogOpen(false)
@@ -88,7 +88,7 @@ export default function CashDrawerPage() {
     const amount = Number.parseFloat(cashAmount)
     if (!isNaN(amount) && amount > 0) {
       addCashTransaction("cash-out", amount, cashNotes)
-      // trackEvent("cash_in_out", { type: "cash-out", amount });
+      posthog.capture("cash_in_out", { type: "cash-out", amount });
       setCashAmount("")
       setCashNotes("")
       setIsCashOutDialogOpen(false)

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { usePosStore, type HeldOrderPriority } from '@/store/store';
+import posthog from 'posthog-js';
 import {
   Dialog,
   DialogContent,
@@ -97,6 +98,13 @@ export function HoldOrderDialog({ open, onOpenChange, onHoldComplete }: HoldOrde
     }
 
     holdCurrentOrder(reason.trim() || undefined, priority);
+
+    posthog.capture('order_held', {
+      items_count: itemsCount,
+      total,
+      priority,
+      has_reason: reason.trim().length > 0,
+    });
 
     toast.success('Order Held', {
       description: `${itemsCount} item${itemsCount !== 1 ? 's' : ''} held successfully`,

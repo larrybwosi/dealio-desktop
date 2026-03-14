@@ -11,7 +11,6 @@
     "websocket:default",
     "window-state:default",
     "store:default",
-    "aptabase:allow-track-event",
     "dialog:allow-save",
     "fs:default",
     "fs:allow-write-file",
@@ -44,6 +43,8 @@
     "updater:allow-install",
     "process:default",
     "os:default",
+    "sentry:default",
+    "better-posthog:default",
     {
       "identifier": "opener:allow-open-path",
       "allow": [

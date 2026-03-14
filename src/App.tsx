@@ -4,7 +4,7 @@ import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
-import { trackEvent } from '@aptabase/tauri';
+import posthog from 'posthog-js';
 import AppLayout from '@/components/app.layout';
 import { HistoryPage } from '@/pages/history-page';
 import AnalyticsPage from '@/pages/analytics-page';
@@ -31,7 +31,7 @@ import StockTransferCreate from './pages/stock-transfers';
 //   useEffect(() => {
 //     // Sanitize path for tracking
 //     const path = location.pathname === '/' ? 'pos' : location.pathname.substring(1).replace(/\//g, '_');
-//     trackEvent("page_view", { page: path });
+//     // posthog.capture("page_view", { page: path });
 //   }, [location.pathname]);
 // };
 
@@ -103,7 +103,7 @@ const DynamicRenderer = () => {
   // usePageTracking();
 
   useEffect(() => {
-    trackEvent('app_started');
+    posthog.capture('app_started');
     // Hide and remove the splashscreen from index.html
     const splash = document.getElementById('splash-root');
     if (splash) {

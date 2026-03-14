@@ -336,7 +336,7 @@ pub async fn print_system_receipt(
             printer_name,
             "-silent".to_string(),
             "-print-settings".to_string(),
-            "noscale".to_string(),
+            "shrink".to_string(), // IMPROVEMENT: Changed from "noscale" to "shrink" to respect hardware margins
             file_to_print.clone(), // Clone path string for the args
         ];
 
@@ -359,6 +359,8 @@ pub async fn print_system_receipt(
         let output = std::process::Command::new("lp")
             .arg("-d")
             .arg(&printer_name)
+            .arg("-o")         
+            .arg("fit-to-page")
             .arg(&file_to_print)
             // optional: "-o raw" if you are sending raw ESC/POS codes,
             // but for plain text/PDF, omit it.

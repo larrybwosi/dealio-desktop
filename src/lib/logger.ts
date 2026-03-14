@@ -7,7 +7,6 @@
 import { debug as tauriDebug, info as tauriInfo, warn as tauriWarn, error as tauriError } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/browser';
-// import { trackEvent } from "@aptabase/tauri";
 
 // ============================================================
 // Public Logger API
@@ -55,12 +54,6 @@ export const logger = {
     Sentry.captureException(error instanceof Error ? error : new Error(String(error ?? message)), {
       extra: { context_msg: message, ...context },
     });
-
-    // Track critical errors in Aptabase for analytics (success rates)
-    // trackEvent("app_error", {
-    //   message: message.substring(0, 100), // Aptabase limit/clutter
-    //   is_crash: message.includes("[CRASH]") ? "true" : "false"
-    // });
   },
 };
 

@@ -20,10 +20,13 @@ mockInvoke.mockImplementation(async (_cmd, _args) => {
   return undefined;
 });
 
-// Prevent Aptabase from attempting background IPC calls
-vi.mock('@aptabase/tauri', () => ({
-  init: vi.fn(),
-  trackEvent: vi.fn(),
+// Prevent PostHog from attempting background IPC calls
+vi.mock('posthog-js', () => ({
+  default: {
+    capture: vi.fn(),
+    identify: vi.fn(),
+    reset: vi.fn(),
+  },
 }));
 
 // Mock matchMedia for UI components

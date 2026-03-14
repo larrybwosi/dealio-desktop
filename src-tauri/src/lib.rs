@@ -2,11 +2,10 @@ use dotenvy_macro::dotenv;
 use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Emitter, Manager, State};
-use tauri_plugin_aptabase::EventTracker;
+use tauri::{Emitter, Manager};
+// use tauri_plugin_aptabase::EventTracker;
 
 pub mod stores;
-use models::Shift;
 
 mod http_server;
 mod models;
@@ -29,6 +28,7 @@ mod pricing_manager;
 mod printer_manager;
 mod product_manager;
 mod sale_manager;
+mod shift_manager;
 
 mod api_config;
 mod security;
@@ -44,127 +44,14 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
+    log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
+    // TODO: Fix better_posthog::capture when the exact API is confirmed
+    // let _ = better_posthog::capture(event_name, properties);
+}
+
 #[cfg(test)]
 mod tests;
-
-// --- SHIFT COMMANDS ---
-
-#[tauri::command]
-fn get_shift_command(state: State<'_, ShiftState>) -> Option<Shift> {
-    shift_store::get_shift_status(&state)
-}
-
-#[tauri::command]
-fn add_cash_drop_command(
-    state: State<'_, ShiftState>,
-    amount: f64,
-    reason: String,
-) -> Result<(), String> {
-    shift_store::record_cash_drop(&state, amount, reason)
-}
-
-#[tauri::command]
-fn record_shift_sale_command(state: State<'_, ShiftState>, amount: f64) -> Result<(), String> {
-    shift_store::record_cash_sale(&state, amount)
-}
-
-#[tauri::command]
-fn open_shift_command(
-    app: AppHandle,
-    state: State<'_, ShiftState>,
-    card_id: String,
-    pin: String,
-    float_amount: f64,
-) -> Result<Shift, String> {
-    if card_id.is_empty() || pin.is_empty() {
-        return Err("Credentials missing".to_string());
-    }
-
-    // Now passes card_id and pin individually to shift_store
-    let result = shift_store::open_new_shift(&state, card_id.clone(), pin, float_amount);
-
-    // --- Audit Logging ---
-    if let Ok(ref shift) = result {
-        let _ = crate::audit_store::write_event(
-            &app,
-            crate::audit_store::AuditLevel::Info,
-            "SHIFT_OPENED",
-            Some(card_id),
-            None,
-            None,
-            None,
-            serde_json::json!({ "shift_id": shift.id, "float": float_amount }),
-        );
-
-        let _ = app.track_event(
-            "shift_opened",
-            Some(serde_json::json!({
-                "shift_id": shift.id,
-                "float": float_amount
-            })),
-        );
-    }
-
-    result
-}
-
-#[tauri::command]
-async fn close_shift_command(
-    app: AppHandle,
-    state: State<'_, ShiftState>,
-    card_id: String,
-    pin: String,
-    actual_count: f64,
-    printer_name: Option<String>,
-) -> Result<Shift, String> {
-    if card_id.is_empty() || pin.is_empty() {
-        return Err("Credentials missing".to_string());
-    }
-
-    let closed_shift = shift_store::close_current_shift(&state, actual_count)?;
-
-    // --- Audit Logging ---
-    let _ = crate::audit_store::write_event(
-        &app,
-        crate::audit_store::AuditLevel::Info,
-        "SHIFT_CLOSED",
-        Some(card_id),
-        None,
-        None,
-        None,
-        serde_json::json!({
-            "shift_id": closed_shift.id,
-            "total_cash_sales": closed_shift.total_cash_sales,
-            "actual_cash": closed_shift.actual_cash,
-            "variance": closed_shift.variance
-        }),
-    );
-
-    let _ = app.track_event(
-        "shift_closed",
-        Some(serde_json::json!({
-            "shift_id": closed_shift.id,
-            "total_cash_sales": closed_shift.total_cash_sales,
-            "variance": closed_shift.variance
-        })),
-    );
-
-    let report_text = shift_store::generate_z_report_text(&closed_shift);
-
-    if let Some(p_name) = printer_name {
-        let _ = crate::printer_manager::print_system_receipt(app, p_name, report_text, false).await;
-    }
-
-    Ok(closed_shift)
-}
-
-#[tauri::command]
-async fn sync_shifts_command(
-    state: State<'_, ShiftState>,
-    auth_state: State<'_, AuthState>,
-) -> Result<String, String> {
-    shift_store::sync_pending_shifts(&state, &auth_state).await
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -173,6 +60,15 @@ pub fn run() {
         .build()
         .unwrap();
     let _guard = rt.enter();
+
+    // --- POSTHOG INITIALIZATION (NEW) ---
+    // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
+    let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
+        api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
+        // host: Some("https://eu.i.posthog.com".into()),
+        ..Default::default()
+    });
+    // ------------------------------------
 
     // --- SENTRY INITIALIZATION ---
     #[cfg(not(debug_assertions))]
@@ -211,7 +107,8 @@ pub fn run() {
         .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
             
-            let _ = app.track_event("app_started", None);
+            // let _ = app.track_event("app_started", None);
+            capture_event("app_started", None);
             // --- 1. Load Data (Existing Code) ---
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
@@ -435,7 +332,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_aptabase::Builder::new(dotenv!("APTABASE_KEY")).build())
+        .plugin(tauri_plugin_better_posthog::init())
         .invoke_handler(tauri::generate_handler![
             scanner_manager::start_scan,
             scanner_manager::list_hid_devices,
@@ -443,7 +340,6 @@ pub fn run() {
             scanner_manager::start_network_scan_server,
             scanner_manager::print_to_network,
             sale_manager::scan_transaction_code,
-            // UPDATED: Prefixed with module name
             customer_screen_state::open_customer_screen,
             customer_screen_state::close_customer_screen,
             customer_screen_state::set_customer_screen_enabled,
@@ -472,12 +368,12 @@ pub fn run() {
             printer_manager::save_printer_config,
             printer_manager::get_printer_config,
             printer_manager::print_job,
-            open_shift_command,
-            get_shift_command,
-            add_cash_drop_command,
-            record_shift_sale_command,
-            close_shift_command,
-            sync_shifts_command,
+            shift_manager::open_shift_command,
+            shift_manager::get_shift_command,
+            shift_manager::add_cash_drop_command,
+            shift_manager::record_shift_sale_command,
+            shift_manager::close_shift_command,
+            shift_manager::sync_shifts_command,
             auth_store::set_device_config,
             auth_store::login_member,
             auth_store::logout_member,

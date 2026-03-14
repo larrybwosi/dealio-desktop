@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useCallback, useEffect } from 'react';
 // import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
+import posthog from 'posthog-js';
 
 // Types for API mutations
 interface CheckInResponse {
@@ -21,11 +22,10 @@ export function useAuth() {
   const queryClient = useQueryClient();
 
   // Get state and actions directly from the Zustand store
-  const { currentMember, currentLocation, isRestoredSession, setDeviceKey, setMemberSession, clearMemberSession } =
+  const { currentMember, currentLocation, isRestoredSession, setMemberSession, clearMemberSession } =
     useAuthStore(state => ({
       currentMember: state.currentMember,
       isRestoredSession: state.isRestoredSession,
-      setDeviceKey: state.setDeviceKey,
       setMemberSession: state.setMemberSession,
       clearMemberSession: state.clearMemberSession,
       currentLocation: state.currentLocation,
@@ -52,9 +52,19 @@ export function useAuth() {
         locationId: currentLocation?.id,
       }),
     onSuccess: data => {
-      // On success, update the global store with member AND restoration status
       setMemberSession(data.member, data.restoredSession);
-      // trackEvent("user_login");
+
+      posthog.identify(data.member.id, {
+        name: data.member.name,
+        location_id: currentLocation?.id,
+        location_name: currentLocation?.name,
+      });
+      posthog.capture('user_checked_in', {
+        member_id: data.member.id,
+        member_name: data.member.name,
+        location_id: currentLocation?.id,
+        restored_session: data.restoredSession,
+      });
 
       // Provide context-aware feedback
       if (data.restoredSession) {
@@ -93,6 +103,12 @@ export function useAuth() {
 
     onSuccess: () => {
       // On success, clear the global store
+      posthog.capture('user_checked_out', {
+        member_id: currentMember?.id,
+        member_name: currentMember?.name,
+        location_id: currentLocation?.id,
+      });
+      posthog.reset();
       clearMemberSession();
       // trackEvent("user_logout");
       toast.success('Checked out successfully');
@@ -114,7 +130,6 @@ export function useAuth() {
     memberToken: null,
     isRestoredSession,
     isAuthenticated,
-    setDeviceKey,
     checkIn,
     isCheckingIn,
     checkInError,

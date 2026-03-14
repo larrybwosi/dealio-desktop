@@ -1,6 +1,6 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
-// import { trackEvent } from "@aptabase/tauri";
+import posthog from 'posthog-js';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
@@ -1135,7 +1135,7 @@ export const usePosStore = create<PosStore>()(
       },
 
       resetOrder: () => {
-        // trackEvent("cart_cleared");
+        posthog.capture("cart_cleared");
         set({
           currentOrder: {
             customerName: '',

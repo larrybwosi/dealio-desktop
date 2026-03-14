@@ -18,8 +18,8 @@ import {
   LayoutGrid,
   List,
 } from 'lucide-react';
-// import { trackEvent } from '@aptabase/tauri';
 import { cn } from '@/lib/utils';
+import posthog from 'posthog-js';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
 import { Skeleton } from '../components/ui/skeleton';
@@ -134,17 +134,20 @@ export function POS() {
     setPage(1);
     if (debouncedSearch) {
       // trackEvent("pos_search", { query: debouncedSearch.substring(0, 50) });
+      posthog.capture("pos_search", { query: debouncedSearch.substring(0, 50) });
     }
   }, [debouncedSearch]);
 
   useEffect(() => {
     if (activeCategory !== 'all') {
       // trackEvent("pos_category_change", { category: activeCategory });
+      posthog.capture('product_category_selected', { category: activeCategory });
     }
   }, [activeCategory]);
 
   useEffect(() => {
     // trackEvent("pos_pricing_mode_change", { mode: pricingMode });
+    posthog.capture('pricing_mode_changed', { mode: pricingMode });
   }, [pricingMode]);
 
   // 6. Global Keyboard Shortcuts
@@ -298,6 +301,16 @@ export function POS() {
       };
 
       addItemToOrder(storeProduct, unitToAdd, 1, { isWholesale: pricingMode === 'wholesale' });
+
+      posthog.capture('product_added_to_cart', {
+        product_id: product.productId,
+        product_name: product.productName,
+        variant_id: variant.variantId,
+        variant_name: variant.variantName,
+        price: unitToAdd.price,
+        pricing_mode: pricingMode,
+        via_barcode_scan: true,
+      });
 
       toast.success('Added to Cart', {
         description: `${product.productName} (${variant.variantName || 'Default'})`,

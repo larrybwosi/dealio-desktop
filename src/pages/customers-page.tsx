@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-// import { trackEvent } from "@aptabase/tauri"
+import posthog from 'posthog-js';
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -27,7 +27,7 @@ export default function CustomersPage() {
   useEffect(() => {
     if (searchQuery) {
       const timer = setTimeout(() => {
-        // trackEvent("customer_search", { query: searchQuery.substring(0, 50) });
+        posthog.capture("customer_search", { query: searchQuery.substring(0, 50) });
       }, 1000);
       return () => clearTimeout(timer);
     }

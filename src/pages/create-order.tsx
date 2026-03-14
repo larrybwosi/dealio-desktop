@@ -13,8 +13,8 @@ import {
   ChevronsUpDown,
   Search,
 } from 'lucide-react';
-// import { trackEvent } from "@aptabase/tauri";
 import { useFormattedCurrency, cn } from '@/lib/utils';
+import posthog from 'posthog-js';
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -537,7 +537,10 @@ export default function CreateOrderPage() {
       setCreatedOrderId(data?.number || data?.orderId || 'new-order');
       setCreatedInvoiceUrl(data?.invoiceUrl || null);
       setSubmitStatus('success');
-      // trackEvent("sale_processed", { type: "invoice" });
+      posthog.capture('order_created', {
+        order_id: data?.number || data?.orderId,
+        has_invoice_url: !!data?.invoiceUrl,
+      });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     onError: (error) => {

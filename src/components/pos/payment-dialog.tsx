@@ -44,7 +44,7 @@ import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import { useGiftCard } from '@/hooks/use-gift-card';
-// import { trackEvent } from "@aptabase/tauri";
+import posthog from 'posthog-js';
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
 
@@ -570,7 +570,17 @@ const PaymentModal = ({
         openPhysicalDrawer();
       }
       emit('payment-update', { type: 'CLEAR_COMPLETED' });
-      // trackEvent("sale_processed", { amount: totalPayable, payment_method: primaryMethod });
+      posthog.capture('sale_completed', {
+        total: totalPayable,
+        subtotal: priceBeforeTax,
+        tax: calculatedTax,
+        discount: editableDiscount,
+        payment_method: primaryMethod,
+        items_count: cartItems.length,
+        order_type: orderType,
+        has_customer: !!customer,
+        table_number: tableNumber,
+      });
 
       // Deduct local stock immediately on sale
       deductStockForOrderItems(cartItems);

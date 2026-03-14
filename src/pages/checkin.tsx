@@ -28,6 +28,7 @@ import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import posthog from 'posthog-js';
 
 // --- Typewriter Effect Component ---
 const TypewriterText = ({ texts }: { texts: string[] }) => {
@@ -263,20 +264,15 @@ export default function CheckinPage() {
 
   const handleConfirmReset = async () => {
       setResetDialogOpen(false);
-      
+
       try {
           // 1. Reset Backend
           await invoke('reset_device_config');
-          
-          // 2. Reset Frontend Store (includes products, customers, etc)
-          // We need to access the store state directly as we might not have exposed resetStore via hook properly if typing was an issue,
-          // but assuming useAuthStore/usePosStore hooks are valid. 
-          // Note: `resetAll` is from `useAuthStore`. We also need `resetStore` from `usePosStore` (the main store).
-           
-          // Accessing the unstable_batchedUpdates equivalent or just separate calls
+          posthog.capture('device_reset', { location: currentLocation?.name });
+          posthog.reset();
           useAuthStore.getState().resetAll();
           usePosStore.getState().resetStore();
-          
+
           navigate('/setup');
       } catch (err) {
           console.error("Reset failed:", err);
