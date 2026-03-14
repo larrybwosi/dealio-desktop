@@ -1,3 +1,18 @@
+# [3.2.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1...v3.2.0) (2026-03-14)
+
+
+### Bug Fixes
+
+* **build:** posthog env ([9e895e1](https://github.com/larrybwosi/dealio-desktop/commit/9e895e1117205f91eba48b49aa2f0456c5a18c86))
+* **sentry config:** updated the sentry configuration to properly initialize ([e94c58d](https://github.com/larrybwosi/dealio-desktop/commit/e94c58dcc7af14ce4bbb927932ae1174317396b5))
+
+
+### Features
+
+* **posthog init:** initialized posthog ([9ff2dc9](https://github.com/larrybwosi/dealio-desktop/commit/9ff2dc9f762db3a3e54c427efb803165b716489e))
+* **posthog inplace of aptabase:** aptabase reaplaced with posthog, including the comments ([3ca2942](https://github.com/larrybwosi/dealio-desktop/commit/3ca29425dd4f5480cf598b8a45cecb2d56b61806))
+* **posthog integration:** configured the instance to collect the telementaty properly ([6d6e55f](https://github.com/larrybwosi/dealio-desktop/commit/6d6e55f7b5f2d6e2db96c7225a4407d58a6fcb1b))
+
 # [3.2.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.2...v3.2.0-beta.3) (2026-03-08)
 
 
