@@ -162,7 +162,6 @@ pub async fn init_state(app: &AppHandle, state: &SalesState) {
     match load_queue_encrypted(app).await {
         Ok(q) => {
             *state.queue.lock().unwrap_or_else(|e| e.into_inner()) = q;
-            info!("[SalesStore] Loaded pending sales queue.");
         }
         Err(e) => error!("[SalesStore] Failed to load queue: {}", e),
     }

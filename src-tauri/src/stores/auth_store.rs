@@ -610,7 +610,6 @@ pub async fn get_ably_auth_token_command(
     })?;
 
     let status = res.status();
-    println!("[AuthStore] Response Status: {}", status);
 
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();

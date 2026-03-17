@@ -1,4 +1,3 @@
-use log::info;
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
@@ -52,17 +51,10 @@ fn update_internal_status(app: &AppHandle, network_state: &Arc<NetworkState>, is
         .unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
 
     // Emit event if status changed
-    info!(
-        "[NetworkMonitor] Status changed: {} -> {}",
-        if previous_status { "Online" } else { "Offline" },
-        if is_online { "Online" } else { "Offline" }
-    );
-
     let _ = app.emit("network-status-changed", is_online);
 
     // If we just came online, trigger sync
     if is_online && !previous_status {
-        info!("[NetworkMonitor] Connection restored. Triggering sales sync...");
         let _ = app.emit("trigger-sales-sync", ());
     }
 }
