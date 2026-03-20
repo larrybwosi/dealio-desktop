@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock } from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { AgeVerificationDialog } from '@/components/age-verification-dialog';
@@ -325,21 +325,57 @@ export function Cart() {
 
             {/* Table & Notes */}
             <div className="grid grid-cols-1 gap-2">
-              {showTableField && (
-                <Select value={currentOrder.tableNumber || 'No Table'} onValueChange={setTableNumber}>
-                  <SelectTrigger className="h-9 text-xs flex-1 bg-muted/40">
-                    <SelectValue placeholder="Select Table" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="No Table">No Table</SelectItem>
-                    {availableTables.map(table => (
-                      <SelectItem key={table.id} value={table.number}>
-                        Table {table.number} ({table.capacity} pax)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
+              <div className="flex gap-2">
+                {showTableField && (
+                  <Select value={currentOrder.tableNumber || 'No Table'} onValueChange={(val) => setTableNumber(val === 'No Table' ? '' : val)}>
+                    <SelectTrigger className="h-9 text-xs flex-1 bg-muted/40">
+                      <SelectValue placeholder="Select Table" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="No Table">No Table</SelectItem>
+                      {availableTables.map(table => (
+                        <SelectItem key={table.id} value={table.number}>
+                          Table {table.number} ({table.capacity} pax)
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {currentOrder.orderType === 'dine-in' && (
+                  <div className="w-[88px] shrink-0">
+                    <div className="relative flex items-center bg-muted/40 rounded-md border border-input h-9 overflow-hidden">
+                      <button 
+                        className="px-2 h-full text-muted-foreground hover:bg-muted/80 transition-colors"
+                        onClick={() => {
+                          const currentStr = usePosStore.getState().currentOrder.metadata?.guestsCount;
+                          const guests = Math.max(1, (parseInt(currentStr) || 1) - 1);
+                          usePosStore.setState(state => ({
+                            currentOrder: { ...state.currentOrder, metadata: { ...state.currentOrder.metadata, guestsCount: guests } }
+                          }));
+                        }}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <div className="flex-1 flex justify-center text-xs font-medium">
+                        {currentOrder.metadata?.guestsCount || 1}
+                        <User className="w-3 h-3 ml-0.5 opacity-50" />
+                      </div>
+                      <button 
+                        className="px-2 h-full text-muted-foreground hover:bg-muted/80 transition-colors"
+                        onClick={() => {
+                          const currentStr = usePosStore.getState().currentOrder.metadata?.guestsCount;
+                          const guests = (parseInt(currentStr) || 1) + 1;
+                          usePosStore.setState(state => ({
+                            currentOrder: { ...state.currentOrder, metadata: { ...state.currentOrder.metadata, guestsCount: guests } }
+                          }));
+                        }}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <div className="relative">
                 <Textarea
@@ -369,11 +405,19 @@ export function Cart() {
                   >
                     {/* Image */}
                     <div className="relative w-16 h-16 rounded-md overflow-hidden bg-muted shrink-0 border border-border/50">
-                      <img
-                        src={convertFileSrc(item.imageUrl || '') || '/placeholder.svg?height=64&width=64'}
-                        alt={item.productName}
-                        className="object-cover w-full h-full"
-                      />
+                      {item.imageUrl ? (
+                        <img
+                          src={convertFileSrc(item.imageUrl)}
+                          alt={item.productName}
+                          className="object-cover w-full h-full"
+                          loading="lazy"
+                        />
+                      ):(
+                        <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
+                          <ImageOff className="w-6 h-6 mb-1.5" />
+                          <span className="text-xs font-medium">No Image</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Content */}

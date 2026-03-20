@@ -25,6 +25,7 @@ import {
   RefreshCw,
   ShoppingBag,
   Tag,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useFormattedCurrency } from '@/lib/utils';
@@ -272,6 +273,7 @@ const PaymentModal = ({
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
   const settings = usePosStore(state => state.settings);
+  const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
   const deductStockForOrderItems = usePosStore(state => state.deductStockForOrderItems);
   const autoPrintConfig = settings.autoPrintConfig;
   const locationId = useAuthStore(state => state.currentLocation?.id);
@@ -499,26 +501,53 @@ const PaymentModal = ({
     }
   };
 
-  const getCommonPayloadFields = (): any => ({
-    cartItems: cartItems.map(item => ({
-      productId: item.productId || '',
-      productName: item.productName || 'Unknown Product',
-      variantId: item.variantId || '',
-      variantName: item.variantName || '',
-      quantity: item.quantity,
-      sellingUnitId: item.selectedUnit?.unitId || '',
-      sellingUnitName: item.selectedUnit?.unitName || '',
-      unitPrice: item.price,
-    })),
-    locationId,
-    saleNumber: fullSaleNumber,
-    accountRef: paybillAccountNo,
-    isWholesale: false,
-    customerId: customer?.id && customer.id !== 'temp-id' ? customer.id : null,
-    enableStockTracking: true,
-    notes,
-    discountAmount: editableDiscount,
-  });
+  const getCommonPayloadFields = (): any => {
+    let finalNotes = notes;
+    const { metadata } = usePosStore.getState().currentOrder;
+    if (metadata?.guestsCount || metadata?.createdAt || tableNumber) {
+      const parts = [];
+      if (tableNumber) parts.push(`Table ${tableNumber}`);
+      if (metadata?.guestsCount) parts.push(`${metadata.guestsCount} Guests`);
+      if (metadata?.createdAt) {
+        const diffMins = Math.floor((Date.now() - metadata.createdAt) / 60000);
+        let durationStr = `${diffMins}m`;
+        if (diffMins >= 60) {
+          const hours = Math.floor(diffMins / 60);
+          const mins = diffMins % 60;
+          durationStr = `${hours}h ${mins}m`;
+        }
+        parts.push(`Duration: ${durationStr}`);
+      }
+      
+      const extraInfo = parts.join(' | ');
+      if (finalNotes) {
+        finalNotes = `${finalNotes}\n${extraInfo}`;
+      } else {
+        finalNotes = extraInfo;
+      }
+    }
+
+    return {
+      cartItems: cartItems.map(item => ({
+        productId: item.productId || '',
+        productName: item.productName || 'Unknown Product',
+        variantId: item.variantId || '',
+        variantName: item.variantName || '',
+        quantity: item.quantity,
+        sellingUnitId: item.selectedUnit?.unitId || '',
+        sellingUnitName: item.selectedUnit?.unitName || '',
+        unitPrice: item.price,
+      })),
+      locationId,
+      saleNumber: fullSaleNumber,
+      accountRef: paybillAccountNo,
+      isWholesale: false,
+      customerId: customer?.id && customer.id !== 'temp-id' ? customer.id : null,
+      enableStockTracking: true,
+      notes: finalNotes,
+      discountAmount: editableDiscount,
+    };
+  };
 
   const handleCompleteSale = async () => {
     let primaryMethod = PaymentMethod.SPLIT;
@@ -1134,31 +1163,49 @@ const PaymentModal = ({
                 </motion.div>
               )}
 
-              <Button
-                size="lg"
-                className={cn(
-                  'w-full h-12 font-semibold text-sm gap-2 transition-all',
-                  isFullyPaid
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20'
-                    : 'opacity-60 cursor-not-allowed'
+              <div className="flex gap-3 w-full">
+                {settings.allowSaveUnpaidOrders && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="flex-1 h-12 font-semibold text-sm gap-2"
+                    onClick={() => {
+                      saveUnpaidOrder(editableDiscount);
+                      toast.success(tableNumber ? `Order saved to Table ${tableNumber}` : 'Order saved as pending');
+                      onClose();
+                    }}
+                    disabled={isProcessing}
+                  >
+                    <Clock className="w-4 h-4" /> Pay Later
+                  </Button>
                 )}
-                disabled={!isFullyPaid || isProcessing}
-                onClick={handleCompleteSale}
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Processing…
-                  </>
-                ) : changeDue > 0 ? (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" /> Complete · Give {formatCurrency(changeDue)} Change
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" /> Complete Sale <ArrowRight className="w-4 h-4 ml-auto" />
-                  </>
-                )}
-              </Button>
+
+                <Button
+                  size="lg"
+                  className={cn(
+                    'flex-[2] h-12 font-semibold text-sm gap-2 transition-all',
+                    isFullyPaid
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-500/20'
+                      : 'opacity-60 cursor-not-allowed'
+                  )}
+                  disabled={!isFullyPaid || isProcessing}
+                  onClick={handleCompleteSale}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" /> Processing…
+                    </>
+                  ) : changeDue > 0 ? (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Complete · Give {formatCurrency(changeDue)} Change
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" /> Complete Sale <ArrowRight className="w-4 h-4 ml-auto" />
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

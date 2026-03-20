@@ -3,7 +3,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
-use log::{error, info, warn}; // Enterprise logging
+use log::{error, info, warn};
 use rand::RngCore;
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
@@ -885,7 +885,6 @@ pub fn start_auto_sync_task(app: AppHandle) {
 
             // Check if the required time has elapsed since the last sync
             if last_sync.elapsed() >= interval {
-                info!("[AutoSync] Triggering scheduled sales sync...");
 
                 let sales_state = app.state::<SalesState>();
                 let auth_state = app.state::<AuthState>();
