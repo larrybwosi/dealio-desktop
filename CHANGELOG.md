@@ -1,3 +1,10 @@
+# [3.2.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.3...v3.2.0-beta.4) (2026-03-20)
+
+
+### Features
+
+* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
+
 # [3.2.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.2...v3.2.0-beta.3) (2026-03-08)
 
 
