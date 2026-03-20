@@ -1,3 +1,10 @@
+# [3.2.0-beta.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.4...v3.2.0-beta.5) (2026-03-20)
+
+
+### Features
+
+* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
+
 # [3.2.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.3...v3.2.0-beta.4) (2026-03-20)
 
 
