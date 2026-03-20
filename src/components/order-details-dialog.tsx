@@ -105,7 +105,10 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
   };
 
   const onDownloadKitchenTicket = () => {
-    handleDownload(<PDFKitchenTicket order={order} />, `ticket-${order.orderNumber}`);
+    handleDownload(
+      <PDFKitchenTicket order={order} businessName={settings.businessName} />,
+      `ticket-${order.orderNumber}`
+    );
   };
 
   return (
