@@ -381,6 +381,7 @@ pub fn run() {
             printer_manager::save_printer_config,
             printer_manager::get_printer_config,
             printer_manager::print_job,
+            printer_manager::print_receipt_native,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,

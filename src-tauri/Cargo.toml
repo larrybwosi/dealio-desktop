@@ -79,5 +79,11 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-window-state = "2"
 
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.52", features = [
+    "Win32_Foundation",
+    "Win32_System_Printing",
+] }
+
 [dependencies.keyring]
 version = "2"

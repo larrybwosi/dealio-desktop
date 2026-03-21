@@ -5,7 +5,9 @@ use tauri::{AppHandle, Manager, Runtime};
 use tempfile::Builder;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
+use serde_json::Value; 
 
+use crate::escpos_builder::EscPosBuilder; 
 use crate::models::PrinterError;
 
 // --- CONFIGURATION STRUCTS ---
@@ -405,4 +407,245 @@ pub async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, Print
     })
     .await
     .map_err(|_| PrinterError::SystemError("Task Join Error".into()))?
+}
+
+#[tauri::command] 
+pub async fn print_receipt_native(
+    app: tauri::AppHandle, 
+    order: Value,
+    settings: Value,
+    branch_name: Option<String>,
+) -> Result<String, String> {
+    let mut esc = EscPosBuilder::new();
+    
+    // Parse config
+    let config = settings.get("receiptConfig").unwrap_or(&Value::Null);
+    let paper_size = config.get("paperSize").and_then(|v| v.as_str()).unwrap_or("80mm");
+    let is_58mm = paper_size == "58mm";
+    let width = if is_58mm { 32 } else { 48 };
+    let divider = format!("{}\n", "-".repeat(width));
+
+    // --- LOGO ---
+    if let Some(logo_path) = config.get("logoUrl").and_then(|v| v.as_str()) {
+        let _ = esc.logo(logo_path, is_58mm);
+    }
+
+    // --- HEADER ---
+    esc.align(1);
+    if let Some(biz_name) = settings.get("businessName").and_then(|v| v.as_str()) {
+        esc.size(2, 2); // Double height and width!
+        esc.bold(true);
+        esc.text(&format!("{}\n", biz_name));
+        
+        // Reset back to normal before moving on
+        esc.size(1, 1); 
+        esc.bold(false);
+    }
+    
+    esc.feed(1);
+
+    // --- META DATA ---
+    esc.align(0);
+    if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+        esc.text(&format!("Receipt No: {}\n", order_num));
+    }
+    esc.text(&divider);
+
+    // --- ITEMS LOOP ---
+    if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
+        for item in items {
+            let name = item.get("productName").and_then(|v| v.as_str()).unwrap_or("Item");
+            let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            
+            let line = format!("{} x{} \n", name, qty); 
+            esc.text(&line);
+        }
+    }
+    esc.text(&divider);
+
+    // --- TOTALS ---
+    if let Some(total) = order.get("total").and_then(|v| v.as_f64()) {
+        esc.align(2); // Right align
+        
+        esc.size(1, 2); // Double height
+        esc.inverse(true); // White text on black background
+        
+        // Add some padding spaces so the black box looks nice
+        esc.text(&format!(" TOTAL: {:.2} \n", total));
+        
+        // Reset back to normal
+        esc.inverse(false);
+        esc.size(1, 1);
+    }
+
+    // --- QR CODE ---
+    if let Some(true) = config.get("showSurveyQr").and_then(|v| v.as_bool()) {
+        if let Some(url) = config.get("surveyUrl").and_then(|v| v.as_str()) {
+            esc.qr_code(url);
+        }
+    }
+
+    // --- FINISH BUILDING COMMANDS ---
+    esc.feed(4);
+    esc.cut();
+
+    // 1. EXTRACT RAW BYTES
+    let bytes_to_print = esc.bytes;
+
+    // 2. LOAD PRINTER CONFIGURATION
+    let printer_config = get_printer_config(app.clone())
+        .await
+        .map_err(|e| format!("Failed to load printer config: {}", e))?;
+
+    // 3. ROUTE TO THE CORRECT PRINTER HANDLER
+    if let Some(printer) = printer_config.receipt_printer {
+        match printer.method.as_str() {
+            "network" => {
+                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("Network print failed: {:?}", e))?;
+                
+                Ok("Printed natively to network printer".into())
+            }
+            "system" | _ => {
+                print_system_raw_bytes(printer.target, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
+
+                Ok("Printed natively to system printer".into())
+            }
+        }
+    } else {
+        Err("No receipt printer configured".into())
+    }
+}
+
+pub async fn print_network_raw_bytes(ip: String, port: Option<u16>, data: Vec<u8>) -> Result<String, PrinterError> {
+    let port = port.unwrap_or(9100);
+    let addr = format!("{}:{}", ip, port);
+    let mut stream = TcpStream::connect(addr).await
+        .map_err(|e| PrinterError::ConnectionFailed(e.to_string()))?;
+        
+    stream.write_all(&data).await
+        .map_err(|e| PrinterError::SystemError(format!("Failed to write to printer: {}", e)))?;
+        
+    Ok("Sent to network printer".into())
+}
+
+
+#[cfg(target_os = "windows")]
+pub async fn print_system_raw_bytes(
+    printer_name: String,
+    data: Vec<u8>,
+) -> Result<String, PrinterError> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Foundation::HANDLE;
+    use windows::Win32::System::Printing::{
+        ClosePrinter, EndDocPrinter, EndPagePrinter, OpenPrinterW, StartDocPrinterW,
+        StartPagePrinter, WritePrinter, DOC_INFO_1W,
+    };
+
+    // Windows API requires UTF-16 wide strings with null terminators
+    let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
+    let doc_name_wide: Vec<u16> = "Receipt\0".encode_utf16().collect();
+    let data_type_wide: Vec<u16> = "RAW\0".encode_utf16().collect();
+
+    unsafe {
+        let mut h_printer = HANDLE::default();
+        
+        // 1. Open a handle to the printer
+        if OpenPrinterW(PCWSTR(printer_name_wide.as_ptr()), &mut h_printer, None).is_err() {
+            return Err(PrinterError::SystemError(format!("Failed to open Windows printer: '{}'. Check if the name is correct.", printer_name)));
+        }
+
+        // 2. Define the Document Info, explicitly setting the Datatype to "RAW"
+        let doc_info = DOC_INFO_1W {
+            pDocName: PCWSTR(doc_name_wide.as_ptr()),
+            pOutputFile: PCWSTR(std::ptr::null()),
+            pDatatype: PCWSTR(data_type_wide.as_ptr()),
+        };
+
+        // 3. Start the Print Spooler Document
+        let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const _ as *const u8);
+        if job_id == 0 {
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to start Windows print spooler document".into()));
+        }
+
+        // 4. Start the Page
+        if StartPagePrinter(h_printer).is_err() {
+            let _ = EndDocPrinter(h_printer);
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to start printer page".into()));
+        }
+
+        // 5. Write the raw ESC/POS bytes directly to the spooler
+        let mut bytes_written = 0;
+        let write_ok = WritePrinter(
+            h_printer,
+            data.as_ptr() as *const std::ffi::c_void,
+            data.len() as u32,
+            &mut bytes_written,
+        );
+
+        if write_ok.is_err() || bytes_written != data.len() as u32 {
+            let _ = EndPagePrinter(h_printer);
+            let _ = EndDocPrinter(h_printer);
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to write raw bytes to spooler".into()));
+        }
+
+        // 6. Clean up and close handles
+        let _ = EndPagePrinter(h_printer);
+        let _ = EndDocPrinter(h_printer);
+        let _ = ClosePrinter(h_printer);
+    }
+
+    Ok("Sent raw bytes natively to Windows print spooler".into())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub async fn print_system_raw_bytes(
+    printer_name: String,
+    data: Vec<u8>,
+) -> Result<String, PrinterError> {
+    use std::io::Write;
+    
+    // Linux/macOS: Write the raw ESC/POS bytes to a temporary binary file
+    let mut temp_file = tempfile::Builder::new()
+        .suffix(".bin")
+        .tempfile()
+        .map_err(|e| PrinterError::SystemError(format!("Temp file creation failed: {}", e)))?;
+
+    temp_file.write_all(&data).map_err(|e| {
+        PrinterError::SystemError(format!("Failed to write to temp file: {}", e))
+    })?;
+
+    let (_, path) = temp_file.keep().map_err(|e| {
+        PrinterError::SystemError(format!("Failed to persist temp file: {}", e))
+    })?;
+    let file_path = path.to_string_lossy().to_string();
+
+    // Use CUPS (lp) with the "-o raw" flag to bypass driver formatting
+    let output = std::process::Command::new("lp")
+        .arg("-d")
+        .arg(&printer_name)
+        .arg("-o")
+        .arg("raw")
+        .arg(&file_path)
+        .output()
+        .map_err(|e| PrinterError::SystemError(format!("Failed to execute lp: {}", e)))?;
+
+    // Clean up temp file
+    let _ = std::fs::remove_file(path);
+
+    if output.status.success() {
+        Ok("Sent raw bytes to CUPS successfully".into())
+    } else {
+        Err(PrinterError::SystemError(format!(
+            "CUPS raw print failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )))
+    }
 }
