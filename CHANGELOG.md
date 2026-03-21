@@ -1,3 +1,12 @@
+# [3.3.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0) (2026-03-21)
+
+
+### Features
+
+* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
+* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
+* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
+
 # [3.3.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-beta.1) (2026-03-21)
 
 
