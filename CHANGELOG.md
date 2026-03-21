@@ -1,3 +1,10 @@
+# [3.2.0-beta.6](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.5...v3.2.0-beta.6) (2026-03-21)
+
+
+### Features
+
+* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
+
 # [3.2.0-beta.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.4...v3.2.0-beta.5) (2026-03-20)
 
 
