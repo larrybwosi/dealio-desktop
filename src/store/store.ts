@@ -375,6 +375,9 @@ export interface BusinessSettings {
   enableAutoStart: boolean;
   enableBarcodeScanner: boolean;
 
+  // KDS System
+  enableKdsSystem: boolean;
+
   // Hold Sale Settings (Enterprise)
   enableHoldSale: boolean;
   maxHeldOrders: number;
@@ -561,7 +564,8 @@ interface PosStore {
   simulateOnlineOrder: () => void;
   checkLowStockAlerts: () => void;
 
-  setTableNumber: (tableNumber: string) => void;
+  setTableNumber: (tableNumber: string, guestsCount?: number) => void;
+  recallUnpaidOrder: (orderId: string) => void;
   setInstructions: (instructions: string) => void;
   updateKitchenTicketConfig: (config: Partial<KitchenTicketConfig>) => void;
   updateCustomerDisplayConfig: (config: Partial<CustomerDisplayConfig>) => void;
@@ -866,6 +870,7 @@ export const usePosStore = create<PosStore>()(
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
         enableBarcodeScanner: true,
+        enableKdsSystem: false,
         // Hold Sale Settings (Enterprise)
         enableHoldSale: true,
         maxHeldOrders: 20,
@@ -1112,6 +1117,7 @@ export const usePosStore = create<PosStore>()(
             cashDrawerPort: '',
             enableAutoStart: false,
             enableBarcodeScanner: true,
+            enableKdsSystem: false,
             enableHoldSale: true,
             maxHeldOrders: 20,
             heldOrderExpiryHours: 24,
@@ -1309,7 +1315,7 @@ export const usePosStore = create<PosStore>()(
             id: Date.now().toString(),
             orderNumber: `#${Math.floor(100000 + Math.random() * 900000)}`,
             customerName: state.currentOrder.customerName || 'Walk-in Customer',
-            orderType: state.currentOrder.orderType,
+            orderType: state.currentOrder.tableNumber ? 'dine-in' : state.currentOrder.orderType as any,
             status: 'waiting',
             items: state.currentOrder.items,
             createdAt: new Date(),
@@ -1317,15 +1323,27 @@ export const usePosStore = create<PosStore>()(
             discount,
             taxes: taxes - (taxes * discount) / totalWithTax,
             total: finalTotal,
-            paymentMethod: 'pending',
+            paymentMethod: 'pending' as any,
             tableNumber: state.currentOrder.tableNumber,
             instructions: state.currentOrder.instructions,
-            metadata: state.currentOrder.metadata,
+            metadata: {
+              ...state.currentOrder.metadata,
+              createdAt: Date.now(),
+            },
             customerId: state.currentOrder.customerId,
           };
 
+          // --- LOGIC: Mark Table as Occupied if Associated ---
+          let updatedTables = state.tables;
+          if (state.currentOrder.tableNumber) {
+            updatedTables = state.tables.map(t =>
+              t.number === state.currentOrder.tableNumber ? { ...t, status: 'occupied', currentOrderId: newOrder.id } : t
+            );
+          }
+
           return {
             orders: [newOrder, ...state.orders],
+            tables: updatedTables,
             currentOrder: {
               customerName: '',
               orderType: 'takeaway',
@@ -1801,10 +1819,39 @@ export const usePosStore = create<PosStore>()(
         });
       },
 
-      setTableNumber: tableNumber =>
+      setTableNumber: (tableNumber, guestsCount) =>
         set(state => ({
-          currentOrder: { ...state.currentOrder, tableNumber },
+          currentOrder: { 
+            ...state.currentOrder, 
+            tableNumber,
+            orderType: tableNumber ? 'dine-in' : state.currentOrder.orderType as any,
+            metadata: {
+              ...state.currentOrder.metadata,
+              guestsCount: guestsCount !== undefined ? guestsCount : state.currentOrder.metadata?.guestsCount,
+            }
+          },
         })),
+
+      recallUnpaidOrder: orderId => 
+        set(state => {
+          const unpaidOrder = state.orders.find(o => o.id === orderId);
+          if (!unpaidOrder) return state;
+
+          return {
+            orders: state.orders.filter(o => o.id !== orderId),
+            currentOrder: {
+              customerName: unpaidOrder.customerName || '',
+              orderType: unpaidOrder.orderType as any,
+              items: [...unpaidOrder.items],
+              tableNumber: unpaidOrder.tableNumber || '',
+              instructions: unpaidOrder.instructions || '',
+              metadata: unpaidOrder.metadata || {},
+              customerId: unpaidOrder.customerId || '',
+              customerPhone: unpaidOrder.metadata?.customerPhone || '',
+              loyaltyPoints: unpaidOrder.metadata?.loyaltyPoints || 0,
+            },
+          };
+        }),
 
       setInstructions: instructions =>
         set(state => ({

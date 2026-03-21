@@ -1442,7 +1442,11 @@ export default function ReceiptSettingsPage() {
                     'receipt-test'
                   )
                 : handlePrint(
-                    <PDFKitchenTicket order={{ ...sampleOrder }} kitchenTicketConfig={kConfig} />,
+                    <PDFKitchenTicket
+                      order={{ ...sampleOrder }}
+                      businessName={settings.businessName}
+                      kitchenTicketConfig={kConfig}
+                    />,
                     'kitchen-ticket-test'
                   )
             }
@@ -1468,7 +1472,11 @@ export default function ReceiptSettingsPage() {
                     'receipt-test'
                   )
                 : handleDownload(
-                    <PDFKitchenTicket order={{ ...sampleOrder }} kitchenTicketConfig={kConfig} />,
+                    <PDFKitchenTicket
+                      order={{ ...sampleOrder }}
+                      businessName={settings.businessName}
+                      kitchenTicketConfig={kConfig}
+                    />,
                     'kitchen-ticket-test'
                   )
             }

@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { usePosStore, type Table } from '@/store/store';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Edit2, Trash2, Users, MapPin, CheckCircle2, Clock, Ban } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, MapPin, CheckCircle2, Clock, Ban, Search, MoreVertical, LayoutGrid, SlidersHorizontal } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 export default function ManageTablesPage() {
@@ -17,6 +18,7 @@ export default function ManageTablesPage() {
   const [editingTable, setEditingTable] = useState<Table | null>(null);
   const [filterSection, setFilterSection] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const tables = usePosStore(state => state.tables);
   const addTable = usePosStore(state => state.addTable);
@@ -38,7 +40,11 @@ export default function ManageTablesPage() {
   const filteredTables = tables.filter(table => {
     const sectionMatch = filterSection === 'all' || table.section === filterSection;
     const statusMatch = filterStatus === 'all' || table.status === filterStatus;
-    return sectionMatch && statusMatch;
+    const searchMatch = !searchQuery || 
+      table.number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (table.notes && table.notes.toLowerCase().includes(searchQuery.toLowerCase()));
+      
+    return sectionMatch && statusMatch && searchMatch;
   });
 
   const handleSubmit = () => {
@@ -50,6 +56,11 @@ export default function ManageTablesPage() {
       addTable(formData);
     }
 
+    resetForm();
+    setDialogOpen(false);
+  };
+
+  const resetForm = () => {
     setFormData({
       number: '',
       capacity: 4,
@@ -58,7 +69,6 @@ export default function ManageTablesPage() {
       notes: '',
     });
     setEditingTable(null);
-    setDialogOpen(false);
   };
 
   const handleEdit = (table: Table) => {
@@ -74,30 +84,19 @@ export default function ManageTablesPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this table?')) {
+    if (confirm('Are you sure you want to delete this table? This action cannot be undone.')) {
       deleteTable(id);
     }
   };
 
-  const getStatusIcon = (status: Table['status']) => {
+  const getStatusConfig = (status: Table['status']) => {
     switch (status) {
       case 'available':
-        return <CheckCircle2 className="w-4 h-4" />;
+        return { icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-500/10', border: 'border-emerald-200' };
       case 'occupied':
-        return <Ban className="w-4 h-4" />;
+        return { icon: Ban, color: 'text-rose-600', bg: 'bg-rose-500/10', border: 'border-rose-200' };
       case 'reserved':
-        return <Clock className="w-4 h-4" />;
-    }
-  };
-
-  const getStatusColor = (status: Table['status']) => {
-    switch (status) {
-      case 'available':
-        return 'bg-green-500/10 text-green-700 border-green-500/20';
-      case 'occupied':
-        return 'bg-red-500/10 text-red-700 border-red-500/20';
-      case 'reserved':
-        return 'bg-yellow-500/10 text-yellow-700 border-yellow-500/20';
+        return { icon: Clock, color: 'text-amber-600', bg: 'bg-amber-500/10', border: 'border-amber-200' };
     }
   };
 
@@ -109,67 +108,67 @@ export default function ManageTablesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 max-w-[1600px] mx-auto space-y-8">
+      {/* Header Section */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Manage Tables</h1>
-          <p className="text-muted-foreground mt-1">Organize and track your restaurant tables</p>
+          <h1 className="text-3xl font-bold tracking-tight">Table Management</h1>
+          <p className="text-muted-foreground mt-1 text-sm">Monitor, organize, and configure your floor plan</p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) resetForm();
+        }}>
           <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                setEditingTable(null);
-                setFormData({
-                  number: '',
-                  capacity: 4,
-                  status: 'available',
-                  section: 'Main Hall',
-                  notes: '',
-                });
-              }}
-            >
+            <Button size="lg" className="shadow-sm">
               <Plus className="w-4 h-4 mr-2" />
-              Add Table
+              Add New Table
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingTable ? 'Edit Table' : 'Add New Table'}</DialogTitle>
+              <DialogTitle className="text-xl">{editingTable ? 'Edit Table Configuration' : 'Create New Table'}</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="space-y-6 py-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Table Number *</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="number">Table Identifier *</Label>
                   <Input
-                    placeholder="e.g., 1, A1, VIP-1"
+                    id="number"
+                    placeholder="e.g., T-01, VIP-A"
                     value={formData.number}
                     onChange={e => setFormData({ ...formData, number: e.target.value })}
+                    className="font-mono"
                   />
                 </div>
 
-                <div>
-                  <Label>Capacity *</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={formData.capacity}
-                    onChange={e => setFormData({ ...formData, capacity: Number.parseInt(e.target.value) || 1 })}
-                  />
+                <div className="space-y-2">
+                  <Label htmlFor="capacity">Seating Capacity *</Label>
+                  <div className="relative">
+                    <Users className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="capacity"
+                      type="number"
+                      min="1"
+                      className="pl-9"
+                      value={formData.capacity}
+                      onChange={e => setFormData({ ...formData, capacity: Number.parseInt(e.target.value) || 1 })}
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Section</Label>
+                <div className="space-y-2">
+                  <Label>Floor Section</Label>
                   <Select
                     value={formData.section}
                     onValueChange={value => setFormData({ ...formData, section: value })}
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a section" />
                     </SelectTrigger>
                     <SelectContent>
                       {uniqueSections.map(section => (
@@ -181,8 +180,8 @@ export default function ManageTablesPage() {
                   </Select>
                 </div>
 
-                <div>
-                  <Label>Status</Label>
+                <div className="space-y-2">
+                  <Label>Initial Status</Label>
                   <Select
                     value={formData.status}
                     onValueChange={(value: Table['status']) => setFormData({ ...formData, status: value })}
@@ -199,164 +198,199 @@ export default function ManageTablesPage() {
                 </div>
               </div>
 
-              <div>
-                <Label>Notes (Optional)</Label>
+              <div className="space-y-2">
+                <Label htmlFor="notes">Operational Notes</Label>
                 <Textarea
-                  placeholder="Add any special notes about this table..."
+                  id="notes"
+                  placeholder="E.g., Window seat, requires high chair, wobbly leg..."
                   value={formData.notes || ''}
                   onChange={e => setFormData({ ...formData, notes: e.target.value })}
                   rows={3}
+                  className="resize-none"
                 />
               </div>
-
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleSubmit}>{editingTable ? 'Update' : 'Add'} Table</Button>
-              </div>
             </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button variant="ghost" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleSubmit} disabled={!formData.number}>
+                {editingTable ? 'Save Changes' : 'Create Table'}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Tables</p>
-              <p className="text-2xl font-bold">{stats.total}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
-              <MapPin className="w-6 h-6 text-primary" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Available</p>
-              <p className="text-2xl font-bold text-green-600">{stats.available}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-green-500/10 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Occupied</p>
-              <p className="text-2xl font-bold text-red-600">{stats.occupied}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center">
-              <Ban className="w-6 h-6 text-red-600" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Reserved</p>
-              <p className="text-2xl font-bold text-yellow-600">{stats.reserved}</p>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-          </div>
-        </Card>
+      {/* Enterprise Stats Overview */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Capacity', value: stats.total, icon: LayoutGrid, color: 'text-primary', bg: 'bg-primary/10' },
+          { label: 'Ready to Seat', value: stats.available, icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-500/10' },
+          { label: 'Currently Occupied', value: stats.occupied, icon: Ban, color: 'text-rose-600', bg: 'bg-rose-500/10' },
+          { label: 'Upcoming Reservations', value: stats.reserved, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-500/10' },
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={i} className="border-none shadow-sm bg-card hover:bg-accent/5 transition-colors">
+              <CardContent className="p-6 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>
+                  <p className="text-3xl font-bold tracking-tight">{stat.value}</p>
+                </div>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${stat.bg}`}>
+                  <Icon className={`w-6 h-6 ${stat.color}`} />
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-4">
-        <Select value={filterSection} onValueChange={setFilterSection}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by section" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Sections</SelectItem>
-            {uniqueSections.map(section => (
-              <SelectItem key={section} value={section || ''}>
-                {section}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Control Bar (Search & Filters) */}
+      <div className="flex flex-col sm:flex-row gap-4 bg-muted/30 p-4 rounded-xl border border-border/50">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search table number or notes..." 
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 bg-background"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal className="w-4 h-4 text-muted-foreground hidden sm:block" />
+          <Select value={filterSection} onValueChange={setFilterSection}>
+            <SelectTrigger className="w-[180px] bg-background">
+              <SelectValue placeholder="All Sections" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Sections</SelectItem>
+              {uniqueSections.map(section => (
+                <SelectItem key={section} value={section || ''}>
+                  {section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="available">Available</SelectItem>
-            <SelectItem value="occupied">Occupied</SelectItem>
-            <SelectItem value="reserved">Reserved</SelectItem>
-          </SelectContent>
-        </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[180px] bg-background">
+              <SelectValue placeholder="All Statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="available">Available</SelectItem>
+              <SelectItem value="occupied">Occupied</SelectItem>
+              <SelectItem value="reserved">Reserved</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Tables Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredTables.map(table => (
-          <Card key={table.id} className="p-4 hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <h3 className="font-bold text-lg">Table {table.number}</h3>
-                {table.section && (
-                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                    <MapPin className="w-3 h-3" />
-                    {table.section}
-                  </p>
-                )}
-              </div>
-              <Badge className={`${getStatusColor(table.status)} flex items-center gap-1`}>
-                {getStatusIcon(table.status)}
-                {table.status}
-              </Badge>
-            </div>
+      {filteredTables.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {filteredTables.map(table => {
+            const config = getStatusConfig(table.status);
+            const StatusIcon = config.icon;
 
-            <div className="flex items-center gap-2 mb-3 text-sm text-muted-foreground">
-              <Users className="w-4 h-4" />
-              <span>Capacity: {table.capacity} people</span>
-            </div>
+            return (
+              <Card key={table.id} className="group flex flex-col hover:border-primary/30 hover:shadow-md transition-all duration-200">
+                <CardHeader className="p-5 pb-4 flex flex-row items-start justify-between space-y-0">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-xl font-mono">#{table.number}</h3>
+                      <Badge variant="outline" className={`capitalize ${config.bg} ${config.color} ${config.border} border`}>
+                        {table.status}
+                      </Badge>
+                    </div>
+                    {table.section && (
+                      <div className="flex items-center text-sm text-muted-foreground">
+                        <MapPin className="w-3.5 h-3.5 mr-1.5" />
+                        {table.section}
+                      </div>
+                    )}
+                  </div>
 
-            {table.notes && <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{table.notes}</p>}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 -mr-2 -mt-2 opacity-50 group-hover:opacity-100 transition-opacity">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEdit(table)}>
+                        <Edit2 className="w-4 h-4 mr-2" /> Edit Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleDelete(table.id)} className="text-destructive focus:text-destructive">
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete Table
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </CardHeader>
+                
+                <CardContent className="p-5 pt-0 flex-1">
+                  <div className="flex items-center gap-2 text-sm text-foreground/80 mb-3 bg-muted/50 w-fit px-2.5 py-1 rounded-md">
+                    <Users className="w-4 h-4" />
+                    <span className="font-medium">Up to {table.capacity} guests</span>
+                  </div>
+                  {table.notes && (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-muted pl-2">
+                      {table.notes}
+                    </p>
+                  )}
+                </CardContent>
 
-            <div className="flex gap-2">
-              <Select value={table.status} onValueChange={(value: Table['status']) => setTableStatus(table.id, value)}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="available">Available</SelectItem>
-                  <SelectItem value="occupied">Occupied</SelectItem>
-                  <SelectItem value="reserved">Reserved</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Button variant="outline" size="icon" onClick={() => handleEdit(table)}>
-                <Edit2 className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={() => handleDelete(table.id)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      {filteredTables.length === 0 && (
-        <Card className="p-12">
-          <div className="text-center text-muted-foreground">
-            <MapPin className="w-12 h-12 mx-auto mb-4 opacity-50" />
-            <p className="text-lg font-medium">No tables found</p>
-            <p className="text-sm">Add your first table to get started</p>
+                <CardFooter className="p-4 bg-muted/20 border-t flex gap-2">
+                  <Select 
+                    value={table.status} 
+                    onValueChange={(value: Table['status']) => setTableStatus(table.id, value)}
+                  >
+                    <SelectTrigger className="h-9 text-sm font-medium w-full">
+                      <div className="flex items-center gap-2">
+                        <StatusIcon className={`w-4 h-4 ${config.color}`} />
+                        <span>Change Status</span>
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="available">Set Available</SelectItem>
+                      <SelectItem value="occupied">Set Occupied</SelectItem>
+                      <SelectItem value="reserved">Set Reserved</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        /* Empty / No Results State */
+        <Card className="flex flex-col items-center justify-center py-24 text-center border-dashed">
+          <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+            <LayoutGrid className="w-8 h-8 text-muted-foreground opacity-50" />
           </div>
+          <h3 className="text-xl font-semibold mb-2">No tables found</h3>
+          <p className="text-muted-foreground mb-6 max-w-sm">
+            {searchQuery || filterSection !== 'all' || filterStatus !== 'all' 
+              ? "We couldn't find any tables matching your current filters. Try adjusting your search."
+              : "Your floor plan is currently empty. Add your first table to get started organizing your restaurant."}
+          </p>
+          {searchQuery || filterSection !== 'all' || filterStatus !== 'all' ? (
+            <Button variant="outline" onClick={() => {
+              setSearchQuery('');
+              setFilterSection('all');
+              setFilterStatus('all');
+            }}>
+              Clear Filters
+            </Button>
+          ) : (
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add First Table
+            </Button>
+          )}
         </Card>
       )}
     </div>

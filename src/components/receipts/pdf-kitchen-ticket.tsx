@@ -5,94 +5,152 @@ import type { Order } from '@/store/store';
 import { format } from 'date-fns';
 
 // ----------------------------------------------------------------
-// 1. Base Styles for Professional Kitchen Ticket / Thermal Printer
+// 1. Enterprise Thermal Printer Styles (Strict Monochrome)
 // ----------------------------------------------------------------
 const styles = StyleSheet.create({
-  // General Ticket Layout (mostly controlled by dynamicStyles.page for size)
   ticketHeader: {
+    alignItems: 'center',
     marginBottom: 10,
-    paddingBottom: 5,
-    borderBottom: '2pt solid #000',
-    textAlign: 'center',
   },
-  title: {
-    fontSize: 14,
+  shopName: {
+    fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 2,
+    marginBottom: 4,
+    textAlign: 'center',
     textTransform: 'uppercase',
   },
-  orderNumber: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 5,
+  ticketType: {
+    fontSize: 12,
+    letterSpacing: 1,
+    borderBottomWidth: 1,
+    borderBottomStyle: 'dashed',
+    borderBottomColor: '#000',
+    paddingBottom: 6,
+    marginBottom: 6,
+    width: '100%',
+    textAlign: 'center',
   },
-  infoSection: {
-    marginBottom: 10,
-    borderBottom: '1pt solid #000',
-    paddingBottom: 5,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 3,
-    // Base font size for info rows is controlled by dynamicStyles.page
-  },
-  label: {
-    fontWeight: 'bold',
-    marginRight: 5,
-  },
-  tableNumber: {
-    fontSize: 22, // Extra large for table number
-    fontWeight: 'heavy',
-    color: '#D9534F', // Example: Use a color for high visibility, if supported
-  },
-  itemsSection: {
-    marginTop: 10,
-  },
-  itemContainer: {
-    marginBottom: 8,
-    paddingVertical: 5,
-  },
-  itemNameQuantity: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  orderNumberBox: {
+    marginVertical: 10,
     alignItems: 'center',
   },
-  // Item details are now nested under dynamic styles for size control
-  itemDetails: {
+  orderNumberLabel: {
+    fontSize: 10,
     color: '#444',
-    marginLeft: 30, // Indent for modifiers/details
-    marginTop: 2,
   },
-  instructions: {
+  orderNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+  },
+  metaGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#000',
+    borderStyle: 'solid',
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  metaItem: {
+    width: '50%',
+    marginBottom: 4,
+  },
+  metaLabel: {
+    fontSize: 8,
+    color: '#666',
+    textTransform: 'uppercase',
+  },
+  metaValue: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+  },
+  tableBox: {
+    borderWidth: 2,
+    borderColor: '#000',
+    borderStyle: 'solid',
+    padding: 8,
+    alignItems: 'center',
+    marginBottom: 10,
+    backgroundColor: '#f0f0f0', // Translates to light gray dithering on thermal
+  },
+  tableLabel: {
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  tableNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  columnHeaders: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#000',
+    borderBottomStyle: 'solid',
+    paddingBottom: 4,
+    marginBottom: 6,
+  },
+  colQty: { width: 30, fontSize: 9, fontWeight: 'bold' },
+  colItem: { flex: 1, fontSize: 9, fontWeight: 'bold' },
+  colPrice: { width: 45, fontSize: 9, fontWeight: 'bold', textAlign: 'right' },
+  
+  itemContainer: {
+    marginBottom: 6,
+  },
+  itemMainRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  itemDetails: {
+    color: '#333',
+    marginLeft: 30,
+    marginTop: 2,
+    flexDirection: 'row',
+  },
+  bullet: {
+    width: 10,
+    fontSize: 10,
+  },
+  variantText: {
+    flex: 1,
+    fontSize: 10,
+  },
+  instructionsBox: {
     marginTop: 15,
     padding: 8,
-    backgroundColor: '#fff3cd', // Light yellow background for instructions
-    borderLeft: '4pt solid #ffc107', // Yellow left border for emphasis
+    borderWidth: 2,
+    borderColor: '#000',
+    borderStyle: 'solid',
   },
   instructionsTitle: {
     fontSize: 12,
     fontWeight: 'bold',
-    marginBottom: 3,
+    textAlign: 'center',
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
-  instructionsText: {
-    // Font size controlled by dynamic styles
+  divider: {
+    borderBottomWidth: 1,
+    borderBottomStyle: 'dashed',
+    borderBottomColor: '#000',
+    marginVertical: 10,
   },
   footer: {
-    marginTop: 15,
-    borderTop: '2pt dashed #000',
-    paddingTop: 5,
-    textAlign: 'center',
+    marginTop: 20,
+    alignItems: 'center',
   },
   timestamp: {
-    fontSize: 8,
-    color: '#666',
+    fontSize: 9,
+    color: '#444',
+    marginBottom: 2,
   },
-  // Utility for separating items clearly
-  dashedLine: {
-    borderBottom: '1pt dashed #444',
-    marginVertical: 4,
-  },
+  endOfTicket: {
+    marginTop: 10,
+    fontSize: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  }
 });
 
 // ----------------------------------------------------------------
@@ -100,128 +158,151 @@ const styles = StyleSheet.create({
 // ----------------------------------------------------------------
 interface PDFKitchenTicketProps {
   order: Order;
+  businessName?: string;
   kitchenTicketConfig?: {
-    showTime: boolean;
-    showOrderType: boolean;
-    showCustomerName: boolean;
-    showTable: boolean;
-    showPrices: boolean;
-    showNotes: boolean;
-    fontSize: 'small' | 'medium' | 'large';
-    paperSize: '80mm' | '58mm' | 'A5';
+    shopName?: string;
+    ticketType?: 'KITCHEN' | 'RECEIPT';
+    showTime?: boolean;
+    showOrderType?: boolean;
+    showCustomerName?: boolean;
+    showTable?: boolean;
+    showPrices?: boolean;
+    showNotes?: boolean;
+    fontSize?: 'small' | 'medium' | 'large';
+    paperSize?: '80mm' | '58mm' | 'A5';
   };
 }
 
-export const PDFKitchenTicket = ({ order, kitchenTicketConfig }: PDFKitchenTicketProps) => {
-  const config =
-    kitchenTicketConfig ||
-    ({
-      showTime: true,
-      showOrderType: true,
-      showCustomerName: true,
-      showTable: true,
-      showPrices: false,
-      showNotes: true,
-      fontSize: 'medium',
-      paperSize: '80mm',
-    } as const);
+export const PDFKitchenTicket = ({ order, businessName, kitchenTicketConfig }: PDFKitchenTicketProps) => {
+  const config = {
+    shopName: businessName || 'RESTAURANT NAME',
+    ticketType: 'KITCHEN',
+    showTime: true,
+    showOrderType: true,
+    showCustomerName: true,
+    showTable: true,
+    showPrices: false,
+    showNotes: true,
+    fontSize: 'medium',
+    paperSize: '80mm',
+    ...kitchenTicketConfig,
+  } as const;
 
   // Determine base font size based on config
-  const baseFontSize = config.fontSize === 'small' ? 9 : config.fontSize === 'large' ? 14 : 11;
-  const itemFontSize = baseFontSize + 2; // Slightly larger for item names
-  const qtyFontSize = baseFontSize + 6; // Significantly larger for quantity
+  const baseFontSize = config.fontSize === 'small' ? 10 : config.fontSize === 'large' ? 14 : 12;
+  const qtyFontSize = baseFontSize + 2;
 
-  // Dynamic Styles (based on font size and paper size)
   const dynamicStyles = StyleSheet.create({
     page: {
-      padding: config.paperSize === 'A5' ? 20 : 10, // Less padding for thermal sizes
-      fontSize: baseFontSize,
+      padding: config.paperSize === 'A5' ? 20 : 12,
       fontFamily: 'Helvetica',
       // Set fixed widths for thermal sizes (in points)
       width: config.paperSize === '58mm' ? 164 : config.paperSize === '80mm' ? 226 : '100%',
     },
     itemName: {
-      fontSize: itemFontSize,
+      fontSize: baseFontSize,
       fontWeight: 'bold',
-      flex: 1, // Allow name to take remaining space
+      flex: 1, 
       textTransform: 'uppercase',
     },
     quantity: {
+      width: 30,
       fontSize: qtyFontSize,
-      fontWeight: 'heavy',
-      marginRight: 10,
-      minWidth: 30,
-      textAlign: 'center',
+      fontWeight: 'bold',
     },
     instructionsText: {
       fontSize: baseFontSize,
+      fontWeight: 'bold',
+      textAlign: 'center',
     },
     itemPrice: {
+      width: 45,
       fontSize: baseFontSize,
+      textAlign: 'right',
     },
   });
 
   const getPageSize = (): 'A5' | [number, number] => {
     switch (config.paperSize) {
       case '58mm':
-        return [164, 800]; // Width, Max Height
+        return [164, 500]; // Width, Max Height
       case '80mm':
-        return [226, 800]; // Width, Max Height
+        return [226, 500]; // Width, Max Height
       default:
         return 'A5';
     }
   };
 
+  const totalItemsCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
+
   return (
     <Document>
       <Page size={getPageSize()} style={dynamicStyles.page}>
+        
         {/* ----------------- Header ----------------- */}
         <View style={styles.ticketHeader}>
-          <Text style={styles.title}>KITCHEN ORDER</Text>
+          {config.shopName && <Text style={styles.shopName}>{config.shopName}</Text>}
+          <Text style={styles.ticketType}>
+            {config.ticketType === 'RECEIPT' ? 'CUSTOMER RECEIPT' : 'KITCHEN TICKET'}
+          </Text>
+        </View>
+
+        {/* ----------------- Order Number ----------------- */}
+        <View style={styles.orderNumberBox}>
+          <Text style={styles.orderNumberLabel}>ORDER #</Text>
           <Text style={styles.orderNumber}>{order.orderNumber}</Text>
         </View>
 
-        {/* ----------------- Order Info ----------------- */}
-        <View style={styles.infoSection}>
-          {config.showTable && order.tableNumber && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>TABLE:</Text>
-              {/* Highlight table number prominently */}
-              <Text style={styles.tableNumber}>{order.tableNumber}</Text>
-            </View>
-          )}
+        {/* ----------------- Emphasized Table Box ----------------- */}
+        {config.showTable && order.tableNumber && (
+          <View style={styles.tableBox}>
+            <Text style={styles.tableLabel}>TABLE</Text>
+            <Text style={styles.tableNumber}>{order.tableNumber}</Text>
+          </View>
+        )}
 
+        {/* ----------------- Meta Info Grid ----------------- */}
+        <View style={styles.metaGrid}>
           {config.showOrderType && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>ORDER TYPE:</Text>
-              <Text style={{ textTransform: 'uppercase' }}>{order.orderType}</Text>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Type</Text>
+              <Text style={styles.metaValue}>{order.orderType}</Text>
             </View>
           )}
-
           {config.showCustomerName && order.customerName && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>CUSTOMER:</Text>
-              <Text>{order.customerName}</Text>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Customer</Text>
+              <Text style={styles.metaValue}>{order.customerName}</Text>
             </View>
           )}
-
           {config.showTime && (
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>TIME:</Text>
-              <Text>{format(new Date(order.createdAt), 'HH:mm')}</Text>
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Date</Text>
+              <Text style={styles.metaValue}>{format(new Date(order.createdAt), 'MM/dd/yyyy')}</Text>
+            </View>
+          )}
+          {config.showTime && (
+            <View style={styles.metaItem}>
+              <Text style={styles.metaLabel}>Time</Text>
+              <Text style={styles.metaValue}>{format(new Date(order.createdAt), 'HH:mm')}</Text>
             </View>
           )}
         </View>
 
-        {/* ----------------- Items ----------------- */}
-        <View style={styles.itemsSection}>
+        {/* ----------------- Column Headers ----------------- */}
+        <View style={styles.columnHeaders}>
+          <Text style={styles.colQty}>QTY</Text>
+          <Text style={styles.colItem}>ITEM</Text>
+          {config.showPrices && <Text style={styles.colPrice}>PRICE</Text>}
+        </View>
+
+        {/* ----------------- Items List ----------------- */}
+        <View>
           {order.items.map((item, index) => (
             <View key={index} style={styles.itemContainer}>
-              {/* Item Name and Quantity on one line, emphasized */}
-              <View style={styles.itemNameQuantity}>
-                <Text style={dynamicStyles.quantity}>{item.quantity}x</Text>
+              <View style={styles.itemMainRow}>
+                <Text style={dynamicStyles.quantity}>{item.quantity}</Text>
                 <Text style={dynamicStyles.itemName}>{item.productName}</Text>
-                {/* Optional: Show Price */}
                 {config.showPrices && (
                   <Text style={dynamicStyles.itemPrice}>
                     ${((item.selectedUnit?.price || 0) * item.quantity).toFixed(2)}
@@ -229,30 +310,36 @@ export const PDFKitchenTicket = ({ order, kitchenTicketConfig }: PDFKitchenTicke
                 )}
               </View>
 
-              {/* Variant and Unit details (if not default) */}
+              {/* Variant / Modifier Details */}
               {(item.variantName !== 'Default Variant' || item.selectedUnit?.unitName) && (
-                <Text style={styles.itemDetails}>
-                  {item.variantName !== 'Default Variant' && `${item.variantName} `}
-                  {item.selectedUnit?.unitName && `(${item.selectedUnit.unitName})`}
-                </Text>
+                <View style={styles.itemDetails}>
+                  <Text style={styles.bullet}>•</Text>
+                  <Text style={styles.variantText}>
+                    {item.variantName !== 'Default Variant' && `${item.variantName} `}
+                    {item.selectedUnit?.unitName && `(${item.selectedUnit.unitName})`}
+                  </Text>
+                </View>
               )}
-              <View style={styles.dashedLine} />
             </View>
           ))}
         </View>
 
         {/* ----------------- Special Instructions ----------------- */}
         {config.showNotes && order.instructions && (
-          <View style={styles.instructions}>
-            <Text style={styles.instructionsTitle}>*** SPECIAL INSTRUCTIONS ***</Text>
+          <View style={styles.instructionsBox}>
+            <Text style={styles.instructionsTitle}>Special Instructions</Text>
             <Text style={dynamicStyles.instructionsText}>{order.instructions}</Text>
           </View>
         )}
 
-        {/* ----------------- Footer ----------------- */}
+        <View style={styles.divider} />
+
+        {/* ----------------- Footer Summary ----------------- */}
         <View style={styles.footer}>
-          <Text style={styles.timestamp}>Order Placed: {format(new Date(order.createdAt), 'dd/MM/yyyy HH:mm:ss')}</Text>
-          <Text style={styles.timestamp}>Ticket Printed: {format(new Date(), 'dd/MM/yyyy HH:mm:ss')}</Text>
+          <Text style={styles.timestamp}>Total Items: {totalItemsCount}</Text>
+          <Text style={styles.timestamp}>Printed: {format(new Date(), 'MM/dd/yyyy HH:mm:ss')}</Text>
+          
+          <Text style={styles.endOfTicket}>- END OF TICKET -</Text>
         </View>
       </Page>
     </Document>

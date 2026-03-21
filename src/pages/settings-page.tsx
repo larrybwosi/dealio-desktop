@@ -27,7 +27,6 @@ import {
   Type,
   AlertTriangle,
   Palette,
-  Store,
   ShieldAlert,
   Check,
   LayoutGrid,
@@ -168,6 +167,9 @@ export default function SettingsPage() {
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
 
+  // KDS Settings
+  const [enableKdsSystem, setEnableKdsSystem] = useState(settings?.enableKdsSystem ?? false);
+
   // Hold Sale Settings
   const [enableHoldSale, setEnableHoldSale] = useState(settings?.enableHoldSale ?? true);
   const [maxHeldOrders, setMaxHeldOrders] = useState((settings?.maxHeldOrders ?? 20).toString());
@@ -222,6 +224,7 @@ export default function SettingsPage() {
       cashDrawerPort,
       enableAutoStart,
       enableBarcodeScanner,
+      enableKdsSystem,
       enableHoldSale,
       maxHeldOrders: newMaxHeldOrders,
       heldOrderExpiryHours: newHeldOrderExpiryHours,
@@ -326,12 +329,6 @@ export default function SettingsPage() {
                 className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
               >
                 <Monitor className="h-4 w-4 mr-2" /> Display
-              </TabsTrigger>
-              <TabsTrigger
-                value="navigation"
-                className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
-              >
-                <Store className="h-4 w-4 mr-2" /> Navigation
               </TabsTrigger>
               <TabsTrigger
                 value="logs"
@@ -667,6 +664,19 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
                   </div>
                   <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Enable Kitchen Display System</div>
+                    <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
+                  </div>
+                  <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
                 </div>
               </div>
             </Card>
@@ -1418,12 +1428,7 @@ export default function SettingsPage() {
                 </>
               )}
             </div>
-          </TabsContent>
-
-          <TabsContent
-            value="navigation"
-            className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95"
-          >
+            
             <Card className="border-muted/60 shadow-sm p-6">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
@@ -1448,6 +1453,7 @@ export default function SettingsPage() {
               </div>
             </Card>
           </TabsContent>
+
 
           <TabsContent
             value="danger"

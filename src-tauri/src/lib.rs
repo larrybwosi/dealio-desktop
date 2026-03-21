@@ -3,7 +3,7 @@ use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-// use tauri_plugin_aptabase::EventTracker;
+use better_posthog::events::capture;
 
 pub mod stores;
 
@@ -44,10 +44,24 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+mod kds_models;
+mod kds_hub_server;
+
 pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
     log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
-    // TODO: Fix better_posthog::capture when the exact API is confirmed
-    // let _ = better_posthog::capture(event_name, properties);
+    
+    let mut builder = better_posthog::Event::builder()
+        .event(event_name)
+        .distinct_id("desktop_client");
+        
+    if let Some(serde_json::Value::Object(map)) = properties {
+        for (key, value) in map {
+            builder = builder.property(key, value);
+        }
+    }
+    
+    // Fire and forget. The background thread handles the rest.
+    capture(builder.build());
 }
 
 #[cfg(test)]
@@ -65,7 +79,6 @@ pub fn run() {
     // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
     let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
         api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
-        // host: Some("https://eu.i.posthog.com".into()),
         ..Default::default()
     });
     // ------------------------------------
@@ -422,6 +435,8 @@ pub fn run() {
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
+
+            kds_hub_server::start_kds_hub,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

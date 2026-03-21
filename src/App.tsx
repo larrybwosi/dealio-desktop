@@ -4,6 +4,7 @@ import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { initializeNetworkRole } from '@/lib/kds';
 import posthog from 'posthog-js';
 import AppLayout from '@/components/app.layout';
 import { HistoryPage } from '@/pages/history-page';
@@ -23,17 +24,7 @@ import NotFound from '@/pages/not-found';
 import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
-
-// Hook to track page views
-// const usePageTracking = () => {
-//   const location = useLocation();
-
-//   useEffect(() => {
-//     // Sanitize path for tracking
-//     const path = location.pathname === '/' ? 'pos' : location.pathname.substring(1).replace(/\//g, '_');
-//     // posthog.capture("page_view", { page: path });
-//   }, [location.pathname]);
-// };
+import KDSPage from './pages/kitchen-display';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -87,6 +78,7 @@ const AppRoutes = () => {
         <Route path="/shift-manager" element={<ShiftManager />} />
         <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
         <Route path="/stock-transfer" element={<StockTransferCreate />} />
+        <Route path="/kds" element={<KDSPage />} />
       </Route>
 
       {/* Routes without AppLayout */}
@@ -100,9 +92,9 @@ const AppRoutes = () => {
 
 const DynamicRenderer = () => {
   useSessionActivityListener();
-  // usePageTracking();
 
   useEffect(() => {
+    initializeNetworkRole();
     posthog.capture('app_started');
     // Hide and remove the splashscreen from index.html
     const splash = document.getElementById('splash-root');

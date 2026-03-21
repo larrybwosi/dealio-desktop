@@ -3,7 +3,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
-use log::{error, info, warn}; // Enterprise logging
+use log::{error, info, warn};
 use rand::RngCore;
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
@@ -162,7 +162,6 @@ pub async fn init_state(app: &AppHandle, state: &SalesState) {
     match load_queue_encrypted(app).await {
         Ok(q) => {
             *state.queue.lock().unwrap_or_else(|e| e.into_inner()) = q;
-            info!("[SalesStore] Loaded pending sales queue.");
         }
         Err(e) => error!("[SalesStore] Failed to load queue: {}", e),
     }
@@ -886,7 +885,6 @@ pub fn start_auto_sync_task(app: AppHandle) {
 
             // Check if the required time has elapsed since the last sync
             if last_sync.elapsed() >= interval {
-                info!("[AutoSync] Triggering scheduled sales sync...");
 
                 let sales_state = app.state::<SalesState>();
                 let auth_state = app.state::<AuthState>();

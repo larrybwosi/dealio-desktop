@@ -704,7 +704,7 @@ export function POS() {
       <TableSelectorDialog
         open={showTableSelector}
         onOpenChange={setShowTableSelector}
-        onSelectTable={num => setTableNumber(num)}
+        onSelectTable={(num, guests) => setTableNumber(num, guests)}
       />
 
       <BarcodeScannerDialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner} />

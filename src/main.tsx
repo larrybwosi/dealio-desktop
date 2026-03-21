@@ -19,22 +19,47 @@ if (!import.meta.env.DEV) {
   });
 }
 
+
 // Initialize PostHog
 posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2026-01-30',
-  // Route ALL events through the Rust backend
+  debug: import.meta.env.DEV,
+
+  // 1. Disable the incredibly noisy features
+  disable_session_recording: true,
+  capture_heatmaps: false,
+
+  // 2. Keep Performance & Web Vitals enabled
+  capture_performance: true,
+
+  // --- PRIVACY MASKING (Commented out) ---
+  // If you ever set `disable_session_recording: false`, uncomment these 
+  // to prevent recording sensitive customer/financial data in your POS:
+  //
+  // mask_all_text: true,               // Replaces all text on the screen with ***
+  // mask_all_element_attributes: true, // Masks sensitive HTML attributes
+  // ---------------------------------------
+
+  // Route your custom events through the Rust backend, but let internal events pass
   before_send: [
     (captureResult) => {
-      if (captureResult) {
-        const { event, properties } = captureResult;
-        
-        // Pass to Rust via Tauri IPC
-        captureEvent(event, properties).catch(console.error);
+      if (!captureResult) return null;
+      
+      const { event, properties } = captureResult;
+
+      // If it is an internal PostHog event (like `$web_vitals` or `$pageview`), 
+      // return the result so the frontend JS sends it to the API normally.
+      if (event.startsWith('$')) {
+          return captureResult; 
       }
       
-      // CRITICAL: Return `null` to stop posthog-js from sending a network request
-      return null;
+      // If it is YOUR custom event, pass it to Rust via Tauri IPC
+      captureEvent(event, properties).catch(console.error);
+      
+      // CRITICAL: Return `null` to stop posthog-js from sending a network request 
+      // for your custom event, preventing duplicate events.
+      return null; 
     },
   ],
 });

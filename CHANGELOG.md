@@ -1,17 +1,32 @@
-# [3.2.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.1.1...v3.2.0) (2026-03-14)
-
-
-### Bug Fixes
-
-* **build:** posthog env ([9e895e1](https://github.com/larrybwosi/dealio-desktop/commit/9e895e1117205f91eba48b49aa2f0456c5a18c86))
-* **sentry config:** updated the sentry configuration to properly initialize ([e94c58d](https://github.com/larrybwosi/dealio-desktop/commit/e94c58dcc7af14ce4bbb927932ae1174317396b5))
+# [3.3.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-beta.1) (2026-03-21)
 
 
 ### Features
 
-* **posthog init:** initialized posthog ([9ff2dc9](https://github.com/larrybwosi/dealio-desktop/commit/9ff2dc9f762db3a3e54c427efb803165b716489e))
-* **posthog inplace of aptabase:** aptabase reaplaced with posthog, including the comments ([3ca2942](https://github.com/larrybwosi/dealio-desktop/commit/3ca29425dd4f5480cf598b8a45cecb2d56b61806))
-* **posthog integration:** configured the instance to collect the telementaty properly ([6d6e55f](https://github.com/larrybwosi/dealio-desktop/commit/6d6e55f7b5f2d6e2db96c7225a4407d58a6fcb1b))
+* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
+* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
+* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
+
+# [3.2.0-beta.6](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.5...v3.2.0-beta.6) (2026-03-21)
+
+
+### Features
+
+* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
+
+# [3.2.0-beta.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.4...v3.2.0-beta.5) (2026-03-20)
+
+
+### Features
+
+* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
+
+# [3.2.0-beta.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.3...v3.2.0-beta.4) (2026-03-20)
+
+
+### Features
+
+* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
 
 # [3.2.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0-beta.2...v3.2.0-beta.3) (2026-03-08)
 
