@@ -46,6 +46,7 @@ const routeMap: Record<string, string> = {
   'receipt-settings': '/receipt-settings',
   'stock-acceptance': '/stock-acceptance',
   'stock-transfer': '/stock-transfer',
+  'kitchen-display': '/kds',
   settings: '/settings',
   pricing: '/pricing',
 };

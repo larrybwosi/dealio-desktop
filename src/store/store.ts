@@ -375,6 +375,9 @@ export interface BusinessSettings {
   enableAutoStart: boolean;
   enableBarcodeScanner: boolean;
 
+  // KDS System
+  enableKdsSystem: boolean;
+
   // Hold Sale Settings (Enterprise)
   enableHoldSale: boolean;
   maxHeldOrders: number;
@@ -867,6 +870,7 @@ export const usePosStore = create<PosStore>()(
         cashDrawerPort: '', // No port configured by default
         enableAutoStart: false,
         enableBarcodeScanner: true,
+        enableKdsSystem: false,
         // Hold Sale Settings (Enterprise)
         enableHoldSale: true,
         maxHeldOrders: 20,
@@ -1113,6 +1117,7 @@ export const usePosStore = create<PosStore>()(
             cashDrawerPort: '',
             enableAutoStart: false,
             enableBarcodeScanner: true,
+            enableKdsSystem: false,
             enableHoldSale: true,
             maxHeldOrders: 20,
             heldOrderExpiryHours: 24,

@@ -45,6 +45,7 @@ import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
 import { useGiftCard } from '@/hooks/use-gift-card';
+import { sendOrderToKitchen } from '@/lib/kds';
 import posthog from 'posthog-js';
 
 // ─── TYPES ──────────────────────────────────────────────────────────────────
@@ -614,6 +615,10 @@ const PaymentModal = ({
       // Deduct local stock immediately on sale
       deductStockForOrderItems(cartItems);
 
+      if (settings.enableKdsSystem) {
+        sendOrderToKitchen(completedOrder);
+      }
+
       onPaymentComplete(completedOrder);
       onClose();
     } catch (err: any) {
@@ -1171,12 +1176,26 @@ const PaymentModal = ({
                     className="flex-1 h-12 font-semibold text-sm gap-2"
                     onClick={() => {
                       saveUnpaidOrder(editableDiscount);
-                      toast.success(tableNumber ? `Order saved to Table ${tableNumber}` : 'Order saved as pending');
+                      if (settings.enableKdsSystem) {
+                        const tempOrder = {
+                          id: orderId,
+                          orderNumber: fullSaleNumber,
+                          items: cartItems,
+                          tableNumber: tableNumber,
+                          notes: notes,
+                          customerName: customer?.name || '',
+                          orderType: orderType
+                        };
+                        sendOrderToKitchen(tempOrder);
+                        toast.success(tableNumber ? `Order sent to kitchen for Table ${tableNumber}` : 'Order sent to kitchen');
+                      } else {
+                        toast.success(tableNumber ? `Order saved to Table ${tableNumber}` : 'Order saved as pending');
+                      }
                       onClose();
                     }}
                     disabled={isProcessing}
                   >
-                    <Clock className="w-4 h-4" /> Pay Later
+                    <Clock className="w-4 h-4" /> {settings.enableKdsSystem ? 'Send to Kitchen' : 'Pay Later'}
                   </Button>
                 )}
 

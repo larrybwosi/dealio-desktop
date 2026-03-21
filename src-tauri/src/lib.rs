@@ -44,6 +44,9 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+mod kds_models;
+mod kds_hub_server;
+
 pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
     log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
     
@@ -432,6 +435,8 @@ pub fn run() {
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
+
+            kds_hub_server::start_kds_hub,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -167,6 +167,9 @@ export default function SettingsPage() {
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
 
+  // KDS Settings
+  const [enableKdsSystem, setEnableKdsSystem] = useState(settings?.enableKdsSystem ?? false);
+
   // Hold Sale Settings
   const [enableHoldSale, setEnableHoldSale] = useState(settings?.enableHoldSale ?? true);
   const [maxHeldOrders, setMaxHeldOrders] = useState((settings?.maxHeldOrders ?? 20).toString());
@@ -221,6 +224,7 @@ export default function SettingsPage() {
       cashDrawerPort,
       enableAutoStart,
       enableBarcodeScanner,
+      enableKdsSystem,
       enableHoldSale,
       maxHeldOrders: newMaxHeldOrders,
       heldOrderExpiryHours: newHeldOrderExpiryHours,
@@ -660,6 +664,19 @@ export default function SettingsPage() {
                     <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
                   </div>
                   <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex-1">
+                    <div className="font-medium">Enable Kitchen Display System</div>
+                    <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
+                  </div>
+                  <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
                 </div>
               </div>
             </Card>

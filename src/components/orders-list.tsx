@@ -25,6 +25,8 @@ export default function PendingOrdersList() {
     switch (status) {
       case 'waiting':
         return 'bg-status-waiting text-status-waiting border-transparent';
+      case 'cooking':
+        return 'bg-amber-100/50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800';
       case 'ready':
         return 'bg-status-ready text-status-ready border-transparent';
       case 'canceled':
