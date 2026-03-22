@@ -12,16 +12,21 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
-use thiserror::Error; // For custom error types
+use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 
 use crate::auth_store::AuthState;
 use crate::models::{QueuedSale, SaleResponse, SaleStatus};
 use crate::shift_store::ShiftState;
+use crate::kds_models::{KdsOrderPayload, OrderItem};
+use tauri_plugin_sql::{DbInstances, DbPool};
+use sqlx::Row;
 
 const SALES_FILENAME: &str = "secure_sales_queue.bin";
 static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
+// Name of the DB as registered/loaded by the sql plugin in your setup/frontend
+const KDS_DB_NAME: &str = "sqlite:kds_orders.db";
 
 fn get_legacy_secret() -> &'static str {
     LEGACY_SECRET.get_or_init(|| {
@@ -899,4 +904,132 @@ pub fn start_auto_sync_task(app: AppHandle) {
             }
         }
     });
+}
+
+// --- KDS (Kitchen Display System) SQLite Storage Logic ---
+
+/// Helper to get the SQLite pool managed by tauri-plugin-sql
+async fn get_db_pool(app: &AppHandle) -> Result<sqlx::SqlitePool, String> {
+    // Access the DbInstances state managed by tauri-plugin-sql
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+    
+    if let Some(DbPool::Sqlite(pool)) = guard.get(KDS_DB_NAME) {
+        Ok(pool.clone())
+    } else {
+        Err(format!("Database {} not found or is not SQLite. Ensure it is preloaded via tauri.conf.json or initialized.", KDS_DB_NAME))
+    }
+}
+
+/// Fetch active/preparing orders for the KDS
+pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[SalesStore] Failed to get DB pool: {}", e);
+            return Vec::new();
+        }
+    };
+
+    let query = "SELECT order_id, table_number, waiter_name, items, status, timestamp FROM kds_orders WHERE status != 'COMPLETED'";
+    
+    let rows = match sqlx::query(query).fetch_all(&pool).await {
+        Ok(r) => r,
+        Err(e) => {
+            error!("[SalesStore] Failed to query active KDS orders: {}", e);
+            return Vec::new();
+        }
+    };
+
+    let mut orders = Vec::new();
+    for row in rows {
+        // Deserialize the items JSON array back into Vec<OrderItem>
+        let items_json: String = row.get("items");
+        let items: Vec<OrderItem> = serde_json::from_str(&items_json).unwrap_or_default();
+
+        orders.push(KdsOrderPayload {
+            order_id: row.get("order_id"),
+            table_number: row.get("table_number"),
+            waiter_name: row.get("waiter_name"),
+            items,
+            status: row.get("status"),
+            timestamp: row.get("timestamp"),
+        });
+    }
+
+    orders
+}
+
+/// Save or update a new KDS order locally using the plugin's SQLite pool
+pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[SalesStore] Failed to get DB pool: {}", e);
+            return;
+        }
+    };
+
+    let items_json = match serde_json::to_string(&order.items) {
+        Ok(j) => j,
+        Err(e) => {
+            error!("[SalesStore] Failed to serialize order items: {}", e);
+            return;
+        }
+    };
+
+    // Upsert logic (SQLite ON CONFLICT)
+    let query = r#"
+        INSERT INTO kds_orders (order_id, table_number, waiter_name, items, status, timestamp)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        ON CONFLICT(order_id) DO UPDATE SET
+            table_number = excluded.table_number,
+            waiter_name = excluded.waiter_name,
+            items = excluded.items,
+            status = excluded.status,
+            timestamp = excluded.timestamp
+    "#;
+
+    match sqlx::query(query)
+        .bind(&order.order_id)
+        .bind(&order.table_number)
+        .bind(&order.waiter_name)
+        .bind(&items_json)
+        .bind(&order.status)
+        .bind(order.timestamp)
+        .execute(&pool)
+        .await
+    {
+        Ok(_) => info!("[SalesStore] KDS Order {} saved to SQLite.", order.order_id),
+        Err(e) => error!("[SalesStore] Failed to save KDS order to SQLite: {}", e),
+    }
+}
+
+/// Update the status of an existing KDS order (e.g., NEW -> PREPARING -> READY)
+pub async fn update_kds_order_status(app: &AppHandle, order_id: &str, new_status: &str) {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[SalesStore] Failed to get DB pool: {}", e);
+            return;
+        }
+    };
+
+    let query = "UPDATE kds_orders SET status = ?1 WHERE order_id = ?2";
+
+    match sqlx::query(query)
+        .bind(new_status)
+        .bind(order_id)
+        .execute(&pool)
+        .await
+    {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                info!("[SalesStore] KDS Order {} status updated to {}.", order_id, new_status);
+            } else {
+                warn!("[SalesStore] Attempted to update KDS order {}, but it was not found in SQLite.", order_id);
+            }
+        }
+        Err(e) => error!("[SalesStore] Failed to update KDS order status in SQLite: {}", e),
+    }
 }

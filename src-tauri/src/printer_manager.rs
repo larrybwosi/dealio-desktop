@@ -6,6 +6,7 @@ use tempfile::Builder;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use serde_json::Value; 
+use base64::{Engine as _, engine::general_purpose};
 
 use crate::escpos_builder::EscPosBuilder; 
 use crate::models::PrinterError;
@@ -418,70 +419,154 @@ pub async fn print_receipt_native(
 ) -> Result<String, String> {
     let mut esc = EscPosBuilder::new();
     
-    // Parse config
+    // 1. Setup layout constraints based on Paper Size
     let config = settings.get("receiptConfig").unwrap_or(&Value::Null);
     let paper_size = config.get("paperSize").and_then(|v| v.as_str()).unwrap_or("80mm");
     let is_58mm = paper_size == "58mm";
+    
     let width = if is_58mm { 32 } else { 48 };
-    let divider = format!("{}\n", "-".repeat(width));
+    let cols = if is_58mm { (14, 4, 6, 8) } else { (22, 6, 9, 11) };
 
     // --- LOGO ---
     if let Some(logo_path) = config.get("logoUrl").and_then(|v| v.as_str()) {
         let _ = esc.logo(logo_path, is_58mm);
     }
 
-    // --- HEADER ---
+    // --- HEADER (Center Aligned) ---
     esc.align(1);
     if let Some(biz_name) = settings.get("businessName").and_then(|v| v.as_str()) {
-        esc.size(2, 2); // Double height and width!
+        esc.size(2, 2); // Double height and width
         esc.bold(true);
-        esc.text(&format!("{}\n", biz_name));
+        esc.text_line(biz_name);
         
-        // Reset back to normal before moving on
-        esc.size(1, 1); 
+        esc.size(1, 1); // Reset
         esc.bold(false);
+    }
+    
+    if let Some(slogan) = settings.get("businessSlogan").and_then(|v| v.as_str()) {
+        if !slogan.is_empty() { esc.text_line(slogan); }
+    }
+    if let Some(branch) = branch_name {
+        if !branch.is_empty() { esc.text_line(&format!("Branch: {}", branch)); }
+    }
+    if let Some(address) = settings.get("address").and_then(|v| v.as_str()) {
+        if !address.is_empty() { esc.text_line(address); }
+    }
+    if let Some(phone) = settings.get("phone").and_then(|v| v.as_str()) {
+        if !phone.is_empty() { esc.text_line(&format!("Tel: {}", phone)); }
     }
     
     esc.feed(1);
 
-    // --- META DATA ---
+    // --- META DATA (Left Aligned) ---
     esc.align(0);
+    esc.divider(width);
     if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
-        esc.text(&format!("Receipt No: {}\n", order_num));
+        esc.text_line(&format!("Receipt No: {}", order_num));
     }
-    esc.text(&divider);
+    if let Some(date) = order.get("createdAt").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("Date: {}", date));
+    }
+    if let Some(cashier) = order.get("cashierName").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("Cashier: {}", cashier));
+    }
+    
+    // --- TABLE HEADER ---
+    esc.divider(width);
+    esc.bold(true);
+    esc.item_row("ITEM", "QTY", "PRICE", "AMT", cols);
+    esc.bold(false);
+    esc.divider(width);
 
     // --- ITEMS LOOP ---
     if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
         for item in items {
             let name = item.get("productName").and_then(|v| v.as_str()).unwrap_or("Item");
             let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let price = item.get("price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let total = item.get("total").and_then(|v| v.as_f64()).unwrap_or(qty * price);
             
-            let line = format!("{} x{} \n", name, qty); 
-            esc.text(&line);
+            // Format numbers nicely
+            let qty_str = if qty.fract() == 0.0 { format!("{}", qty) } else { format!("{:.2}", qty) };
+            let price_str = format!("{:.2}", price);
+            let total_str = format!("{:.2}", total);
+
+            esc.item_row(name, &qty_str, &price_str, &total_str, cols);
         }
     }
-    esc.text(&divider);
+    esc.divider(width);
 
-    // --- TOTALS ---
-    if let Some(total) = order.get("total").and_then(|v| v.as_f64()) {
-        esc.align(2); // Right align
-        
-        esc.size(1, 2); // Double height
-        esc.inverse(true); // White text on black background
-        
-        // Add some padding spaces so the black box looks nice
-        esc.text(&format!(" TOTAL: {:.2} \n", total));
-        
-        // Reset back to normal
-        esc.inverse(false);
-        esc.size(1, 1);
+    // --- TOTALS (Left/Right Aligned) ---
+    if let Some(subtotal) = order.get("subTotal").and_then(|v| v.as_f64()) {
+        esc.text_left_right("Subtotal:", &format!("{:.2}", subtotal), width);
+    }
+    if let Some(tax) = order.get("taxAmount").and_then(|v| v.as_f64()) {
+        if tax > 0.0 {
+            esc.text_left_right("Tax:", &format!("{:.2}", tax), width);
+        }
+    }
+    if let Some(discount) = order.get("discountAmount").and_then(|v| v.as_f64()) {
+        if discount > 0.0 {
+            esc.text_left_right("Discount:", &format!("-{:.2}", discount), width);
+        }
     }
 
-    // --- QR CODE ---
-    if let Some(true) = config.get("showSurveyQr").and_then(|v| v.as_bool()) {
+    // Big Total Row
+    if let Some(total) = order.get("total").and_then(|v| v.as_f64()) {
+        esc.feed(1);
+        esc.size(2, 2);
+        esc.bold(true);
+        // Because text is 2x wide, the character width for this line is halved
+        let double_width = width / 2;
+        esc.text_left_right("TOTAL:", &format!("{:.2}", total), double_width);
+        
+        // Reset styles
+        esc.size(1, 1);
+        esc.bold(false);
+        esc.feed(1);
+    }
+
+    // Payment Methods
+    if let Some(payments) = order.get("payments").and_then(|v| v.as_array()) {
+        for p in payments {
+            let method = p.get("method").and_then(|v| v.as_str()).unwrap_or("Payment");
+            let amt = p.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            esc.text_left_right(method, &format!("{:.2}", amt), width);
+        }
+    }
+
+    // --- FOOTER & BARCODES (Center Aligned) ---
+    esc.align(1);
+    esc.feed(1);
+    esc.divider(width);
+    
+    if let Some(msg) = config.get("customMessage").and_then(|v| v.as_str()) {
+        if !msg.is_empty() { esc.text_line(msg); }
+    } else {
+        esc.text_line("Thank you for your business!");
+    }
+    esc.feed(1);
+
+    // Render Survey QR if enabled
+    if config.get("showSurveyQr").and_then(|v| v.as_bool()).unwrap_or(false) {
         if let Some(url) = config.get("surveyUrl").and_then(|v| v.as_str()) {
+            esc.text_line("Scan to rate your experience:");
             esc.qr_code(url);
+        }
+    }
+
+    // Render 1D Barcode if enabled
+    if config.get("showBarcode").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+            esc.barcode_1d(order_num);
+        }
+    }
+
+    // Return policy / Disclaimer
+    if config.get("showReturnPolicy").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(policy) = config.get("returnPolicyText").and_then(|v| v.as_str()) {
+            esc.feed(1);
+            esc.text_line(policy);
         }
     }
 
@@ -538,13 +623,14 @@ pub async fn print_system_raw_bytes(
     printer_name: String,
     data: Vec<u8>,
 ) -> Result<String, PrinterError> {
-    use std::os::windows::ffi::OsStrExt;
-    use windows::core::PCWSTR;
-    use windows::Win32::Foundation::HANDLE;
-    use windows::Win32::System::Printing::{
+    // use std::os::windows::ffi::OsStrExt;
+    // use windows::core::PCWSTR;
+    // Remove `use windows::Win32::Foundation::HANDLE;`
+    use windows::Win32::Graphics::Printing::{
         ClosePrinter, EndDocPrinter, EndPagePrinter, OpenPrinterW, StartDocPrinterW,
-        StartPagePrinter, WritePrinter, DOC_INFO_1W,
+        StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_HANDLE, // <-- Added PRINTER_HANDLE here
     };
+    use windows::core::{PCWSTR, PWSTR};
 
     // Windows API requires UTF-16 wide strings with null terminators
     let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
@@ -552,55 +638,58 @@ pub async fn print_system_raw_bytes(
     let data_type_wide: Vec<u16> = "RAW\0".encode_utf16().collect();
 
     unsafe {
-        let mut h_printer = HANDLE::default();
-        
-        // 1. Open a handle to the printer
-        if OpenPrinterW(PCWSTR(printer_name_wide.as_ptr()), &mut h_printer, None).is_err() {
-            return Err(PrinterError::SystemError(format!("Failed to open Windows printer: '{}'. Check if the name is correct.", printer_name)));
-        }
+    // 1. Use PRINTER_HANDLE instead of HANDLE
+    let mut h_printer = PRINTER_HANDLE::default(); 
+    let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
 
-        // 2. Define the Document Info, explicitly setting the Datatype to "RAW"
-        let doc_info = DOC_INFO_1W {
-            pDocName: PCWSTR(doc_name_wide.as_ptr()),
-            pOutputFile: PCWSTR(std::ptr::null()),
-            pDatatype: PCWSTR(data_type_wide.as_ptr()),
-        };
+    if OpenPrinterW(PCWSTR(printer_name_wide.as_ptr()), &mut h_printer, None).is_err() {
+        return Err(PrinterError::SystemError("Failed to open printer".into()));
+    }
 
-        // 3. Start the Print Spooler Document
-        let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const _ as *const u8);
-        if job_id == 0 {
-            let _ = ClosePrinter(h_printer);
-            return Err(PrinterError::SystemError("Failed to start Windows print spooler document".into()));
-        }
+    // 2. Make string buffers mutable so we can pass PWSTR (mutable pointer)
+    let mut doc_name_wide: Vec<u16> = "Raw Print Job".encode_utf16().chain(std::iter::once(0)).collect();
+    let mut data_type_wide: Vec<u16> = "RAW".encode_utf16().chain(std::iter::once(0)).collect();
 
-        // 4. Start the Page
-        if StartPagePrinter(h_printer).is_err() {
-            let _ = EndDocPrinter(h_printer);
-            let _ = ClosePrinter(h_printer);
-            return Err(PrinterError::SystemError("Failed to start printer page".into()));
-        }
+    // 3. Use PWSTR(mut_ptr) instead of PCWSTR
+    let doc_info = DOC_INFO_1W {
+        pDocName: PWSTR(doc_name_wide.as_mut_ptr()),
+        pOutputFile: PWSTR(std::ptr::null_mut()),
+        pDatatype: PWSTR(data_type_wide.as_mut_ptr()),
+    };
 
-        // 5. Write the raw ESC/POS bytes directly to the spooler
-        let mut bytes_written = 0;
-        let write_ok = WritePrinter(
-            h_printer,
-            data.as_ptr() as *const std::ffi::c_void,
-            data.len() as u32,
-            &mut bytes_written,
-        );
+    // 4. Pass the pointer correctly without the extra `as *const u8`
+    let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const DOC_INFO_1W);
+    if job_id == 0 {
+        let _ = ClosePrinter(h_printer);
+        return Err(PrinterError::SystemError("Failed to start document".into()));
+    }
 
-        if write_ok.is_err() || bytes_written != data.len() as u32 {
-            let _ = EndPagePrinter(h_printer);
-            let _ = EndDocPrinter(h_printer);
-            let _ = ClosePrinter(h_printer);
-            return Err(PrinterError::SystemError("Failed to write raw bytes to spooler".into()));
-        }
+    // 5. Use .ok().is_err() because StartPagePrinter returns a BOOL, not a Result
+    if StartPagePrinter(h_printer).ok().is_err() {
+        let _ = ClosePrinter(h_printer);
+        return Err(PrinterError::SystemError("Failed to start page".into()));
+    }
 
-        // 6. Clean up and close handles
+    let mut bytes_written: u32 = 0;
+    let write_ok = WritePrinter(
+        h_printer,
+        data.as_ptr() as *const std::ffi::c_void,
+        data.len() as u32,
+        &mut bytes_written,
+    );
+
+    // 6. Same here, check .ok().is_err()
+    if write_ok.ok().is_err() || bytes_written != data.len() as u32 {
         let _ = EndPagePrinter(h_printer);
         let _ = EndDocPrinter(h_printer);
         let _ = ClosePrinter(h_printer);
+        return Err(PrinterError::SystemError("Failed to write to printer".into()));
     }
+
+    let _ = EndPagePrinter(h_printer);
+    let _ = EndDocPrinter(h_printer);
+    let _ = ClosePrinter(h_printer);
+}
 
     Ok("Sent raw bytes natively to Windows print spooler".into())
 }
@@ -648,4 +737,204 @@ pub async fn print_system_raw_bytes(
             String::from_utf8_lossy(&output.stderr)
         )))
     }
+}
+
+
+#[tauri::command]
+pub async fn print_kitchen_native(
+    _app: tauri::AppHandle,
+    order: Value,
+    settings: Value,
+    branch_name: Option<String>,
+) -> Result<String, String> {
+    let mut esc = EscPosBuilder::new();
+
+    // 1. Setup layout constraints based on Paper Size
+    let config = settings.get("kitchenTicketConfig").unwrap_or(&Value::Null);
+    let paper_size = config.get("paperSize").and_then(|v| v.as_str()).unwrap_or("80mm");
+    let is_58mm = paper_size == "58mm";
+    let width = if is_58mm { 32 } else { 48 };
+
+    // Kitchen Config Flags
+    let show_time = config.get("showTime").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_order_type = config.get("showOrderType").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_customer_name = config.get("showCustomerName").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_table = config.get("showTable").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_prices = config.get("showPrices").and_then(|v| v.as_bool()).unwrap_or(false);
+    let show_notes = config.get("showNotes").and_then(|v| v.as_bool()).unwrap_or(true);
+
+    // --- HEADER ---
+    esc.align(1); // Center
+
+    let shop_name = config.get("shopName").and_then(|v| v.as_str())
+        .or(branch_name.as_deref())
+        .unwrap_or("RESTAURANT NAME");
+    
+    esc.bold(true);
+    esc.size(2, 2);
+    esc.text_line(&shop_name.to_uppercase());
+    esc.size(1, 1);
+    esc.bold(false);
+
+    // Ticket Type
+    let ticket_type = config.get("ticketType").and_then(|v| v.as_str()).unwrap_or("KITCHEN");
+    esc.feed(1);
+    esc.text_line(&format!("- {} TICKET -", ticket_type.to_uppercase()));
+    esc.divider(width);
+
+    // --- ORDER NUMBER ---
+    if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+        esc.feed(1);
+        esc.text_line("ORDER #");
+        esc.bold(true);
+        esc.size(3, 3);
+        esc.text_line(order_num);
+        esc.size(1, 1);
+        esc.bold(false);
+        esc.feed(1);
+    }
+
+    esc.divider(width);
+
+    // --- META GRID ---
+    esc.align(0); // Left align
+    
+    if show_order_type {
+        if let Some(order_type) = order.get("orderType").and_then(|v| v.as_str()) {
+            esc.text_line(&format!("TYPE: {}", order_type.to_uppercase()));
+        }
+    }
+    if show_time {
+        let created_at = order.get("createdAt").and_then(|v| v.as_str()).unwrap_or("");
+        esc.text_line(&format!("TIME: {}", created_at));
+    }
+    if let Some(user_name) = order.get("userName").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("SERVER: {}", user_name.to_uppercase()));
+    }
+    if show_customer_name {
+        if let Some(customer) = order.get("customerName").and_then(|v| v.as_str()) {
+            esc.text_line(&format!("CUSTOMER: {}", customer.to_uppercase()));
+        }
+    }
+
+    // --- TABLE BOX ---
+    if show_table {
+        if let Some(table) = order.get("tableName").and_then(|v| v.as_str()) {
+            esc.feed(1);
+            esc.align(1);
+            esc.inverse(true); // Black background with white text for visibility
+            esc.size(2, 2);
+            esc.text_line(&format!(" TABLE {} ", table.to_uppercase()));
+            esc.inverse(false);
+            esc.size(1, 1);
+            esc.feed(1);
+        }
+    }
+
+    esc.align(0);
+    esc.divider(width);
+
+    // --- ITEMS LIST ---
+    // Column widths
+    let q_w = if is_58mm { 4 } else { 6 };
+    let p_w = if show_prices { if is_58mm { 8 } else { 10 } } else { 0 };
+    let i_w = width - q_w - p_w;
+
+    // Headers
+    esc.bold(true);
+    let mut header = format!("{:<i_w$}{:>q_w$}", "ITEM", "QTY", i_w = i_w, q_w = q_w);
+    if show_prices {
+        header.push_str(&format!("{:>p_w$}", "PRICE", p_w = p_w));
+    }
+    esc.text_line(&header);
+    esc.bold(false);
+    esc.divider(width);
+
+    let mut total_items = 0.0;
+
+    if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
+        for item in items {
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+            let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            total_items += qty;
+            
+            let qty_str = format!("{}", qty);
+            
+            // Truncate name safely to avoid line breaking on large names
+            let mut name_str = name.to_uppercase();
+            if name_str.chars().count() > i_w {
+                name_str = name_str.chars().take(i_w - 1).collect::<String>();
+            }
+
+            esc.bold(true);
+            esc.size(1, 2); // Taller text to make items pop (like in standard KDS)
+            
+            let mut line = format!("{:<i_w$}{:>q_w$}", name_str, qty_str, i_w = i_w, q_w = q_w);
+            if show_prices {
+                let price = item.get("price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                line.push_str(&format!("{:>p_w$.2}", price, p_w = p_w));
+            }
+            esc.text_line(&line);
+            esc.size(1, 1);
+            esc.bold(false);
+
+            // Variant / Modifiers block
+            let variant_name = item.get("variantName").and_then(|v| v.as_str()).unwrap_or("Default Variant");
+            let unit_name = item.get("selectedUnit").and_then(|v| v.get("unitName")).and_then(|v| v.as_str());
+
+            if variant_name != "Default Variant" || unit_name.is_some() {
+                let mut var_str = String::from("  • ");
+                if variant_name != "Default Variant" {
+                    var_str.push_str(variant_name);
+                    var_str.push_str(" ");
+                }
+                if let Some(un) = unit_name {
+                    var_str.push_str(&format!("({})", un));
+                }
+                esc.text_line(&var_str);
+            }
+            esc.feed(1); // Space between items
+        }
+    }
+
+    // --- SPECIAL INSTRUCTIONS ---
+    if show_notes {
+        if let Some(instructions) = order.get("instructions").and_then(|v| v.as_str()) {
+            if !instructions.trim().is_empty() {
+                esc.divider(width);
+                esc.align(1);
+                esc.bold(true);
+                esc.text_line("SPECIAL INSTRUCTIONS");
+                esc.bold(false);
+                
+                esc.inverse(true);
+                esc.text_line(&format!(" {} ", instructions.to_uppercase()));
+                esc.inverse(false);
+                esc.feed(1);
+            }
+        }
+    }
+
+    esc.align(0);
+    esc.divider(width);
+
+    // --- FOOTER SUMMARY ---
+    esc.align(1);
+    esc.text_line(&format!("Total Items: {}", total_items));
+    
+    // Add current print timestamp
+    let current_time = chrono::Local::now().format("%m/%d/%Y %H:%M:%S").to_string();
+    esc.text_line(&format!("Printed: {}", current_time));
+
+    esc.feed(1);
+    esc.bold(true);
+    esc.text_line("- END OF TICKET -");
+    esc.bold(false);
+
+    esc.feed(4); // Advance paper enough so the tear/cut clears the printhead
+    esc.cut();
+
+    // Encode standard output to be handled by printer methods or UI
+    let base64_str = general_purpose::STANDARD.encode(&esc.bytes);
+    Ok(base64_str)
 }

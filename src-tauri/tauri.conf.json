@@ -44,6 +44,9 @@
       "windows": {
         "installMode": "passive"
       }
+    },
+    "sql": {
+      "preload": ["sqlite:kds_orders.db"]
     }
   }
 }

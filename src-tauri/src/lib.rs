@@ -4,6 +4,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 use better_posthog::events::capture;
+pub mod escpos_builder;
 
 pub mod stores;
 
