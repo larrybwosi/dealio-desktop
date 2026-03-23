@@ -1,3 +1,10 @@
+# [3.3.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2026-03-22)
+
+
+### Features
+
+* **native printing:** kitchen tickets and correction of the errors ([dddd5f1](https://github.com/larrybwosi/dealio-desktop/commit/dddd5f127e948d01efb8c0e8bd6068771ad3e6ff))
+
 # [3.3.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-beta.1) (2026-03-21)
 
 
