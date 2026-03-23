@@ -1,3 +1,11 @@
+# [3.3.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2026-03-23)
+
+
+### Features
+
+* **sql storage:** we now store the sales and products in sql lite ([16aa4b4](https://github.com/larrybwosi/dealio-desktop/commit/16aa4b4ebf27be88675c5f204bfdea94b35df352))
+* **table management:** tables are now managed from the backend using sql to store them ([6512dd8](https://github.com/larrybwosi/dealio-desktop/commit/6512dd83a43dcf4bcdd08664d218d1e5c785c9f4))
+
 # [3.3.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2026-03-22)
 
 
