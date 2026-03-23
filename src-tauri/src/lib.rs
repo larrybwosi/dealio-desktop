@@ -108,7 +108,7 @@ pub fn run() {
 
     #[cfg(debug_assertions)]
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_sql::Builder::new().build()); // FIXED: Added SQL plugin for debug mode
+        .plugin(tauri_plugin_sql::Builder::new().build());
 
     builder
         .manage(ProductState::new())
@@ -123,9 +123,11 @@ pub fn run() {
         .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
             
-            // let _ = app.track_event("app_started", None);
             capture_event("app_started", None);
-            // --- 1. Load Data (Existing Code) ---
+            
+            // Initialize the Product SQLite DB and run migrations
+            tauri::async_runtime::block_on(product_store::init_state(app.handle()));
+
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
             let state = app.state::<ProductState>();
@@ -150,6 +152,7 @@ pub fn run() {
             }
 
             let cust_state = app.state::<CustomerState>();
+
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_store::load_customers_from_disk(app.handle(), &cust_state),
             ) {
@@ -183,9 +186,9 @@ pub fn run() {
                 error!("Failed to load customer screen state: {}", e);
             }
 
-            // Check for old pending sales and notify user
+           // Check for old pending sales and notify user
             let old_sales = tauri::async_runtime::block_on(
-                sales_store::check_old_pending_sales(&sales_state, 3)
+                sales_store::check_old_pending_sales(app.handle().clone(), &sales_state, 3)
             );
             
             if !old_sales.is_empty() {
@@ -207,7 +210,7 @@ pub fn run() {
 
             // Check for failed sales and notify
             let failed_sales = tauri::async_runtime::block_on(
-                sales_store::check_failed_sales(&sales_state, 5)
+                sales_store::check_failed_sales(app.handle().clone(), &sales_state, 5)
             );
             
             if !failed_sales.is_empty() {

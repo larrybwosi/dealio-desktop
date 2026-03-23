@@ -7,25 +7,27 @@ use log::{error, info, warn};
 use rand::RngCore;
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
+use sqlx::Row;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
+use tauri_plugin_sql::{DbInstances, DbPool};
 use thiserror::Error;
 use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 
 use crate::auth_store::AuthState;
+use crate::kds_models::{KdsOrderPayload, OrderItem};
 use crate::models::{QueuedSale, SaleResponse, SaleStatus};
 use crate::shift_store::ShiftState;
-use crate::kds_models::{KdsOrderPayload, OrderItem};
-use tauri_plugin_sql::{DbInstances, DbPool};
-use sqlx::Row;
 
-const SALES_FILENAME: &str = "secure_sales_queue.bin";
+const SALES_FILENAME: &str = "secure_sales_queue.bin"; // Kept only for migration
 static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
-// Name of the DB as registered/loaded by the sql plugin in your setup/frontend
+
+// Name of the DBs as registered/loaded by the sql plugin in your setup/frontend
+const MAIN_DB_NAME: &str = "sqlite:pos_main.db"; 
 const KDS_DB_NAME: &str = "sqlite:kds_orders.db";
 
 fn get_legacy_secret() -> &'static str {
@@ -36,7 +38,6 @@ fn get_legacy_secret() -> &'static str {
     })
 }
 
-// --- Enterprise Error Handling ---
 #[derive(Error, Debug)]
 pub enum SalesError {
     #[error("Network request failed: {0}")]
@@ -53,30 +54,43 @@ pub enum SalesError {
     Other(#[from] anyhow::Error),
 }
 
-// Refactored to Arc<Mutex> to allow sharing with background threads
-pub struct SalesState {
-    pub queue: Arc<Mutex<Vec<QueuedSale>>>,
-}
+// SalesState no longer needs to hold a giant Arc<Mutex<Vec>>. 
+// We keep it empty (or you can remove it entirely if you unregister it from Tauri) 
+// to maintain API compatibility without holding memory.
+pub struct SalesState;
 
 impl SalesState {
     pub fn new() -> Self {
-        Self {
-            queue: Arc::new(Mutex::new(Vec::new())),
-        }
+        Self
     }
 }
 
-// Legacy key derivation for backward compatibility
+// --- DB Helper ---
+async fn get_db_pool(app: &AppHandle, db_name: &str) -> Result<sqlx::SqlitePool, String> {
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
+        Ok(pool.clone())
+    } else {
+        Err(format!(
+            "Database {} not found. Ensure it is preloaded via tauri.conf.json.",
+            db_name
+        ))
+    }
+}
+
+// --- Row-Level Encryption Helpers ---
+
 fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(get_legacy_secret().as_bytes());
     hasher.finalize().into()
 }
 
-async fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Result<()> {
-    let json_data = serde_json::to_string(queue)?;
+async fn encrypt_payload(_app: &AppHandle, payload: &serde_json::Value) -> Result<Vec<u8>> {
+    let json_data = serde_json::to_string(payload)?;
 
-    // Use secure key from keyring
     let key = crate::security::get_or_create_key("sales_queue_key")
         .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
 
@@ -93,96 +107,150 @@ async fn save_queue_encrypted(app: &AppHandle, queue: &Vec<QueuedSale>) -> Resul
     let mut final_payload = nonce_bytes.to_vec();
     final_payload.extend_from_slice(&ciphertext);
 
-    let path = get_store_path(app)?;
-    tokio::fs::write(path, final_payload)
-        .await
-        .context("Failed to write sales queue")?;
-    Ok(())
+    Ok(final_payload)
 }
 
-async fn load_queue_encrypted(app: &AppHandle) -> Result<Vec<QueuedSale>> {
-    let path = get_store_path(app)?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let file_bytes = tokio::fs::read(&path).await?;
+async fn decrypt_payload(_app: &AppHandle, file_bytes: &[u8]) -> Result<serde_json::Value> {
     if file_bytes.len() < 12 {
-        return Ok(Vec::new());
+        return Err(anyhow::anyhow!("Payload too short"));
     }
 
     let (nonce_slice, ciphertext) = file_bytes.split_at(12);
-
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
-    // 1. Try with authorized key from Keyring
     let secure_key_res = crate::security::get_or_create_key("sales_queue_key");
 
     if let Ok(key) = secure_key_res {
         let cipher = Aes256Gcm::new(&key.into());
         if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
-            let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
-            return Ok(queue);
+            return Ok(serde_json::from_slice(&plaintext)?);
         }
     }
 
-    // 2. Migration: Try with Legacy Key
-    warn!(
-        "[SalesStore] Decryption with secure key failed. Attempting migration with legacy key..."
-    );
+    warn!("[SalesStore] Decryption with secure key failed. Attempting legacy key...");
     let legacy_key = get_legacy_key();
     let legacy_cipher = Aes256Gcm::new(&legacy_key.into());
 
     match legacy_cipher.decrypt(&nonce, ciphertext) {
-        Ok(plaintext) => {
-            let queue: Vec<QueuedSale> = serde_json::from_slice(&plaintext)?;
-            info!("[SalesStore] Legacy decryption successful. Migrating data to secure key...");
-
-            // Re-encrypt immediately with new safe key
-            if let Err(e) = save_queue_encrypted(app, &queue).await {
-                error!("[SalesStore] Failed to migrate updated data: {}", e);
-            } else {
-                info!("[SalesStore] Data successfully migrated to secure storage.");
-            }
-
-            Ok(queue)
-        }
+        Ok(plaintext) => Ok(serde_json::from_slice(&plaintext)?),
         Err(_) => Err(anyhow::anyhow!("Decryption failed with both keys")),
     }
 }
 
-fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
-    let app_dir = app.path().app_data_dir().context("No App Data Dir")?;
-    if !app_dir.exists() {
-        fs::create_dir_all(&app_dir)?;
+// --- Initialization & Migration ---
+
+pub async fn init_state(app: &AppHandle, _state: &SalesState) {
+    let pool = match get_db_pool(app, MAIN_DB_NAME).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[SalesStore] Failed to get main DB pool: {}", e);
+            return;
+        }
+    };
+
+    // 1. Initialize Table
+    let create_table_query = r#"
+        CREATE TABLE IF NOT EXISTS queued_sales (
+            id TEXT PRIMARY KEY,
+            timestamp INTEGER,
+            location_id TEXT,
+            sale_number TEXT,
+            transaction_data BLOB,
+            status TEXT,
+            retry_count INTEGER,
+            last_error TEXT
+        )
+    "#;
+
+    if let Err(e) = sqlx::query(create_table_query).execute(&pool).await {
+        error!("[SalesStore] Failed to create queued_sales table: {}", e);
+        return;
     }
-    Ok(app_dir.join(SALES_FILENAME))
+
+    // 2. One-Time Migration from old flat file to SQLite
+    let _ = migrate_legacy_file_to_db(app, &pool).await;
+}
+
+async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &sqlx::SqlitePool) -> Result<()> {
+    let app_dir = app.path().app_data_dir().context("No App Data Dir")?;
+    let path = app_dir.join(SALES_FILENAME);
+
+    if !path.exists() {
+        return Ok(()); // Nothing to migrate
+    }
+
+    info!("[SalesStore] Found legacy secure_sales_queue.bin. Starting migration to SQLite...");
+
+    let file_bytes = tokio::fs::read(&path).await?;
+    if file_bytes.len() < 12 {
+        let _ = tokio::fs::remove_file(&path).await;
+        return Ok(());
+    }
+
+    let (nonce_slice, ciphertext) = file_bytes.split_at(12);
+    let mut nonce_arr = [0u8; 12];
+    nonce_arr.copy_from_slice(nonce_slice);
+    let nonce = Nonce::from(nonce_arr);
+
+    let secure_key_res = crate::security::get_or_create_key("sales_queue_key");
+    let mut plaintext_opt = None;
+
+    if let Ok(key) = secure_key_res {
+        let cipher = Aes256Gcm::new(&key.into());
+        plaintext_opt = cipher.decrypt(&nonce, ciphertext).ok();
+    }
+
+    if plaintext_opt.is_none() {
+        let legacy_key = get_legacy_key();
+        let legacy_cipher = Aes256Gcm::new(&legacy_key.into());
+        plaintext_opt = legacy_cipher.decrypt(&nonce, ciphertext).ok();
+    }
+
+    if let Some(plaintext) = plaintext_opt {
+        if let Ok(queue) = serde_json::from_slice::<Vec<QueuedSale>>(&plaintext) {
+            for sale in queue {
+                let sale_number = sale.transaction_data.get("saleNumber").and_then(|v| v.as_str()).unwrap_or("UNKNOWN").to_string();
+                let encrypted_payload = encrypt_payload(app, &sale.transaction_data).await.unwrap_or_default();
+                
+                let status_str = format!("{:?}", sale.status);
+
+                let _ = sqlx::query(
+                    "INSERT OR IGNORE INTO queued_sales (id, timestamp, location_id, sale_number, transaction_data, status, retry_count, last_error) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"
+                )
+                .bind(&sale.id)
+                .bind(sale.timestamp as i64)
+                .bind(&sale.location_id)
+                .bind(sale_number)
+                .bind(encrypted_payload)
+                .bind(status_str)
+                .bind(sale.retry_count)
+                .bind(sale.last_error)
+                .execute(pool)
+                .await;
+            }
+            info!("[SalesStore] Migration complete. Deleting legacy file.");
+            let _ = tokio::fs::remove_file(&path).await;
+        }
+    } else {
+        error!("[SalesStore] Could not decrypt legacy file during migration.");
+    }
+
+    Ok(())
 }
 
 // --- Public Methods ---
 
-pub async fn init_state(app: &AppHandle, state: &SalesState) {
-    match load_queue_encrypted(app).await {
-        Ok(q) => {
-            *state.queue.lock().unwrap_or_else(|e| e.into_inner()) = q;
-        }
-        Err(e) => error!("[SalesStore] Failed to load queue: {}", e),
-    }
-}
-
-// 1. Process Sale (Smart Routing: Instant vs Background)
 pub async fn process_sale(
     app: AppHandle,
-    state: &SalesState,
+    _state: &SalesState,
     product_state: &crate::product_store::ProductState,
     shift_state: &ShiftState,
     sale_id: String,
     payload: serde_json::Value,
     auth_state: &AuthState,
 ) -> Result<SaleResponse> {
-    // 1. Get Config/Auth from State
     let (_base_url, location_id, _device_key, _allow_negative_stock) = {
         let config_guard = auth_state
             .device_config
@@ -199,34 +267,14 @@ pub async fn process_sale(
         )
     };
 
-    let (_member_token, _member_id) = {
-        let token_guard = auth_state
-            .member_token
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (
-            token_guard.clone(),
-            user_guard.as_ref().map(|u| u.id.clone()),
-        )
-    };
-
-    // 2. Identify Payment Method for Special Handling
     let payment_method = payload
         .get("paymentMethod")
         .and_then(|v| v.as_str())
         .unwrap_or("UNKNOWN")
         .to_uppercase();
 
-    // 3. Determine Handling Strategy
-    // Cash/Card = Can be Offline/Queued.
-    // Paybill/Till/Mpesa = Prefer Immediate Sync to show instructions/push prompt.
     let is_interactive_payment = ["MPESA", "PAYBILL", "TILL"].contains(&payment_method.as_str());
 
-    // 4. Handle Shift Recording (Local)
     if payment_method == "CASH" {
         if let Some(total) = payload.get("total").and_then(|v| v.as_f64()) {
             if let Err(e) = crate::shift_store::record_cash_sale(shift_state, total) {
@@ -237,7 +285,6 @@ pub async fn process_sale(
         }
     }
 
-    // 4b. Handle Backend Stock Deduction
     if let Some(cart_items) = payload.get("cartItems").and_then(|v| v.as_array()) {
         if let Err(e) = crate::product_store::deduct_stock(
             app.clone(),
@@ -250,24 +297,13 @@ pub async fn process_sale(
         {
             error!("[SalesStore] Stock validation failed: {}", e);
             return Err(SalesError::ValidationError(e.to_string()).into());
-        } else {
-            info!(
-                "[SalesStore] Successfully deducted backend stock for sale {}",
-                sale_id
-            );
         }
     }
 
-    // 5. Strategy A: Immediate Sync (For Interactive Payments)
     if is_interactive_payment {
-        info!(
-            "[SalesStore] Attempting immediate sync for interactive payment: {}",
-            payment_method
-        );
-
+        info!("[SalesStore] Attempting immediate sync for interactive payment: {}", payment_method);
         match push_single_sale(auth_state, &location_id, &payload).await {
             Ok(server_resp) => {
-                // Success! Return the server response so the UI can show Paybill/Till instructions
                 return Ok(SaleResponse {
                     success: true,
                     message: "Transaction initiated successfully.".into(),
@@ -275,13 +311,7 @@ pub async fn process_sale(
                 });
             }
             Err(e) => {
-                error!(
-                    "[SalesStore] Immediate sync failed for {}: {}",
-                    payment_method, e
-                );
-                // Decide: Do we queue or fail?
-                // For Paybill/Till, offline is useless as we need the server to verify.
-                // We return an error to the UI asking them to check internet or switch to Cash.
+                error!("[SalesStore] Immediate sync failed for {}: {}", payment_method, e);
                 return Err(SalesError::PaymentProcessingError(format!(
                     "{} requires an active internet connection. Please check your network or switch to Cash.", 
                     payment_method
@@ -290,72 +320,62 @@ pub async fn process_sale(
         }
     }
 
-    // 6. Strategy B: Queue First (For Cash/Standard Sales)
-    // Add to Local Queue (Encrypted)
-    let new_sale = QueuedSale {
-        id: sale_id.clone(),
-        timestamp: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_millis() as u64,
-        location_id: location_id.clone(),
-        transaction_data: payload.clone(),
-        status: SaleStatus::Pending,
-        retry_count: 0,
-        last_error: None,
-    };
+    // Strategy B: Row-Level Database Insertion
+    let pool = get_db_pool(&app, MAIN_DB_NAME)
+        .await
+        .map_err(|e| SalesError::StorageError(e))?;
 
-    {
-        let queue_copy = {
-            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-            q.push(new_sale.clone());
-            q.clone()
-        };
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)?
+        .as_millis() as i64;
 
-        if let Err(e) = save_queue_encrypted(&app, &queue_copy).await {
-            error!("CRITICAL: Failed to persist sales queue: {}", e);
-            return Err(SalesError::StorageError(e.to_string()).into());
-        }
-    }
+    let sale_number = payload.get("saleNumber").and_then(|v| v.as_str()).unwrap_or("UNKNOWN").to_string();
+    let encrypted_payload = encrypt_payload(&app, &payload).await?;
 
-    // Spawn Background Sync Task (Fire and Forget)
-    let queue_ref = state.queue.clone();
+    let insert_query = r#"
+        INSERT INTO queued_sales (id, timestamp, location_id, sale_number, transaction_data, status, retry_count, last_error)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+    "#;
+
+    sqlx::query(insert_query)
+        .bind(&sale_id)
+        .bind(timestamp)
+        .bind(&location_id)
+        .bind(&sale_number)
+        .bind(&encrypted_payload)
+        .bind(format!("{:?}", SaleStatus::Pending))
+        .bind(0)
+        .bind(None::<String>)
+        .execute(&pool)
+        .await
+        .map_err(|e| SalesError::StorageError(e.to_string()))?;
+
+    // Spawn Background Sync Task
     let app_handle = app.clone();
     let sale_id_clone = sale_id.clone();
     let payload_clone = payload.clone();
 
     tauri::async_runtime::spawn(async move {
         info!("[Background] Starting sync for sale: {}", sale_id_clone);
-
-        // Re-acquire auth_state from app handle
         let auth_state = app_handle.state::<AuthState>();
 
-        let sync_result = push_single_sale(&auth_state, &location_id, &payload_clone).await;
-
-        let queue_copy = {
-            let mut q = queue_ref.lock().unwrap_or_else(|e| e.into_inner());
-
-            match sync_result {
-                Ok(_) => {
-                    info!("[Background] Sale {} synced successfully.", sale_id_clone);
-                    if let Some(pos) = q.iter().position(|x| x.id == sale_id_clone) {
-                        q.remove(pos);
-                    }
-                }
-                Err(e) => {
-                    warn!(
-                        "[Background] Sync failed for {}: {}. Leaving in queue.",
-                        sale_id_clone, e
-                    );
-                    if let Some(item) = q.iter_mut().find(|x| x.id == sale_id_clone) {
-                        item.last_error = Some(e.to_string());
-                        item.retry_count += 1;
-                    }
-                }
+        match push_single_sale(&auth_state, &location_id, &payload_clone).await {
+            Ok(_) => {
+                info!("[Background] Sale {} synced successfully.", sale_id_clone);
+                let _ = sqlx::query("DELETE FROM queued_sales WHERE id = ?1")
+                    .bind(&sale_id_clone)
+                    .execute(&pool)
+                    .await;
             }
-            q.clone()
-        };
-
-        let _ = save_queue_encrypted(&app_handle, &queue_copy).await;
+            Err(e) => {
+                warn!("[Background] Sync failed for {}: {}. Leaving in DB.", sale_id_clone, e);
+                let _ = sqlx::query("UPDATE queued_sales SET retry_count = retry_count + 1, last_error = ?1 WHERE id = ?2")
+                    .bind(e.to_string())
+                    .bind(&sale_id_clone)
+                    .execute(&pool)
+                    .await;
+            }
+        }
     });
 
     Ok(SaleResponse {
@@ -365,89 +385,83 @@ pub async fn process_sale(
     })
 }
 
-// 2. Background Sync (Retry mechanism)
 pub async fn sync_pending_sales(
     app: AppHandle,
-    state: &SalesState,
+    _state: &SalesState,
     auth_state: &AuthState,
 ) -> Result<usize> {
-    let has_config = { auth_state.device_config.lock().is_ok_and(|c| c.is_some()) };
-
+    let has_config = auth_state.device_config.lock().is_ok_and(|c| c.is_some());
     if !has_config {
         return Ok(0);
     }
 
-    let pending_items: Vec<QueuedSale> = {
-        let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.iter()
-            .filter(|s| s.status != SaleStatus::Failed && s.retry_count < 20) // Enterprise: Max Retry Limit
-            .cloned()
-            .collect()
-    };
+    let pool = get_db_pool(&app, MAIN_DB_NAME).await.map_err(|e| anyhow::anyhow!(e))?;
 
-    if pending_items.is_empty() {
+    let rows = sqlx::query("SELECT id, location_id, transaction_data, retry_count FROM queued_sales WHERE status != 'Failed' AND retry_count < 20 LIMIT 50")
+        .fetch_all(&pool)
+        .await?;
+
+    if rows.is_empty() {
         return Ok(0);
     }
 
-    info!(
-        "[Sync] Found {} pending sales to sync...",
-        pending_items.len()
-    );
+    info!("[Sync] Found {} pending sales to sync...", rows.len());
     let mut success_count = 0;
-    let mut ids_to_remove = Vec::new();
 
-    for sale in pending_items {
-        // Enterprise: Exponential Backoff (Basic Implementation)
-        // If retry_count is high, delay briefly (in a real queue, this would be scheduled)
-        if sale.retry_count > 5 {
-            tokio::time::sleep(Duration::from_millis(100 * (sale.retry_count as u64))).await;
+    for row in rows {
+        let id: String = row.get("id");
+        let location_id: String = row.get("location_id");
+        let encrypted_data: Vec<u8> = row.get("transaction_data");
+        let retry_count: i32 = row.get("retry_count");
+
+        if retry_count > 5 {
+            tokio::time::sleep(Duration::from_millis(100 * (retry_count as u64))).await;
         }
 
-        match push_single_sale(auth_state, &sale.location_id, &sale.transaction_data).await {
+        let payload = match decrypt_payload(&app, &encrypted_data).await {
+            Ok(p) => p,
+            Err(e) => {
+                error!("[Sync] Failed to decrypt payload for {}: {}", id, e);
+                continue;
+            }
+        };
+
+        match push_single_sale(auth_state, &location_id, &payload).await {
             Ok(_) => {
-                ids_to_remove.push(sale.id);
+                let _ = sqlx::query("DELETE FROM queued_sales WHERE id = ?1")
+                    .bind(&id)
+                    .execute(&pool)
+                    .await;
                 success_count += 1;
             }
             Err(e) => {
-                // Enterprise: Analyze Error Type
-                match e.downcast_ref::<SalesError>() {
-                    Some(SalesError::ValidationError(_)) => {
-                        // Fatal error: Mark as failed so we stop retrying
-                        error!(
-                            "[Sync] Fatal validation error for {}: {}. Marking FAILED.",
-                            sale.id, e
-                        );
-                        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-                        if let Some(item) = q.iter_mut().find(|x| x.id == sale.id) {
-                            item.status = SaleStatus::Failed;
-                            item.last_error = Some(format!("Fatal: {}", e));
-                        }
-                    }
-                    _ => warn!("[Sync] Transient error for {}: {}", sale.id, e),
+                if let Some(SalesError::ValidationError(_)) = e.downcast_ref::<SalesError>() {
+                    error!("[Sync] Fatal validation error for {}. Marking FAILED.", id);
+                    let _ = sqlx::query("UPDATE queued_sales SET status = 'Failed', last_error = ?1 WHERE id = ?2")
+                        .bind(format!("Fatal: {}", e))
+                        .bind(&id)
+                        .execute(&pool)
+                        .await;
+                } else {
+                    warn!("[Sync] Transient error for {}: {}", id, e);
+                    let _ = sqlx::query("UPDATE queued_sales SET retry_count = retry_count + 1, last_error = ?1 WHERE id = ?2")
+                        .bind(e.to_string())
+                        .bind(&id)
+                        .execute(&pool)
+                        .await;
                 }
             }
         }
     }
 
-    if success_count > 0 || !ids_to_remove.is_empty() {
-        let queue_copy = {
-            let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-            q.retain(|s| !ids_to_remove.contains(&s.id));
-            q.clone()
-        };
-        let _ = save_queue_encrypted(&app, &queue_copy).await;
-    }
-
     Ok(success_count)
 }
 
-// --- Helper: Network Request ---
 async fn push_single_sale(
     auth_state: &AuthState,
     location_id: &str,
     payload: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    // Check if this is an M-Pesa sale to adjust timeout (handled by shared client timeout)
     let encoded_loc = urlencoding::encode(&location_id);
     let url_path = format!(
         "/{}?locationId={}&enableStockTracking=true",
@@ -455,16 +469,11 @@ async fn push_single_sale(
         encoded_loc
     );
 
-    // Build request using shared client
-    // Note: SalesError::AuthError mapping
     let req = auth_state
         .build_request(reqwest::Method::POST, &url_path)
         .map_err(SalesError::AuthError)?
         .json(payload);
 
-    // We specifically want a longer timeout for sales processing if needed,
-    // but the shared client has 30s. If we need 45s, we might need a per-request timeout override
-    // which reqwest supports on the RequestBuilder.
     let resp = req
         .timeout(Duration::from_secs(45))
         .send()
@@ -473,7 +482,6 @@ async fn push_single_sale(
 
     let status = resp.status();
 
-    // Enterprise: Detailed Status Handling
     if status.is_success() {
         let body: serde_json::Value = resp
             .json()
@@ -482,345 +490,176 @@ async fn push_single_sale(
         return Ok(body);
     }
 
-    // Error Handling
     let error_body = resp.text().await.unwrap_or_default();
 
     match status {
         StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
-            // 400/422: Data is wrong. Do not retry.
             Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into())
         }
         StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            // 401/403: Auth wrong. Retry might fix if token refreshes, but usually fatal for current session.
             Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
         }
-        _ => {
-            // 500 or others: Retry.
-            Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
-        }
+        _ => Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into()),
     }
 }
 
-// --- NEW COMMANDS FOR REFACTOR ---
+// --- Queue Management Commands ---
 
-#[tauri::command]
-pub async fn get_sales_history_command(
-    auth_state: State<'_, AuthState>,
-    location_id: Option<String>,
-) -> Result<Vec<serde_json::Value>, String> {
-    // Construct URL with optional locationId
-    let mut url_path = format!("/{}", crate::api_config::routes::SALE_BASE);
-    if let Some(loc_id) = location_id {
-        let encoded_loc = urlencoding::encode(&loc_id);
-        url_path = format!("{}?locationId={}", url_path, encoded_loc);
+pub async fn get_queue_status(app: AppHandle, _state: &SalesState) -> Vec<QueuedSale> {
+    let pool = match get_db_pool(&app, MAIN_DB_NAME).await {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+
+    let rows = sqlx::query("SELECT * FROM queued_sales").fetch_all(&pool).await.unwrap_or_default();
+    let mut queue = Vec::new();
+
+    for row in rows {
+        let encrypted_data: Vec<u8> = row.get("transaction_data");
+        let transaction_data = decrypt_payload(&app, &encrypted_data).await.unwrap_or_default();
+        
+        let status_str: String = row.get("status");
+        let status = match status_str.as_str() {
+            "Pending" => SaleStatus::Pending,
+            "Failed" => SaleStatus::Failed,
+            "Invalidated" => SaleStatus::Invalidated,
+            _ => SaleStatus::Synced,
+        };
+
+        queue.push(QueuedSale {
+            id: row.get("id"),
+            timestamp: row.get::<i64, _>("timestamp") as u64,
+            location_id: row.get("location_id"),
+            transaction_data,
+            status,
+            retry_count: row.get::<i32, _>("retry_count") as u32,
+            last_error: row.get("last_error"),
+        });
     }
 
-    let res = auth_state
-        .build_request(reqwest::Method::GET, &url_path)?
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    if !res.status().is_success() {
-        return Err(format!("Failed to fetch sales history: {}", res.status()));
-    }
-
-    let sales: Vec<serde_json::Value> = res.json().await.map_err(|e| e.to_string())?;
-    Ok(sales)
+    queue
 }
 
-#[tauri::command]
-pub async fn record_payment_command(
-    auth_state: State<'_, AuthState>,
-    payload: serde_json::Value,
-) -> Result<serde_json::Value, String> {
-    let url_path = format!("/{}", crate::api_config::routes::SALE_PAYMENTS);
-
-    let res = auth_state
-        .build_request(reqwest::Method::POST, &url_path)?
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let status = res.status();
-    if !status.is_success() {
-        let err_text = res.text().await.unwrap_or_default();
-        return Err(format!(
-            "Payment recording failed: {} - {}",
-            status, err_text
-        ));
-    }
-
-    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    Ok(data)
-}
-
-#[tauri::command]
-pub async fn initiate_mpesa_payment_command(
-    auth_state: State<'_, AuthState>,
-    phone_number: String,
-    amount: f64,
-    sale_number: String,
-) -> Result<serde_json::Value, String> {
-    let url_path = format!("/{}", crate::api_config::routes::MPESA_INITIATE);
-
-    let payload = serde_json::json!({
-        "phoneNumber": phone_number,
-        "amount": amount,
-        "saleNumber": sale_number
-    });
-
-    let res = auth_state
-        .build_request(reqwest::Method::POST, &url_path)?
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let status = res.status();
-    if !status.is_success() {
-        let err_text = res.text().await.unwrap_or_default();
-        return Err(format!(
-            "M-Pesa initiation failed: {} - {}",
-            status, err_text
-        ));
-    }
-
-    let data: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
-    Ok(data)
-}
-
-pub async fn get_queue_status(state: &SalesState) -> Vec<QueuedSale> {
-    state
-        .queue
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone()
-}
-
-/// Retry a single sale by ID
 pub async fn retry_single_sale(
     app: AppHandle,
-    state: &SalesState,
+    _state: &SalesState,
     auth_state: &AuthState,
     sale_id: String,
 ) -> Result<bool> {
-    // Find the sale in the queue
-    let sale_data = {
-        let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        q.iter().find(|s| s.id == sale_id).cloned()
-    };
+    let pool = get_db_pool(&app, MAIN_DB_NAME).await.map_err(|e| anyhow::anyhow!(e))?;
 
-    let sale = sale_data.ok_or_else(|| anyhow::anyhow!("Sale not found"))?;
+    let row = sqlx::query("SELECT location_id, transaction_data FROM queued_sales WHERE id = ?1")
+        .bind(&sale_id)
+        .fetch_optional(&pool)
+        .await?;
 
-    // Attempt to sync
-    match push_single_sale(auth_state, &sale.location_id, &sale.transaction_data).await {
-        Ok(_) => {
-            info!("[SalesStore] Sale {} retried successfully.", sale_id);
-            // Remove from queue
-            let queue_copy = {
-                let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-                q.retain(|s| s.id != sale_id);
-                q.clone()
-            };
-            let _ = save_queue_encrypted(&app, &queue_copy).await;
-            Ok(true)
+    if let Some(row) = row {
+        let location_id: String = row.get("location_id");
+        let encrypted_data: Vec<u8> = row.get("transaction_data");
+        let payload = decrypt_payload(&app, &encrypted_data).await?;
+
+        match push_single_sale(auth_state, &location_id, &payload).await {
+            Ok(_) => {
+                info!("[SalesStore] Sale {} retried successfully.", sale_id);
+                let _ = sqlx::query("DELETE FROM queued_sales WHERE id = ?1").bind(&sale_id).execute(&pool).await;
+                Ok(true)
+            }
+            Err(e) => {
+                warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
+                let _ = sqlx::query(
+                    "UPDATE queued_sales SET retry_count = retry_count + 1, last_error = ?1, status = CASE WHEN retry_count >= 10 THEN 'Failed' ELSE status END WHERE id = ?2"
+                )
+                .bind(e.to_string())
+                .bind(&sale_id)
+                .execute(&pool)
+                .await;
+                Err(e)
+            }
         }
-        Err(e) => {
-            warn!("[SalesStore] Retry failed for {}: {}", sale_id, e);
-            // Update retry count
-            let queue_copy = {
-                let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-                if let Some(item) = q.iter_mut().find(|x| x.id == sale_id) {
-                    item.retry_count += 1;
-                    item.last_error = Some(e.to_string());
-                    if item.retry_count > 10 {
-                        item.status = SaleStatus::Failed;
-                    }
-                }
-                q.clone()
-            };
-            let _ = save_queue_encrypted(&app, &queue_copy).await;
-            Err(e)
-        }
+    } else {
+        Err(anyhow::anyhow!("Sale not found"))
     }
 }
 
-/// Check for sales older than specified days
-pub async fn check_old_pending_sales(state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-
-    let threshold_ms = days_threshold * 24 * 60 * 60 * 1000;
-
-    q.iter()
-        .filter(|s| s.status != SaleStatus::Synced && (now - s.timestamp) > threshold_ms)
-        .cloned()
-        .collect()
-}
-
-/// Check for repeatedly failed sales
-pub async fn check_failed_sales(state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-    q.iter()
-        .filter(|s| s.retry_count >= retry_threshold)
-        .cloned()
-        .collect()
-}
-
-pub async fn delete_sale(app: &AppHandle, state: &SalesState, sale_id: String) -> Result<bool> {
-    let (should_save, queue_copy) = {
-        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        let initial_len = q.len();
-        q.retain(|s| s.id != sale_id);
-
-        if q.len() < initial_len {
-            (true, q.clone())
-        } else {
-            (false, Vec::new())
-        }
+pub async fn check_old_pending_sales(app: AppHandle, _state: &SalesState, days_threshold: u64) -> Vec<QueuedSale> {
+    let pool = match get_db_pool(&app, MAIN_DB_NAME).await {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
     };
 
-    if should_save {
-        save_queue_encrypted(app, &queue_copy).await?;
-        info!("[SalesStore] Sale {} deleted from queue.", sale_id);
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+    let threshold_ms = (days_threshold * 24 * 60 * 60 * 1000) as i64;
+    let cutoff = now - threshold_ms;
+
+    let rows = sqlx::query("SELECT id FROM queued_sales WHERE status != 'Synced' AND timestamp < ?1")
+        .bind(cutoff)
+        .fetch_all(&pool)
+        .await
+        .unwrap_or_default();
+
+    // Reusing get_queue_status isn't fully optimal, but suffices for occasional checks
+    // You could map `rows` fully here if desired.
+    get_queue_status(app, _state).await.into_iter().filter(|s| rows.iter().any(|r| r.get::<String, _>("id") == s.id)).collect()
+}
+
+pub async fn check_failed_sales(app: AppHandle, _state: &SalesState, retry_threshold: u32) -> Vec<QueuedSale> {
+    get_queue_status(app, _state).await.into_iter().filter(|s| s.retry_count >= retry_threshold).collect()
+}
+
+pub async fn delete_sale(app: &AppHandle, _state: &SalesState, sale_id: String) -> Result<bool> {
+    let pool = get_db_pool(app, MAIN_DB_NAME).await.map_err(|e| anyhow::anyhow!(e))?;
+    let result = sqlx::query("DELETE FROM queued_sales WHERE id = ?1")
+        .bind(&sale_id)
+        .execute(&pool)
+        .await?;
+
+    if result.rows_affected() > 0 {
+        info!("[SalesStore] Sale {} deleted from DB.", sale_id);
         Ok(true)
     } else {
         Ok(false)
     }
 }
 
-pub async fn scan_transaction_qr(
-    auth_state: &AuthState,
-    qr_code: String,
-) -> Result<serde_json::Value> {
-    // Url match: /api/v1/pos/transaction/scan
-    let url_path = format!("/{}", crate::api_config::routes::TRANSACTION_SCAN);
+pub async fn search_local(app: AppHandle, _state: &SalesState, query: String) -> Vec<QueuedSale> {
+    let pool = match get_db_pool(&app, MAIN_DB_NAME).await {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
 
-    let req = auth_state
-        .build_request(reqwest::Method::POST, &url_path)
-        .map_err(SalesError::AuthError)?;
-
-    let payload = serde_json::json!({ "code": qr_code });
-
-    let resp = req
-        .json(&payload)
-        .timeout(Duration::from_secs(30))
-        .send()
+    let lower_query = format!("%{}%", query.to_lowercase());
+    
+    // This is where extracting sale_number pays off—we don't need to decrypt the DB to search!
+    let rows = sqlx::query("SELECT id FROM queued_sales WHERE LOWER(id) LIKE ?1 OR LOWER(sale_number) LIKE ?1")
+        .bind(&lower_query)
+        .fetch_all(&pool)
         .await
-        .map_err(|e| SalesError::NetworkError(e.to_string()))?;
+        .unwrap_or_default();
 
-    let status = resp.status();
+    let matched_ids: Vec<String> = rows.into_iter().map(|r| r.get("id")).collect();
 
-    if status.is_success() {
-        let body: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
-        return Ok(body);
-    }
-
-    let error_body = resp.text().await.unwrap_or_default();
-    Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
-}
-
-pub fn search_local(state: &SalesState, query: String) -> Vec<QueuedSale> {
-    let q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-    let lower_query = query.to_lowercase();
-
-    q.iter()
-        .filter(|s| {
-            s.id.to_lowercase().contains(&lower_query)
-                || s.transaction_data
-                    .get("saleNumber")
-                    .and_then(|v| v.as_str())
-                    .map(|v| v.to_lowercase().contains(&lower_query))
-                    .unwrap_or(false)
-        })
-        .cloned()
-        .collect()
-}
-
-// --- CREATE ORDER (Online Orders / Special Orders) ---
-pub async fn create_order(
-    auth_state: &AuthState,
-    location_id: String,
-    order_payload: serde_json::Value,
-) -> Result<serde_json::Value> {
-    let encoded_loc = urlencoding::encode(&location_id);
-    let url_path = format!(
-        "/{}?locationId={}",
-        crate::api_config::routes::ORDERS,
-        encoded_loc
-    );
-
-    let req = auth_state
-        .build_request(reqwest::Method::POST, &url_path)
-        .map_err(SalesError::AuthError)?;
-
-    let resp = req
-        .json(&order_payload)
-        .timeout(Duration::from_secs(30))
-        .send()
-        .await
-        .map_err(|e| SalesError::NetworkError(e.to_string()))?;
-
-    let status = resp.status();
-
-    if status.is_success() {
-        let body: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)))?;
-        return Ok(body);
-    }
-
-    // Error Handling
-    let error_body = resp.text().await.unwrap_or_default();
-
-    match status {
-        StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => {
-            Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into())
-        }
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into())
-        }
-        _ => {
-            Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into())
-        }
-    }
+    get_queue_status(app, _state).await.into_iter().filter(|s| matched_ids.contains(&s.id)).collect()
 }
 
 pub async fn invalidate_sale(
     app: &AppHandle,
-    state: &SalesState,
+    _state: &SalesState,
     sale_id: String,
     reason: String,
 ) -> Result<bool> {
-    let (should_save, queue_copy) = {
-        let mut q = state.queue.lock().unwrap_or_else(|e| e.into_inner());
-        let mut found = false;
+    let pool = get_db_pool(app, MAIN_DB_NAME).await.map_err(|e| anyhow::anyhow!(e))?;
+    
+    let result = sqlx::query("UPDATE queued_sales SET status = 'Invalidated', last_error = ?1 WHERE id = ?2")
+        .bind(format!("Voided locally: {}", reason))
+        .bind(&sale_id)
+        .execute(&pool)
+        .await?;
 
-        if let Some(item) = q.iter_mut().find(|s| s.id == sale_id) {
-            item.status = SaleStatus::Invalidated;
-            // Append the reason so the manager knows why it was voided
-            item.last_error = Some(format!("Voided locally: {}", reason));
-            found = true;
-        }
-
-        (found, q.clone())
-    };
-
-    if should_save {
-        save_queue_encrypted(app, &queue_copy).await?;
+    if result.rows_affected() > 0 {
         info!("[SalesStore] Sale {} invalidated.", sale_id);
         Ok(true)
     } else {
-        Err(anyhow::anyhow!("Sale not found in local queue").into())
+        Err(anyhow::anyhow!("Sale not found in local DB").into())
     }
 }
 
@@ -831,66 +670,138 @@ pub async fn invalidate_sale_command(
     sale_id: String,
     reason: String,
 ) -> Result<bool, String> {
-    invalidate_sale(&app, &state, sale_id, reason)
-        .await
-        .map_err(|e| e.to_string())
+    invalidate_sale(&app, &state, sale_id, reason).await.map_err(|e| e.to_string())
 }
 
-// 1. State to hold our configurable sync interval
+// --- Network / API Commands ---
+
+#[tauri::command]
+pub async fn get_sales_history_command(
+    auth_state: State<'_, AuthState>,
+    location_id: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let mut url_path = format!("/{}", crate::api_config::routes::SALE_BASE);
+    if let Some(loc_id) = location_id {
+        let encoded_loc = urlencoding::encode(&loc_id);
+        url_path = format!("{}?locationId={}", url_path, encoded_loc);
+    }
+
+    let res = auth_state.build_request(reqwest::Method::GET, &url_path)?.send().await.map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        return Err(format!("Failed to fetch sales history: {}", res.status()));
+    }
+
+    res.json().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn record_payment_command(
+    auth_state: State<'_, AuthState>,
+    payload: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let url_path = format!("/{}", crate::api_config::routes::SALE_PAYMENTS);
+    let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        return Err(format!("Payment recording failed: {} - {}", res.status(), res.text().await.unwrap_or_default()));
+    }
+
+    res.json().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn initiate_mpesa_payment_command(
+    auth_state: State<'_, AuthState>,
+    phone_number: String,
+    amount: f64,
+    sale_number: String,
+) -> Result<serde_json::Value, String> {
+    let url_path = format!("/{}", crate::api_config::routes::MPESA_INITIATE);
+    let payload = serde_json::json!({ "phoneNumber": phone_number, "amount": amount, "saleNumber": sale_number });
+
+    let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        return Err(format!("M-Pesa initiation failed: {} - {}", res.status(), res.text().await.unwrap_or_default()));
+    }
+
+    res.json().await.map_err(|e| e.to_string())
+}
+
+pub async fn scan_transaction_qr(auth_state: &AuthState, qr_code: String) -> Result<serde_json::Value> {
+    let url_path = format!("/{}", crate::api_config::routes::TRANSACTION_SCAN);
+    let req = auth_state.build_request(reqwest::Method::POST, &url_path).map_err(SalesError::AuthError)?;
+    let payload = serde_json::json!({ "code": qr_code });
+
+    let resp = req.json(&payload).timeout(Duration::from_secs(30)).send().await.map_err(|e| SalesError::NetworkError(e.to_string()))?;
+
+    if resp.status().is_success() {
+        return resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)).into());
+    }
+
+    Err(SalesError::NetworkError(format!("Server Error {}: {}", resp.status(), resp.text().await.unwrap_or_default())).into())
+}
+
+pub async fn create_order(
+    auth_state: &AuthState,
+    location_id: String,
+    order_payload: serde_json::Value,
+) -> Result<serde_json::Value> {
+    let encoded_loc = urlencoding::encode(&location_id);
+    let url_path = format!("/{}?locationId={}", crate::api_config::routes::ORDERS, encoded_loc);
+
+    let req = auth_state.build_request(reqwest::Method::POST, &url_path).map_err(SalesError::AuthError)?;
+    let resp = req.json(&order_payload).timeout(Duration::from_secs(30)).send().await.map_err(|e| SalesError::NetworkError(e.to_string()))?;
+
+    let status = resp.status();
+    if status.is_success() {
+        return resp.json().await.map_err(|e| SalesError::NetworkError(format!("Invalid JSON: {}", e)).into());
+    }
+
+    let error_body = resp.text().await.unwrap_or_default();
+    match status {
+        StatusCode::BAD_REQUEST | StatusCode::UNPROCESSABLE_ENTITY => Err(SalesError::ValidationError(format!("{} - {}", status, error_body)).into()),
+        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(SalesError::AuthError(format!("{} - {}", status, error_body)).into()),
+        _ => Err(SalesError::NetworkError(format!("Server Error {}: {}", status, error_body)).into()),
+    }
+}
+
+// --- Sync Config ---
+
 pub struct SyncConfigState {
     pub interval: Arc<RwLock<Duration>>,
 }
 
 impl SyncConfigState {
     pub fn new() -> Self {
-        Self {
-            // Default to 5 minutes (5 * 60 seconds)
-            interval: Arc::new(RwLock::new(Duration::from_secs(5 * 60))),
-        }
+        Self { interval: Arc::new(RwLock::new(Duration::from_secs(5 * 60))) }
     }
 }
 
-// 2. Command to change the sync interval dynamically from the frontend
 #[tauri::command]
-pub async fn set_sync_interval_command(
-    state: State<'_, SyncConfigState>,
-    minutes: u64,
-) -> Result<String, String> {
+pub async fn set_sync_interval_command(state: State<'_, SyncConfigState>, minutes: u64) -> Result<String, String> {
     if minutes < 1 {
         return Err("Interval must be at least 1 minute".into());
     }
-
     let mut interval = state.interval.write().await;
     *interval = Duration::from_secs(minutes * 60);
-
-    info!(
-        "Background sales sync interval updated to {} minutes",
-        minutes
-    );
+    info!("Background sales sync interval updated to {} minutes", minutes);
     Ok(format!("Sync interval updated to {} minutes", minutes))
 }
 
-// 3. The background cron job logic
 pub fn start_auto_sync_task(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let mut last_sync = Instant::now();
-
         loop {
-            // Sleep for a short 10-second tick.
-            // This prevents blocking dynamic updates to the interval and uses 0% CPU.
             sleep(Duration::from_secs(10)).await;
-
-            // Read the current interval configuration
             let interval = {
                 let state = app.state::<SyncConfigState>();
-                // Force the RwLockReadGuard to drop before `state` drops by saving it to a local variable
-                let val = *state.interval.read().await;
-                val
+                let val = *state.interval.read().await; 
+                val // Return the copied value so the borrow drops
             };
 
-            // Check if the required time has elapsed since the last sync
             if last_sync.elapsed() >= interval {
-
                 let sales_state = app.state::<SalesState>();
                 let auth_state = app.state::<AuthState>();
 
@@ -898,41 +809,24 @@ pub fn start_auto_sync_task(app: AppHandle) {
                     Ok(_) => info!("[AutoSync] Sync successful."),
                     Err(e) => error!("[AutoSync] Failed to sync sales: {}", e),
                 }
-
-                // Reset the timer after execution
                 last_sync = Instant::now();
             }
         }
     });
 }
 
-// --- KDS (Kitchen Display System) SQLite Storage Logic ---
+// --- KDS SQLite Storage Logic ---
 
-/// Helper to get the SQLite pool managed by tauri-plugin-sql
-async fn get_db_pool(app: &AppHandle) -> Result<sqlx::SqlitePool, String> {
-    // Access the DbInstances state managed by tauri-plugin-sql
-    let instances = app.state::<DbInstances>();
-    let guard = instances.0.read().await;
-    
-    if let Some(DbPool::Sqlite(pool)) = guard.get(KDS_DB_NAME) {
-        Ok(pool.clone())
-    } else {
-        Err(format!("Database {} not found or is not SQLite. Ensure it is preloaded via tauri.conf.json or initialized.", KDS_DB_NAME))
-    }
-}
-
-/// Fetch active/preparing orders for the KDS
 pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
-    let pool = match get_db_pool(app).await {
+    let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,
         Err(e) => {
-            error!("[SalesStore] Failed to get DB pool: {}", e);
+            error!("[SalesStore] Failed to get KDS DB pool: {}", e);
             return Vec::new();
         }
     };
 
     let query = "SELECT order_id, table_number, waiter_name, items, status, timestamp FROM kds_orders WHERE status != 'COMPLETED'";
-    
     let rows = match sqlx::query(query).fetch_all(&pool).await {
         Ok(r) => r,
         Err(e) => {
@@ -943,7 +837,6 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
 
     let mut orders = Vec::new();
     for row in rows {
-        // Deserialize the items JSON array back into Vec<OrderItem>
         let items_json: String = row.get("items");
         let items: Vec<OrderItem> = serde_json::from_str(&items_json).unwrap_or_default();
 
@@ -960,12 +853,11 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
     orders
 }
 
-/// Save or update a new KDS order locally using the plugin's SQLite pool
 pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
-    let pool = match get_db_pool(app).await {
+    let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,
         Err(e) => {
-            error!("[SalesStore] Failed to get DB pool: {}", e);
+            error!("[SalesStore] Failed to get KDS DB pool: {}", e);
             return;
         }
     };
@@ -973,12 +865,11 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     let items_json = match serde_json::to_string(&order.items) {
         Ok(j) => j,
         Err(e) => {
-            error!("[SalesStore] Failed to serialize order items: {}", e);
+            error!("[SalesStore] Failed to serialize KDS order items: {}", e);
             return;
         }
     };
 
-    // Upsert logic (SQLite ON CONFLICT)
     let query = r#"
         INSERT INTO kds_orders (order_id, table_number, waiter_name, items, status, timestamp)
         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
@@ -990,7 +881,7 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
             timestamp = excluded.timestamp
     "#;
 
-    match sqlx::query(query)
+    if let Err(e) = sqlx::query(query)
         .bind(&order.order_id)
         .bind(&order.table_number)
         .bind(&order.waiter_name)
@@ -1000,36 +891,31 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
         .execute(&pool)
         .await
     {
-        Ok(_) => info!("[SalesStore] KDS Order {} saved to SQLite.", order.order_id),
-        Err(e) => error!("[SalesStore] Failed to save KDS order to SQLite: {}", e),
+        error!("[SalesStore] Failed to save KDS order to SQLite: {}", e);
+    } else {
+        info!("[SalesStore] KDS Order {} saved to SQLite.", order.order_id);
     }
 }
 
-/// Update the status of an existing KDS order (e.g., NEW -> PREPARING -> READY)
 pub async fn update_kds_order_status(app: &AppHandle, order_id: &str, new_status: &str) {
-    let pool = match get_db_pool(app).await {
+    let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,
         Err(e) => {
-            error!("[SalesStore] Failed to get DB pool: {}", e);
+            error!("[SalesStore] Failed to get KDS DB pool: {}", e);
             return;
         }
     };
 
     let query = "UPDATE kds_orders SET status = ?1 WHERE order_id = ?2";
 
-    match sqlx::query(query)
-        .bind(new_status)
-        .bind(order_id)
-        .execute(&pool)
-        .await
-    {
+    match sqlx::query(query).bind(new_status).bind(order_id).execute(&pool).await {
         Ok(result) => {
             if result.rows_affected() > 0 {
                 info!("[SalesStore] KDS Order {} status updated to {}.", order_id, new_status);
             } else {
-                warn!("[SalesStore] Attempted to update KDS order {}, but it was not found in SQLite.", order_id);
+                warn!("[SalesStore] Attempted to update KDS order {}, but it was not found.", order_id);
             }
         }
-        Err(e) => error!("[SalesStore] Failed to update KDS order status in SQLite: {}", e),
+        Err(e) => error!("[SalesStore] Failed to update KDS order status: {}", e),
     }
 }

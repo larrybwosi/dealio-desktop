@@ -22,15 +22,15 @@ pub async fn sync_products_command(
 }
 
 #[tauri::command]
-pub fn search_products_command(
-    state: State<'_, ProductState>,
-    auth_state: State<'_, AuthState>,
+pub async fn search_products_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
     query: String,
     category: String,
     page: Option<usize>,
     page_size: Option<usize>,
-) -> models::ProductSearchResponse {
-    // Get current location from auth state
+) -> Result<crate::models::ProductSearchResponse, String> {
     let location_id = {
         let config_guard = auth_state
             .device_config
@@ -41,18 +41,20 @@ pub fn search_products_command(
             .map(|c| c.location_id.clone())
             .unwrap_or_default()
     };
-    product_store::search_local(&state, &location_id, query, category, page, page_size)
+    
+    let result = product_store::search_local(&app, &state, &location_id, query, category, page, page_size).await;
+    Ok(result)
 }
 
 #[tauri::command]
-pub fn search_global_command(
-    product_state: State<'_, ProductState>,
-    customer_state: State<'_, CustomerState>,
-    sales_state: State<'_, SalesState>,
-    auth_state: State<'_, AuthState>,
+pub async fn search_global_command(
+    app: tauri::AppHandle,
+    product_state: tauri::State<'_, ProductState>,
+    customer_state: tauri::State<'_, CustomerState>,
+    sales_state: tauri::State<'_, SalesState>,
+    auth_state: tauri::State<'_, AuthState>,
     query: String,
-) -> models::GlobalSearchResult {
-    // 1. Search Products
+) -> Result<crate::models::GlobalSearchResult, String> {
     let location_id = {
         let config_guard = auth_state
             .device_config
@@ -65,6 +67,7 @@ pub fn search_global_command(
     };
 
     let products = product_store::search_local(
+        &app,
         &product_state,
         &location_id,
         query.clone(),
@@ -72,34 +75,34 @@ pub fn search_global_command(
         Some(1),
         Some(5),
     )
+    .await
     .products;
 
-    // 2. Search Customers
-    let customers = customer_store::search_local(&customer_state, query.clone())
+    let customers = crate::stores::customer_store::search_local(&customer_state, query.clone())
         .into_iter()
         .take(5)
         .collect();
 
-    // 3. Search Sales (Pending/Failed/Queue)
-    let sales = sales_store::search_local(&sales_state, query)
+    let sales = crate::stores::sales_store::search_local(app.clone(), &sales_state, query)
+        .await
         .into_iter()
         .take(5)
         .collect();
 
-    models::GlobalSearchResult {
+    Ok(crate::models::GlobalSearchResult {
         products,
         customers,
         sales,
-    }
+    })
 }
 
 #[tauri::command]
-pub fn get_products_by_ids_command(
-    state: State<'_, ProductState>,
-    auth_state: State<'_, AuthState>,
+pub async fn get_products_by_ids_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
     ids: Vec<String>,
-) -> Vec<models::PosProduct> {
-    // Get current location from auth state
+) -> Result<Vec<crate::models::PosProduct>, String> {
     let location_id = {
         let config_guard = auth_state
             .device_config
@@ -110,5 +113,7 @@ pub fn get_products_by_ids_command(
             .map(|c| c.location_id.clone())
             .unwrap_or_default()
     };
-    product_store::get_products_by_ids(&state, &location_id, ids)
+    
+    let products = product_store::get_products_by_ids(&app, &state, &location_id, ids).await;
+    Ok(products)
 }

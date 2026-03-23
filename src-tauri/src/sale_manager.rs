@@ -95,9 +95,10 @@ pub async fn sync_sales_command(
 
 #[tauri::command]
 pub async fn get_pending_sales_command(
+    app: AppHandle,
     state: State<'_, SalesState>,
 ) -> Result<Vec<models::QueuedSale>, String> {
-    Ok(sales_store::get_queue_status(&state).await)
+    Ok(sales_store::get_queue_status(app, &state).await)
 }
 
 #[tauri::command]
@@ -114,18 +115,20 @@ pub async fn retry_sale_command(
 
 #[tauri::command]
 pub async fn check_old_sales_command(
+    app: AppHandle,
     state: State<'_, SalesState>,
     days_threshold: u64,
 ) -> Result<Vec<models::QueuedSale>, String> {
-    Ok(sales_store::check_old_pending_sales(&state, days_threshold).await)
+    Ok(sales_store::check_old_pending_sales(app, &state, days_threshold).await)
 }
 
 #[tauri::command]
 pub async fn check_failed_sales_command(
-    state: State<'_, SalesState>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SalesState>,
     retry_threshold: u32,
-) -> Result<Vec<models::QueuedSale>, String> {
-    Ok(sales_store::check_failed_sales(&state, retry_threshold).await)
+) -> Result<Vec<crate::models::QueuedSale>, String> {
+    Ok(sales_store::check_failed_sales(app, &state, retry_threshold).await)
 }
 
 #[tauri::command]

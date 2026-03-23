@@ -46,7 +46,10 @@
       }
     },
     "sql": {
-      "preload": ["sqlite:kds_orders.db"]
+      "preload": [
+        "sqlite:kds_orders.db",
+        "sqlite:pos_main.db"
+      ]
     }
   }
 }

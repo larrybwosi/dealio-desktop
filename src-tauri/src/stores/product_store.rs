@@ -1,251 +1,257 @@
-use crate::models::{PosProduct, ProductsSyncResponse};
+use crate::models::{PosProduct, ProductsSyncResponse, ProductSearchResponse};
 use anyhow::{Context, Result};
+use log::{error, info};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
-use std::collections::HashMap;
+use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_sql::{DbInstances, DbPool};
 use tokio::fs as async_fs;
 
+use crate::auth_store::AuthState;
+
 const TIMEOUT_SECONDS: u64 = 60;
+const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
 // --- State Management ---
-pub struct ProductState {
-    // Multi-location cache: HashMap keyed by location_id
-    pub products_by_location: Mutex<HashMap<String, Vec<PosProduct>>>,
-    pub last_sync_by_location: Mutex<HashMap<String, Option<String>>>,
-}
+// We no longer need to hold thousands of products in RAM. 
+// The DB is the single source of truth.
+pub struct ProductState;
 
 impl ProductState {
     pub fn new() -> Self {
-        Self {
-            products_by_location: Mutex::new(HashMap::new()),
-            last_sync_by_location: Mutex::new(HashMap::new()),
-        }
+        Self
     }
 }
 
-// --- Helper: File Paths ---
-async fn get_store_path(app: &AppHandle, location_id: &str) -> Result<PathBuf> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .context("Failed to resolve App Data Directory")?;
+// --- DB Helper ---
+async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
 
-    if !app_dir.exists() {
-        tokio::fs::create_dir_all(&app_dir)
-            .await
-            .context("Failed to create App Data Directory")?;
-    }
-
-    // Location-specific filename
-    Ok(app_dir.join(format!("products_loc_{}.json", location_id)))
-}
-
-async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .context("Failed to resolve App Data Directory")?;
-    let images_dir = app_dir.join("product_images");
-
-    if !images_dir.exists() {
-        tokio::fs::create_dir_all(&images_dir)
-            .await
-            .context("Failed to create Images Directory")?;
-    }
-
-    Ok(images_dir)
-}
-
-// --- Helper: Cache Single Image ---
-async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
-    if url.trim().is_empty() {
-        return None;
-    }
-
-    // 1. Generate a safe filename from the URL
-    let clean_name = url
-        .replace("https://", "")
-        .replace("http://", "")
-        .replace('/', "_")
-        .replace(':', "")
-        .replace('?', "_");
-
-    // Ensure extension exists or default to .jpg if missing
-    let filename = if clean_name.contains('.') {
-        clean_name
+    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+        Ok(pool.clone())
     } else {
-        format!("{}.jpg", clean_name)
-    };
-
-    let images_dir = match get_images_dir(app).await {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Failed to get image dir: {}", e);
-            return Some(url.to_string()); // Fallback to remote URL
-        }
-    };
-
-    let file_path = images_dir.join(&filename);
-    let file_path_str = file_path.to_string_lossy().to_string();
-
-    // 2. Check if file already exists locally AND has content
-    if file_path.exists() {
-        // Integrity check: If file is 0 bytes, it's corrupt/empty.
-        if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
-            if metadata.len() > 0 {
-                return Some(file_path_str);
-            }
-        }
-        // If we reach here, file exists but is invalid (0 bytes). Remove it.
-        let _ = async_fs::remove_file(&file_path).await;
+        Err(format!(
+            "Database {} not found. Ensure it is preloaded via tauri.conf.json.",
+            MAIN_DB_NAME
+        ))
     }
-
-    // 3. Download if not exists (or was just deleted)
-    match reqwest::get(url).await {
-        Ok(resp) => {
-            if resp.status().is_success() {
-                match resp.bytes().await {
-                    Ok(bytes) => {
-                        // Write to file
-                        if let Err(e) = async_fs::write(&file_path, &bytes).await {
-                            eprintln!("Failed to write image {}: {}", filename, e);
-                            return Some(url.to_string());
-                        }
-
-                        // Verify write success (double check)
-                        if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
-                            if metadata.len() > 0 {
-                                return Some(file_path_str);
-                            }
-                        }
-                        return Some(url.to_string());
-                    }
-                    Err(_) => return Some(url.to_string()),
-                }
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to download image {}: {}", url, e);
-        }
-    }
-
-    // Fallback: return original URL if download failed
-    Some(url.to_string())
 }
 
-// --- 1. Load Data on Startup (Synchronous is fine here) ---
-pub async fn load_products_from_disk(
-    app: &AppHandle,
-    state: &ProductState,
-    location_id: &str,
-) -> Result<()> {
-    let path = get_store_path(app, location_id).await?;
+// --- Initialization & Migration ---
+pub async fn init_state(app: &AppHandle) {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[ProductStore] Failed to get main DB pool: {}", e);
+            return;
+        }
+    };
 
-    if path.exists() {
-        let content = tokio::fs::read_to_string(path)
-            .await
-            .context("Failed to read store file")?;
-        let data: Result<(Option<String>, Vec<PosProduct>), _> = serde_json::from_str(&content);
+    // 1. Create Products Table
+    let create_products_table = r#"
+        CREATE TABLE IF NOT EXISTS products (
+            product_id TEXT,
+            location_id TEXT,
+            category TEXT,
+            product_name TEXT,
+            search_text TEXT,
+            payload TEXT,
+            PRIMARY KEY (product_id, location_id)
+        )
+    "#;
 
-        if let Ok((last_sync, products)) = data {
-            let mut products_map = state
-                .products_by_location
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
-            let mut sync_map = state
-                .last_sync_by_location
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
+    // 2. Create Sync Metadata Table
+    let create_sync_table = r#"
+        CREATE TABLE IF NOT EXISTS product_sync_meta (
+            location_id TEXT PRIMARY KEY,
+            last_sync TEXT
+        )
+    "#;
 
-            products_map.insert(location_id.to_string(), products);
-            sync_map.insert(location_id.to_string(), last_sync);
+    let _ = sqlx::query(create_products_table).execute(&pool).await;
+    let _ = sqlx::query(create_sync_table).execute(&pool).await;
+
+    // 3. One-Time Migration from old JSON files
+    let _ = migrate_legacy_files_to_db(app, &pool).await;
+}
+
+async fn migrate_legacy_files_to_db(app: &AppHandle, pool: &SqlitePool) -> Result<()> {
+    let app_dir = app.path().app_data_dir().context("No App Data Dir")?;
+    
+    // Read all files in the app data dir looking for products_loc_*.json
+    let mut entries = tokio::fs::read_dir(&app_dir).await?;
+    
+    while let Some(entry) = entries.next_entry().await? {
+        let path = entry.path();
+        let filename = path.file_name().unwrap_or_default().to_string_lossy();
+        
+        if filename.starts_with("products_loc_") && filename.ends_with(".json") {
+            let location_id = filename
+                .replace("products_loc_", "")
+                .replace(".json", "");
+            
+            info!("[ProductStore] Found legacy product file for location {}. Migrating...", location_id);
+            
+            let content = tokio::fs::read_to_string(&path).await?;
+            if let Ok((last_sync, products)) = serde_json::from_str::<(Option<String>, Vec<PosProduct>)>(&content) {
+                
+                // Start a transaction for speed
+                let mut tx = pool.begin().await?;
+                
+                for product in products {
+                    let search_text = build_search_text(&product);
+                    let payload = serde_json::to_string(&product).unwrap_or_default();
+                    
+                    let _ = sqlx::query(
+                        "INSERT OR IGNORE INTO products (product_id, location_id, category, product_name, search_text, payload) VALUES (?1, ?2, ?3, ?4, ?5, ?6)"
+                    )
+                    .bind(&product.product_id)
+                    .bind(&location_id)
+                    .bind(&product.category)
+                    .bind(&product.product_name)
+                    .bind(search_text)
+                    .bind(payload)
+                    .execute(&mut *tx)
+                    .await;
+                }
+
+                if let Some(ts) = last_sync {
+                    let _ = sqlx::query("INSERT OR REPLACE INTO product_sync_meta (location_id, last_sync) VALUES (?1, ?2)")
+                        .bind(&location_id)
+                        .bind(ts)
+                        .execute(&mut *tx)
+                        .await;
+                }
+
+                tx.commit().await?;
+                info!("[ProductStore] Migration complete for location {}. Deleting old file.", location_id);
+                let _ = tokio::fs::remove_file(&path).await;
+            }
         }
     }
     Ok(())
 }
 
-// --- 2. Sync Engine (Modified) ---
-use crate::auth_store::AuthState;
+fn build_search_text(product: &PosProduct) -> String {
+    let mut search_terms = vec![product.product_name.to_lowercase()];
+    for variant in &product.variants {
+        search_terms.push(variant.sku.to_lowercase());
+        if let Some(barcode) = &variant.barcode {
+            search_terms.push(barcode.to_lowercase());
+        }
+        search_terms.push(variant.variant_name.to_lowercase());
+    }
+    search_terms.join(" ")
+}
 
-pub async fn run_sync(
-    app: AppHandle,
-    state: &ProductState,
-    auth_state: &AuthState,
-    force_full_sync: bool, // NEW: if true, ignore lastSync and get all products
-) -> Result<usize> {
-    // 1. Get Config/Auth from State
-    let (base_url, location_id, device_key) = {
-        let config_guard = auth_state
-            .device_config
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
-        (
-            config.base_url.clone(),
-            config.location_id.clone(),
-            config.device_key.clone(),
-        )
+// --- Helper: Cache Single Image ---
+async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
+    let app_dir = app.path().app_data_dir().context("Failed to resolve App Data Directory")?;
+    let images_dir = app_dir.join("product_images");
+
+    if !images_dir.exists() {
+        tokio::fs::create_dir_all(&images_dir).await.context("Failed to create Images Directory")?;
+    }
+    Ok(images_dir)
+}
+
+async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
+    if url.trim().is_empty() { return None; }
+
+    let clean_name = url.replace("https://", "").replace("http://", "").replace('/', "_").replace(':', "").replace('?', "_");
+    let filename = if clean_name.contains('.') { clean_name } else { format!("{}.jpg", clean_name) };
+
+    let images_dir = match get_images_dir(app).await {
+        Ok(d) => d,
+        Err(_) => return Some(url.to_string()),
     };
 
-    // FIX: Extract Member ID along with Token
-    let (member_token, member_id) = {
-        let token_guard = auth_state
-            .member_token
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+    let file_path = images_dir.join(&filename);
+    let file_path_str = file_path.to_string_lossy().to_string();
 
-        let mid = user_guard.as_ref().map(|u| u.id.clone());
-        (token_guard.clone(), mid)
-    };
-
-    if base_url.is_empty() {
-        return Err(anyhow::anyhow!("Base URL is empty"));
+    if file_path.exists() {
+        if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
+            if metadata.len() > 0 { return Some(file_path_str); }
+        }
+        let _ = async_fs::remove_file(&file_path).await;
     }
 
-    let clean_base_url = base_url.trim_end_matches('/');
-    let target_url = format!("{}/{}", clean_base_url, crate::api_config::routes::PRODUCTS);
+    match reqwest::get(url).await {
+        Ok(resp) if resp.status().is_success() => {
+            if let Ok(bytes) = resp.bytes().await {
+                if async_fs::write(&file_path, &bytes).await.is_ok() {
+                    if let Ok(metadata) = tokio::fs::metadata(&file_path).await {
+                        if metadata.len() > 0 { return Some(file_path_str); }
+                    }
+                }
+            }
+            Some(url.to_string())
+        }
+        _ => Some(url.to_string()),
+    }
+}
 
-    // Get last sync time for THIS location (not global)
-    let last_sync_time = if force_full_sync {
-        None
-    } else {
-        state
-            .last_sync_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(&location_id)
-            .and_then(|opt| opt.clone())
+// --- 1. Load Data on Startup ---
+pub async fn load_products_from_disk(
+    _app: &AppHandle,
+    _state: &ProductState,
+    _location_id: &str,
+) -> Result<()> {
+    // With SQLite, data is implicitly available on disk. No memory pre-loading needed.
+    Ok(())
+}
+
+// --- 2. Sync Engine ---
+pub async fn run_sync(
+    app: AppHandle,
+    _state: &ProductState,
+    auth_state: &AuthState,
+    force_full_sync: bool,
+) -> Result<usize> {
+    let pool = get_db_pool(&app).await.map_err(|e| anyhow::anyhow!(e))?;
+
+    let (base_url, location_id, device_key) = {
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
 
-    // --- BUILD HEADERS ---
-    let mut headers = HeaderMap::new();
+    let (member_token, member_id) = {
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+    };
 
-    // Device Key is now always present if we got past the config check
-    let mut val =
-        HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
+    if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
+
+    let target_url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::PRODUCTS);
+
+    // Get last sync time from DB
+    let last_sync_time: Option<String> = if force_full_sync {
+        None
+    } else {
+        let row = sqlx::query("SELECT last_sync FROM product_sync_meta WHERE location_id = ?1")
+            .bind(&location_id)
+            .fetch_optional(&pool)
+            .await?;
+        row.map(|r| r.get("last_sync"))
+    };
+
+    let mut headers = HeaderMap::new();
+    let mut val = HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
     headers.insert("X-Device-Api-Key", val);
 
     if let Some(token) = member_token {
-        let auth_val = format!("Bearer {}", token);
-        let mut val =
-            HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+        let mut val = HeaderValue::from_str(&format!("Bearer {}", token)).unwrap();
         val.set_sensitive(true);
         headers.insert(AUTHORIZATION, val);
     }
 
-    // FIX: Add Member ID Header
     if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
-        headers.insert("X-Member-Id", val);
+        headers.insert("X-Member-Id", HeaderValue::from_str(&mid).unwrap());
     }
 
     let client = reqwest::Client::builder()
@@ -253,7 +259,6 @@ pub async fn run_sync(
         .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
         .build()?;
 
-    // --- PREPARE PARAMS ---
     let mut query_params = vec![
         ("locationId", location_id.clone()),
         ("page", "1".to_string()),
@@ -265,92 +270,62 @@ pub async fn run_sync(
         query_params.push(("lastSync", ts.clone()));
     }
 
-    // --- EXECUTE REQUEST ---
-    let response = client
-        .get(&target_url)
-        .query(&query_params)
-        .send()
-        .await
-        .context("Failed to send request to server")?;
+    let response = client.get(&target_url).query(&query_params).send().await?;
 
     if !response.status().is_success() {
-        let status = response.status();
-        let error_text = response.text().await.unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Server returned error: {} - {}",
-            status,
-            error_text
-        ));
+        return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
     }
 
-    let mut res_body = response
-        .json::<ProductsSyncResponse>()
-        .await
-        .context("Failed to parse server response JSON")?;
+    let mut res_body = response.json::<ProductsSyncResponse>().await?;
 
-    // --- IMAGE CACHING LOGIC ---
-    // Updated: Ensure we only attempt to cache if the URL is valid/remote.
+    // Download images concurrently or sequentially
     for product in &mut res_body.products {
         if let Some(url) = &product.image_url {
-            // Basic check to ensure we aren't re-caching a local path (if server sent weird data)
             if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
-                let local_path = cache_image(&app, url).await;
-                product.image_url = local_path;
+                product.image_url = cache_image(&app, url).await;
             }
         }
     }
 
-    // --- MERGE LOGIC ---
     let incoming_count = res_body.products.len();
-    let sync_timestamp = res_body.sync_timestamp.clone();
+    let new_sync_time = res_body.sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
-    // --- MERGE LOGIC FOR THIS LOCATION ---
-    let updated_list = {
-        let mut products_map_guard = state
-            .products_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+    // --- SQLite UPSERT in Transaction ---
+    let mut tx = pool.begin().await?;
 
-        // Get existing products for this location, or empty vec
-        let existing_products = products_map_guard
-            .get(&location_id)
-            .cloned()
-            .unwrap_or_default();
+    for product in res_body.products {
+        let search_text = build_search_text(&product);
+        let payload = serde_json::to_string(&product)?;
 
-        let mut product_map: HashMap<String, PosProduct> = existing_products
-            .into_iter()
-            .map(|p| (p.product_id.clone(), p))
-            .collect();
+        let query = r#"
+            INSERT INTO products (product_id, location_id, category, product_name, search_text, payload)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            ON CONFLICT(product_id, location_id) DO UPDATE SET
+                category = excluded.category,
+                product_name = excluded.product_name,
+                search_text = excluded.search_text,
+                payload = excluded.payload
+        "#;
 
-        for product in res_body.products {
-            product_map.insert(product.product_id.clone(), product);
-        }
+        sqlx::query(query)
+            .bind(&product.product_id)
+            .bind(&location_id)
+            .bind(&product.category)
+            .bind(&product.product_name)
+            .bind(search_text)
+            .bind(payload)
+            .execute(&mut *tx)
+            .await?;
+    }
 
-        let list: Vec<PosProduct> = product_map.into_values().collect();
+    // Update Sync Time
+    sqlx::query("INSERT OR REPLACE INTO product_sync_meta (location_id, last_sync) VALUES (?1, ?2)")
+        .bind(&location_id)
+        .bind(new_sync_time)
+        .execute(&mut *tx)
+        .await?;
 
-        // Update location-specific cache
-        products_map_guard.insert(location_id.clone(), list.clone());
-        list
-    };
-
-    // --- ASYNC SAVE TO DISK (LOCATION-SPECIFIC FILE) ---
-    let new_sync_time = sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
-
-    // Update sync timestamp for this location
-    state
-        .last_sync_by_location
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(location_id.clone(), Some(new_sync_time.clone()));
-
-    let file_data = (Some(new_sync_time), updated_list);
-
-    let json = tokio::task::spawn_blocking(move || serde_json::to_string(&file_data)).await??;
-
-    let path = get_store_path(&app, &location_id).await?;
-    async_fs::write(path, json)
-        .await
-        .context("Failed to write to disk")?;
+    tx.commit().await?;
 
     Ok(incoming_count)
 }
@@ -358,187 +333,180 @@ pub async fn run_sync(
 // --- 3. Stock Management ---
 pub async fn deduct_stock(
     app: AppHandle,
-    state: &ProductState,
+    _state: &ProductState,
     location_id: &str,
     cart_items: &Vec<serde_json::Value>,
     allow_negative: bool,
 ) -> Result<()> {
-    let (updated, file_data) = {
-        let mut products_map = state
-            .products_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        let mut updated = false;
+    let pool = get_db_pool(&app).await.map_err(|e| anyhow::anyhow!(e))?;
 
-        let mut error = None;
+    let mut tx = pool.begin().await?;
 
-        if let Some(products) = products_map.get_mut(location_id) {
-            for item in cart_items {
-                let product_id = item.get("productId").and_then(|v| v.as_str());
-                let variant_id = item.get("variantId").and_then(|v| v.as_str());
-                let unit_id = item.get("sellingUnitId").and_then(|v| v.as_str());
-                let quantity = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
+    for item in cart_items {
+        let product_id = item.get("productId").and_then(|v| v.as_str());
+        let variant_id = item.get("variantId").and_then(|v| v.as_str());
+        let unit_id = item.get("sellingUnitId").and_then(|v| v.as_str());
+        let quantity = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(0.0) as i32;
 
-                if let (Some(p_id), Some(v_id)) = (product_id, variant_id) {
-                    if let Some(product) = products.iter_mut().find(|p| p.product_id == p_id) {
-                        if let Some(variant) =
-                            product.variants.iter_mut().find(|v| v.variant_id == v_id)
-                        {
-                            // Find conversion rate
-                            let conversion = if let Some(u_id) = unit_id {
-                                variant
-                                    .sellable_units
-                                    .iter()
-                                    .find(|u| u.unit_id == u_id)
-                                    .map(|u| u.conversion)
-                                    .unwrap_or(1.0)
-                            } else {
-                                1.0
-                            };
+        if let (Some(p_id), Some(v_id)) = (product_id, variant_id) {
+            
+            // 1. Fetch exactly the ONE product we are modifying
+            let row = sqlx::query("SELECT payload FROM products WHERE product_id = ?1 AND location_id = ?2")
+                .bind(p_id)
+                .bind(location_id)
+                .fetch_optional(&mut *tx)
+                .await?;
 
-                            let deducted_qty = (quantity as f64 * conversion) as i32;
+            if let Some(r) = row {
+                let payload_str: String = r.get("payload");
+                let mut product: PosProduct = serde_json::from_str(&payload_str)?;
 
-                            // Validation check
-                            if !allow_negative && variant.stock < deducted_qty {
-                                error = Some(anyhow::anyhow!(
-                                    "Insufficient stock for {}: requested {}, available {}",
-                                    product.product_name,
-                                    deducted_qty,
-                                    variant.stock
-                                ));
-                                break;
-                            }
+                let mut updated = false;
 
-                            // Update variant stock
-                            variant.stock -= deducted_qty;
+                // 2. Modify the struct in memory
+                if let Some(variant) = product.variants.iter_mut().find(|v| v.variant_id == v_id) {
+                    let conversion = if let Some(u_id) = unit_id {
+                        variant.sellable_units.iter().find(|u| u.unit_id == u_id).map(|u| u.conversion).unwrap_or(1.0)
+                    } else {
+                        1.0
+                    };
 
-                            // Update product total_stock if it exists
-                            if let Some(total) = product.total_stock.as_mut() {
-                                *total -= deducted_qty;
-                            }
+                    let deducted_qty = (quantity as f64 * conversion) as i32;
 
-                            updated = true;
-                        }
+                    if !allow_negative && variant.stock < deducted_qty {
+                        return Err(anyhow::anyhow!(
+                            "Insufficient stock for {}: requested {}, available {}",
+                            product.product_name, deducted_qty, variant.stock
+                        ));
                     }
+
+                    variant.stock -= deducted_qty;
+                    if let Some(total) = product.total_stock.as_mut() {
+                        *total -= deducted_qty;
+                    }
+                    updated = true;
+                }
+
+                // 3. Save only this product back to DB
+                if updated {
+                    let new_payload = serde_json::to_string(&product)?;
+                    sqlx::query("UPDATE products SET payload = ?1 WHERE product_id = ?2 AND location_id = ?3")
+                        .bind(new_payload)
+                        .bind(p_id)
+                        .bind(location_id)
+                        .execute(&mut *tx)
+                        .await?;
                 }
             }
         }
-
-        if let Some(err) = error {
-            return Err(err);
-        }
-
-        if updated {
-            let current_products = products_map.get(location_id).cloned().unwrap_or_default();
-            let last_sync = state
-                .last_sync_by_location
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .get(location_id)
-                .cloned()
-                .flatten();
-            (true, Some((last_sync, current_products)))
-        } else {
-            (false, None)
-        }
-    };
-
-    if updated {
-        if let Some(data) = file_data {
-            let json = serde_json::to_string(&data)?;
-            let path = get_store_path(&app, location_id).await?;
-            async_fs::write(path, json)
-                .await
-                .context("Failed to update stock on disk")?;
-        }
     }
 
+    tx.commit().await?;
     Ok(())
 }
 
 // --- 4. Search Logic ---
-// Helper to get products for current location from auth state
-pub fn search_local(
-    state: &ProductState,
+pub async fn search_local(
+    app: &AppHandle,
+    _state: &ProductState,
     location_id: &str,
     query: String,
     category: String,
     page: Option<usize>,
     page_size: Option<usize>,
-) -> crate::models::ProductSearchResponse {
-    let products_map = state
-        .products_by_location
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    let products = products_map.get(location_id).cloned().unwrap_or_default();
-    let query = query.trim().to_lowercase();
-    let filter_category = category != "all" && !category.is_empty();
+) -> ProductSearchResponse {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(_) => return ProductSearchResponse { products: vec![], total_count: 0 },
+    };
 
-    let filtered: Vec<crate::models::PosProduct> = products
-        .into_iter()
-        .filter(|p| {
-            let matches_category = !filter_category || p.category == category;
-            if !matches_category {
-                return false;
-            }
-            if query.is_empty() {
-                return true;
-            }
-
-            let matches_product_name = p.product_name.to_lowercase().contains(&query);
-            let matches_variant = p.variants.iter().any(|v| {
-                v.sku.to_lowercase().contains(&query)
-                    || v.variant_name.to_lowercase().contains(&query)
-                    || v.barcode
-                        .as_ref()
-                        .is_some_and(|b| b.to_lowercase().contains(&query))
-            });
-
-            matches_product_name || matches_variant
-        })
-        .collect();
-
-    let total_count = filtered.len();
-
-    let p = page.unwrap_or(1);
+    let p = page.unwrap_or(1).max(1);
     let ps = page_size.unwrap_or(50);
-    let start = (p - 1) * ps;
+    let offset = (p - 1) * ps;
 
-    let paginated_products = filtered.into_iter().skip(start).take(ps).collect();
+    let filter_category = category != "all" && !category.is_empty();
+    let lower_query = format!("%{}%", query.trim().to_lowercase());
 
-    crate::models::ProductSearchResponse {
-        products: paginated_products,
-        total_count,
+    // Build Dynamic Query
+    let (count_sql, data_sql) = if filter_category {
+        (
+            "SELECT COUNT(*) as count FROM products WHERE location_id = ?1 AND category = ?2 AND search_text LIKE ?3",
+            "SELECT payload FROM products WHERE location_id = ?1 AND category = ?2 AND search_text LIKE ?3 LIMIT ?4 OFFSET ?5"
+        )
+    } else {
+        (
+            "SELECT COUNT(*) as count FROM products WHERE location_id = ?1 AND search_text LIKE ?2",
+            "SELECT payload FROM products WHERE location_id = ?1 AND search_text LIKE ?2 LIMIT ?3 OFFSET ?4"
+        )
+    };
+
+    // Execute Count
+    let mut total_count = 0;
+    if filter_category {
+        if let Ok(row) = sqlx::query(count_sql).bind(location_id).bind(&category).bind(&lower_query).fetch_one(&pool).await {
+            total_count = row.get::<i32, _>("count") as usize;
+        }
+    } else {
+        if let Ok(row) = sqlx::query(count_sql).bind(location_id).bind(&lower_query).fetch_one(&pool).await {
+            total_count = row.get::<i32, _>("count") as usize;
+        }
     }
+
+    // Execute Fetch
+    let rows = if filter_category {
+        sqlx::query(data_sql).bind(location_id).bind(&category).bind(&lower_query).bind(ps as i32).bind(offset as i32).fetch_all(&pool).await
+    } else {
+        sqlx::query(data_sql).bind(location_id).bind(&lower_query).bind(ps as i32).bind(offset as i32).fetch_all(&pool).await
+    };
+
+    let mut products = Vec::new();
+    if let Ok(rows) = rows {
+        for row in rows {
+            let payload: String = row.get("payload");
+            if let Ok(product) = serde_json::from_str::<PosProduct>(&payload) {
+                products.push(product);
+            }
+        }
+    }
+
+    ProductSearchResponse { products, total_count }
 }
 
-pub fn get_products_by_ids(
-    state: &ProductState,
+pub async fn get_products_by_ids(
+    app: &AppHandle,
+    _state: &ProductState,
     location_id: &str,
     ids: Vec<String>,
 ) -> Vec<PosProduct> {
-    let products_map = state
-        .products_by_location
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    let products = products_map.get(location_id).cloned().unwrap_or_default();
-    if ids.is_empty() {
-        return Vec::new();
+    if ids.is_empty() { return Vec::new(); }
+    
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+
+    // We fetch all payloads for the location and filter (Alternative: Dynamic SQL `IN` clause)
+    // Since this usually looks up a few cart items, a direct fetch of the whole JSON is fine,
+    // but a proper `IN` clause is faster. SQLite has limits on params, so we handle it simply:
+    let mut products = Vec::new();
+    for id in ids {
+        let query = "SELECT payload FROM products WHERE location_id = ?1 AND (product_id = ?2 OR search_text LIKE ?3)";
+        let like_id = format!("%{}%", id);
+        
+        if let Ok(row) = sqlx::query(query).bind(location_id).bind(&id).bind(&like_id).fetch_optional(&pool).await {
+            if let Some(r) = row {
+                let payload: String = r.get("payload");
+                if let Ok(product) = serde_json::from_str::<PosProduct>(&payload) {
+                    products.push(product);
+                }
+            }
+        }
     }
 
     products
-        .iter()
-        .filter(|p| {
-            if ids.contains(&p.product_id) {
-                return true;
-            }
-            p.variants.iter().any(|v| ids.contains(&v.variant_id))
-        })
-        .cloned()
-        .collect()
 }
 
-// --- 4. Location Switch Command ---
+// --- 5. Location Switch Command ---
 #[tauri::command]
 pub async fn switch_location(
     app: AppHandle,
@@ -546,28 +514,15 @@ pub async fn switch_location(
     _auth_state: tauri::State<'_, AuthState>,
     new_location_id: String,
 ) -> Result<Vec<PosProduct>, String> {
-    // 1. Load cached products for this location (instant response)
-    load_products_from_disk(&app, &state, &new_location_id)
-        .await
-        .map_err(|e| e.to_string())?;
+    
+    // 1. Return cached products immediately from DB (First 50 items to load UI fast)
+    let search_res = search_local(&app, &state, &new_location_id, "".to_string(), "all".to_string(), Some(1), Some(50)).await;
+    let cached = search_res.products;
 
-    // 2. Return cached products immediately (even if empty)
-    let cached = {
-        let products_map = state
-            .products_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        products_map
-            .get(&new_location_id)
-            .cloned()
-            .unwrap_or_default()
-    };
-
-    // 3. Trigger background sync (delta if we have lastSync, full if first visit)
+    // 2. Trigger background sync (delta if we have lastSync, full if first visit)
     let app_clone = app.clone();
 
     tauri::async_runtime::spawn(async move {
-        // Retrieve states inside the task to avoid lifetime issues
         let state_inner = app_clone.state::<ProductState>();
         let auth_inner = app_clone.state::<AuthState>();
         let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
