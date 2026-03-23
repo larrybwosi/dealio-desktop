@@ -23,6 +23,7 @@ use stores::pricing_store::{self, PricingState};
 use stores::product_store::{self, ProductState};
 use stores::sales_store::{self, SalesState};
 use stores::shift_store::{self, ShiftState};
+use stores::table_store;
 
 mod customer_manager;
 mod pricing_manager;
@@ -106,7 +107,8 @@ pub fn run() {
         .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build()); // FIXED: Added SQL plugin for debug mode
 
     builder
         .manage(ProductState::new())
@@ -157,6 +159,11 @@ pub fn run() {
             let sales_state = app.state::<SalesState>();
             tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
             sales_store::start_auto_sync_task(app.handle().clone());
+
+            // Initialize Table Store DB
+            if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
+                error!("Failed to initialize table database: {}", e);
+            }
 
             let pricing_state = app.state::<PricingState>();
             if let Err(e) = tauri::async_runtime::block_on(
@@ -438,6 +445,12 @@ pub fn run() {
             audit_store::get_system_logs,
 
             kds_hub_server::start_kds_hub,
+
+            table_store::get_tables_command,
+            table_store::upsert_table_command,
+            table_store::delete_table_command,
+            table_store::update_table_status_command,
+            table_store::get_table_history_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

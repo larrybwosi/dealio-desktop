@@ -10,8 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Edit2, Trash2, Users, MapPin, CheckCircle2, Clock, Ban, Search, MoreVertical, LayoutGrid, SlidersHorizontal } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, MapPin, CheckCircle2, Clock, Ban, Search, MoreVertical, LayoutGrid, SlidersHorizontal, History as HistoryIcon, UserCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { invoke } from '@tauri-apps/api/core';
+import { formatDistanceToNow, parseISO } from 'date-fns';
 
 export default function ManageTablesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -19,6 +21,10 @@ export default function ManageTablesPage() {
   const [filterSection, setFilterSection] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [selectedTableForHistory, setSelectedTableForHistory] = useState<Table | null>(null);
+  const [tableHistory, setTableHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const tables = usePosStore(state => state.tables);
   const addTable = usePosStore(state => state.addTable);
@@ -34,8 +40,9 @@ export default function ManageTablesPage() {
     notes: '',
   });
 
+  const defaultSections = ['Main Hall', 'Patio', 'VIP', 'Bar Area'];
   const sections = [...new Set(tables.map(t => t.section).filter(Boolean))];
-  const uniqueSections = sections.length > 0 ? sections : ['Main Hall', 'Patio', 'VIP', 'Bar Area'];
+  const uniqueSections = [...new Set([...defaultSections, ...sections])];
 
   const filteredTables = tables.filter(table => {
     const sectionMatch = filterSection === 'all' || table.section === filterSection;
@@ -105,6 +112,20 @@ export default function ManageTablesPage() {
     available: tables.filter(t => t.status === 'available').length,
     occupied: tables.filter(t => t.status === 'occupied').length,
     reserved: tables.filter(t => t.status === 'reserved').length,
+  };
+
+  const fetchHistory = async (table: Table) => {
+    setSelectedTableForHistory(table);
+    setLoadingHistory(true);
+    setHistoryDialogOpen(true);
+    try {
+      const history = await invoke<any[]>('get_table_history_command', { tableId: table.id });
+      setTableHistory(history);
+    } catch (error) {
+      console.error('Failed to fetch table history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
   };
 
   return (
@@ -324,6 +345,9 @@ export default function ManageTablesPage() {
                       <DropdownMenuItem onClick={() => handleEdit(table)}>
                         <Edit2 className="w-4 h-4 mr-2" /> Edit Details
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => fetchHistory(table)}>
+                        <HistoryIcon className="w-4 h-4 mr-2" /> View History
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => handleDelete(table.id)} className="text-destructive focus:text-destructive">
                         <Trash2 className="w-4 h-4 mr-2" /> Delete Table
                       </DropdownMenuItem>
@@ -332,9 +356,25 @@ export default function ManageTablesPage() {
                 </CardHeader>
                 
                 <CardContent className="p-5 pt-0 flex-1">
-                  <div className="flex items-center gap-2 text-sm text-foreground/80 mb-3 bg-muted/50 w-fit px-2.5 py-1 rounded-md">
-                    <Users className="w-4 h-4" />
-                    <span className="font-medium">Up to {table.capacity} guests</span>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <div className="flex items-center gap-2 text-sm text-foreground/80 bg-muted/50 w-fit px-2.5 py-1 rounded-md">
+                      <Users className="w-4 h-4" />
+                      <span className="font-medium">Cap: {table.capacity}</span>
+                    </div>
+                    {table.status === 'occupied' && (
+                       <>
+                        <div className="flex items-center gap-2 text-sm text-rose-600 bg-rose-500/10 w-fit px-2.5 py-1 rounded-md border border-rose-200/50">
+                          <UserCircle className="w-4 h-4" />
+                          <span className="font-semibold">{table.guestsCount || '?'} Guests</span>
+                        </div>
+                        {table.occupiedAt && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/30 w-fit px-2.5 py-1 rounded-md">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatDistanceToNow(parseISO(table.occupiedAt))}</span>
+                          </div>
+                        )}
+                       </>
+                    )}
                   </div>
                   {table.notes && (
                     <p className="text-sm text-muted-foreground line-clamp-2 mt-2 border-l-2 border-muted pl-2">
@@ -393,6 +433,64 @@ export default function ManageTablesPage() {
           )}
         </Card>
       )}
+
+      {/* Table History Dialog */}
+      <Dialog open={historyDialogOpen} onOpenChange={setHistoryDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <HistoryIcon className="w-5 h-5 text-primary" />
+              Occupancy History: Table #{selectedTableForHistory?.number}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto py-4">
+            {loadingHistory ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : tableHistory.length > 0 ? (
+              <div className="space-y-4">
+                {tableHistory.map((entry) => (
+                  <Card key={entry.id} className="border border-border/50 shadow-none">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Users className="w-4 h-4 text-muted-foreground" />
+                          <span className="font-medium">{entry.guestsCount} Guests</span>
+                          <Badge variant="outline" className="text-xs">
+                             {entry.durationMinutes} min
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(entry.startedAt).toLocaleString()} — {new Date(entry.endedAt).toLocaleTimeString()}
+                        </p>
+                      </div>
+                      {entry.orderId && (
+                        <div className="text-right">
+                          <p className="text-xs font-mono text-muted-foreground">Order ID</p>
+                          <p className="text-sm font-medium">{entry.orderId.substring(0, 8)}...</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                <HistoryIcon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p>No occupancy history available for this table yet.</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>
+              Close History
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
