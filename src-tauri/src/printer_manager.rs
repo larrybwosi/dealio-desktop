@@ -623,73 +623,65 @@ pub async fn print_system_raw_bytes(
     printer_name: String,
     data: Vec<u8>,
 ) -> Result<String, PrinterError> {
-    // use std::os::windows::ffi::OsStrExt;
-    // use windows::core::PCWSTR;
-    // Remove `use windows::Win32::Foundation::HANDLE;`
     use windows::Win32::Graphics::Printing::{
         ClosePrinter, EndDocPrinter, EndPagePrinter, OpenPrinterW, StartDocPrinterW,
-        StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_HANDLE, // <-- Added PRINTER_HANDLE here
+        StartPagePrinter, WritePrinter, DOC_INFO_1W, PRINTER_HANDLE,
     };
     use windows::core::{PCWSTR, PWSTR};
 
-    // Windows API requires UTF-16 wide strings with null terminators
-    let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
-    let doc_name_wide: Vec<u16> = "Receipt\0".encode_utf16().collect();
-    let data_type_wide: Vec<u16> = "RAW\0".encode_utf16().collect();
-
     unsafe {
-    // 1. Use PRINTER_HANDLE instead of HANDLE
-    let mut h_printer = PRINTER_HANDLE::default(); 
-    let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
+        // 1. Use PRINTER_HANDLE instead of HANDLE
+        let mut h_printer = PRINTER_HANDLE::default(); 
+        let printer_name_wide: Vec<u16> = printer_name.encode_utf16().chain(std::iter::once(0)).collect();
 
-    if OpenPrinterW(PCWSTR(printer_name_wide.as_ptr()), &mut h_printer, None).is_err() {
-        return Err(PrinterError::SystemError("Failed to open printer".into()));
-    }
+        if OpenPrinterW(PCWSTR(printer_name_wide.as_ptr()), &mut h_printer, None).is_err() {
+            return Err(PrinterError::SystemError("Failed to open printer".into()));
+        }
 
-    // 2. Make string buffers mutable so we can pass PWSTR (mutable pointer)
-    let mut doc_name_wide: Vec<u16> = "Raw Print Job".encode_utf16().chain(std::iter::once(0)).collect();
-    let mut data_type_wide: Vec<u16> = "RAW".encode_utf16().chain(std::iter::once(0)).collect();
+        // 2. Make string buffers mutable so we can pass PWSTR (mutable pointer)
+        let mut doc_name_wide: Vec<u16> = "Raw Print Job".encode_utf16().chain(std::iter::once(0)).collect();
+        let mut data_type_wide: Vec<u16> = "RAW".encode_utf16().chain(std::iter::once(0)).collect();
 
-    // 3. Use PWSTR(mut_ptr) instead of PCWSTR
-    let doc_info = DOC_INFO_1W {
-        pDocName: PWSTR(doc_name_wide.as_mut_ptr()),
-        pOutputFile: PWSTR(std::ptr::null_mut()),
-        pDatatype: PWSTR(data_type_wide.as_mut_ptr()),
-    };
+        // 3. Use PWSTR(mut_ptr) instead of PCWSTR
+        let doc_info = DOC_INFO_1W {
+            pDocName: PWSTR(doc_name_wide.as_mut_ptr()),
+            pOutputFile: PWSTR(std::ptr::null_mut()),
+            pDatatype: PWSTR(data_type_wide.as_mut_ptr()),
+        };
 
-    // 4. Pass the pointer correctly without the extra `as *const u8`
-    let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const DOC_INFO_1W);
-    if job_id == 0 {
-        let _ = ClosePrinter(h_printer);
-        return Err(PrinterError::SystemError("Failed to start document".into()));
-    }
+        // 4. Pass the pointer correctly without the extra `as *const u8`
+        let job_id = StartDocPrinterW(h_printer, 1, &doc_info as *const DOC_INFO_1W);
+        if job_id == 0 {
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to start document".into()));
+        }
 
-    // 5. Use .ok().is_err() because StartPagePrinter returns a BOOL, not a Result
-    if StartPagePrinter(h_printer).ok().is_err() {
-        let _ = ClosePrinter(h_printer);
-        return Err(PrinterError::SystemError("Failed to start page".into()));
-    }
+        // 5. Use .ok().is_err() because StartPagePrinter returns a BOOL, not a Result
+        if StartPagePrinter(h_printer).ok().is_err() {
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to start page".into()));
+        }
 
-    let mut bytes_written: u32 = 0;
-    let write_ok = WritePrinter(
-        h_printer,
-        data.as_ptr() as *const std::ffi::c_void,
-        data.len() as u32,
-        &mut bytes_written,
-    );
+        let mut bytes_written: u32 = 0;
+        let write_ok = WritePrinter(
+            h_printer,
+            data.as_ptr() as *const std::ffi::c_void,
+            data.len() as u32,
+            &mut bytes_written,
+        );
 
-    // 6. Same here, check .ok().is_err()
-    if write_ok.ok().is_err() || bytes_written != data.len() as u32 {
+        // 6. Same here, check .ok().is_err()
+        if write_ok.ok().is_err() || bytes_written != data.len() as u32 {
+            let _ = EndPagePrinter(h_printer);
+            let _ = EndDocPrinter(h_printer);
+            let _ = ClosePrinter(h_printer);
+            return Err(PrinterError::SystemError("Failed to write to printer".into()));
+        }
+
         let _ = EndPagePrinter(h_printer);
         let _ = EndDocPrinter(h_printer);
         let _ = ClosePrinter(h_printer);
-        return Err(PrinterError::SystemError("Failed to write to printer".into()));
     }
-
-    let _ = EndPagePrinter(h_printer);
-    let _ = EndDocPrinter(h_printer);
-    let _ = ClosePrinter(h_printer);
-}
 
     Ok("Sent raw bytes natively to Windows print spooler".into())
 }

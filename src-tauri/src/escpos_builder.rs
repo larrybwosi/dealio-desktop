@@ -1,4 +1,4 @@
-use image::{GenericImageView, imageops::FilterType};
+use image::{imageops::FilterType};
 
 pub struct EscPosBuilder {
     pub bytes: Vec<u8>,

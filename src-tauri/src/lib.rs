@@ -383,6 +383,7 @@ pub fn run() {
             printer_manager::get_printer_config,
             printer_manager::print_job,
             printer_manager::print_receipt_native,
+            printer_manager::print_kitchen_native,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,
@@ -397,9 +398,7 @@ pub fn run() {
             auth_store::reset_device_config,
             auth_store::authenticated_api_request,
             auth_store::update_device_location,
-
             notification_manager::send_native_notification,
-
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,
             notification_manager::mark_notification_read,
