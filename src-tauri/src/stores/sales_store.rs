@@ -8,8 +8,6 @@ use rand::RngCore;
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use sqlx::Row;
-use std::fs;
-use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};

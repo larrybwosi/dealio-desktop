@@ -1,3 +1,4 @@
+#[cfg(not(debug_assertions))]
 use dotenvy_macro::dotenv;
 use log::error;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -79,6 +80,7 @@ pub fn run() {
 
     // --- POSTHOG INITIALIZATION (NEW) ---
     // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
+    #[cfg(not(debug_assertions))]
     let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
         api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
         ..Default::default()

@@ -1,10 +1,9 @@
 use tauri::{AppHandle, State};
 
-use crate::models;
 use crate::stores::auth_store::AuthState;
-use crate::stores::customer_store::{self, CustomerState};
+use crate::stores::customer_store::CustomerState;
 use crate::stores::product_store::{self, ProductState};
-use crate::stores::sales_store::{self, SalesState};
+use crate::stores::sales_store::SalesState;
 
 #[tauri::command]
 pub async fn sync_products_command(
