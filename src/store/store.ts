@@ -1,6 +1,7 @@
 import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import posthog from 'posthog-js';
+import { invoke } from '@tauri-apps/api/core';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
@@ -455,6 +456,8 @@ export interface Table {
   capacity: number;
   status: 'available' | 'occupied' | 'reserved';
   currentOrderId?: string;
+  guestsCount?: number;
+  occupiedAt?: string;
   section?: string;
   notes?: string;
 }
@@ -491,12 +494,13 @@ interface PosStore {
 
   // Added tables and related methods
   tables: Table[];
-  addTable: (table: Omit<Table, 'id'>) => void;
-  updateTable: (id: string, table: Partial<Table>) => void;
-  deleteTable: (id: string) => void;
-  setTableStatus: (id: string, status: Table['status']) => void;
-  assignOrderToTable: (tableId: string, orderId: string) => void;
-  clearTableOrder: (tableId: string) => void;
+  fetchTables: () => Promise<void>;
+  addTable: (table: Omit<Table, 'id'>) => Promise<void>;
+  updateTable: (id: string, table: Partial<Table>) => Promise<void>;
+  deleteTable: (id: string) => Promise<void>;
+  setTableStatus: (id: string, status: Table['status']) => Promise<void>;
+  assignOrderToTable: (tableId: string, orderId: string, guestsCount?: number) => Promise<void>;
+  clearTableOrder: (tableId: string) => Promise<void>;
 
   getBusinessConfig: () => ReturnType<typeof getBusinessConfig>;
 
@@ -511,7 +515,7 @@ interface PosStore {
   setProducts: (products: Product[]) => void;
   resetOrder: () => void;
   resetStore: () => void;
-  completeOrder: (paymentMethod: string, discountAmount: number) => void;
+  completeOrder: (paymentMethod: string, discountAmount: number) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
 
   updateBusinessSettings: (settings: Partial<BusinessSettings>) => void;
@@ -888,14 +892,8 @@ export const usePosStore = create<PosStore>()(
       // Held Orders (Enterprise)
       heldOrders: [],
 
-      // Initialize tables with default values
-      tables: [
-        { id: 'table_1', number: '1', capacity: 4, status: 'available', section: 'Main Hall' },
-        { id: 'table_2', number: '2', capacity: 2, status: 'available', section: 'Main Hall' },
-        { id: 'table_3', number: '3', capacity: 6, status: 'available', section: 'Main Hall' },
-        { id: 'table_4', number: '4', capacity: 4, status: 'available', section: 'Patio' },
-        { id: 'table_5', number: '5', capacity: 8, status: 'available', section: 'VIP' },
-      ],
+      // Initialize tables as empty (will be fetched from DB)
+      tables: [],
 
       getBusinessConfig: () => {
         return getBusinessConfig(get().settings.businessType);
@@ -1157,105 +1155,97 @@ export const usePosStore = create<PosStore>()(
         });
       },
 
-      completeOrder: (paymentMethod, discountAmount) =>
-        set(state => {
-          const totalWithTax = state.currentOrder.items.reduce((sum, item) => {
-            const itemPrice = item.selectedUnit?.price ?? 0;
-            return sum + itemPrice * item.quantity;
-          }, 0);
+      completeOrder: async (paymentMethod, discountAmount) => {
+        const state = get();
+        const totalWithTax = state.currentOrder.items.reduce((sum, item) => {
+          const itemPrice = item.selectedUnit?.price ?? 0;
+          return sum + itemPrice * item.quantity;
+        }, 0);
 
-          // Extract tax from total (prices are tax-inclusive)
-          const taxes = (totalWithTax * state.settings.taxRate) / (100 + state.settings.taxRate);
-          const subTotal = totalWithTax - taxes;
+        const taxes = (totalWithTax * state.settings.taxRate) / (100 + state.settings.taxRate);
+        const subTotal = totalWithTax - taxes;
+        const discount = discountAmount;
+        const finalTotal = totalWithTax - discount;
 
-          const discount = discountAmount;
-          const finalTotal = totalWithTax - discount;
+        const newOrder: Order = {
+          id: Date.now().toString(),
+          orderNumber: `#${Math.floor(100000 + Math.random() * 900000)}`,
+          customerName: state.currentOrder.customerName || 'Walk-in Customer',
+          orderType: state.currentOrder.orderType,
+          status: 'completed',
+          items: [...state.currentOrder.items],
+          createdAt: new Date(),
+          subTotal: subTotal - discount,
+          discount,
+          taxes: taxes - (taxes * discount) / totalWithTax,
+          total: finalTotal,
+          paymentMethod,
+          tableNumber: state.currentOrder.tableNumber,
+          instructions: state.currentOrder.instructions,
+          metadata: state.currentOrder.metadata,
+          customerId: state.currentOrder.customerId,
+        };
 
-          const newOrder: Order = {
-            id: Date.now().toString(),
-            orderNumber: `#${Math.floor(100000 + Math.random() * 900000)}`,
-            customerName: state.currentOrder.customerName || 'Walk-in Customer',
-            orderType: state.currentOrder.orderType,
-            status: 'completed',
-            items: state.currentOrder.items,
-            createdAt: new Date(),
-            subTotal: subTotal - discount,
-            discount,
-            taxes: taxes - (taxes * discount) / totalWithTax, // Proportional tax reduction
-            total: finalTotal,
-            paymentMethod,
-            tableNumber: state.currentOrder.tableNumber,
-            instructions: state.currentOrder.instructions,
-            metadata: state.currentOrder.metadata,
-            customerId: state.currentOrder.customerId,
-          };
-
-          if (state.activeCashDrawerId && paymentMethod === 'cash') {
-            const updatedDrawers = state.cashDrawers.map(drawer =>
-              drawer.id === state.activeCashDrawerId
-                ? {
-                    ...drawer,
-                    transactions: [
-                      ...drawer.transactions,
-                      {
-                        type: 'sale' as const,
-                        amount: totalWithTax, // Use totalWithTax for the sale amount
-                        timestamp: new Date(),
-                        orderId: newOrder.id,
-                      },
-                    ],
-                  }
-                : drawer
-            );
-
-            return {
-              orders: [newOrder, ...state.orders],
-              lastCompletedOrder: newOrder,
-              cashDrawers: updatedDrawers,
-              currentOrder: {
-                customerName: '',
-                orderType: 'takeaway',
-                items: [],
-                tableNumber: '',
-                instructions: '',
-                metadata: {},
-                customerId: '',
-                customerPhone: '',
-                loyaltyPoints: 0,
-              },
-            };
-          }
-
-          // --- LOGIC: Clear Table if Associated ---
-          const tableToClear = state.tables.find(
-            t =>
-              t.number === state.currentOrder.tableNumber || t.currentOrderId === state.currentOrder.metadata?.orderId
+        // --- Logic: Handle Cash Drawer ---
+        let updatedDrawers = state.cashDrawers;
+        if (state.activeCashDrawerId && paymentMethod === 'cash') {
+          updatedDrawers = state.cashDrawers.map(drawer =>
+            drawer.id === state.activeCashDrawerId
+              ? {
+                  ...drawer,
+                  transactions: [
+                    ...drawer.transactions,
+                    {
+                      type: 'sale' as const,
+                      amount: totalWithTax,
+                      timestamp: new Date(),
+                      orderId: newOrder.id,
+                    },
+                  ],
+                }
+              : drawer
           );
+        }
 
-          let updatedTables = state.tables;
-          if (tableToClear) {
-            updatedTables = state.tables.map(t =>
-              t.id === tableToClear.id ? { ...t, status: 'available', currentOrderId: undefined } : t
-            );
+        // --- Logic: Find Table to Clear ---
+        const tableToClear = state.tables.find(
+          t => t.number === state.currentOrder.tableNumber || 
+               t.currentOrderId === state.currentOrder.metadata?.orderId
+        );
+
+        // Update State
+        set({
+          orders: [newOrder, ...state.orders],
+          lastCompletedOrder: newOrder,
+          cashDrawers: updatedDrawers,
+          currentOrder: {
+            customerName: '',
+            orderType: 'takeaway',
+            items: [],
+            tableNumber: '',
+            instructions: '',
+            metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
+          },
+        });
+
+        // Backend Update: Clear Table
+        if (tableToClear) {
+          try {
+            await invoke('update_table_status_command', {
+              id: tableToClear.id,
+              status: 'available',
+              orderId: null,
+              guestsCount: null,
+            });
+            get().fetchTables();
+          } catch (error) {
+            console.error('Failed to clear table in backend:', error);
           }
-
-          return {
-            orders: [newOrder, ...state.orders],
-            lastCompletedOrder: newOrder,
-            tables: updatedTables, // Apply table update
-            currentOrder: {
-              customerName: '',
-              orderType: 'takeaway',
-              items: [],
-              tableNumber: '',
-              instructions: '',
-              metadata: {},
-              customerId: '',
-              customerPhone: '',
-              loyaltyPoints: 0,
-            },
-          };
-        }),
+        }
+      },
 
       updateOrderStatus: (orderId, status) =>
         set(state => ({
@@ -1297,66 +1287,74 @@ export const usePosStore = create<PosStore>()(
           },
         })),
 
-      saveUnpaidOrder: discountAmount =>
-        set(state => {
-          const totalWithTax = state.currentOrder.items.reduce((sum, item) => {
-            const itemPrice = item.selectedUnit?.price ?? 0;
-            return sum + itemPrice * item.quantity;
-          }, 0);
+      saveUnpaidOrder: async discountAmount => {
+        const state = get();
+        const totalWithTax = state.currentOrder.items.reduce((sum, item) => {
+          const itemPrice = item.selectedUnit?.price ?? 0;
+          return sum + itemPrice * item.quantity;
+        }, 0);
 
-          // Extract tax from total
-          const taxes = (totalWithTax * state.settings.taxRate) / (100 + state.settings.taxRate);
-          const subTotal = totalWithTax - taxes;
+        const taxes = (totalWithTax * state.settings.taxRate) / (100 + state.settings.taxRate);
+        const subTotal = totalWithTax - taxes;
+        const discount = discountAmount;
+        const finalTotal = totalWithTax - discount;
 
-          const discount = discountAmount;
-          const finalTotal = totalWithTax - discount;
+        const newOrder: Order = {
+          id: Date.now().toString(),
+          orderNumber: `#${Math.floor(100000 + Math.random() * 900000)}`,
+          customerName: state.currentOrder.customerName || 'Walk-in Customer',
+          orderType: state.currentOrder.tableNumber ? 'dine-in' : state.currentOrder.orderType as any,
+          status: 'waiting',
+          items: [...state.currentOrder.items],
+          createdAt: new Date(),
+          subTotal: subTotal - discount,
+          discount,
+          taxes: taxes - (taxes * discount) / totalWithTax,
+          total: finalTotal,
+          paymentMethod: 'pending' as any,
+          tableNumber: state.currentOrder.tableNumber,
+          instructions: state.currentOrder.instructions,
+          metadata: {
+            ...state.currentOrder.metadata,
+            createdAt: Date.now(),
+          },
+          customerId: state.currentOrder.customerId,
+        };
 
-          const newOrder: Order = {
-            id: Date.now().toString(),
-            orderNumber: `#${Math.floor(100000 + Math.random() * 900000)}`,
-            customerName: state.currentOrder.customerName || 'Walk-in Customer',
-            orderType: state.currentOrder.tableNumber ? 'dine-in' : state.currentOrder.orderType as any,
-            status: 'waiting',
-            items: state.currentOrder.items,
-            createdAt: new Date(),
-            subTotal: subTotal - discount,
-            discount,
-            taxes: taxes - (taxes * discount) / totalWithTax,
-            total: finalTotal,
-            paymentMethod: 'pending' as any,
-            tableNumber: state.currentOrder.tableNumber,
-            instructions: state.currentOrder.instructions,
-            metadata: {
-              ...state.currentOrder.metadata,
-              createdAt: Date.now(),
-            },
-            customerId: state.currentOrder.customerId,
-          };
+        // Update State
+        set({
+          orders: [newOrder, ...state.orders],
+          currentOrder: {
+            customerName: '',
+            orderType: 'takeaway',
+            items: [],
+            tableNumber: '',
+            instructions: '',
+            metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
+          },
+        });
 
-          // --- LOGIC: Mark Table as Occupied if Associated ---
-          let updatedTables = state.tables;
-          if (state.currentOrder.tableNumber) {
-            updatedTables = state.tables.map(t =>
-              t.number === state.currentOrder.tableNumber ? { ...t, status: 'occupied', currentOrderId: newOrder.id } : t
-            );
+        // Backend Update: Mark Table as Occupied
+        if (state.currentOrder.tableNumber) {
+          const tableToOccupy = state.tables.find(t => t.number === state.currentOrder.tableNumber);
+          if (tableToOccupy) {
+            try {
+              await invoke('update_table_status_command', {
+                id: tableToOccupy.id,
+                status: 'occupied',
+                orderId: newOrder.id,
+                guestsCount: state.currentOrder.metadata?.guestsCount || null,
+              });
+              get().fetchTables();
+            } catch (error) {
+              console.error('Failed to occupy table in backend:', error);
+            }
           }
-
-          return {
-            orders: [newOrder, ...state.orders],
-            tables: updatedTables,
-            currentOrder: {
-              customerName: '',
-              orderType: 'takeaway',
-              items: [],
-              tableNumber: '',
-              instructions: '',
-              metadata: {},
-              customerId: '',
-              customerPhone: '',
-              loyaltyPoints: 0,
-            },
-          };
-        }),
+        }
+      },
 
       addEmployee: employee =>
         set(state => ({
@@ -1857,33 +1855,94 @@ export const usePosStore = create<PosStore>()(
         set(state => ({
           currentOrder: { ...state.currentOrder, instructions },
         })),
+      
+      fetchTables: async () => {
+        try {
+          const tables = await invoke<Table[]>('get_tables_command');
+          set({ tables });
+        } catch (error) {
+          console.error('Failed to fetch tables:', error);
+        }
+      },
 
       // Implementations for table management
-      addTable: table =>
-        set(state => ({
-          tables: [
-            ...state.tables,
-            {
-              ...table,
-              id: `table_${Date.now()}`,
-            },
-          ],
-        })),
+      addTable: async table => {
+        const id = `table_${Date.now()}`;
+        const newTable: Table = { ...table, id };
+        try {
+          await invoke('upsert_table_command', { table: newTable });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to add table:', error);
+        }
+      },
 
-      updateTable: (id, table) =>
-        set(state => ({
-          tables: state.tables.map(t => (t.id === id ? { ...t, ...table } : t)),
-        })),
+      updateTable: async (id, tableUpdate) => {
+        const existingTable = get().tables.find(t => t.id === id);
+        if (!existingTable) return;
+        
+        const updatedTable = { ...existingTable, ...tableUpdate };
+        try {
+          await invoke('upsert_table_command', { table: updatedTable });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to update table:', error);
+        }
+      },
 
-      deleteTable: id =>
-        set(state => ({
-          tables: state.tables.filter(t => t.id !== id),
-        })),
+      deleteTable: async id => {
+        try {
+          await invoke('delete_table_command', { id });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to delete table:', error);
+        }
+      },
 
-      setTableStatus: (id, status) =>
-        set(state => ({
-          tables: state.tables.map(t => (t.id === id ? { ...t, status } : t)),
-        })),
+      setTableStatus: async (id, status) => {
+        const table = get().tables.find(t => t.id === id);
+        if (!table) return;
+        
+        try {
+          await invoke('update_table_status_command', { 
+            id, 
+            status, 
+            orderId: table.currentOrderId || null,
+            guestsCount: table.guestsCount || null
+          });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to set table status:', error);
+        }
+      },
+
+      assignOrderToTable: async (tableId, orderId, guestsCount) => {
+        try {
+          await invoke('update_table_status_command', { 
+            id: tableId, 
+            status: 'occupied', 
+            orderId,
+            guestsCount: guestsCount || null
+          });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to assign order to table:', error);
+        }
+      },
+
+      clearTableOrder: async tableId => {
+        try {
+          await invoke('update_table_status_command', { 
+            id: tableId, 
+            status: 'available', 
+            orderId: null,
+            guestsCount: null
+          });
+          get().fetchTables();
+        } catch (error) {
+          console.error('Failed to clear table order:', error);
+        }
+      },
 
       updateKitchenTicketConfig: config =>
         set(state => ({
@@ -1899,20 +1958,6 @@ export const usePosStore = create<PosStore>()(
             ...state.settings,
             customerDisplayConfig: { ...state.settings.customerDisplayConfig, ...config },
           },
-        })),
-
-      assignOrderToTable: (tableId, orderId) =>
-        set(state => ({
-          tables: state.tables.map(t =>
-            t.id === tableId ? { ...t, status: 'occupied' as const, currentOrderId: orderId } : t
-          ),
-        })),
-
-      clearTableOrder: tableId =>
-        set(state => ({
-          tables: state.tables.map(t =>
-            t.id === tableId ? { ...t, status: 'available' as const, currentOrderId: undefined } : t
-          ),
         })),
 
       // ==========================================

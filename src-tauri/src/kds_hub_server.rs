@@ -8,7 +8,7 @@ use axum::{
     Router,
 };
 use local_ip_address::local_ip;
-use log::info; 
+use log::{info, warn}; 
 use std::net::SocketAddr; 
 use tokio::sync::broadcast;
 use futures_util::{sink::SinkExt, stream::StreamExt};
@@ -20,16 +20,22 @@ use crate::kds_models::WsMessage;
 struct AppState {
     // A channel that can broadcast messages to many receivers
     tx: broadcast::Sender<String>, 
+    // Tauri's AppHandle to access the database/state from inside the WS tasks
+    app_handle: AppHandle,
 }
 
 #[tauri::command]
-pub async fn start_kds_hub(_app: AppHandle) -> Result<String, String> {
+pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     let ip = local_ip().map_err(|e| e.to_string())?;
     
     // Create a broadcast channel with a capacity of 100 messages
     let (tx, _rx) = broadcast::channel(100);
     
-    let state = AppState { tx };
+    // Inject the AppHandle into our Axum state
+    let state = AppState { 
+        tx,
+        app_handle: app,
+    };
 
     // Bind to a fixed port for the POS hub (e.g., 8080) on 0.0.0.0
     let addr = SocketAddr::from((ip, 8080));
@@ -54,14 +60,12 @@ async fn ws_handler(
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 
-
 async fn handle_socket(mut socket: WebSocket, state: AppState) {
     // --- 1. INITIAL CONNECTION SYNC ---
     info!("New KDS client connected. Starting initial sync...");
     
-    // TODO: Fetch ONLY active/preparing orders from your local SQLite DB
-    // let active_orders = crate::stores::sales_store::get_active_kds_orders(&state.app).await;
-    let active_orders: Vec<crate::kds_models::KdsOrderPayload> = vec![]; // Placeholder
+    // Fetch active/preparing orders from the local SQLite DB using the AppHandle
+    let active_orders = crate::stores::sales_store::get_active_kds_orders(&state.app_handle).await;
     
     let sync_msg = WsMessage::SyncOrders(active_orders);
     if let Ok(text) = serde_json::to_string(&sync_msg) {
@@ -75,6 +79,9 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
     let mut rx = state.tx.subscribe();
 
+    // Clone the AppHandle for the send task
+    let app_handle_for_send = state.app_handle.clone();
+
     // --- 2. THE BROADCAST SENDER TASK ---
     let mut send_task = tokio::spawn(async move {
         loop {
@@ -87,12 +94,11 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                     }
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped_count)) => {
-                    // FIX: The client fell behind (e.g., bad Wi-Fi). It missed `skipped_count` messages.
-                    log::warn!("KDS client lagged and missed {} messages. Forcing a re-sync.", skipped_count);
+                    // The client fell behind (e.g., bad Wi-Fi). It missed `skipped_count` messages.
+                    warn!("KDS client lagged and missed {} messages. Forcing a re-sync.", skipped_count);
                     
-                    // Instead of dropping the client, fetch the latest state from the DB and push it.
-                    // let active_orders = crate::stores::sales_store::get_active_kds_orders(&app_handle_for_send).await;
-                    let active_orders = vec![]; // Placeholder
+                    // Fetch the latest state from the DB and push it
+                    let active_orders = crate::stores::sales_store::get_active_kds_orders(&app_handle_for_send).await;
                     
                     let resync_msg = WsMessage::SyncOrders(active_orders);
                     if let Ok(text) = serde_json::to_string(&resync_msg) {
@@ -111,6 +117,8 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
 
     // --- 3. THE RECEIVER TASK ---
     let tx = state.tx.clone();
+    // Clone the AppHandle for the receive task
+    let app_handle_for_recv = state.app_handle.clone();
     
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
@@ -118,18 +126,19 @@ async fn handle_socket(mut socket: WebSocket, state: AppState) {
                 match ws_msg {
                     WsMessage::NewOrder(order) => {
                         info!("Received new order locally: {}", order.order_id);
-                        // TODO: Save to local SQLite database using Tauri app_handle
-                        // crate::stores::sales_store::save_local_kds_order(&app_handle, &order).await;
+                        // Save to local SQLite database using Tauri app_handle
+                        crate::stores::sales_store::save_local_kds_order(&app_handle_for_recv, &order).await;
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::OrderStatusUpdated { order_id, new_status } => {
                         info!("Order {} status updated to: {}", order_id, new_status);
-                        // TODO: Update local SQLite database state
-                        // crate::stores::sales_store::update_kds_order_status(&app_handle, &order_id, &new_status).await;
+                        // Update local SQLite database state
+                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &order_id, &new_status).await;
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::SyncOrders(_) => {
                         // The tablet shouldn't send this to the server, ignore or log
+                        warn!("Received SyncOrders from client, which is unexpected.");
                     },
                     WsMessage::Ping => {
                         // Keep-alive from the tablet, no action needed

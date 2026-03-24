@@ -24,7 +24,7 @@ if (!import.meta.env.DEV) {
 posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_KEY, {
   api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
   defaults: '2026-01-30',
-  debug: import.meta.env.DEV,
+  // debug: import.meta.env.DEV,
 
   // 1. Disable the incredibly noisy features
   disable_session_recording: true,

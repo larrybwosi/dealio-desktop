@@ -4,6 +4,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 use better_posthog::events::capture;
+pub mod escpos_builder;
 
 pub mod stores;
 
@@ -22,6 +23,7 @@ use stores::pricing_store::{self, PricingState};
 use stores::product_store::{self, ProductState};
 use stores::sales_store::{self, SalesState};
 use stores::shift_store::{self, ShiftState};
+use stores::table_store;
 
 mod customer_manager;
 mod pricing_manager;
@@ -105,7 +107,8 @@ pub fn run() {
         .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::new().build());
 
     builder
         .manage(ProductState::new())
@@ -120,9 +123,11 @@ pub fn run() {
         .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
             
-            // let _ = app.track_event("app_started", None);
             capture_event("app_started", None);
-            // --- 1. Load Data (Existing Code) ---
+            
+            // Initialize the Product SQLite DB and run migrations
+            tauri::async_runtime::block_on(product_store::init_state(app.handle()));
+
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
             let state = app.state::<ProductState>();
@@ -147,6 +152,7 @@ pub fn run() {
             }
 
             let cust_state = app.state::<CustomerState>();
+
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_store::load_customers_from_disk(app.handle(), &cust_state),
             ) {
@@ -156,6 +162,11 @@ pub fn run() {
             let sales_state = app.state::<SalesState>();
             tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
             sales_store::start_auto_sync_task(app.handle().clone());
+
+            // Initialize Table Store DB
+            if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
+                error!("Failed to initialize table database: {}", e);
+            }
 
             let pricing_state = app.state::<PricingState>();
             if let Err(e) = tauri::async_runtime::block_on(
@@ -175,9 +186,9 @@ pub fn run() {
                 error!("Failed to load customer screen state: {}", e);
             }
 
-            // Check for old pending sales and notify user
+           // Check for old pending sales and notify user
             let old_sales = tauri::async_runtime::block_on(
-                sales_store::check_old_pending_sales(&sales_state, 3)
+                sales_store::check_old_pending_sales(app.handle().clone(), &sales_state, 3)
             );
             
             if !old_sales.is_empty() {
@@ -199,7 +210,7 @@ pub fn run() {
 
             // Check for failed sales and notify
             let failed_sales = tauri::async_runtime::block_on(
-                sales_store::check_failed_sales(&sales_state, 5)
+                sales_store::check_failed_sales(app.handle().clone(), &sales_state, 5)
             );
             
             if !failed_sales.is_empty() {
@@ -381,6 +392,8 @@ pub fn run() {
             printer_manager::save_printer_config,
             printer_manager::get_printer_config,
             printer_manager::print_job,
+            printer_manager::print_receipt_native,
+            printer_manager::print_kitchen_native,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,
@@ -395,9 +408,7 @@ pub fn run() {
             auth_store::reset_device_config,
             auth_store::authenticated_api_request,
             auth_store::update_device_location,
-
             notification_manager::send_native_notification,
-
             notification_manager::get_notification_history,
             notification_manager::get_unread_notification_count,
             notification_manager::mark_notification_read,
@@ -437,6 +448,12 @@ pub fn run() {
             audit_store::get_system_logs,
 
             kds_hub_server::start_kds_hub,
+
+            table_store::get_tables_command,
+            table_store::upsert_table_command,
+            table_store::delete_table_command,
+            table_store::update_table_status_command,
+            table_store::get_table_history_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1,11 +1,17 @@
-# [3.3.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0) (2026-03-21)
+# [3.3.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2026-03-23)
 
 
 ### Features
 
-* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
-* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
-* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
+* **sql storage:** we now store the sales and products in sql lite ([16aa4b4](https://github.com/larrybwosi/dealio-desktop/commit/16aa4b4ebf27be88675c5f204bfdea94b35df352))
+* **table management:** tables are now managed from the backend using sql to store them ([6512dd8](https://github.com/larrybwosi/dealio-desktop/commit/6512dd83a43dcf4bcdd08664d218d1e5c785c9f4))
+
+# [3.3.0-beta.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.1...v3.3.0-beta.2) (2026-03-22)
+
+
+### Features
+
+* **native printing:** kitchen tickets and correction of the errors ([dddd5f1](https://github.com/larrybwosi/dealio-desktop/commit/dddd5f127e948d01efb8c0e8bd6068771ad3e6ff))
 
 # [3.3.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-beta.1) (2026-03-21)
 

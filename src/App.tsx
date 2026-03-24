@@ -4,6 +4,7 @@ import SetupPage from '@/pages/set-up';
 import CheckinPage from '@/pages/checkin';
 import { useAuth, useSessionActivityListener } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { usePosStore } from '@/store/store';
 import { initializeNetworkRole } from '@/lib/kds';
 import posthog from 'posthog-js';
 import AppLayout from '@/components/app.layout';
@@ -93,8 +94,11 @@ const AppRoutes = () => {
 const DynamicRenderer = () => {
   useSessionActivityListener();
 
+  const fetchTables = usePosStore(state => state.fetchTables);
+
   useEffect(() => {
     initializeNetworkRole();
+    fetchTables();
     posthog.capture('app_started');
     // Hide and remove the splashscreen from index.html
     const splash = document.getElementById('splash-root');

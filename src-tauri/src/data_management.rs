@@ -1,11 +1,11 @@
 use keyring::Entry;
 use log::{error, info, warn};
 use tauri::{AppHandle, Manager};
+use tauri_plugin_sql::{DbInstances, DbPool};
 
 const KEYRING_SERVICE: &str = "dealio-desktop";
 
 use crate::customer_store::CustomerState;
-use crate::product_store::ProductState;
 
 #[tauri::command]
 pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
@@ -72,23 +72,23 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // 4. Reset In-Memory State
-    let product_state = app.state::<ProductState>();
-    {
-        let mut products_map = product_state
-            .products_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        products_map.clear();
+    // 4. Reset SQLite Databases
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get("sqlite:pos_main.db") {
+        let _ = sqlx::query("DELETE FROM products").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM product_sync_meta").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM queued_sales").execute(pool).await;
+        info!("[DangerZone] Cleared pos_main.db SQLite tables.");
     }
-    {
-        let mut sync_map = product_state
-            .last_sync_by_location
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        sync_map.clear();
+    
+    if let Some(DbPool::Sqlite(pool)) = guard.get("sqlite:kds_orders.db") {
+        let _ = sqlx::query("DELETE FROM kds_orders").execute(pool).await;
+        info!("[DangerZone] Cleared kds_orders.db SQLite tables.");
     }
 
+    // 5. Reset In-Memory State for Customers
     let customer_state = app.state::<CustomerState>();
     {
         let mut customers = customer_state
@@ -105,6 +105,6 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
         *last_sync = None;
     }
 
-    info!("[DangerZone] Full data wipe completed (files + memory).");
+    info!("[DangerZone] Full data wipe completed (files, database, and memory).");
     Ok(())
 }
