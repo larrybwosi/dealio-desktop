@@ -194,7 +194,7 @@ pub async fn run_sync(
     }
 
     let clean_base_url = base_url.trim_end_matches('/');
-    // Endpoint: /api/v1/pos/pricing OR /api/v1/pos/pricing/sync
+    // Endpoint: /api/v2/pos/pricing OR /api/v2/pos/pricing/sync
 
     let last_sync = state
         .last_sync_at
@@ -218,14 +218,13 @@ pub async fn run_sync(
     let mut val =
         HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
+    headers.insert("X-API-KEY", val);
 
     if let Some(token) = member_token {
-        let auth_val = format!("Bearer {}", token);
         let mut val =
-            HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+            HeaderValue::from_str(&token).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
         val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
+        headers.insert("X-MEMBER-TOKEN", val);
     }
 
     let client = reqwest::Client::builder()

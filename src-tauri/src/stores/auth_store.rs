@@ -159,8 +159,15 @@ impl AuthState {
                 .device_config
                 .lock()
                 .map_err(|_| "Failed to lock device config")?;
-            let config = config_guard.as_ref().ok_or("Device not configured")?;
-            (config.base_url.clone(), config.device_key.clone())
+
+            match config_guard.as_ref() {
+                Some(config) => (config.base_url.clone(), Some(config.device_key.clone())),
+                None => {
+                    // Fallback for initial provisioning where we might not have a config yet
+                    let dev_url = if cfg!(debug_assertions) { "http://localhost:3000" } else { "https://dealioerp.vercel.app" };
+                    (dev_url.to_string(), None)
+                }
+            }
         };
 
         let token = {
@@ -190,21 +197,18 @@ impl AuthState {
 
         let mut request_builder = self.client.request(method, &full_url);
 
-        let mut key_val = HeaderValue::from_str(&device_key).map_err(|e| e.to_string())?;
-        key_val.set_sensitive(true);
-        request_builder = request_builder.header("X-Device-Api-Key", key_val);
+        if let Some(key) = device_key {
+            let mut key_val = HeaderValue::from_str(&key).map_err(|e| e.to_string())?;
+            key_val.set_sensitive(true);
+            request_builder = request_builder.header("X-API-KEY", key_val);
+        }
 
         if let Some(t) = token {
-            let auth_val = format!("Bearer {}", t);
-            let mut val = HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?;
+            let mut val = HeaderValue::from_str(&t).map_err(|e| e.to_string())?;
             val.set_sensitive(true);
-            request_builder = request_builder.header(AUTHORIZATION, val);
+            request_builder = request_builder.header("X-MEMBER-TOKEN", val);
         }
 
-        if let Some(mid) = member_id {
-            let val = HeaderValue::from_str(&mid).map_err(|e| e.to_string())?;
-            request_builder = request_builder.header("X-Member-Id", val);
-        }
 
         Ok(request_builder)
     }

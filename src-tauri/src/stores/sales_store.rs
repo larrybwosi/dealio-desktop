@@ -462,7 +462,7 @@ async fn push_single_sale(
 ) -> Result<serde_json::Value> {
     let encoded_loc = urlencoding::encode(&location_id);
     let url_path = format!(
-        "/{}?locationId={}&enableStockTracking=true",
+        "{}?locationId={}&enableStockTracking=true",
         crate::api_config::routes::SALE_PROCESS,
         encoded_loc
     );
@@ -678,7 +678,7 @@ pub async fn get_sales_history_command(
     auth_state: State<'_, AuthState>,
     location_id: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut url_path = format!("/{}", crate::api_config::routes::SALE_BASE);
+    let mut url_path = format!("{}", crate::api_config::routes::SALE_BASE);
     if let Some(loc_id) = location_id {
         let encoded_loc = urlencoding::encode(&loc_id);
         url_path = format!("{}?locationId={}", url_path, encoded_loc);
@@ -698,7 +698,7 @@ pub async fn record_payment_command(
     auth_state: State<'_, AuthState>,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let url_path = format!("/{}", crate::api_config::routes::SALE_PAYMENTS);
+    let url_path = format!("{}", crate::api_config::routes::SALE_PAYMENTS);
     let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
 
     if !res.status().is_success() {
@@ -715,7 +715,7 @@ pub async fn initiate_mpesa_payment_command(
     amount: f64,
     sale_number: String,
 ) -> Result<serde_json::Value, String> {
-    let url_path = format!("/{}", crate::api_config::routes::MPESA_INITIATE);
+    let url_path = format!("{}", crate::api_config::routes::MPESA_INITIATE);
     let payload = serde_json::json!({ "phoneNumber": phone_number, "amount": amount, "saleNumber": sale_number });
 
     let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
@@ -728,7 +728,7 @@ pub async fn initiate_mpesa_payment_command(
 }
 
 pub async fn scan_transaction_qr(auth_state: &AuthState, qr_code: String) -> Result<serde_json::Value> {
-    let url_path = format!("/{}", crate::api_config::routes::TRANSACTION_SCAN);
+    let url_path = format!("{}", crate::api_config::routes::TRANSACTION_SCAN);
     let req = auth_state.build_request(reqwest::Method::POST, &url_path).map_err(SalesError::AuthError)?;
     let payload = serde_json::json!({ "code": qr_code });
 
@@ -747,7 +747,7 @@ pub async fn create_order(
     order_payload: serde_json::Value,
 ) -> Result<serde_json::Value> {
     let encoded_loc = urlencoding::encode(&location_id);
-    let url_path = format!("/{}?locationId={}", crate::api_config::routes::ORDERS, encoded_loc);
+    let url_path = format!("{}?locationId={}", crate::api_config::routes::ORDERS, encoded_loc);
 
     let req = auth_state.build_request(reqwest::Method::POST, &url_path).map_err(SalesError::AuthError)?;
     let resp = req.json(&order_payload).timeout(Duration::from_secs(30)).send().await.map_err(|e| SalesError::NetworkError(e.to_string()))?;

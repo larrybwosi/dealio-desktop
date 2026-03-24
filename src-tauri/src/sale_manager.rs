@@ -196,24 +196,17 @@ pub async fn get_invoice_blob_command(
 
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
-        "X-Device-Api-Key",
+        "X-API-KEY",
         reqwest::header::HeaderValue::from_str(&device_key).map_err(|e| e.to_string())?,
     );
 
     if let Some(t) = token {
-        let auth_val = format!("Bearer {}", t);
         headers.insert(
-            reqwest::header::AUTHORIZATION,
-            reqwest::header::HeaderValue::from_str(&auth_val).map_err(|e| e.to_string())?,
+            "X-MEMBER-TOKEN",
+            reqwest::header::HeaderValue::from_str(&t).map_err(|e| e.to_string())?,
         );
     }
 
-    if let Some(mid) = member_id {
-        headers.insert(
-            "X-Member-Id",
-            reqwest::header::HeaderValue::from_str(&mid).map_err(|e| e.to_string())?,
-        );
-    }
 
     let client = reqwest::Client::builder()
         .default_headers(headers)

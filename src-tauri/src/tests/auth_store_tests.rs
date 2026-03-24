@@ -16,7 +16,7 @@ fn test_auth_state_manual_initialization() {
 }
 
 #[test]
-fn test_build_request_without_config_fails() {
+fn test_build_request_without_config_uses_fallback() {
     let state = AuthState {
         device_config: Mutex::new(None),
         member_token: Mutex::new(None),
@@ -25,8 +25,7 @@ fn test_build_request_without_config_fails() {
     };
 
     let result = state.build_request(reqwest::Method::GET, "/test");
-    assert!(result.is_err());
-    assert_eq!(result.err().unwrap(), "Device not configured");
+    assert!(result.is_ok());
 }
 
 #[test]

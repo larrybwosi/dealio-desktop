@@ -1,17 +1,20 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
+// --- V2 API Wrapper ---
+#[derive(Debug, Serialize, Deserialize)]
+pub struct V2Response<T> {
+    pub success: bool,
+    pub data: T,
+    pub meta: Option<serde_json::Value>,
+}
+
 // --- Response Wrapper ---
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductsSyncResponse {
     pub products: Vec<PosProduct>,
-    // The API returns 'pagination', but we might not use it yet.
-    // We add it here so Serde doesn't get confused, but we can ignore it if we want.
     pub pagination: Option<Pagination>,
-    // If your API sends the timestamp in the body, keep this.
-    // If it's missing in the JSON you pasted, we make it Option to prevent crashes.
-    pub sync_timestamp: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -162,22 +165,23 @@ pub struct CustomersSyncResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PosCustomer {
-    pub id: String,
+    pub id: String, // Local CUID
+    pub twenty_id: Option<String>,
     pub name: String,
     pub email: Option<String>,
     pub phone: Option<String>,
 
     // Backend fields
+    #[serde(rename = "type")]
     pub customer_type: Option<String>, // "B2B" or "B2C" usually
+    #[serde(rename = "jobTitle")]
     pub company: Option<String>,
-    pub business_account_id: Option<String>,
     pub loyalty_points: Option<f64>,
 
     // Computed/Frontend helper fields
+    pub city: Option<String>,
     pub primary_address: Option<String>,
 
-    // Complex nested fields
-    pub addresses: Option<Vec<CustomerAddress>>,
     pub updated_at: Option<String>,
 }
 

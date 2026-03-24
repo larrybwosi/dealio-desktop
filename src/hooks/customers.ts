@@ -13,6 +13,7 @@ export interface PosCustomer extends Customer {
   phone?: string;
   customerType?: string;
   company?: string;
+  city?: string;
   primaryAddress?: string;
   updatedAt: string;
   addresses?: any[];

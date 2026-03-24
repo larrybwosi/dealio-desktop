@@ -135,29 +135,19 @@ fn build_client_with_context(
         )
     })?;
     val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
+    headers.insert("X-API-KEY", val);
 
     if let Some(t) = &token {
-        let auth_val = format!("Bearer {}", t);
-        let mut val = HeaderValue::from_str(&auth_val).map_err(|e| {
+        let mut val = HeaderValue::from_str(t).map_err(|e| {
             CommandError::new(
                 ErrorKind::Authentication,
                 format!("Invalid Token format: {}", e),
             )
         })?;
         val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
+        headers.insert("X-MEMBER-TOKEN", val);
     }
 
-    if let Some(mid) = &member_id {
-        let val = HeaderValue::from_str(mid).map_err(|e| {
-            CommandError::new(
-                ErrorKind::Authentication,
-                format!("Invalid Member ID format: {}", e),
-            )
-        })?;
-        headers.insert("X-Member-Id", val);
-    }
 
     let client = reqwest::Client::builder()
         .default_headers(headers)

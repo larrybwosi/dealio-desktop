@@ -42,13 +42,13 @@ interface Location {
 }
 
 interface SetupData {
-  apiKey: string;
+  setupToken: string;
   location: Location | null;
 }
 
 // --- Sub-Components ---
 
-const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
+const SetupTokenInstructions = ({ onBack }: { onBack: () => void }) => {
   return (
     <div className="space-y-6 w-full max-w-md mx-auto">
       <div className="space-y-2">
@@ -60,18 +60,18 @@ const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
         >
           <ChevronLeft className="w-4 h-4 mr-1" /> Back
         </Button>
-        <h3 className="text-2xl font-semibold tracking-tight uppercase">API Key Help</h3>
+        <h3 className="text-2xl font-semibold tracking-tight uppercase">Setup Token Help</h3>
         <p className="text-base text-zinc-500 dark:text-zinc-400">
-          Your security key connects this terminal to your merchant dashboard.
+          Your setup token provisions this terminal automatically.
         </p>
       </div>
 
       <div className="grid gap-4">
         {[
           { icon: Laptop, title: '1. Login to Dashboard', desc: 'Sign in to your Merchant Portal.' },
-          { icon: Settings, title: '2. Go to Settings', desc: 'Navigate to Settings > API Keys.' },
-          { icon: Key, title: '3. Generate Key', desc: "Create a new 'POS Terminal' key." },
-          { icon: ClipboardCheck, title: '4. Copy & Paste', desc: 'Copy the secret starting with pk_live.' },
+          { icon: Settings, title: '2. Go to Devices', desc: 'Navigate to Settings > Devices.' },
+          { icon: Key, title: '3. Generate Token', desc: 'Create a new setup token for this location.' },
+          { icon: ClipboardCheck, title: '4. Copy & Paste', desc: 'Copy the token and paste it here.' },
         ].map((item, i) => (
           <div
             key={i}
@@ -89,7 +89,7 @@ const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
       </div>
 
       <Button variant="outline" className="w-full h-11 rounded-none border-zinc-300 dark:border-zinc-700" asChild>
-        <a href={`${API_ENDPOINT}/settings/integrations?tab=api_keys`} target="_blank" rel="noreferrer">
+        <a href={`${API_ENDPOINT}/settings/devices`} target="_blank" rel="noreferrer">
           Open Dashboard <ExternalLink className="w-4 h-4 ml-2" />
         </a>
       </Button>
@@ -97,35 +97,33 @@ const ApiKeyInstructions = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-const ApiKeyStep = ({
+const SetupTokenStep = ({
   onNext,
   onShowInstructions,
 }: {
-  onNext: (k: string) => void;
+  onNext: (t: string) => void;
   onShowInstructions: () => void;
 }) => {
-  const [apiKey, setApiKey] = useState('');
-  const [isValidating, setIsValidating] = useState(false);
+  const [token, setToken] = useState('');
+  const [isProvisioning, setIsProvisioning] = useState(false);
   const [error, setError] = useState('');
+  const { provisionDevice } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (apiKey.length < 10) {
-      setError('Invalid API key format');
+    if (token.length < 10) {
+      setError('Invalid token format');
       return;
     }
     setError('');
-    setIsValidating(true);
+    setIsProvisioning(true);
     try {
-      await invoke('start_device_setup_command', {
-        baseUrl: API_ENDPOINT,
-        deviceKey: apiKey,
-      });
-      setIsValidating(false);
-      onNext(apiKey);
-    } catch {
-      setIsValidating(false);
-      setError('Failed to initialize connection');
+      await provisionDevice(token);
+      setIsProvisioning(false);
+      onNext(token);
+    } catch (err: any) {
+      setIsProvisioning(false);
+      setError(err.message || 'Failed to provision device');
     }
   };
 
@@ -133,19 +131,19 @@ const ApiKeyStep = ({
     <form onSubmit={handleSubmit} className="space-y-8 w-full max-w-md mx-auto">
       <div className="space-y-4">
         <Label
-          htmlFor="apiKey"
+          htmlFor="setupToken"
           className="text-base font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider"
         >
-          License Key
+          Setup Token
         </Label>
         <div className="relative group">
           <Input
-            id="apiKey"
+            id="setupToken"
             type="password"
-            value={apiKey}
-            onChange={e => setApiKey(e.target.value)}
+            value={token}
+            onChange={e => setToken(e.target.value)}
             className="pl-11 font-mono text-sm h-14 bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800 focus-visible:ring-0 focus-visible:border-blue-600 rounded-none shadow-none transition-all"
-            placeholder="pk_live_..."
+            placeholder="Paste your setup token here..."
             autoFocus
           />
           <Key className="absolute left-4 top-4.5 h-5 w-5 text-zinc-400 group-focus-within:text-blue-600 transition-colors" />
@@ -162,9 +160,9 @@ const ApiKeyStep = ({
           type="submit"
           size="lg"
           className="w-full h-12 rounded-none text-base bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-none uppercase font-bold tracking-wide"
-          disabled={isValidating || !apiKey}
+          disabled={isProvisioning || !token}
         >
-          {isValidating ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Verify & Continue'}
+          {isProvisioning ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : 'Provision & Continue'}
         </Button>
 
         <Button
@@ -173,7 +171,7 @@ const ApiKeyStep = ({
           className="text-zinc-500 dark:text-zinc-400 text-sm hover:bg-transparent hover:text-blue-600 hover:underline rounded-none"
           onClick={onShowInstructions}
         >
-          Where do I find my API key?
+          Where do I find my setup token?
         </Button>
       </div>
     </form>
@@ -343,31 +341,22 @@ const SuccessStep = ({ location }: { location: Location | null }) => {
 
 export default function SetupPage() {
   const [step, setStep] = useState(1);
-  const [setupData, setSetupData] = useState<SetupData>({ apiKey: '', location: null });
+  const [setupData, setSetupData] = useState<SetupData>({ setupToken: '', location: null });
   const [viewMode, setViewMode] = useState<'form' | 'instructions'>('form');
   const [appVersion, setAppVersion] = useState<string>('');
   const [isRegistering, setIsRegistering] = useState(false);
-  const { registerDevice } = useAuthStore();
+  const { currentLocation } = useAuthStore();
 
-  const handleApiKeyNext = (key: string) => {
-    setSetupData(prev => ({ ...prev, apiKey: key }));
-    setStep(2);
+  const handleTokenNext = (token: string) => {
+    setSetupData(prev => ({ ...prev, setupToken: token }));
+    setStep(3); // Success step
   };
 
-  const handleLocationComplete = async (location: Location) => {
-    setSetupData(prev => ({ ...prev, location }));
-    setIsRegistering(true);
-    try {
-      // @ts-expect-error
-      await registerDevice(setupData.apiKey, location);
-      setIsRegistering(false);
-      setStep(3);
-    } catch (error) {
-      setIsRegistering(false);
-      console.error(error);
-      toast.error('Failed to register device', { description: 'Please check your network and try again.' });
+  useEffect(() => {
+    if (currentLocation) {
+        setSetupData(prev => ({ ...prev, location: currentLocation as any }));
     }
-  };
+  }, [currentLocation]);
 
   useEffect(() => {
     // Async function to fetch version
@@ -440,7 +429,7 @@ export default function SetupPage() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                <ApiKeyInstructions onBack={() => setViewMode('form')} />
+                <SetupTokenInstructions onBack={() => setViewMode('form')} />
               </motion.div>
             ) : (
               <motion.div
@@ -458,25 +447,17 @@ export default function SetupPage() {
                     </div>
                   )}
                   <h2 className="text-3xl md:text-4xl font-black tracking-tighter text-zinc-900 dark:text-zinc-50 mb-3 uppercase">
-                    {step === 1 ? 'Connect Account' : step === 2 ? 'Select Location' : 'Setup Complete'}
+                    {step === 1 ? 'Connect Account' : 'Setup Complete'}
                   </h2>
                   <p className="text-lg text-zinc-500 dark:text-zinc-400 font-light">
-                    {step === 1 && 'Enter your license key to initialize device.'}
-                    {step === 2 && 'Which store is this device operating in?'}
+                    {step === 1 && 'Enter your setup token to initialize device.'}
                   </p>
                 </div>
 
                 {/* Steps */}
                 <div className="min-h-[300px]">
                   {step === 1 && (
-                    <ApiKeyStep onNext={handleApiKeyNext} onShowInstructions={() => setViewMode('instructions')} />
-                  )}
-                  {step === 2 && (
-                    <LocationStep
-                      onBack={() => setStep(1)}
-                      onComplete={handleLocationComplete}
-                      isSubmitting={isRegistering}
-                    />
+                    <SetupTokenStep onNext={handleTokenNext} onShowInstructions={() => setViewMode('instructions')} />
                   )}
                   {step === 3 && <SuccessStep location={setupData.location} />}
                 </div>

@@ -76,6 +76,7 @@ interface PosAuthActions {
 
   // Async initialization
   initializeFromBackend: () => Promise<void>;
+  provisionDevice: (setupToken: string) => Promise<void>;
   registerDevice: (apiKey: string, location: InventoryLocation) => Promise<void>;
   switchLocation: (location: InventoryLocation) => Promise<void>;
   setAllowNegativeStock: (allow: boolean) => Promise<void>;
@@ -183,6 +184,40 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         } catch (error) {
           console.error('Failed to initialize auth store:', error);
           set({ isInitialized: true, isConfigured: false });
+        }
+      },
+
+      provisionDevice: async (setupToken: string) => {
+        try {
+          const response = await invoke<any>('authenticated_api_request', {
+            method: 'POST',
+            path: 'api/v2/devices/provision',
+            body: { setupToken },
+          });
+
+          if (response.success) {
+            const { apiKey, device } = response.data;
+
+            await invoke('set_device_config', {
+              baseUrl: API_ENDPOINT,
+              locationId: device.locationId,
+              deviceKey: apiKey,
+            });
+
+            // We need to fetch the location details
+            const data = await invoke<{ locations: InventoryLocation[] }>('get_locations_command');
+            const location = data.locations?.find(loc => loc.id === device.locationId);
+
+            set({
+              isConfigured: true,
+              currentLocation: location || (device as any),
+            });
+          } else {
+            throw new Error(response.error?.message || 'Provisioning failed');
+          }
+        } catch (error) {
+          console.error('Failed to provision device:', error);
+          throw error;
         }
       },
 

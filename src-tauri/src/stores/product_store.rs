@@ -242,17 +242,14 @@ pub async fn run_sync(
     let mut headers = HeaderMap::new();
     let mut val = HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
+    headers.insert("X-API-KEY", val);
 
     if let Some(token) = member_token {
-        let mut val = HeaderValue::from_str(&format!("Bearer {}", token)).unwrap();
+        let mut val = HeaderValue::from_str(&token).unwrap();
         val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
+        headers.insert("X-MEMBER-TOKEN", val);
     }
 
-    if let Some(mid) = member_id {
-        headers.insert("X-Member-Id", HeaderValue::from_str(&mid).unwrap());
-    }
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
@@ -276,7 +273,8 @@ pub async fn run_sync(
         return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
     }
 
-    let mut res_body = response.json::<ProductsSyncResponse>().await?;
+    let v2_resp = response.json::<crate::models::V2Response<ProductsSyncResponse>>().await?;
+    let mut res_body = v2_resp.data;
 
     // Download images concurrently or sequentially
     for product in &mut res_body.products {
@@ -288,7 +286,9 @@ pub async fn run_sync(
     }
 
     let incoming_count = res_body.products.len();
-    let new_sync_time = res_body.sync_timestamp.unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
+    let new_sync_time = v2_resp.meta
+        .and_then(|m| m.get("syncTimestamp").and_then(|t| t.as_str().map(|s| s.to_string())))
+        .unwrap_or_else(|| chrono::Utc::now().to_rfc3339());
 
     // --- SQLite UPSERT in Transaction ---
     let mut tx = pool.begin().await?;

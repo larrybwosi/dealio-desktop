@@ -222,21 +222,15 @@ pub async fn run_sync(
     let mut val =
         HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
+    headers.insert("X-API-KEY", val);
 
     if let Some(token) = member_token {
-        let auth_val = format!("Bearer {}", token);
         let mut val =
-            HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+            HeaderValue::from_str(&token).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
         val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
+        headers.insert("X-MEMBER-TOKEN", val);
     }
 
-    // FIX: Add Member ID Header
-    if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
-        headers.insert("X-Member-Id", val);
-    }
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
@@ -264,10 +258,11 @@ pub async fn run_sync(
         ));
     }
 
-    let res_body = response
-        .json::<CustomersSyncResponse>()
+    let v2_resp = response
+        .json::<crate::models::V2Response<CustomersSyncResponse>>()
         .await
         .context("Failed to parse server response JSON")?;
+    let res_body = v2_resp.data;
 
     // --- MERGE LOGIC ---
     let (new_token, updated_list, incoming_count) = {
@@ -387,20 +382,15 @@ pub async fn create_customer(
     let mut val =
         HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
     val.set_sensitive(true);
-    headers.insert("X-Device-Api-Key", val);
+    headers.insert("X-API-KEY", val);
 
     if let Some(token) = member_token {
-        let auth_val = format!("Bearer {}", token);
         let mut val =
-            HeaderValue::from_str(&auth_val).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
+            HeaderValue::from_str(&token).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
         val.set_sensitive(true);
-        headers.insert(AUTHORIZATION, val);
+        headers.insert("X-MEMBER-TOKEN", val);
     }
 
-    if let Some(mid) = member_id {
-        let val = HeaderValue::from_str(&mid).map_err(|_| anyhow::anyhow!("Invalid Member ID"))?;
-        headers.insert("X-Member-Id", val);
-    }
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
