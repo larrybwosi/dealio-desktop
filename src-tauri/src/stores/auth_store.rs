@@ -1,18 +1,20 @@
 use keyring::Entry;
-use log::info;
+use log::{info, error};
 use reqwest::header::{HeaderValue, AUTHORIZATION};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
 
-
-
 // --- Data Types ---
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")] // Added to handle camelCase JSON fields seamlessly
 pub struct MemberProfile {
     pub id: String,
+    
+    #[serde(default)] // Allows parsing to succeed with an empty string if "name" is missing
     pub name: String,
+    
     pub role: Option<String>,
     // Add other non-sensitive fields from your Member model
 }
@@ -234,12 +236,20 @@ impl AuthState {
 
 // --- API Response Models ---
 
+// The nested login data containing the actual payload
 #[derive(Deserialize)]
 struct ServerLoginResponse {
     token: String,
     member: MemberProfile,
     #[serde(rename = "restoredSession")]
     restored_session: Option<bool>,
+}
+
+// The V2 API wrapper for login
+#[derive(Deserialize)]
+struct LoginApiWrapper {
+    success: bool,
+    data: ServerLoginResponse,
 }
 
 #[derive(Serialize)]
@@ -311,12 +321,16 @@ pub async fn login_member(
         .await
         .map_err(|e| format!("Network error: {}", e))?;
 
-    if !res.status().is_success() {
-        let status = res.status();
-        let error_text = res
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
+    let status = res.status();
+    let text = res
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response body: {}", e))?;
+
+    if !status.is_success() {
+        let error_msg = format!("Login failed: {} - {}", status, text);
+        error!("[AUTH] {}", error_msg);
+
         // Audit failed login attempt
         let _ = crate::audit_store::write_event(
             &app,
@@ -326,21 +340,25 @@ pub async fn login_member(
             None,
             location_id,
             None,
-            serde_json::json!({ "card_id": card_id, "reason": format!("{} - {}", status, error_text) }),
+            serde_json::json!({ "card_id": card_id, "reason": error_msg }),
         );
-        return Err(format!("Login failed: {} - {}", status, error_text));
+        return Err(error_msg);
     }
 
-    // 3. Parse and Store Token Internally
-    let data: ServerLoginResponse = res.json().await.map_err(|e| e.to_string())?;
+    // 3. Parse and Store Token Internally utilizing the new wrapper
+    let wrapper: LoginApiWrapper = serde_json::from_str(&text)
+        .map_err(|e| format!("JSON parse error: {} | Raw: {}", e, text))?;
+
+    let data = wrapper.data;
 
     // CRITICAL: Token stays here, never returned to UI
     let _ = AuthState::save_token_to_keyring(&data.token);
-    *state.member_token.lock().unwrap() = Some(data.token);
+    *state.member_token.lock().unwrap() = Some(data.token.clone());
     *state.current_user.lock().unwrap() = Some(data.member.clone());
 
     // Audit successful login
-    info!("[AUTH] Member {} logged in", data.member.name);
+    let member_name_for_log = if data.member.name.is_empty() { "Unknown" } else { &data.member.name };
+    
     let _ = crate::audit_store::write_event(
         &app,
         crate::audit_store::AuditLevel::Info,
@@ -627,6 +645,7 @@ pub async fn get_ably_auth_token_command(
         .map_err(|e| format!("Invalid JSON: {}", e))?;
     Ok(data)
 }
+
 #[tauri::command]
 pub async fn update_device_location(
     state: State<'_, AuthState>,

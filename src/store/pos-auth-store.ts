@@ -73,6 +73,7 @@ interface PosAuthActions {
   refreshSession: () => void;
   resetAll: () => void;
   resetDevice: () => void;
+  completeSetup: () => void;
 
   // Async initialization
   initializeFromBackend: () => Promise<void>;
@@ -132,7 +133,11 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       },
 
       resetAll: () => {
-        set(initialState);
+        set({ ...initialState, isInitialized: true });
+      },
+
+      completeSetup: () => {
+        set({ isConfigured: true });
       },
 
       resetDevice: () => {
@@ -209,8 +214,9 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
             const location = data.locations?.find(loc => loc.id === device.locationId);
 
             set({
-              isConfigured: true,
-              currentLocation: location || (device as any),
+              // Do not set isConfigured here so that the Success UI can play out.
+              // completeSetup() will be called after the animation.
+              currentLocation: location || ({ ...device, id: device.locationId, name: device.name || 'Terminal' } as any),
             });
           } else {
             throw new Error(response.error?.message || 'Provisioning failed');

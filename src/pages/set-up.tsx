@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Key,
-  MapPin,
   Check,
   Store,
   Loader2,
@@ -12,25 +11,20 @@ import {
   Laptop,
   Settings,
   ClipboardCheck,
-  Warehouse,
   ChevronLeft,
 } from 'lucide-react';
 
 // shadcn components
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Label } from '@/components/ui/label';
 
 // hooks
-import { usePosLocations } from '@/hooks/locations';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { API_ENDPOINT } from '@/lib/axios';
-import { toast } from 'sonner';
-import { invoke } from '@tauri-apps/api/core';
 
 // --- Types ---
 interface Location {
@@ -178,122 +172,6 @@ const SetupTokenStep = ({
   );
 };
 
-const LocationStep = ({
-  onBack,
-  onComplete,
-  isSubmitting,
-}: {
-  onBack: () => void;
-  onComplete: (l: Location) => void;
-  isSubmitting: boolean;
-}) => {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { locations, isLoading } = usePosLocations();
-
-  const handleComplete = () => {
-    const loc = locations?.find(l => l.id === selectedId);
-    if (loc) {
-      // @ts-expect-error
-      onComplete(loc);
-    }
-  };
-
-  const getLocationIcon = (type: string) => {
-    switch (type) {
-      case 'RETAIL_SHOP':
-        return Store;
-      case 'WAREHOUSE':
-        return Warehouse;
-      default:
-        return MapPin;
-    }
-  };
-
-  return (
-    <div className="space-y-6 w-full max-w-md mx-auto flex flex-col h-[70vh] md:h-auto">
-      <div className="space-y-1">
-        <h3 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-          Select Store Target
-        </h3>
-      </div>
-
-      {/* Scrollable Area */}
-      <div className="flex-1 overflow-y-auto -mr-3 pr-3 space-y-3 custom-scrollbar min-h-[200px]">
-        {locations?.map(loc => {
-          const Icon = getLocationIcon(loc.locationType);
-          const isSelected = selectedId === loc.id;
-
-          return (
-            <div
-              key={loc.id}
-              onClick={() => setSelectedId(loc.id)}
-              className={`
-                        group relative flex items-center gap-4 p-4 border cursor-pointer transition-all duration-100
-                        ${
-                          isSelected
-                            ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/10'
-                            : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50 hover:border-zinc-400'
-                        }
-                    `}
-            >
-              <div
-                className={`p-3 transition-colors rounded-none ${isSelected ? 'bg-blue-600 text-white' : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 group-hover:text-zinc-700'}`}
-              >
-                <Icon size={20} />
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-bold text-zinc-900 dark:text-zinc-100 truncate uppercase tracking-tight">
-                    {loc.name}
-                  </h4>
-                  {loc.isDefault && (
-                    <Badge
-                      variant="secondary"
-                      className="rounded-none text-[10px] h-5 px-1.5 bg-zinc-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
-                    >
-                      Default
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-sm text-zinc-500 dark:text-zinc-400 truncate capitalize font-mono">
-                  {loc.locationType.toLowerCase().replace('_', ' ')}
-                </p>
-              </div>
-
-              <div
-                className={`w-6 h-6 border flex items-center justify-center transition-all ${isSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-zinc-300 dark:border-zinc-700 opacity-20 group-hover:opacity-100'}`}
-              >
-                {isSelected && <Check size={14} strokeWidth={4} />}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex gap-4 pt-4 border-t border-zinc-100 dark:border-zinc-800 mt-auto">
-        <Button
-          variant="outline"
-          onClick={onBack}
-          size="lg"
-          className="flex-1 rounded-none h-12 uppercase font-bold tracking-wide"
-          disabled={isSubmitting}
-        >
-          Back
-        </Button>
-        <Button
-          size="lg"
-          className="flex-[2] rounded-none h-12 bg-blue-600 hover:bg-blue-700 text-white shadow-none uppercase font-bold tracking-wide"
-          disabled={!selectedId || isLoading || isSubmitting}
-          onClick={handleComplete}
-        >
-          {isSubmitting ? <Loader2 className="animate-spin mr-2" /> : 'Confirm & Initialize'}
-        </Button>
-      </div>
-    </div>
-  );
-};
-
 const SuccessStep = ({ location }: { location: Location | null }) => {
   const [progress, setProgress] = useState(10);
   const navigate = useNavigate();
@@ -301,6 +179,7 @@ const SuccessStep = ({ location }: { location: Location | null }) => {
   useEffect(() => {
     const timer = setTimeout(() => setProgress(100), 800);
     const redirectTimer = setTimeout(() => {
+      useAuthStore.getState().completeSetup();
       navigate('/');
     }, 2000);
 
@@ -344,7 +223,6 @@ export default function SetupPage() {
   const [setupData, setSetupData] = useState<SetupData>({ setupToken: '', location: null });
   const [viewMode, setViewMode] = useState<'form' | 'instructions'>('form');
   const [appVersion, setAppVersion] = useState<string>('');
-  const [isRegistering, setIsRegistering] = useState(false);
   const { currentLocation } = useAuthStore();
 
   const handleTokenNext = (token: string) => {
