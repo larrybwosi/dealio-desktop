@@ -1,3 +1,12 @@
+# [3.4.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0...v3.4.0) (2026-03-24)
+
+
+### Features
+
+* **native printing:** kitchen tickets and correction of the errors ([dddd5f1](https://github.com/larrybwosi/dealio-desktop/commit/dddd5f127e948d01efb8c0e8bd6068771ad3e6ff))
+* **sql storage:** we now store the sales and products in sql lite ([16aa4b4](https://github.com/larrybwosi/dealio-desktop/commit/16aa4b4ebf27be88675c5f204bfdea94b35df352))
+* **table management:** tables are now managed from the backend using sql to store them ([6512dd8](https://github.com/larrybwosi/dealio-desktop/commit/6512dd83a43dcf4bcdd08664d218d1e5c785c9f4))
+
 # [3.3.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2026-03-23)
 
 
