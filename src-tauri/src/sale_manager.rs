@@ -30,7 +30,7 @@ pub async fn process_sale_command(
     .map_err(|e| e.to_string());
 
     // --- Audit Logging ---
-    let (actor_id, actor_name, location_id) = {
+    let (actor_name, location_id) = {
         let config_guard = auth_state
             .device_config
             .lock()
@@ -40,7 +40,6 @@ pub async fn process_sale_command(
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         (
-            user_guard.as_ref().map(|u| u.id.clone()),
             user_guard.as_ref().map(|u| u.name.clone()),
             config_guard.as_ref().map(|c| c.location_id.clone()),
         )
@@ -57,7 +56,7 @@ pub async fn process_sale_command(
                 &app,
                 crate::stores::audit_store::AuditLevel::Info,
                 "SALE_PROCESSED",
-                actor_id,
+                None,
                 actor_name,
                 location_id,
                 None,
@@ -69,7 +68,7 @@ pub async fn process_sale_command(
                 &app,
                 crate::stores::audit_store::AuditLevel::Critical,
                 "SALE_FAILED",
-                actor_id,
+                None,
                 actor_name,
                 location_id,
                 None,
@@ -169,17 +168,15 @@ pub async fn get_invoice_blob_command(
     auth_state: State<'_, AuthState>,
     url: String,
 ) -> Result<Vec<u8>, String> {
-    let (device_key, token, member_id, base_url) = {
+    let (device_key, token, base_url) = {
         let config_guard = auth_state.device_config.lock().map_err(|e| e.to_string())?;
         let config = config_guard.as_ref().ok_or("Device not initialized")?;
 
         let token_guard = auth_state.member_token.lock().map_err(|e| e.to_string())?;
-        let user_guard = auth_state.current_user.lock().map_err(|e| e.to_string())?;
 
         (
             config.device_key.clone(),
             token_guard.clone(),
-            user_guard.as_ref().map(|u| u.id.clone()),
             config.base_url.clone(),
         )
     };

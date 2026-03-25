@@ -185,19 +185,12 @@ pub async fn run_sync(
         )
     };
 
-    // FIX: Extract Member ID along with Token
-    let (member_token, member_id) = {
+    let member_token = {
         let token_guard = auth_state
             .member_token
             .lock()
             .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-
-        let mid = user_guard.as_ref().map(|u| u.id.clone());
-        (token_guard.clone(), mid)
+        token_guard.clone()
     };
 
     if base_url.is_empty() {
@@ -358,19 +351,12 @@ pub async fn create_customer(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let (member_token, member_id) = {
+    let member_token = {
         let token_guard = auth_state
             .member_token
             .lock()
             .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (
-            token_guard.clone(),
-            user_guard.as_ref().map(|u| u.id.clone()),
-        )
+        token_guard.clone()
     };
 
     let clean_base = base_url.trim_end_matches('/');

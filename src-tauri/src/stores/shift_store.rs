@@ -200,15 +200,6 @@ pub async fn sync_pending_shifts(
         token_guard.clone()
     };
 
-    // FIX: Extract Member ID
-    let member_id = {
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .map_err(|_| "Lock error".to_string())?;
-        user_guard.as_ref().map(|u| u.id.clone())
-    };
-
     let shift_opt = {
         let lock = state
             .current_shift
@@ -260,7 +251,6 @@ pub async fn sync_pending_shifts(
             val.set_sensitive(true);
             headers.insert("X-MEMBER-TOKEN", val);
         }
-
 
         let client = reqwest::Client::builder()
             .default_headers(headers)

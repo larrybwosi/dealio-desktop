@@ -165,8 +165,7 @@ pub struct CustomersSyncResponse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PosCustomer {
-    pub id: String, // Local CUID
-    pub twenty_id: Option<String>,
+    pub id: String,
     pub name: String,
     pub email: Option<String>,
     pub phone: Option<String>,

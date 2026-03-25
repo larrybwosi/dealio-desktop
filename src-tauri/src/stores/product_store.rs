@@ -218,10 +218,9 @@ pub async fn run_sync(
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
 
-    let (member_token, member_id) = {
+    let member_token = {
         let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let user_guard = auth_state.current_user.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        (token_guard.clone(), user_guard.as_ref().map(|u| u.id.clone()))
+        token_guard.clone()
     };
 
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
@@ -245,11 +244,10 @@ pub async fn run_sync(
     headers.insert("X-API-KEY", val);
 
     if let Some(token) = member_token {
-        let mut val = HeaderValue::from_str(&token).unwrap();
+        let mut val = HeaderValue::from_str(&token).map_err(|_| anyhow::anyhow!("Invalid Token Format"))?;
         val.set_sensitive(true);
         headers.insert("X-MEMBER-TOKEN", val);
     }
-
 
     let client = reqwest::Client::builder()
         .default_headers(headers)
@@ -516,7 +514,7 @@ pub async fn switch_location(
 ) -> Result<Vec<PosProduct>, String> {
     
     // 1. Return cached products immediately from DB (First 50 items to load UI fast)
-    let search_res = search_local(&app, &state, &new_location_id, "".to_string(), "all".to_string(), Some(1), Some(50)).await;
+    let search_res = search_local(&app, &*state, &new_location_id, "".to_string(), "all".to_string(), Some(1), Some(50)).await;
     let cached = search_res.products;
 
     // 2. Trigger background sync (delta if we have lastSync, full if first visit)
@@ -525,7 +523,7 @@ pub async fn switch_location(
     tauri::async_runtime::spawn(async move {
         let state_inner = app_clone.state::<ProductState>();
         let auth_inner = app_clone.state::<AuthState>();
-        let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
+        let _ = run_sync(app_clone.clone(), &*state_inner, &*auth_inner, false).await;
     });
 
     Ok(cached)

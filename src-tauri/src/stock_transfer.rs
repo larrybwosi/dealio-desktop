@@ -109,20 +109,13 @@ fn build_client_with_context(
         )
     };
 
-    // 2. Get Auth (Token & Member)
-    let (token, member_id) = {
+    // 2. Get Auth Token
+    let token = {
         let token_guard = auth_state.member_token.lock().map_err(|_| {
             CommandError::new(ErrorKind::Authentication, "Failed to lock token store")
         })?;
 
-        let user_guard = auth_state.current_user.lock().map_err(|_| {
-            CommandError::new(ErrorKind::Authentication, "Failed to lock user store")
-        })?;
-
-        (
-            token_guard.clone(),
-            user_guard.as_ref().map(|u| u.id.clone()),
-        )
+        token_guard.clone()
     };
 
     let clean_base = base_url.trim_end_matches('/').to_string();

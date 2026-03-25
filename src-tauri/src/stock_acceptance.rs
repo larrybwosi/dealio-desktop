@@ -40,19 +40,12 @@ fn build_client(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let (token, member_id) = {
+    let token = {
         let token_guard = auth_state.member_token.lock().map_err(|_| {
             CommandError::new(ErrorKind::Authentication, "Failed to lock token store")
         })?;
 
-        let user_guard = auth_state.current_user.lock().map_err(|_| {
-            CommandError::new(ErrorKind::Authentication, "Failed to lock user store")
-        })?;
-
-        (
-            token_guard.clone(),
-            user_guard.as_ref().map(|u| u.id.clone()),
-        )
+        token_guard.clone()
     };
 
     let clean_base = base_url.trim_end_matches('/').to_string();

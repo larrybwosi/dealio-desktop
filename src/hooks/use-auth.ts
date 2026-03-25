@@ -60,7 +60,6 @@ export function useAuth() {
         location_name: currentLocation?.name,
       });
       posthog.capture('user_checked_in', {
-        member_id: data.member.id,
         member_name: data.member.name,
         location_id: currentLocation?.id,
         restored_session: data.restoredSession,
@@ -104,7 +103,6 @@ export function useAuth() {
     onSuccess: () => {
       // On success, clear the global store
       posthog.capture('user_checked_out', {
-        member_id: currentMember?.id,
         member_name: currentMember?.name,
         location_id: currentLocation?.id,
       });

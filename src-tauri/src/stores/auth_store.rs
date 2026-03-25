@@ -8,10 +8,8 @@ use tauri::{AppHandle, State};
 // --- Data Types ---
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
-#[serde(rename_all = "camelCase")] // Added to handle camelCase JSON fields seamlessly
+#[serde(rename_all = "camelCase")] 
 pub struct MemberProfile {
-    pub id: String,
-    
     #[serde(default)] // Allows parsing to succeed with an empty string if "name" is missing
     pub name: String,
     
@@ -150,7 +148,7 @@ impl AuthState {
 
     // --- Helper to get a configured HTTP Client ---
     // This provides a request builder utilizing the persistent client and automatically
-    // injects API Key, Bearer token, and Member ID headers.
+    // injects API Key and Bearer token headers.
     pub fn build_request(
         &self,
         method: reqwest::Method,
@@ -179,13 +177,6 @@ impl AuthState {
                 .clone()
         };
 
-        let member_id = {
-            let user_guard = self
-                .current_user
-                .lock()
-                .map_err(|_| "Failed to lock user store")?;
-            user_guard.as_ref().map(|u| u.id.clone())
-        };
 
         let full_url = if path.starts_with("http") {
             path.to_string()
@@ -336,7 +327,7 @@ pub async fn login_member(
             &app,
             crate::audit_store::AuditLevel::Warning,
             "LOGIN_FAILED",
-            Some(card_id.clone()),
+            None,
             None,
             location_id,
             None,
@@ -363,7 +354,7 @@ pub async fn login_member(
         &app,
         crate::audit_store::AuditLevel::Info,
         "LOGIN",
-        Some(data.member.id.clone()),
+        None,
         Some(data.member.name.clone()),
         location_id,
         None,
@@ -383,12 +374,9 @@ pub async fn logout_member(
     location_id: Option<String>,
 ) -> Result<(), String> {
     // Capture actor before clearing
-    let (actor_id, actor_name) = {
+    let actor_name = {
         let user_guard = state.current_user.lock().unwrap_or_else(|e| e.into_inner());
-        (
-            user_guard.as_ref().map(|u| u.id.clone()),
-            user_guard.as_ref().map(|u| u.name.clone()),
-        )
+        user_guard.as_ref().map(|u| u.name.clone())
     };
 
     // 1. Attempt to notify the server (Best effort)
@@ -418,7 +406,7 @@ pub async fn logout_member(
         &app,
         crate::audit_store::AuditLevel::Info,
         "LOGOUT",
-        actor_id,
+        None,
         actor_name,
         location_id,
         None,
@@ -454,7 +442,7 @@ pub async fn authenticated_api_request(
         _ => return Err(format!("Unsupported method: {}", method)),
     };
 
-    // 1. Build Request (handles URL formatting and all headers including Member-Id)
+    // 1. Build Request (handles URL formatting and all headers)
     let mut request = state.build_request(req_method, &path)?;
 
     if let Some(b) = body {
