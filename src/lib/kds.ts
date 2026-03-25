@@ -19,6 +19,7 @@ export async function initializeNetworkRole() {
   } else if (role === 'TABLET' || role === 'KDS') {
     // For other devices, grab the IP of the Hub (Inputted during setup)
     const hubIp = localStorage.getItem('HUB_IP_ADDRESS');
+    console.log(`Connecting to Hub at ${hubIp}...`);
     if (hubIp) {
        connectToHub(`ws://${hubIp}:8080/kds-ws`);
     }
@@ -28,11 +29,52 @@ export async function initializeNetworkRole() {
 // --- 2. The WebSocket Client ---
 let socket: WebSocket | null = null;
 
+function getOfflineQueue(): string[] {
+  const stored = localStorage.getItem('KDS_OFFLINE_QUEUE');
+  return stored ? JSON.parse(stored) : [];
+}
+
+function addToOfflineQueue(payload: string) {
+  const queue = getOfflineQueue();
+  queue.push(payload);
+  localStorage.setItem('KDS_OFFLINE_QUEUE', JSON.stringify(queue));
+}
+
+function clearOfflineQueue() {
+  localStorage.removeItem('KDS_OFFLINE_QUEUE');
+}
+
 export function connectToHub(url: string) {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
   socket = new WebSocket(url);
 
   socket.onopen = () => {
     console.log("Connected to Local POS Hub!");
+    // Send initial status/heartbeat
+    const role = localStorage.getItem('DEVICE_ROLE');
+    socket?.send(JSON.stringify({
+      type: 'DeviceStatus',
+      payload: {
+        id: localStorage.getItem('DEVICE_ID') || 'unknown',
+        name: localStorage.getItem('DEVICE_NAME') || 'Terminal',
+        type: role,
+        status: 'online',
+        lastSeen: Date.now()
+      }
+    }));
+
+    // Process offline queue
+    const queue = getOfflineQueue();
+    if (queue.length > 0) {
+      console.log(`Processing ${queue.length} offline messages...`);
+      queue.forEach(msg => {
+        socket?.send(msg);
+      });
+      clearOfflineQueue();
+    }
   };
 
   socket.onmessage = (event) => {
@@ -44,6 +86,13 @@ export function connectToHub(url: string) {
         // If this is the KDS device, add to the screen array
         useKdsStore.getState().addOrder(order);
         console.log("KDS: New Ticket Arrived!", order);
+
+        // Check for Auto-Print
+        const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
+        if (kdsConfig.autoPrintKds) {
+            console.log("KDS: Auto-printing ticket...");
+            usePosStore.getState().printReceipt(order.id);
+        }
     }
     
     if (message.type === 'OrderStatusUpdated') {
@@ -92,11 +141,12 @@ export function sendOrderToKitchen(fullOrder: any) {
     payload: KdsOrderPayload
   };
 
+  const jsonPayload = JSON.stringify(payload);
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(payload));
+    socket.send(jsonPayload);
   } else {
-    // Fallback: Save to an offline queue in localStorage to send when reconnected
     console.error("Hub offline! Saving to local offline queue...");
+    addToOfflineQueue(jsonPayload);
   }
 }
 
@@ -109,7 +159,10 @@ export function updateOrderStatusInKitchen(orderId: string, status: string) {
     }
   };
 
+  const jsonPayload = JSON.stringify(payload);
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(payload));
+    socket.send(jsonPayload);
+  } else {
+    addToOfflineQueue(jsonPayload);
   }
 }

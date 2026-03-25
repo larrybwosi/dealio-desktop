@@ -63,6 +63,8 @@ interface PosAuthState {
   sessionUpdatedAt: number | null;
   isInitialized: boolean;
   allowNegativeStock: boolean;
+  deviceType: 'MAIN_HUB' | 'KDS' | 'TABLET';
+  hubIp: string | null;
 }
 
 interface PosAuthActions {
@@ -73,7 +75,7 @@ interface PosAuthActions {
   refreshSession: () => void;
   resetAll: () => void;
   resetDevice: () => void;
-  completeSetup: () => void;
+  completeSetup: (deviceType: 'MAIN_HUB' | 'KDS' | 'TABLET', hubIp?: string | null) => void;
 
   // Async initialization
   initializeFromBackend: () => Promise<void>;
@@ -81,6 +83,7 @@ interface PosAuthActions {
   registerDevice: (apiKey: string, location: InventoryLocation) => Promise<void>;
   switchLocation: (location: InventoryLocation) => Promise<void>;
   setAllowNegativeStock: (allow: boolean) => Promise<void>;
+  setDeviceConfig: (deviceType: 'MAIN_HUB' | 'KDS' | 'TABLET', hubIp?: string | null) => void;
 }
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -94,12 +97,24 @@ const initialState: PosAuthState = {
   sessionUpdatedAt: null,
   isInitialized: false,
   allowNegativeStock: false,
+  deviceType: 'MAIN_HUB',
+  hubIp: null,
 };
 
 export const useAuthStore = create<PosAuthState & PosAuthActions>()(
   persist(
     (set, get) => ({
       ...initialState,
+
+      setDeviceConfig: (deviceType, hubIp = null) => {
+        set({ deviceType, hubIp });
+        localStorage.setItem('DEVICE_ROLE', deviceType);
+        if (hubIp) {
+          localStorage.setItem('HUB_IP_ADDRESS', hubIp);
+        } else {
+          localStorage.removeItem('HUB_IP_ADDRESS');
+        }
+      },
 
       setMemberSession: (member: Member, isRestored = false) => {
         set({
@@ -133,11 +148,17 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       },
 
       resetAll: () => {
-        set({ ...initialState, isInitialized: true });
+        set({ ...initialState, isInitialized: false });
       },
 
-      completeSetup: () => {
-        set({ isConfigured: true });
+      completeSetup: (deviceType, hubIp = null) => {
+        set({ isConfigured: true, deviceType, hubIp });
+        localStorage.setItem('DEVICE_ROLE', deviceType);
+        if (hubIp) {
+          localStorage.setItem('HUB_IP_ADDRESS', hubIp);
+        } else {
+          localStorage.removeItem('HUB_IP_ADDRESS');
+        }
       },
 
       resetDevice: () => {
@@ -297,6 +318,8 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         isRestoredSession: state.isRestoredSession,
         sessionUpdatedAt: state.sessionUpdatedAt,
         allowNegativeStock: state.allowNegativeStock,
+        deviceType: state.deviceType,
+        hubIp: state.hubIp,
       }),
 
       onRehydrateStorage: () => state => {

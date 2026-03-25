@@ -18,6 +18,15 @@ pub struct KdsOrderPayload {
     pub timestamp: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceStatusPayload {
+    pub id: String,
+    pub name: String,
+    pub device_type: String,
+    pub status: String,
+    pub last_seen: i64,
+}
+
 // Wrapper for WebSocket messages to allow different message types
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload")]
@@ -25,5 +34,6 @@ pub enum WsMessage {
     NewOrder(KdsOrderPayload),
     OrderStatusUpdated { order_id: String, new_status: String },
     SyncOrders(Vec<KdsOrderPayload>), // <-- ADD THIS for initial syncs
+    DeviceStatus(DeviceStatusPayload),
     Ping, 
 }
