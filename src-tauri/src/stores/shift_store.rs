@@ -28,6 +28,7 @@ pub fn open_new_shift(
     card_id: String,
     pin: String,
     float_amount: f64,
+    device_id: Option<String>,
 ) -> Result<Shift, String> {
     let mut shift_lock = state
         .current_shift
@@ -55,6 +56,7 @@ pub fn open_new_shift(
         expected_cash: float_amount,
         actual_cash: None,
         variance: None,
+        device_id,
     };
 
     *shift_lock = Some(new_shift.clone());

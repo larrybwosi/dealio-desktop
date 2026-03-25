@@ -737,6 +737,16 @@ function StatPill({
 
 export default function KDSPage() {
   const orders = useKdsStore(state => state.orders);
+  const [operator, setOperator] = useState<string>(localStorage.getItem('ASSIGNED_USER_NAME') || '');
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      setOperator(e.detail.userName || '');
+    };
+    window.addEventListener('assignment-updated', handler);
+    return () => window.removeEventListener('assignment-updated', handler);
+  }, []);
+
   const autoPrintKds = usePosStore(state => state.settings.kitchenTicketConfig.autoPrintKds);
   const [bumped, setBumped] = useState<Order[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1035,6 +1045,16 @@ export default function KDSPage() {
             {STATION_CONFIG[station].icon}
             {STATION_CONFIG[station].label}
           </Badge>
+
+          {operator && (
+            <Badge
+              variant="outline"
+              className="font-mono text-[10px] text-blue-400 bg-blue-500/10 border-blue-500/30 hidden md:flex items-center gap-1 mr-2"
+            >
+              <Users className="w-3 h-3" />
+              Op: {operator}
+            </Badge>
+          )}
 
           <div className="flex items-center gap-1.5 font-mono mr-3">
             <span className="text-[18px] font-bold text-[#f0f2f5] tracking-tight">

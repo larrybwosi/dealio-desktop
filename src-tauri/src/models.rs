@@ -382,6 +382,7 @@ pub struct Shift {
     pub variance: Option<f64>,            // Actual - Expected
     pub operator_card_id: Option<String>, // The Card ID
     pub operator_pin: Option<String>,     // The PIN (or Hash of PIN)
+    pub device_id: Option<String>,        // The Device ID where shift was opened
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

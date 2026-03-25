@@ -28,6 +28,7 @@ import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { API_ENDPOINT } from '@/lib/axios';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 interface Location {
@@ -182,6 +183,7 @@ const DeviceTypeStep = ({
 }) => {
   const [deviceType, setDeviceType] = useState<'MAIN_HUB' | 'KDS' | 'TABLET'>('MAIN_HUB');
   const [hubIp, setHubIp] = useState('');
+  const [deviceName, setDeviceName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,11 +197,25 @@ const DeviceTypeStep = ({
           Select Device Role
         </Label>
 
+        <div className="space-y-2">
+          <Label htmlFor="deviceName" className="text-xs font-bold uppercase text-zinc-500">
+            Friendly Terminal Name
+          </Label>
+          <Input
+            id="deviceName"
+            placeholder="e.g. Kitchen KDS 1, Front Desk Hub..."
+            value={deviceName}
+            onChange={(e) => setDeviceName(e.target.value)}
+            className="rounded-none border-zinc-200 dark:border-zinc-800 focus-visible:ring-blue-600 mb-4"
+            required
+          />
+        </div>
+
         <div className="grid grid-cols-1 gap-3">
           {[
-            { id: 'MAIN_HUB', label: 'Main Hub / Register', icon: Monitor, desc: 'Primary POS with full management capabilities.' },
-            { id: 'KDS', label: 'Kitchen Display (KDS)', icon: ChefHat, desc: 'Display and manage kitchen orders.' },
-            { id: 'TABLET', label: 'Waiter Tablet', icon: TabletIcon, desc: 'Mobile ordering for wait staff.' },
+            { id: 'MAIN_HUB', label: 'Main Hub / Register', Icon: Monitor, desc: 'Primary POS with full management capabilities.' },
+            { id: 'KDS', label: 'Kitchen Display (KDS)', Icon: ChefHat, desc: 'Display and manage kitchen orders.' },
+            { id: 'TABLET', label: 'Waiter Tablet', Icon: TabletIcon, desc: 'Mobile ordering for wait staff.' },
           ].map((type) => (
             <button
               key={type.id}
@@ -212,7 +228,7 @@ const DeviceTypeStep = ({
                   : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-950"
               )}
             >
-              <type.icon className={cn("w-6 h-6 mt-1", deviceType === type.id ? "text-blue-600" : "text-zinc-400")} />
+              <type.Icon className={cn("w-6 h-6 mt-1", deviceType === type.id ? "text-blue-600" : "text-zinc-400")} />
               <div>
                 <p className="font-bold text-sm uppercase tracking-tight">{type.label}</p>
                 <p className="text-xs text-zinc-500">{type.desc}</p>

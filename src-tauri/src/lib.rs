@@ -452,6 +452,7 @@ pub fn run() {
 
             kds_hub_server::start_kds_hub,
             kds_hub_server::get_connected_devices,
+            kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
 
             table_store::get_tables_command,

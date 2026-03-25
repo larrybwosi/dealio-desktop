@@ -20,10 +20,12 @@ export const shiftService = {
   },
 
   openShift: async (cardId: string, pin: string, floatAmount: number): Promise<Shift> => {
+    const deviceId = localStorage.getItem('DEVICE_ID');
     return await invoke("open_shift_command", {
       cardId,
       pin,
-      floatAmount: Number(floatAmount) // Ensure number type
+      floatAmount: Number(floatAmount), // Ensure number type
+      deviceId
     });
   },
 

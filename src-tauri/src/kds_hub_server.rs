@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use tauri::{AppHandle, Manager, State as TauriState};
-use crate::kds_models::{WsMessage, DeviceStatusPayload};
+use crate::kds_models::{WsMessage, DeviceStatusPayload, AssignmentPayload};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
@@ -25,10 +25,15 @@ pub struct ConnectedDevice {
     pub status: String,
     pub last_seen: i64,
     pub ip: String,
+    pub current_user_id: Option<String>,
+    pub current_user_name: Option<String>,
+    pub assigned_user_id: Option<String>,
+    pub assigned_user_name: Option<String>,
 }
 
 pub struct DeviceRegistry {
     pub devices: Mutex<HashMap<String, ConnectedDevice>>,
+    pub tx: broadcast::Sender<String>,
 }
 
 // Application state shared across all WebSocket connections
@@ -45,16 +50,16 @@ struct AppState {
 #[tauri::command]
 pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     if app.try_state::<Arc<DeviceRegistry>>().is_none() {
+        let (tx, _rx) = broadcast::channel(100);
         app.manage(Arc::new(DeviceRegistry {
             devices: Mutex::new(HashMap::new()),
+            tx,
         }));
     }
 
     let registry = app.state::<Arc<DeviceRegistry>>().inner().clone();
+    let tx = registry.tx.clone();
     let ip = local_ip().map_err(|e| e.to_string())?;
-    
-    // Create a broadcast channel with a capacity of 100 messages
-    let (tx, _rx) = broadcast::channel(100);
     
     // Inject the AppHandle into our Axum state
     let state = AppState { 
@@ -68,12 +73,13 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     
     let router = Router::new()
         .route("/kds-ws", get(ws_handler))
+        .layer(axum::extract::DefaultBodyLimit::disable())
         .with_state(state);
 
     tauri::async_runtime::spawn(async move {
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         info!("KDS Hub WebSocket running on ws://{}:8080/kds-ws", ip);
-        let _ = axum::serve(listener, axum::extract::DefaultBodyLimit::disable(router)).await;
+        let _ = axum::serve(listener, router).await;
     });
 
     Ok(format!("ws://{}:8080/kds-ws", ip))
@@ -169,6 +175,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                     },
                     WsMessage::DeviceStatus(device) => {
                         let mut devices = registry.devices.lock().unwrap();
+                        let existing = devices.get(&device.id);
                         devices.insert(device.id.clone(), ConnectedDevice {
                             id: device.id,
                             name: device.name,
@@ -176,7 +183,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                             status: device.status,
                             last_seen: device.last_seen,
                             ip: client_ip.clone(),
+                            current_user_id: device.current_user_id,
+                            current_user_name: device.current_user_name,
+                            assigned_user_id: existing.and_then(|d| d.assigned_user_id.clone()),
+                            assigned_user_name: existing.and_then(|d| d.assigned_user_name.clone()),
                         });
+                    },
+                    WsMessage::AssignmentUpdate(assignment) => {
+                        // Normally assignments flow HUB -> CLIENT, but if a client sends one, broadcast it
+                        let _ = tx.send(text.clone());
                     },
                     WsMessage::SyncOrders(_) => {
                         // The tablet shouldn't send this to the server, ignore or log
@@ -201,4 +216,31 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
 pub async fn get_connected_devices(state: TauriState<'_, Arc<DeviceRegistry>>) -> Result<Vec<ConnectedDevice>, String> {
     let devices = state.devices.lock().unwrap();
     Ok(devices.values().cloned().collect())
+}
+
+#[tauri::command]
+pub async fn assign_user_to_device(
+    state: TauriState<'_, Arc<DeviceRegistry>>,
+    device_id: String,
+    user_id: Option<String>,
+    user_name: Option<String>,
+) -> Result<(), String> {
+    let mut devices = state.devices.lock().unwrap();
+    if let Some(device) = devices.get_mut(&device_id) {
+        device.assigned_user_id = user_id.clone();
+        device.assigned_user_name = user_name.clone();
+
+        let update = WsMessage::AssignmentUpdate(AssignmentPayload {
+            device_id: device_id.clone(),
+            user_id,
+            user_name,
+        });
+
+        if let Ok(text) = serde_json::to_string(&update) {
+            let _ = state.tx.send(text);
+        }
+        Ok(())
+    } else {
+        Err("Device not found".to_string())
+    }
 }

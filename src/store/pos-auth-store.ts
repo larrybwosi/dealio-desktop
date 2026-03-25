@@ -154,6 +154,13 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       completeSetup: (deviceType, hubIp = null) => {
         set({ isConfigured: true, deviceType, hubIp });
         localStorage.setItem('DEVICE_ROLE', deviceType);
+
+        let deviceId = localStorage.getItem('DEVICE_ID');
+        if (!deviceId) {
+          deviceId = `dev_${Math.random().toString(36).substring(2, 15)}`;
+          localStorage.setItem('DEVICE_ID', deviceId);
+        }
+
         if (hubIp) {
           localStorage.setItem('HUB_IP_ADDRESS', hubIp);
         } else {

@@ -55,6 +55,8 @@ export function connectToHub(url: string) {
     console.log("Connected to Local POS Hub!");
     // Send initial status/heartbeat
     const role = localStorage.getItem('DEVICE_ROLE');
+    const user = JSON.parse(localStorage.getItem('pos-auth-storage-v3') || '{}').state?.currentMember;
+
     socket?.send(JSON.stringify({
       type: 'DeviceStatus',
       payload: {
@@ -62,7 +64,9 @@ export function connectToHub(url: string) {
         name: localStorage.getItem('DEVICE_NAME') || 'Terminal',
         type: role,
         status: 'online',
-        lastSeen: Date.now()
+        lastSeen: Date.now(),
+        currentUserId: user?.id || null,
+        currentUserName: user?.name || null
       }
     }));
 
@@ -87,9 +91,10 @@ export function connectToHub(url: string) {
         useKdsStore.getState().addOrder(order);
         console.log("KDS: New Ticket Arrived!", order);
 
-        // Check for Auto-Print
+        // Check for Auto-Print (Only on KDS role)
+        const role = localStorage.getItem('DEVICE_ROLE');
         const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
-        if (kdsConfig.autoPrintKds) {
+        if (role === 'KDS' && kdsConfig.autoPrintKds) {
             console.log("KDS: Auto-printing ticket...");
             usePosStore.getState().printReceipt(order.id);
         }
@@ -104,6 +109,22 @@ export function connectToHub(url: string) {
         if (status === 'in_progress') posStatus = 'cooking';
         if (status === 'done') posStatus = 'ready';
         usePosStore.getState().updateOrderStatus(order_id, posStatus as any);
+    }
+
+    if (message.type === 'AssignmentUpdate') {
+      const { device_id, user_id, user_name } = message.payload;
+      const myDeviceId = localStorage.getItem('DEVICE_ID');
+
+      if (device_id === myDeviceId) {
+        console.log(`My assignment updated: ${user_name}`);
+        localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
+        localStorage.setItem('ASSIGNED_USER_NAME', user_name || '');
+
+        // Optional: Trigger a custom event or store update if needed UI-wide
+        window.dispatchEvent(new CustomEvent('assignment-updated', {
+          detail: { userId: user_id, userName: user_name }
+        }));
+      }
     }
   };
 
