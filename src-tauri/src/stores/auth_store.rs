@@ -239,7 +239,6 @@ struct ServerLoginResponse {
 // The V2 API wrapper for login
 #[derive(Deserialize)]
 struct LoginApiWrapper {
-    success: bool,
     data: ServerLoginResponse,
 }
 
@@ -348,8 +347,6 @@ pub async fn login_member(
     *state.current_user.lock().unwrap() = Some(data.member.clone());
 
     // Audit successful login
-    let member_name_for_log = if data.member.name.is_empty() { "Unknown" } else { &data.member.name };
-    
     let _ = crate::audit_store::write_event(
         &app,
         crate::audit_store::AuditLevel::Info,

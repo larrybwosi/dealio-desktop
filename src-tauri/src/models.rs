@@ -184,15 +184,6 @@ pub struct PosCustomer {
     pub updated_at: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomerAddress {
-    pub id: String,
-    pub street1: String,
-    pub city: String,
-    pub postal_code: String,
-}
-
 // --- SALES ---
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -192,7 +192,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                             assigned_user_name,
                         });
                     },
-                    WsMessage::AssignmentUpdate(assignment) => {
+                    WsMessage::AssignmentUpdate(_assignment) => {
                         // Normally assignments flow HUB -> CLIENT, but if a client sends one, broadcast it
                         let _ = tx.send(text.clone());
                     },
