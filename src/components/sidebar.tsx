@@ -24,10 +24,12 @@ import {
   QrCode,
   LayoutGrid,
   MapPin,
+  Activity,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
 import { useAuth } from '@/hooks/use-auth';
+import { useAuthStore } from '@/store/pos-auth-store';
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button';
@@ -47,6 +49,7 @@ const routeMap: Record<string, string> = {
   'stock-acceptance': '/stock-acceptance',
   'stock-transfer': '/stock-transfer',
   'kitchen-display': '/kds',
+  'hub-overview': '/hub-overview',
   settings: '/settings',
   pricing: '/pricing',
 };
@@ -70,6 +73,7 @@ const iconMap: Record<string, any> = {
   QrCode,
   Wallet,
   Banknote,
+  Activity,
 };
 
 interface SidebarProps {
@@ -82,6 +86,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
   const sidebarItems = usePosStore(state => state.settings.sidebarItems.filter(item => item.enabled));
   const businessName = usePosStore(state => state.settings.businessName);
+  const { deviceType } = useAuthStore();
   const { currentMember, currentLocation } = useAuth();
   const location = useLocation();
 
@@ -161,6 +166,23 @@ export function Sidebar({ onCheckout }: SidebarProps) {
               </Button>
             );
           })}
+
+          {deviceType === 'MAIN_HUB' && (
+            <Button
+              asChild
+              variant={isRouteActive('/hub-overview') ? 'secondary' : 'ghost'}
+              className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
+            >
+              <Link to="/hub-overview">
+                <Activity className={cn('w-4 h-4 shrink-0', isRouteActive('/hub-overview') && 'text-primary')} />
+                {!isCollapsed && (
+                  <span className={cn('truncate', isRouteActive('/hub-overview') && 'font-semibold')}>
+                    Hub Overview
+                  </span>
+                )}
+              </Link>
+            </Button>
+          )}
 
           <div className="my-4 border-t pt-4">
             {/* Hardcoded Items with correct isActive check */}

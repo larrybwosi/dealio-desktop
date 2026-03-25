@@ -26,6 +26,7 @@ import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
 import KDSPage from './pages/kitchen-display';
+import HubOverviewPage from './pages/hub-overview';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -37,7 +38,7 @@ const LayoutWrapper = () => {
 };
 
 const AppRoutes = () => {
-  const { isConfigured, currentLocation, initializeFromBackend, isInitialized } = useAuthStore();
+  const { isConfigured, currentLocation, initializeFromBackend, isInitialized, deviceType } = useAuthStore();
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -60,6 +61,17 @@ const AppRoutes = () => {
     return <CheckinPage />;
   }
 
+  // If KDS device, boot directly to KDS page
+  if (deviceType === 'KDS') {
+    return (
+      <Routes>
+        <Route index path="/" element={<KDSPage />} />
+        <Route path="/setup" element={<SetupPage />} />
+        <Route path="*" element={<KDSPage />} />
+      </Routes>
+    );
+  }
+
   return (
     <Routes>
       {/* Routes with AppLayout wrapper */}
@@ -80,6 +92,7 @@ const AppRoutes = () => {
         <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
         <Route path="/stock-transfer" element={<StockTransferCreate />} />
         <Route path="/kds" element={<KDSPage />} />
+        <Route path="/hub-overview" element={<HubOverviewPage />} />
       </Route>
 
       {/* Routes without AppLayout */}

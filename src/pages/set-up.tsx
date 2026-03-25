@@ -12,6 +12,9 @@ import {
   Settings,
   ClipboardCheck,
   ChevronLeft,
+  Monitor,
+  ChefHat,
+  Tablet as TabletIcon,
 } from 'lucide-react';
 
 // shadcn components
@@ -25,6 +28,7 @@ import { useAuthStore } from '@/store/pos-auth-store';
 import { useNavigate } from 'react-router';
 import { getVersion } from '@tauri-apps/api/app';
 import { API_ENDPOINT } from '@/lib/axios';
+import { cn } from '@/lib/utils';
 
 // --- Types ---
 interface Location {
@@ -172,14 +176,114 @@ const SetupTokenStep = ({
   );
 };
 
-const SuccessStep = ({ location }: { location: Location | null }) => {
+const DeviceTypeStep = ({
+  onNext
+}: {
+  onNext: (type: 'MAIN_HUB' | 'KDS' | 'TABLET', hubIp?: string) => void
+}) => {
+  const [deviceType, setDeviceType] = useState<'MAIN_HUB' | 'KDS' | 'TABLET'>('MAIN_HUB');
+  const [hubIp, setHubIp] = useState('');
+  const [deviceName, setDeviceName] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onNext(deviceType, hubIp);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-8 w-full max-w-md mx-auto">
+      <div className="space-y-4">
+        <Label className="text-base font-semibold text-zinc-900 dark:text-zinc-100 uppercase tracking-wider">
+          Select Device Role
+        </Label>
+
+        <div className="space-y-2">
+          <Label htmlFor="deviceName" className="text-xs font-bold uppercase text-zinc-500">
+            Friendly Terminal Name
+          </Label>
+          <Input
+            id="deviceName"
+            placeholder="e.g. Kitchen KDS 1, Front Desk Hub..."
+            value={deviceName}
+            onChange={(e) => setDeviceName(e.target.value)}
+            className="rounded-none border-zinc-200 dark:border-zinc-800 focus-visible:ring-blue-600 mb-4"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          {[
+            { id: 'MAIN_HUB', label: 'Main Hub / Register', Icon: Monitor, desc: 'Primary POS with full management capabilities.' },
+            { id: 'KDS', label: 'Kitchen Display (KDS)', Icon: ChefHat, desc: 'Display and manage kitchen orders.' },
+            { id: 'TABLET', label: 'Waiter Tablet', Icon: TabletIcon, desc: 'Mobile ordering for wait staff.' },
+          ].map((type) => (
+            <button
+              key={type.id}
+              type="button"
+              onClick={() => setDeviceType(type.id as any)}
+              className={cn(
+                "flex items-start gap-4 p-4 border transition-all text-left",
+                deviceType === type.id
+                  ? "border-blue-600 bg-blue-50/50 dark:bg-blue-900/10 ring-1 ring-blue-600"
+                  : "border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700 bg-white dark:bg-zinc-950"
+              )}
+            >
+              <type.Icon className={cn("w-6 h-6 mt-1", deviceType === type.id ? "text-blue-600" : "text-zinc-400")} />
+              <div>
+                <p className="font-bold text-sm uppercase tracking-tight">{type.label}</p>
+                <p className="text-xs text-zinc-500">{type.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {deviceType !== 'MAIN_HUB' && (
+          <div className="space-y-2 pt-4 animate-in fade-in slide-in-from-top-2">
+            <Label htmlFor="hubIp" className="text-xs font-bold uppercase text-zinc-500">
+              Main Hub IP Address
+            </Label>
+            <Input
+              id="hubIp"
+              placeholder="e.g. 192.168.1.50"
+              value={hubIp}
+              onChange={(e) => setHubIp(e.target.value)}
+              className="rounded-none border-zinc-200 dark:border-zinc-800 focus-visible:ring-blue-600"
+              required
+            />
+            <p className="text-[10px] text-zinc-400 italic">
+              Find this IP in the Main Hub's "Hub Overview" or KDS settings.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <Button
+        type="submit"
+        size="lg"
+        className="w-full h-12 rounded-none text-base bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 transition-all shadow-none uppercase font-bold tracking-wide"
+      >
+        Finalize Configuration
+      </Button>
+    </form>
+  );
+};
+
+const SuccessStep = ({
+  location,
+  deviceType,
+  hubIp
+}: {
+  location: Location | null,
+  deviceType: 'MAIN_HUB' | 'KDS' | 'TABLET',
+  hubIp: string | null
+}) => {
   const [progress, setProgress] = useState(10);
   const navigate = useNavigate();
 
   useEffect(() => {
     const timer = setTimeout(() => setProgress(100), 800);
     const redirectTimer = setTimeout(() => {
-      useAuthStore.getState().completeSetup();
+      useAuthStore.getState().completeSetup(deviceType, hubIp);
       navigate('/');
     }, 2000);
 
@@ -187,7 +291,7 @@ const SuccessStep = ({ location }: { location: Location | null }) => {
       clearTimeout(timer);
       clearTimeout(redirectTimer);
     };
-  }, [navigate]);
+  }, [navigate, deviceType, hubIp]);
 
   return (
     <div className="text-center w-full max-w-sm mx-auto">
@@ -221,12 +325,21 @@ const SuccessStep = ({ location }: { location: Location | null }) => {
 export default function SetupPage() {
   const [step, setStep] = useState(1);
   const [setupData, setSetupData] = useState<SetupData>({ setupToken: '', location: null });
+  const [deviceConfig, setDeviceConfig] = useState<{ type: 'MAIN_HUB' | 'KDS' | 'TABLET', hubIp: string | null }>({
+    type: 'MAIN_HUB',
+    hubIp: null
+  });
   const [viewMode, setViewMode] = useState<'form' | 'instructions'>('form');
   const [appVersion, setAppVersion] = useState<string>('');
   const { currentLocation } = useAuthStore();
 
   const handleTokenNext = (token: string) => {
     setSetupData(prev => ({ ...prev, setupToken: token }));
+    setStep(2); // Go to Device Type selection
+  };
+
+  const handleDeviceTypeNext = (type: 'MAIN_HUB' | 'KDS' | 'TABLET', hubIp?: string) => {
+    setDeviceConfig({ type, hubIp: hubIp || null });
     setStep(3); // Success step
   };
 
@@ -337,7 +450,16 @@ export default function SetupPage() {
                   {step === 1 && (
                     <SetupTokenStep onNext={handleTokenNext} onShowInstructions={() => setViewMode('instructions')} />
                   )}
-                  {step === 3 && <SuccessStep location={setupData.location} />}
+                  {step === 2 && (
+                    <DeviceTypeStep onNext={handleDeviceTypeNext} />
+                  )}
+                  {step === 3 && (
+                    <SuccessStep
+                      location={setupData.location}
+                      deviceType={deviceConfig.type}
+                      hubIp={deviceConfig.hubIp}
+                    />
+                  )}
                 </div>
               </motion.div>
             )}

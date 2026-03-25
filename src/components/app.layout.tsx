@@ -18,6 +18,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'react-router';
 import { Cart } from './cart';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 interface AppLayoutProviderProps {
   children: React.ReactNode;
@@ -27,6 +28,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const { checkOut } = useAuth();
+  const { deviceType } = useAuthStore();
   const location = useLocation();
 
   const handleCheckout = () => {
@@ -34,36 +36,40 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
     setShowCheckoutDialog(false);
   };
 
-  // Show sidebar for all routes except checkout/setup
-  const showSidebar = !['/checkin', '/setup'].includes(location.pathname);
+  // Show sidebar for all routes except checkout/setup, and KDS mode
+  const showSidebar = !['/checkin', '/setup'].includes(location.pathname) && deviceType !== 'KDS';
   // Show cart only on order page
-  const showCart = location.pathname === '/';
+  const showCart = location.pathname === '/' && deviceType !== 'KDS';
+  // Show header only if not in KDS mode
+  const showHeader = deviceType !== 'KDS';
 
   return (
     <div className="flex h-screen overflow-hidden">
       {showSidebar && <Sidebar onCheckout={() => setShowCheckoutDialog(true)} />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
-          <div className="flex items-center gap-6 flex-1">
-            <div className="relative max-w-md flex-1">
-              <GlobalSearch />
+        {showHeader && (
+          <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
+            <div className="flex items-center gap-6 flex-1">
+              <div className="relative max-w-md flex-1">
+                <GlobalSearch />
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
-            <NotificationCenter />
-            <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
-              <Settings className="h-5 w-5" />
-            </Button>
-            <NotificationSettingsDialog open={showNotificationSettings} onOpenChange={setShowNotificationSettings} />
+            <div className="flex items-center gap-3">
+              <NotificationCenter />
+              <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
+                <Settings className="h-5 w-5" />
+              </Button>
+              <NotificationSettingsDialog open={showNotificationSettings} onOpenChange={setShowNotificationSettings} />
 
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <Calendar className="w-4 h-4" />
-              {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </Button>
-          </div>
-        </header>
+              <Button variant="outline" className="gap-2 bg-transparent">
+                <Calendar className="w-4 h-4" />
+                {new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </Button>
+            </div>
+          </header>
+        )}
 
         <div className="flex-1 overflow-auto">{children}</div>
       </div>

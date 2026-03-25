@@ -2,6 +2,7 @@ import { createWithEqualityFn as create } from 'zustand/traditional';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import posthog from 'posthog-js';
 import { invoke } from '@tauri-apps/api/core';
+import { sendOrderToKitchen } from '@/lib/kds';
 import { type BusinessType, getBusinessConfig, getDefaultSidebarItems } from '../lib/business-configs';
 import { AutoPrintConfig, DEFAULT_AUTO_PRINT_CONFIG } from '../types/print-types';
 
@@ -275,6 +276,9 @@ export interface KitchenTicketConfig {
   showEstimatedPrepTime: boolean;
   showOrderAge: boolean;
   showSequenceNumber: boolean;
+
+  // Auto-Print
+  autoPrintKds: boolean;
 
   // Visual Organization
   compactMode: boolean;
@@ -727,6 +731,9 @@ export const getDefaultKitchenTicketConfig = (): KitchenTicketConfig => ({
   showEstimatedPrepTime: false,
   showOrderAge: true,
   showSequenceNumber: true,
+
+  // Auto-Print
+  autoPrintKds: false,
 
   // Visual Organization
   compactMode: false,
@@ -1213,6 +1220,11 @@ export const usePosStore = create<PosStore>()(
                t.currentOrderId === state.currentOrder.metadata?.orderId
         );
 
+        // Broadcast to Kitchen if enabled
+        if (state.settings.enableKdsSystem) {
+           sendOrderToKitchen(newOrder);
+        }
+
         // Update State
         set({
           orders: [newOrder, ...state.orders],
@@ -1320,6 +1332,11 @@ export const usePosStore = create<PosStore>()(
           },
           customerId: state.currentOrder.customerId,
         };
+
+        // Broadcast to Kitchen if enabled
+        if (state.settings.enableKdsSystem) {
+          sendOrderToKitchen(newOrder);
+        }
 
         // Update State
         set({

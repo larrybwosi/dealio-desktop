@@ -49,6 +49,7 @@ use customer_screen_state::CustomerScreenState;
 
 mod kds_models;
 mod kds_hub_server;
+mod utils;
 
 pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
     log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
@@ -450,6 +451,9 @@ pub fn run() {
             audit_store::get_system_logs,
 
             kds_hub_server::start_kds_hub,
+            kds_hub_server::get_connected_devices,
+            kds_hub_server::assign_user_to_device,
+            utils::get_local_ip_command,
 
             table_store::get_tables_command,
             table_store::upsert_table_command,

@@ -19,6 +19,7 @@ export async function initializeNetworkRole() {
   } else if (role === 'TABLET' || role === 'KDS') {
     // For other devices, grab the IP of the Hub (Inputted during setup)
     const hubIp = localStorage.getItem('HUB_IP_ADDRESS');
+    console.log(`Connecting to Hub at ${hubIp}...`);
     if (hubIp) {
        connectToHub(`ws://${hubIp}:8080/kds-ws`);
     }
@@ -28,11 +29,56 @@ export async function initializeNetworkRole() {
 // --- 2. The WebSocket Client ---
 let socket: WebSocket | null = null;
 
+function getOfflineQueue(): string[] {
+  const stored = localStorage.getItem('KDS_OFFLINE_QUEUE');
+  return stored ? JSON.parse(stored) : [];
+}
+
+function addToOfflineQueue(payload: string) {
+  const queue = getOfflineQueue();
+  queue.push(payload);
+  localStorage.setItem('KDS_OFFLINE_QUEUE', JSON.stringify(queue));
+}
+
+function clearOfflineQueue() {
+  localStorage.removeItem('KDS_OFFLINE_QUEUE');
+}
+
 export function connectToHub(url: string) {
+  if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
   socket = new WebSocket(url);
 
   socket.onopen = () => {
     console.log("Connected to Local POS Hub!");
+    // Send initial status/heartbeat
+    const role = localStorage.getItem('DEVICE_ROLE');
+    const user = JSON.parse(localStorage.getItem('pos-auth-storage-v3') || '{}').state?.currentMember;
+
+    socket?.send(JSON.stringify({
+      type: 'DeviceStatus',
+      payload: {
+        id: localStorage.getItem('DEVICE_ID') || 'unknown',
+        name: localStorage.getItem('DEVICE_NAME') || 'Terminal',
+        type: role,
+        status: 'online',
+        lastSeen: Date.now(),
+        currentUserId: user?.id || null,
+        currentUserName: user?.name || null
+      }
+    }));
+
+    // Process offline queue
+    const queue = getOfflineQueue();
+    if (queue.length > 0) {
+      console.log(`Processing ${queue.length} offline messages...`);
+      queue.forEach(msg => {
+        socket?.send(msg);
+      });
+      clearOfflineQueue();
+    }
   };
 
   socket.onmessage = (event) => {
@@ -44,6 +90,14 @@ export function connectToHub(url: string) {
         // If this is the KDS device, add to the screen array
         useKdsStore.getState().addOrder(order);
         console.log("KDS: New Ticket Arrived!", order);
+
+        // Check for Auto-Print (Only on KDS role)
+        const role = localStorage.getItem('DEVICE_ROLE');
+        const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
+        if (role === 'KDS' && kdsConfig.autoPrintKds) {
+            console.log("KDS: Auto-printing ticket...");
+            usePosStore.getState().printReceipt(order.id);
+        }
     }
     
     if (message.type === 'OrderStatusUpdated') {
@@ -55,6 +109,22 @@ export function connectToHub(url: string) {
         if (status === 'in_progress') posStatus = 'cooking';
         if (status === 'done') posStatus = 'ready';
         usePosStore.getState().updateOrderStatus(order_id, posStatus as any);
+    }
+
+    if (message.type === 'AssignmentUpdate') {
+      const { device_id, user_id, user_name } = message.payload;
+      const myDeviceId = localStorage.getItem('DEVICE_ID');
+
+      if (device_id === myDeviceId) {
+        console.log(`My assignment updated: ${user_name}`);
+        localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
+        localStorage.setItem('ASSIGNED_USER_NAME', user_name || '');
+
+        // Optional: Trigger a custom event or store update if needed UI-wide
+        window.dispatchEvent(new CustomEvent('assignment-updated', {
+          detail: { userId: user_id, userName: user_name }
+        }));
+      }
     }
   };
 
@@ -92,11 +162,12 @@ export function sendOrderToKitchen(fullOrder: any) {
     payload: KdsOrderPayload
   };
 
+  const jsonPayload = JSON.stringify(payload);
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(payload));
+    socket.send(jsonPayload);
   } else {
-    // Fallback: Save to an offline queue in localStorage to send when reconnected
     console.error("Hub offline! Saving to local offline queue...");
+    addToOfflineQueue(jsonPayload);
   }
 }
 
@@ -109,7 +180,10 @@ export function updateOrderStatusInKitchen(orderId: string, status: string) {
     }
   };
 
+  const jsonPayload = JSON.stringify(payload);
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(payload));
+    socket.send(jsonPayload);
+  } else {
+    addToOfflineQueue(jsonPayload);
   }
 }

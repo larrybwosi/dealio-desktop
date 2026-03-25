@@ -66,11 +66,14 @@ import {
   Plus,
   ShieldAlert,
   RefreshCcw,
+  Printer,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // ─── Types and Store ────────────────────────────────────────────────────────
 import { useKdsStore, KdsOrder as Order, OrderStatus, OrderType, ItemStatus, Station } from '@/store/kds-store';
+import { usePosStore } from '@/store/store';
 import { updateOrderStatusInKitchen } from '@/lib/kds';
 
 type SortKey = "time_asc" | "time_desc" | "priority" | "table";
@@ -734,6 +737,17 @@ function StatPill({
 
 export default function KDSPage() {
   const orders = useKdsStore(state => state.orders);
+  const [operator, setOperator] = useState<string>(localStorage.getItem('ASSIGNED_USER_NAME') || '');
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      setOperator(e.detail.userName || '');
+    };
+    window.addEventListener('assignment-updated', handler);
+    return () => window.removeEventListener('assignment-updated', handler);
+  }, []);
+
+  const autoPrintKds = usePosStore(state => state.settings.kitchenTicketConfig.autoPrintKds);
   const [bumped, setBumped] = useState<Order[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [station, setStation] = useState<Station>("all");
@@ -1032,6 +1046,16 @@ export default function KDSPage() {
             {STATION_CONFIG[station].label}
           </Badge>
 
+          {operator && (
+            <Badge
+              variant="outline"
+              className="font-mono text-[10px] text-blue-400 bg-blue-500/10 border-blue-500/30 hidden md:flex items-center gap-1 mr-2"
+            >
+              <Users className="w-3 h-3" />
+              Op: {operator}
+            </Badge>
+          )}
+
           <div className="flex items-center gap-1.5 font-mono mr-3">
             <span className="text-[18px] font-bold text-[#f0f2f5] tracking-tight">
               {clockStr}
@@ -1089,6 +1113,38 @@ export default function KDSPage() {
           <Separator orientation="vertical" className="h-6 bg-[#252830] mx-1" />
 
           <div className="flex items-center gap-1">
+            {/* Auto-Print Settings Toggle */}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      const current = usePosStore.getState().settings.kitchenTicketConfig.autoPrintKds;
+                      usePosStore.getState().updateKitchenTicketConfig({ autoPrintKds: !current });
+                      toast.info(`Auto-print ${!current ? 'Enabled' : 'Disabled'}`, {
+                        description: "New tickets will be printed automatically",
+                        icon: <Printer className="w-4 h-4" />
+                      });
+                    }}
+                    className={cn(
+                      "h-8 px-2 text-[10px] font-bold uppercase tracking-wide gap-1.5",
+                      autoPrintKds
+                        ? "text-[#2ecc71] bg-[#2ecc71]/10 border-[#2ecc71]/30"
+                        : "text-[#555b68] hover:text-[#f0f2f5] hover:bg-[#1a1d24]"
+                    )}
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span className="hidden lg:inline">Auto-Print</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent className="text-[11px] bg-[#1a1d24] border-[#353a44] text-[#f0f2f5]">
+                  Toggle auto-printing for incoming tickets
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>

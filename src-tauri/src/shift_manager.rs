@@ -33,13 +33,14 @@ pub fn open_shift_command(
     card_id: String,
     pin: String,
     float_amount: f64,
+    device_id: Option<String>,
 ) -> Result<Shift, String> {
     if card_id.is_empty() || pin.is_empty() {
         return Err("Credentials missing".to_string());
     }
 
     // Now passes card_id and pin individually to shift_store
-    let result = shift_store::open_new_shift(&state, card_id.clone(), pin, float_amount);
+    let result = shift_store::open_new_shift(&state, card_id.clone(), pin, float_amount, device_id);
 
     // --- Audit Logging ---
     if let Ok(ref shift) = result {
