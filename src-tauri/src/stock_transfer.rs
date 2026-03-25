@@ -1,6 +1,6 @@
 use crate::auth_store::AuthState;
 use log::{error, info};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tauri::State;

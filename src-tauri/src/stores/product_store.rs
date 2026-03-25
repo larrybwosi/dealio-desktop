@@ -1,7 +1,7 @@
 use crate::models::{PosProduct, ProductsSyncResponse, ProductSearchResponse};
 use anyhow::{Context, Result};
 use log::{error, info};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};

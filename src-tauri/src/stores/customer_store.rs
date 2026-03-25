@@ -5,7 +5,7 @@ use aes_gcm::{
 };
 use anyhow::{Context, Result};
 use rand::RngCore;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;

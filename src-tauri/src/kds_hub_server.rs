@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use tauri::{AppHandle, Manager, State as TauriState};
-use crate::kds_models::{WsMessage, DeviceStatusPayload, AssignmentPayload};
+use crate::kds_models::{WsMessage, AssignmentPayload};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
@@ -175,7 +175,10 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                     },
                     WsMessage::DeviceStatus(device) => {
                         let mut devices = registry.devices.lock().unwrap();
-                        let existing = devices.get(&device.id);
+                        let (assigned_user_id, assigned_user_name) = devices.get(&device.id)
+                            .map(|d| (d.assigned_user_id.clone(), d.assigned_user_name.clone()))
+                            .unwrap_or((None, None));
+
                         devices.insert(device.id.clone(), ConnectedDevice {
                             id: device.id,
                             name: device.name,
@@ -185,8 +188,8 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                             ip: client_ip.clone(),
                             current_user_id: device.current_user_id,
                             current_user_name: device.current_user_name,
-                            assigned_user_id: existing.and_then(|d| d.assigned_user_id.clone()),
-                            assigned_user_name: existing.and_then(|d| d.assigned_user_name.clone()),
+                            assigned_user_id,
+                            assigned_user_name,
                         });
                     },
                     WsMessage::AssignmentUpdate(assignment) => {

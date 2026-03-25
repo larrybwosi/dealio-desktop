@@ -1,7 +1,7 @@
 use crate::auth_store::AuthState;
 use crate::models::{CashMovement, Shift, ShiftSyncPayload};
 use chrono::Utc;
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use std::sync::Mutex;
 use uuid::Uuid;

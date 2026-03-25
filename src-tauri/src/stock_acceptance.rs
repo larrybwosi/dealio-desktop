@@ -5,7 +5,7 @@ use crate::stock_acceptance_models::{
 };
 use base64::{engine::general_purpose, Engine as _};
 use log::{error, info, warn};
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::multipart::{Form, Part};
 use std::path::Path;
 use std::time::Duration;

@@ -1,4 +1,3 @@
-use tauri::AppHandle;
 use local_ip_address::local_ip;
 
 #[tauri::command]

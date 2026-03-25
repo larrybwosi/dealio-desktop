@@ -1,6 +1,6 @@
 use keyring::Entry;
 use log::{info, error};
-use reqwest::header::{HeaderValue, AUTHORIZATION};
+use reqwest::header::HeaderValue;
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::{AppHandle, State};
@@ -635,7 +635,6 @@ pub async fn get_ably_auth_token_command(
 
     if !status.is_success() {
         let err_body = res.text().await.unwrap_or_default();
-        println!("[AuthStore] Error Body: {}", err_body);
         return Err(format!("Ably auth failed: {} - {}", status, err_body));
     }
 
