@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight, Copy, Check } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
@@ -18,6 +18,7 @@ function OrderSuccessView({
 }) {
   const navigate = useNavigate();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   const handleDownloadInvoice = async () => {
     if (!invoiceUrl || isDownloading) return;
@@ -41,6 +42,18 @@ function OrderSuccessView({
       });
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleCopyInvoiceUrl = async () => {
+    if (!invoiceUrl || isCopied) return;
+    try {
+      await navigator.clipboard.writeText(invoiceUrl);
+      setIsCopied(true);
+      toast.success('Invoice URL copied to clipboard');
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy URL');
     }
   };
 
@@ -69,7 +82,7 @@ function OrderSuccessView({
           </div>
 
           {/* Action Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-8">
             <Button
               variant="outline"
               className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
@@ -78,6 +91,16 @@ function OrderSuccessView({
             >
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
               Save Invoice
+            </Button>
+
+            <Button
+              variant="outline"
+              className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
+              onClick={handleCopyInvoiceUrl}
+              disabled={!invoiceUrl || isCopied}
+            >
+              {isCopied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+              {isCopied ? 'Copied!' : 'Copy URL'}
             </Button>
 
             <Button

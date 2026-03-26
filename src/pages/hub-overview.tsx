@@ -157,7 +157,7 @@ export default function HubOverviewPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black tracking-tighter uppercase">Enterprise Hub Overview</h1>
+          <h1 className="text-3xl font-black tracking-tighter uppercase">Hub Overview</h1>
           <p className="text-muted-foreground mt-1">
             Monitor and manage terminals in <span className="font-bold text-foreground">{currentLocation?.name}</span>
           </p>
@@ -333,7 +333,7 @@ export default function HubOverviewPage() {
                           {order.items.map(item => (
                             <div key={item.id} className="text-sm flex justify-between">
                               <span>{item.qty}x {item.name}</span>
-                              <Badge variant="ghost" className="text-[10px]">{item.status}</Badge>
+                              <Badge className="text-[10px]">{item.status}</Badge>
                             </div>
                           ))}
                         </div>

@@ -67,7 +67,7 @@ import {
   ShieldAlert,
   RefreshCcw,
   Printer,
-  ChevronDown,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

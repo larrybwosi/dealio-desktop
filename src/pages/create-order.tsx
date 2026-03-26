@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, memo, useMemo, useEffect, useRef } from 'react';
-import { useForm, useFieldArray, Controller, useWatch, Control } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Plus,
@@ -271,7 +271,7 @@ const OrderItemRow = memo(({
   isFetching,
 }: {
   index: number;
-  control: Control<any>;
+  control: any;
   register: any;
   remove: (index: number) => void;
   setValue: any;
@@ -446,7 +446,7 @@ OrderItemRow.displayName = 'OrderItemRow';
 
 // --- ORDER TOTALS ---
 
-function OrderTotals({ control, formatCurrency, register }: { control: Control<any>, formatCurrency: any, register: any }) {
+function OrderTotals({ control, formatCurrency, register }: { control: any, formatCurrency: any, register: any }) {
   const items = useWatch({ control, name: 'items' });
   const shippingFee = useWatch({ control, name: 'shippingFee' }) || 0;
   const discountAmount = useWatch({ control, name: 'discountAmount' }) || 0;
@@ -488,7 +488,7 @@ function OrderTotals({ control, formatCurrency, register }: { control: Control<a
 
 // --- PAYMENT BALANCE ---
 
-function PaymentBalanceDisplay({ control, formatCurrency }: { control: Control<any>, formatCurrency: any }) {
+function PaymentBalanceDisplay({ control, formatCurrency }: { control: any, formatCurrency: any }) {
   const items = useWatch({ control, name: 'items' });
   const payments = useWatch({ control, name: 'payments' });
   const shippingFee = useWatch({ control, name: 'shippingFee' }) || 0;
@@ -533,13 +533,14 @@ export default function CreateOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   const { mutate: createOrder, isPending: isSubmitting } = useCreateOrder({
-    onSuccess: (data: any) => {
-      setCreatedOrderId(data?.number || data?.orderId || 'new-order');
-      setCreatedInvoiceUrl(data?.invoiceUrl || null);
+    onSuccess: (res: any) => {
+      const data = res.data;
+      setCreatedOrderId(data?.data?.number || data?.data?.orderId || 'new-order');
+      setCreatedInvoiceUrl(data?.data?.invoiceUrl || null);
       setSubmitStatus('success');
       posthog.capture('order_created', {
-        order_id: data?.number || data?.orderId,
-        has_invoice_url: !!data?.invoiceUrl,
+        order_id: data?.data?.number || data?.data?.orderId,
+        has_invoice_url: !!data?.data?.invoiceUrl,
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
@@ -673,7 +674,8 @@ export default function CreateOrderPage() {
             <Button
               onClick={handleSubmit(onSubmit, onError)}
               disabled={isSubmitting}
-              className="bg-zinc-900 hover:bg-zinc-800 text-white min-w-[140px] h-9 shadow-sm"
+              variant="default"
+              className="bg-cyan-500 hover:bg-cyan-600 text-white min-w-[140px] h-9 shadow-sm"
             >
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
               {isSubmitting ? 'Processing...' : 'Create Invoice'}
