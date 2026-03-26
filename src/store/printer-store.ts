@@ -11,7 +11,7 @@ export interface PrinterDevice {
 }
 
 // Define the types of documents we handle
-export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen';
+export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill';
 
 interface PrinterState {
   availablePrinters: PrinterDevice[];
@@ -48,6 +48,7 @@ export const usePrinterStore = create<PrinterState>()(
         receipt: null,
         invoice: null,
         kitchen: null,
+        bill: null,
       },
 
       // UPDATE setPrinters to not just set list, but also check for auto-assignments
@@ -72,6 +73,12 @@ export const usePrinterStore = create<PrinterState>()(
           const invoicePrinter = printers.find(p => p.id === autoAssignments.invoice);
           if (invoicePrinter) {
             set({ assignments: { ...autoAssignments, invoice: invoicePrinter.id } });
+          }
+        }
+        if (autoAssignments.bill) {
+          const billPrinter = printers.find(p => p.id === autoAssignments.bill);
+          if (billPrinter) {
+            set({ assignments: { ...autoAssignments, bill: billPrinter.id } });
           }
         }
       },
@@ -99,8 +106,8 @@ export const usePrinterStore = create<PrinterState>()(
             config: {
               receipt_printer: formatConfig(currentAssignments.receipt),
               kitchen_printer: formatConfig(currentAssignments.kitchen),
-              // Note: If 'invoice_printer' isn't in your Rust PrinterSettings struct, you might need to remove it here or add it to Rust.
               invoice_printer: formatConfig(currentAssignments.invoice),
+              bill_printer: formatConfig(currentAssignments.bill),
             },
           });
         } catch (e) {
@@ -141,9 +148,10 @@ export const usePrinterStore = create<PrinterState>()(
           const config = await invoke<any>('get_printer_config');
           set(() => ({
             assignments: {
-              receipt: config.receipt_printer || null,
-              kitchen: config.kitchen_printer || null,
-              invoice: config.invoice_printer || null,
+              receipt: config.receipt_printer?.target || null,
+              kitchen: config.kitchen_printer?.target || null,
+              invoice: config.invoice_printer?.target || null,
+              bill: config.bill_printer?.target || config.receipt_printer?.target || null,
             },
           }));
         } catch (e) {

@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User } from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { AgeVerificationDialog } from '@/components/age-verification-dialog';
@@ -27,6 +27,8 @@ import { emitTo } from '@tauri-apps/api/event';
 import { HeldOrdersDialog } from '@/components/held-orders-dialog';
 import { HoldOrderDialog } from '@/components/hold-order-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { usePrinter } from '@/hooks/use-printer';
+import { toast } from 'sonner';
 
 export function Cart() {
   // --- Layout & Resize States ---
@@ -51,6 +53,10 @@ export function Cart() {
   // --- Hold Sale States ---
   const [showHoldDialog, setShowHoldDialog] = useState(false);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
+  const [isPrintingBill, setIsPrintingBill] = useState(false);
+
+  // --- Printer Hook ---
+  const { printNative } = usePrinter();
 
   // --- Store Hooks ---
   const currentOrder = usePosStore(state => state.currentOrder);
@@ -224,6 +230,41 @@ export function Cart() {
   const handleCloseReceipt = () => {
     setReceiptDialogOpen(false);
     setLastCompletedOrder(null);
+  };
+
+  const handlePrintBill = async () => {
+    if (currentOrder.items.length === 0) return;
+
+    setIsPrintingBill(true);
+    try {
+      // Prepare order data for backend
+      const orderData = {
+        ...currentOrder,
+        subTotal,
+        taxAmount,
+        total,
+        createdAt: new Date().toISOString(),
+        userName: (usePosStore.getState().settings as any).userName || 'Staff',
+      };
+
+      const result = await printNative('bill', orderData as any, usePosStore.getState().settings);
+
+      if (result.success) {
+        toast.success('Bill Printed', {
+          description: 'The pro-forma bill has been sent to the printer.',
+          icon: <ReceiptText className="w-5 h-5 text-green-500" />,
+        });
+      } else {
+        throw new Error(result.error || 'Failed to print');
+      }
+    } catch (error) {
+      console.error('Print Bill Error:', error);
+      toast.error('Print Failed', {
+        description: error instanceof Error ? error.message : 'Could not print the bill. Please check your printer connection.',
+      });
+    } finally {
+      setIsPrintingBill(false);
+    }
   };
 
   const getNormalizedOrderType = (type: string): OrderType => {
@@ -539,7 +580,7 @@ export function Cart() {
             </div>
 
             {/* Main Actions */}
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-5 gap-2">
               {enableHoldSale && (
                 <Button
                   variant="outline"
@@ -553,10 +594,28 @@ export function Cart() {
                 </Button>
               )}
 
+              {businessConfig.type === 'restaurant' && (
+                <Button
+                  variant="outline"
+                  className="col-span-1 h-12 flex-col gap-0.5"
+                  onClick={handlePrintBill}
+                  disabled={currentOrder.items.length === 0 || isPrintingBill}
+                  title="Print Pro-forma Bill"
+                >
+                  {isPrintingBill ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  <span className="text-[10px] font-medium">Bill</span>
+                </Button>
+              )}
+
               <Button
                 className={cn(
                   'h-12 shadow-md text-sm font-bold uppercase tracking-wide',
-                  enableHoldSale ? 'col-span-3' : 'col-span-4'
+                  (enableHoldSale && businessConfig.type === 'restaurant') ? 'col-span-3' :
+                  (enableHoldSale || businessConfig.type === 'restaurant') ? 'col-span-4' : 'col-span-5'
                 )}
                 onClick={handleConfirmPayment}
                 disabled={currentOrder.items.length === 0}

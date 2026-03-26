@@ -2,76 +2,48 @@ import { useState } from 'react';
 import { pdf } from '@react-pdf/renderer';
 import { toast } from 'sonner';
 import { isTauri } from '@tauri-apps/api/core';
-import { documentDir, join } from '@tauri-apps/api/path';
-import { BaseDirectory, writeFile, mkdir, exists } from '@tauri-apps/plugin-fs';
 import { usePrinter } from '@/hooks/use-printer';
 import { processFileDownload } from '@/lib/utils';
+import { usePosStore } from '@/store/store';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 export function usePdfActions() {
-  const { printDocument } = usePrinter();
+  const { printNative } = usePrinter();
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const handlePrint = async (docInstance: React.ReactElement<any>, fileNamePrefix: string) => {
+  const handlePrint = async (docInstance: React.ReactElement<any>, _fileNamePrefix: string, orderData?: any) => {
     if (!docInstance) return;
-
-    // Web Fallback: Open PDF in new tab to print
-    if (!isTauri()) {
-      try {
-        const blob = await pdf(docInstance).toBlob();
-        const url = URL.createObjectURL(blob);
-        const printWindow = window.open(url);
-        if (printWindow) {
-          // printWindow.print(); // Optional: attempts to trigger print dialog automatically
-        } else {
-          toast.error('Pop-up blocked. Please allow pop-ups to print.');
-        }
-      } catch {
-        toast.error('Failed to generate web print preview');
-      }
-      return;
-    }
 
     if (isPrinting) return;
     setIsPrinting(true);
     const toastId = toast.loading('Preparing print job...');
 
     try {
-      // 1. Generate Binary
-      const blob = await pdf(docInstance).toBlob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
+      // Use native thermal printing if on Tauri
+      if (isTauri() && orderData) {
+        const settings = usePosStore.getState().settings;
+        const branchName = useAuthStore.getState().currentLocation?.name;
 
-      // 2. Setup Paths
-      const fileName = `${fileNamePrefix}_${Date.now()}.pdf`;
-      const folderName = 'Dealio';
+        const result = await printNative('receipt', orderData, settings, branchName);
 
-      // RELATIVE path for Tauri FS write (e.g., "Dealio/file.pdf")
-      const relativePath = `${folderName}/${fileName}`;
-
-      // Check/Create Directory
-      if (!(await exists(folderName, { baseDir: BaseDirectory.Document }))) {
-        await mkdir(folderName, { baseDir: BaseDirectory.Document, recursive: true });
+        if (result.success) {
+          toast.success('Sent to printer!', { id: toastId });
+        } else {
+          throw new Error(result.error || 'Native print failed');
+        }
+        return;
       }
 
-      // 3. Write File using RELATIVE path + BaseDirectory scope
-      await writeFile(relativePath, uint8Array, { baseDir: BaseDirectory.Document });
-
-      // 4. Construct ABSOLUTE path for the Printer (Printer needs full OS path)
-      // We use the join API to ensure OS-specific separators (\ vs /)
-      const docDir = await documentDir();
-      const absoluteFilePath = await join(docDir, folderName, fileName);
-
-      // 5. Send to Printer
-      // IMPORTANT: validPath needs to be absolute for external printer commands
-      await printDocument('receipt', absoluteFilePath, true);
-
-      toast.success('Sent to printer!', { id: toastId });
-
-      // NOTE: We do NOT delete the file here.
-      // Deleting immediately causes "File not found" errors in the print spooler.
-      // It is better to implement a cleanup routine on app startup
-      // that deletes files in the 'Dealio' folder older than 24 hours.
+      // Web Fallback: Open PDF in new tab to print
+      const blob = await pdf(docInstance).toBlob();
+      const url = URL.createObjectURL(blob);
+      const printWindow = window.open(url);
+      if (printWindow) {
+        toast.success('Print preview opened', { id: toastId });
+      } else {
+        toast.error('Pop-up blocked. Please allow pop-ups to print.', { id: toastId });
+      }
     } catch (error) {
       console.error('Print failed:', error);
       toast.error(`Print failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
