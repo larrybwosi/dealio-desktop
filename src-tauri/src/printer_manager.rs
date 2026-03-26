@@ -908,3 +908,35 @@ pub async fn print_bill_native(
         Err("No receipt printer configured for bill".into())
     }
 }
+
+// --- LEGACY COMPATIBILITY WRAPPERS (To be removed after full migration) ---
+
+#[tauri::command]
+pub async fn print_network_receipt(
+    ip: String,
+    port: Option<u16>,
+    text: String,
+) -> Result<String, String> {
+    print_network_raw_bytes(ip, port, text.into_bytes())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn print_system_receipt(
+    _app: AppHandle,
+    printer_name: String,
+    content: String,
+    _is_path: bool,
+) -> Result<String, String> {
+    // Note: We ignore is_path for now as we're standardizing on raw bytes.
+    // This wrapper allows legacy code to still call this function.
+    print_system_raw_bytes(printer_name, content.into_bytes())
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn print_usb(_vid: u16, _pid: u16, _text: String) -> Result<String, String> {
+    Err("USB printing is currently deprecated in favor of system drivers".into())
+}
