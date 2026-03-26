@@ -23,13 +23,19 @@ import {
   Server,
   Users,
   UserMinus,
-  UserCheck
+  UserCheck,
+  ShoppingCart,
+  Layout,
+  MessageSquare,
+  Timer
 } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePosStore } from '@/store/store';
+import { useKdsStore } from '@/store/kds-store';
 import { invoke } from '@tauri-apps/api/core';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { updateOrderStatusInKitchen, queryOrderEta } from '@/lib/kds';
 
 interface ConnectedDevice {
   id: string;
@@ -42,14 +48,44 @@ interface ConnectedDevice {
   current_user_name: string | null;
   assigned_user_id: string | null;
   assigned_user_name: string | null;
+  station?: string;
+  current_page?: string;
+  table_number?: string;
+  cart_item_count?: number;
 }
 
 export default function HubOverviewPage() {
   const { currentLocation } = useAuthStore();
   const { employees } = usePosStore();
+  const orders = useKdsStore(state => state.orders);
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hubIp, setHubIp] = useState<string>('Loading...');
+  const [orderEtas, setOrderEtas] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { orderId, etaMinutes } = e.detail;
+      setOrderEtas(prev => ({ ...prev, [orderId]: etaMinutes }));
+    };
+    window.addEventListener('order-eta-response', handler);
+    return () => window.removeEventListener('order-eta-response', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const activity = e.detail;
+      setDevices(prev => prev.map(d => d.id === activity.device_id ? {
+        ...d,
+        current_page: activity.current_page,
+        table_number: activity.table_number,
+        cart_item_count: activity.cart_items?.length || 0,
+        last_seen: Date.now()
+      } : d));
+    };
+    window.addEventListener('tablet-activity-update', handler);
+    return () => window.removeEventListener('tablet-activity-update', handler);
+  }, []);
 
   const fetchDevices = async () => {
     setIsRefreshing(true);
@@ -100,6 +136,23 @@ export default function HubOverviewPage() {
     return Date.now() - lastSeen < 30000; // 30 seconds
   };
 
+  const handleBump = (orderId: string) => {
+    useKdsStore.getState().bumpOrder(orderId);
+    updateOrderStatusInKitchen(orderId, 'done');
+    toast.success('Order bumped');
+  };
+
+  const handleVoid = (orderId: string) => {
+    useKdsStore.getState().updateOrderStatus(orderId, 'voided');
+    updateOrderStatusInKitchen(orderId, 'voided');
+    toast.error('Order voided');
+  };
+
+  const handleQueryEta = (orderId: string, station: string) => {
+    queryOrderEta(orderId, station || 'all');
+    toast.info('ETA query sent to kitchen');
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -121,10 +174,14 @@ export default function HubOverviewPage() {
       </div>
 
       <Tabs defaultValue="devices" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-[400px] mb-8">
+        <TabsList className="grid w-full grid-cols-3 max-w-[600px] mb-8">
           <TabsTrigger value="devices" className="gap-2">
             <Monitor className="w-4 h-4" />
             Devices
+          </TabsTrigger>
+          <TabsTrigger value="monitoring" className="gap-2">
+            <Activity className="w-4 h-4" />
+            Live Monitoring
           </TabsTrigger>
           <TabsTrigger value="staff" className="gap-2">
             <Users className="w-4 h-4" />
@@ -235,6 +292,135 @@ export default function HubOverviewPage() {
                   );
                 })
               )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="monitoring" className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Active Orders Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+                <ChefHat className="w-5 h-5 text-orange-500" />
+                Active Kitchen Orders
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                {orders.filter(o => o.status !== 'done' && o.status !== 'voided').length === 0 ? (
+                  <Card className="p-8 text-center text-muted-foreground border-dashed">
+                    No active orders in kitchen
+                  </Card>
+                ) : (
+                  orders.filter(o => o.status !== 'done' && o.status !== 'voided').map(order => (
+                    <Card key={order.id} className="overflow-hidden">
+                      <div className="p-4 flex justify-between items-center bg-muted/30">
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono font-bold text-lg">{order.num}</span>
+                          <Badge variant="outline">{order.table}</Badge>
+                          <Badge className={cn(
+                            order.status === 'urgent' ? 'bg-red-500' :
+                            order.status === 'in_progress' ? 'bg-blue-500' : 'bg-zinc-500'
+                          )}>
+                            {order.status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm font-mono">{Math.floor((Date.now() - order.createdAt) / 60000)}m</span>
+                        </div>
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="space-y-1 mb-4">
+                          {order.items.map(item => (
+                            <div key={item.id} className="text-sm flex justify-between">
+                              <span>{item.qty}x {item.name}</span>
+                              <Badge variant="ghost" className="text-[10px]">{item.status}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1"
+                            onClick={() => handleQueryEta(order.id, (order as any).station)}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                            Query ETA
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 text-green-600 hover:text-green-700"
+                            onClick={() => handleBump(order.id)}
+                          >
+                            Bump
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleVoid(order.id)}
+                          >
+                            Void
+                          </Button>
+                        </div>
+                        {orderEtas[order.id] !== undefined && (
+                          <div className="mt-3 p-2 bg-blue-50 text-blue-700 rounded-md flex items-center gap-2 text-sm font-bold">
+                            <Timer className="w-4 h-4" />
+                            ETA: {orderEtas[order.id]} minutes
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Tablet Activity Section */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold uppercase tracking-widest flex items-center gap-2">
+                <Tablet className="w-5 h-5 text-blue-500" />
+                Live Tablet Activity
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                {devices.filter(d => d.device_type === 'TABLET' && isRecentlySeen(d.last_seen)).length === 0 ? (
+                  <Card className="p-8 text-center text-muted-foreground border-dashed">
+                    No active tablets online
+                  </Card>
+                ) : (
+                  devices.filter(d => d.device_type === 'TABLET' && isRecentlySeen(d.last_seen)).map(tablet => (
+                    <Card key={tablet.id}>
+                      <CardHeader className="p-4 pb-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-base">{tablet.name}</CardTitle>
+                            <CardDescription className="text-xs">{tablet.current_user_name || 'Unassigned'}</CardDescription>
+                          </div>
+                          <Badge variant="outline" className="text-[10px]">LIVE</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 pt-0 space-y-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Layout className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Current View:</span>
+                          <span className="font-medium">{tablet.current_page || 'Home'}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <ShoppingCart className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">Cart Items:</span>
+                          <span className="font-bold text-blue-600">{tablet.cart_item_count || 0} items</span>
+                        </div>
+                        {tablet.table_number && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <Badge className="bg-indigo-500">Table {tablet.table_number}</Badge>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>

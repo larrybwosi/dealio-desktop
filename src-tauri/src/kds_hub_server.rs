@@ -29,6 +29,10 @@ pub struct ConnectedDevice {
     pub current_user_name: Option<String>,
     pub assigned_user_id: Option<String>,
     pub assigned_user_name: Option<String>,
+    pub station: Option<String>,
+    pub current_page: Option<String>,
+    pub table_number: Option<String>,
+    pub cart_item_count: Option<usize>,
 }
 
 pub struct DeviceRegistry {
@@ -175,9 +179,9 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                     },
                     WsMessage::DeviceStatus(device) => {
                         let mut devices = registry.devices.lock().unwrap();
-                        let (assigned_user_id, assigned_user_name) = devices.get(&device.id)
-                            .map(|d| (d.assigned_user_id.clone(), d.assigned_user_name.clone()))
-                            .unwrap_or((None, None));
+                        let (assigned_user_id, assigned_user_name, current_page, table_number, cart_item_count) = devices.get(&device.id)
+                            .map(|d| (d.assigned_user_id.clone(), d.assigned_user_name.clone(), d.current_page.clone(), d.table_number.clone(), d.cart_item_count))
+                            .unwrap_or((None, None, None, None, None));
 
                         devices.insert(device.id.clone(), ConnectedDevice {
                             id: device.id,
@@ -190,10 +194,27 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                             current_user_name: device.current_user_name,
                             assigned_user_id,
                             assigned_user_name,
+                            station: device.station,
+                            current_page,
+                            table_number,
+                            cart_item_count,
                         });
                     },
                     WsMessage::AssignmentUpdate(_assignment) => {
                         // Normally assignments flow HUB -> CLIENT, but if a client sends one, broadcast it
+                        let _ = tx.send(text.clone());
+                    },
+                    WsMessage::TabletActivity(activity) => {
+                        let mut devices = registry.devices.lock().unwrap();
+                        if let Some(device) = devices.get_mut(&activity.device_id) {
+                            device.current_page = Some(activity.current_page.clone());
+                            device.table_number = activity.table_number.clone();
+                            device.cart_item_count = Some(activity.cart_items.len());
+                            device.last_seen = chrono::Utc::now().timestamp_millis();
+                        }
+                        let _ = tx.send(text.clone());
+                    },
+                    WsMessage::OrderEtaQuery { .. } | WsMessage::OrderEtaResponse { .. } => {
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::SyncOrders(_) => {

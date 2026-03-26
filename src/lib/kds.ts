@@ -62,11 +62,12 @@ export function connectToHub(url: string) {
       payload: {
         id: localStorage.getItem('DEVICE_ID') || 'unknown',
         name: localStorage.getItem('DEVICE_NAME') || 'Terminal',
-        type: role,
+        device_type: role,
         status: 'online',
-        lastSeen: Date.now(),
-        currentUserId: user?.id || null,
-        currentUserName: user?.name || null
+        last_seen: Date.now(),
+        current_user_id: user?.id || null,
+        current_user_name: user?.name || null,
+        station: localStorage.getItem('KDS_STATION') || null
       }
     }));
 
@@ -101,13 +102,13 @@ export function connectToHub(url: string) {
     }
     
     if (message.type === 'OrderStatusUpdated') {
-        const { order_id, status } = message.payload;
-        useKdsStore.getState().updateOrderStatus(order_id, status);
+        const { order_id, new_status } = message.payload;
+        useKdsStore.getState().updateOrderStatus(order_id, new_status);
         
         // Also update POS store if it's running on this device
         let posStatus = 'pending';
-        if (status === 'in_progress') posStatus = 'cooking';
-        if (status === 'done') posStatus = 'ready';
+        if (new_status === 'in_progress') posStatus = 'cooking';
+        if (new_status === 'done') posStatus = 'ready';
         usePosStore.getState().updateOrderStatus(order_id, posStatus as any);
     }
 
@@ -125,6 +126,29 @@ export function connectToHub(url: string) {
           detail: { userId: user_id, userName: user_name }
         }));
       }
+    }
+
+    if (message.type === 'OrderEtaQuery') {
+      const { order_id, station } = message.payload;
+      const myStation = localStorage.getItem('KDS_STATION') || 'all';
+      if (station === 'all' || station === myStation) {
+        window.dispatchEvent(new CustomEvent('order-eta-query', {
+          detail: { orderId: order_id }
+        }));
+      }
+    }
+
+    if (message.type === 'OrderEtaResponse') {
+      const { order_id, eta_minutes } = message.payload;
+      window.dispatchEvent(new CustomEvent('order-eta-response', {
+        detail: { orderId: order_id, etaMinutes: eta_minutes }
+      }));
+    }
+
+    if (message.type === 'TabletActivity') {
+      window.dispatchEvent(new CustomEvent('tablet-activity-update', {
+        detail: message.payload
+      }));
     }
   };
 
@@ -176,7 +200,7 @@ export function updateOrderStatusInKitchen(orderId: string, status: string) {
     type: "OrderStatusUpdated",
     payload: {
       order_id: orderId,
-      status: status
+      new_status: status
     }
   };
 
@@ -185,5 +209,50 @@ export function updateOrderStatusInKitchen(orderId: string, status: string) {
     socket.send(jsonPayload);
   } else {
     addToOfflineQueue(jsonPayload);
+  }
+}
+
+export function sendTabletActivity(activity: { current_page: string, cart_items: any[], table_number: string | null }) {
+  const payload = {
+    type: "TabletActivity",
+    payload: {
+      device_id: localStorage.getItem('DEVICE_ID') || 'unknown',
+      ...activity
+    }
+  };
+
+  const jsonPayload = JSON.stringify(payload);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(jsonPayload);
+  }
+}
+
+export function queryOrderEta(orderId: string, station: string = 'all') {
+  const payload = {
+    type: "OrderEtaQuery",
+    payload: {
+      order_id: orderId,
+      station: station
+    }
+  };
+
+  const jsonPayload = JSON.stringify(payload);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(jsonPayload);
+  }
+}
+
+export function sendOrderEtaResponse(orderId: string, etaMinutes: number) {
+  const payload = {
+    type: "OrderEtaResponse",
+    payload: {
+      order_id: orderId,
+      eta_minutes: etaMinutes
+    }
+  };
+
+  const jsonPayload = JSON.stringify(payload);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(jsonPayload);
   }
 }

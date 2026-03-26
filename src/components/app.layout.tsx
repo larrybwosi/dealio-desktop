@@ -19,6 +19,9 @@ import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'react-router';
 import { Cart } from './cart';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { useEffect } from 'react';
+import { usePosStore } from '@/store/store';
+import { sendTabletActivity } from '@/lib/kds';
 
 interface AppLayoutProviderProps {
   children: React.ReactNode;
@@ -30,6 +33,22 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
   const { checkOut } = useAuth();
   const { deviceType } = useAuthStore();
   const location = useLocation();
+  const { currentOrder } = usePosStore();
+
+  useEffect(() => {
+    if (deviceType === 'TABLET') {
+      sendTabletActivity({
+        current_page: location.pathname,
+        cart_items: currentOrder.items.map(item => ({
+          id: item.productId,
+          product_name: item.productName,
+          quantity: item.quantity,
+          modifiers: []
+        })),
+        table_number: currentOrder.tableNumber || null
+      });
+    }
+  }, [location.pathname, currentOrder.items, currentOrder.tableNumber, deviceType]);
 
   const handleCheckout = () => {
     checkOut();
