@@ -138,6 +138,7 @@ export function POS() {
     }
   }, [debouncedSearch]);
 
+
   useEffect(() => {
     if (activeCategory !== 'all') {
       // trackEvent("pos_category_change", { category: activeCategory });

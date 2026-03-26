@@ -74,7 +74,7 @@ import { cn } from "@/lib/utils";
 // ─── Types and Store ────────────────────────────────────────────────────────
 import { useKdsStore, KdsOrder as Order, OrderStatus, OrderType, ItemStatus, Station } from '@/store/kds-store';
 import { usePosStore } from '@/store/store';
-import { updateOrderStatusInKitchen } from '@/lib/kds';
+import { updateOrderStatusInKitchen, sendOrderEtaResponse } from '@/lib/kds';
 
 type SortKey = "time_asc" | "time_desc" | "priority" | "table";
 
@@ -738,6 +738,7 @@ function StatPill({
 export default function KDSPage() {
   const orders = useKdsStore(state => state.orders);
   const [operator, setOperator] = useState<string>(localStorage.getItem('ASSIGNED_USER_NAME') || '');
+  const [etaQueryTarget, setEtaQueryTarget] = useState<string | null>(null);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -746,6 +747,19 @@ export default function KDSPage() {
     window.addEventListener('assignment-updated', handler);
     return () => window.removeEventListener('assignment-updated', handler);
   }, []);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      const { orderId } = e.detail;
+      setEtaQueryTarget(orderId);
+      toast.info(`ETA Query for Order #${orders.find(o => o.id === orderId)?.num}`, {
+        description: "Hub is asking for an ETA",
+        duration: 5000,
+      });
+    };
+    window.addEventListener('order-eta-query', handler);
+    return () => window.removeEventListener('order-eta-query', handler);
+  }, [orders]);
 
   const autoPrintKds = usePosStore(state => state.settings.kitchenTicketConfig.autoPrintKds);
   const [bumped, setBumped] = useState<Order[]>([]);
@@ -896,6 +910,14 @@ export default function KDSPage() {
     },
     [orders]
   );
+
+  const handleSendEta = (minutes: number) => {
+    if (etaQueryTarget) {
+      sendOrderEtaResponse(etaQueryTarget, minutes);
+      setEtaQueryTarget(null);
+      toast.success('ETA sent to hub');
+    }
+  };
 
   const cycleItemStatus = useCallback((orderId: string, itemId: string) => {
     const o = useKdsStore.getState().orders.find(o => o.id === orderId);
@@ -1505,6 +1527,45 @@ export default function KDSPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ── ETA QUERY DIALOG ── */}
+      <Dialog open={!!etaQueryTarget} onOpenChange={(v) => !v && setEtaQueryTarget(null)}>
+        <DialogContent className="bg-[#111318] border border-[#252830] text-[#f0f2f5] max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Send ETA to Hub</DialogTitle>
+            <DialogDescription className="text-[#555b68]">
+              How many minutes until Order #{orders.find(o => o.id === etaQueryTarget)?.num} is ready?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 py-4">
+            {[2, 5, 10, 15, 20, 30].map(mins => (
+              <Button
+                key={mins}
+                variant="outline"
+                onClick={() => handleSendEta(mins)}
+                className="border-[#353a44] hover:bg-[#3b9eff]/20 hover:text-[#3b9eff]"
+              >
+                {mins} mins
+              </Button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder="Custom mins..."
+              className="bg-[#0a0b0d] border-[#252830]"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendEta(parseInt((e.target as HTMLInputElement).value));
+                }
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEtaQueryTarget(null)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── SHORTCUTS DIALOG ── */}
       <ShortcutsDialog

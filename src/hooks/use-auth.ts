@@ -52,6 +52,14 @@ export function useAuth() {
         locationId: currentLocation?.id,
       }),
     onSuccess: data => {
+      const assignedUserId = localStorage.getItem('ASSIGNED_USER_ID');
+      if (assignedUserId && assignedUserId !== data.member.id) {
+        toast.error('Access Denied', {
+          description: `This device is assigned to ${localStorage.getItem('ASSIGNED_USER_NAME')}.`,
+        });
+        return;
+      }
+
       setMemberSession(data.member, data.restoredSession);
 
       posthog.identify(data.member.id, {
