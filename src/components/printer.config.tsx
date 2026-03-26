@@ -1,4 +1,4 @@
-import { Printer, RefreshCcw, Settings2, FileText, Receipt, ChefHat } from 'lucide-react';
+import { Printer, RefreshCcw, Settings2, FileText, Receipt, ChefHat, ReceiptText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,23 +19,22 @@ export default function PrinterSettings() {
   // Helper to test specific roles
   const handleTest = async (type: PrinterJobType) => {
     try {
-      const timestamp = new Date().toLocaleTimeString();
+      // Mock order for test
+      const testOrder = {
+        id: 'test-id',
+        orderNumber: 'TEST-001',
+        items: [
+          { productName: 'Test Item 1', quantity: 1, price: 100, total: 100 },
+          { productName: 'Test Item 2', quantity: 2, price: 50, total: 100 },
+        ],
+        subTotal: 200,
+        taxAmount: 0,
+        total: 200,
+        createdAt: new Date().toISOString(),
+        cashierName: 'Admin',
+      };
 
-      // We send HTML for the test.
-      // Note: We pass `false` for the isPdf argument.
-      const testContent = `
-        <html>
-          <body>
-            <h1>Test Print</h1>
-            <p>Printer: ${type}</p>
-            <p>Time: ${timestamp}</p>
-            <hr />
-            <p>If you can read this, the configuration is successful.</p>
-          </body>
-        </html>
-      `;
-
-      await printDocument(type, testContent, false);
+      await printDocument(type, testOrder, settings);
 
       alert(`Sent test to ${type} printer!`);
     } catch (e: any) {
@@ -94,6 +93,34 @@ export default function PrinterSettings() {
                   </SelectContent>
                 </Select>
                 <Button variant="outline" size="icon" onClick={() => handleTest('receipt')}>
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 4. Bill/Cheque Printer Assignment */}
+            <div className="bg-background p-4 rounded-lg border">
+              <div className="flex items-center gap-2 mb-2">
+                <ReceiptText className="h-4 w-4 text-purple-600" />
+                <label className="text-sm font-semibold">Bill/Cheque Printer</label>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">Used for pro-forma bills (Default: Receipt Printer)</p>
+
+              <div className="flex gap-2">
+                <Select value={assignments.bill || ''} onValueChange={val => assignPrinter('bill', val)}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select a printer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receipt">Same as Receipt Printer</SelectItem>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" onClick={() => handleTest('bill')}>
                   <Printer className="h-4 w-4" />
                 </Button>
               </div>

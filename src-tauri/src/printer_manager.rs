@@ -7,6 +7,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use serde_json::Value; 
 use base64::{Engine as _, engine::general_purpose};
+use chrono;
 
 use crate::escpos_builder::EscPosBuilder; 
 use crate::models::PrinterError;
@@ -32,6 +33,8 @@ pub struct PrinterSettings {
     pub receipt_printer: Option<PrinterConfig>,
     pub kitchen_printer: Option<PrinterConfig>,
     pub bar_printer: Option<PrinterConfig>,
+    pub invoice_printer: Option<PrinterConfig>,
+    pub bill_printer: Option<PrinterConfig>,
 }
 
 // Helper to get the path where we save settings
@@ -177,49 +180,16 @@ pub async fn get_printer_config(app: AppHandle) -> Result<PrinterSettings, Strin
 #[tauri::command]
 pub async fn print_job(
     app: AppHandle,
-    job_type: String, // "receipt", "kitchen", "bar"
-    content: String,  // Can be raw text or a file path
-    is_path: bool,    // Flag to distinguish text vs file
-) -> Result<String, PrinterError> {
-    // 1. Load the config
-    let config = get_printer_config(app.clone())
-        .await
-        .map_err(PrinterError::SystemError)?;
-
-    // 2. Determine which printer config to use
-    let target_config = match job_type.as_str() {
-        "receipt" => config.receipt_printer,
-        "kitchen" => config.kitchen_printer,
-        "bar" => config.bar_printer,
-        _ => {
-            return Err(PrinterError::SystemError(format!(
-                "Unknown job type: {}",
-                job_type
-            )))
-        }
-    };
-
-    // 3. Execute Print based on type
-    if let Some(printer) = target_config {
-        match printer.method.as_str() {
-            "network" => {
-                // For network, we usually expect raw content/ESC-POS.
-                // If 'is_path' is true, we assume the file content should be read and sent,
-                // or (simpler) that the 'content' string IS the data to send.
-                // Here we assume 'content' holds the data or ESC/POS commands.
-                print_network_raw(printer.target, printer.port, content).await
-            }
-            "system" | _ => {
-                // Use the existing system printer logic
-                // printer.target holds the System Printer Name
-                print_system_receipt(app, printer.target, content, is_path).await
-            }
-        }
-    } else {
-        Err(PrinterError::SystemError(format!(
-            "No printer configured for {}",
-            job_type
-        )))
+    job_type: String, // "receipt", "kitchen", "bar", "bill"
+    order: Value,
+    settings: Value,
+    branch_name: Option<String>,
+) -> Result<String, String> {
+    match job_type.as_str() {
+        "receipt" => print_receipt_native(app, order, settings, branch_name).await,
+        "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
+        "bill" | "invoice" => print_bill_native(app, order, settings, branch_name).await,
+        _ => Err(format!("Unknown job type: {}", job_type)),
     }
 }
 
@@ -258,157 +228,6 @@ pub fn open_cash_drawer(port_name: String) -> Result<String, String> {
     }
 }
 
-// --- Method 1: Network (TCP) ---
-#[tauri::command]
-pub async fn print_network_receipt(
-    ip: String,
-    port: Option<u16>,
-    text: String,
-) -> Result<String, PrinterError> {
-    let port = port.unwrap_or(9100);
-    let address = format!("{}:{}", ip, port);
-
-    // 1. Enforce a connection timeout
-    let stream_result = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        TcpStream::connect(&address),
-    )
-    .await;
-
-    let mut stream = match stream_result {
-        Ok(Ok(s)) => s,
-        Ok(Err(e)) => return Err(PrinterError::ConnectionFailed(e.to_string())),
-        Err(_) => return Err(PrinterError::Timeout),
-    };
-
-    // 2. Write with async
-    stream.write_all(text.as_bytes()).await?;
-    stream.flush().await?;
-
-    Ok("Network print job sent successfully".into())
-}
-
-// --- Method 2: OS Driver (Shell) ---
-#[tauri::command]
-pub async fn print_system_receipt(
-    app: AppHandle,
-    printer_name: String,
-    content: String,
-    is_path: bool,
-) -> Result<String, PrinterError> {
-    // Logic: If it's already a file path (PDF), use it.
-    // If it's raw text, write it to a temp file with a specific extension (.txt).
-    let file_to_print = if is_path {
-        // Verify file exists
-        let path = std::path::PathBuf::from(&content);
-        if !path.exists() {
-            return Err(PrinterError::SystemError(format!(
-                "File not found: {}",
-                content
-            )));
-        }
-        content
-    } else {
-        // FIX: Use Builder to add a ".txt" suffix.
-        // SumatraPDF requires an extension to know how to render the file.
-        let mut temp_file = Builder::new()
-            .suffix(".txt")
-            .tempfile()
-            .map_err(|e| PrinterError::SystemError(format!("Temp file creation failed: {}", e)))?;
-
-        // Write content to the file
-        temp_file.write_all(content.as_bytes()).map_err(|e| {
-            PrinterError::SystemError(format!("Failed to write to temp file: {}", e))
-        })?;
-
-        // Persist the file so the external process (Sumatra/lp) can read it
-        let (_, path) = temp_file.keep().map_err(|e| {
-            PrinterError::SystemError(format!("Failed to persist temp file: {}", e))
-        })?;
-
-        path.to_string_lossy().to_string()
-    };
-
-    #[cfg(target_os = "windows")]
-    {
-        use tauri_plugin_shell::ShellExt;
-
-        // SumatraPDF arguments for silent printing
-        let args = vec![
-            "-print-to".to_string(),
-            printer_name,
-            "-silent".to_string(),
-            "-print-settings".to_string(),
-            "shrink".to_string(), // IMPROVEMENT: Changed from "noscale" to "shrink" to respect hardware margins
-            file_to_print.clone(), // Clone path string for the args
-        ];
-
-        let command = app
-            .shell()
-            .sidecar("sumatrapdf")
-            .map_err(|e| PrinterError::SystemError(format!("Sidecar config error: {}", e)))?
-            .args(&args);
-
-        let (mut _rx, _child) = command
-            .spawn()
-            .map_err(|e| PrinterError::SystemError(format!("Failed to spawn SumatraPDF: {}", e)))?;
-
-        Ok("Sent to SumatraPDF sidecar".into())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        // Linux/Mac: Use 'lp' (CUPS), which supports text and PDF natively
-        let output = std::process::Command::new("lp")
-            .arg("-d")
-            .arg(&printer_name)
-            .arg("-o")         
-            .arg("fit-to-page")
-            .arg(&file_to_print)
-            // optional: "-o raw" if you are sending raw ESC/POS codes,
-            // but for plain text/PDF, omit it.
-            .output()
-            .map_err(|e| PrinterError::SystemError(format!("Failed to execute lp: {}", e)))?;
-
-        if output.status.success() {
-            Ok("Sent to CUPS".into())
-        } else {
-            Err(PrinterError::SystemError(format!(
-                "CUPS failed: {}",
-                String::from_utf8_lossy(&output.stderr)
-            )))
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn print_usb(vid: u16, pid: u16, text: String) -> Result<String, PrinterError> {
-    tokio::task::spawn_blocking(move || {
-        // Explicitly use imports here to fix E0433
-        use escpos_rs::{Printer, PrinterProfile};
-
-        let profile = PrinterProfile::usb_builder(vid, pid).build();
-
-        match Printer::new(profile) {
-            Ok(maybe_printer) => {
-                // FIX E0599: Compiler says this is Option<Printer>, so we unwrap it
-                let printer = maybe_printer.expect("Failed to initialize printer instance");
-
-                match printer.print(&text) {
-                    Ok(_) => {
-                        // Attempt cut
-                        let _ = printer.cut();
-                        Ok("USB print sent successfully".into())
-                    }
-                    Err(e) => Err(PrinterError::SystemError(format!("USB Write Error: {}", e))),
-                }
-            }
-            Err(_e) => Err(PrinterError::UsbDeviceNotFound(vid, pid)),
-        }
-    })
-    .await
-    .map_err(|_| PrinterError::SystemError("Task Join Error".into()))?
-}
 
 #[tauri::command] 
 pub async fn print_receipt_native(
@@ -734,7 +553,7 @@ pub async fn print_system_raw_bytes(
 
 #[tauri::command]
 pub async fn print_kitchen_native(
-    _app: tauri::AppHandle,
+    app: tauri::AppHandle,
     order: Value,
     settings: Value,
     branch_name: Option<String>,
@@ -926,7 +745,166 @@ pub async fn print_kitchen_native(
     esc.feed(4); // Advance paper enough so the tear/cut clears the printhead
     esc.cut();
 
-    // Encode standard output to be handled by printer methods or UI
-    let base64_str = general_purpose::STANDARD.encode(&esc.bytes);
-    Ok(base64_str)
+    let bytes_to_print = esc.bytes;
+
+    let printer_config = get_printer_config(app.clone())
+        .await
+        .map_err(|e| format!("Failed to load printer config: {}", e))?;
+
+    if let Some(printer) = printer_config.kitchen_printer {
+        match printer.method.as_str() {
+            "network" => {
+                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("Network print failed: {:?}", e))?;
+
+                Ok("Kitchen ticket printed natively to network printer".into())
+            }
+            "system" | _ => {
+                print_system_raw_bytes(printer.target, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
+
+                Ok("Kitchen ticket printed natively to system printer".into())
+            }
+        }
+    } else {
+        Err("No kitchen printer configured".into())
+    }
+}
+
+#[tauri::command]
+pub async fn print_bill_native(
+    app: tauri::AppHandle,
+    order: Value,
+    settings: Value,
+    branch_name: Option<String>,
+) -> Result<String, String> {
+    let mut esc = EscPosBuilder::new();
+
+    // 1. Setup layout constraints
+    let config = settings.get("receiptConfig").unwrap_or(&Value::Null);
+    let paper_size = config.get("paperSize").and_then(|v| v.as_str()).unwrap_or("80mm");
+    let is_58mm = paper_size == "58mm";
+    let width = if is_58mm { 32 } else { 48 };
+    let cols = if is_58mm { (14, 4, 6, 8) } else { (22, 6, 9, 11) };
+
+    // --- BILL HEADER ---
+    esc.align(1);
+    esc.bold(true);
+    esc.size(2, 2);
+    esc.text_line("PRO-FORMA BILL");
+    esc.size(1, 1);
+    esc.text_line("(NOT A RECEIPT)");
+    esc.bold(false);
+    esc.feed(1);
+
+    if let Some(biz_name) = settings.get("businessName").and_then(|v| v.as_str()) {
+        esc.text_line(biz_name);
+    }
+    if let Some(branch) = branch_name {
+        if !branch.is_empty() { esc.text_line(&format!("Branch: {}", branch)); }
+    }
+
+    esc.divider(width);
+    esc.align(0);
+
+    // --- META DATA ---
+    if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("Order Ref: {}", order_num));
+    }
+
+    if let Some(table) = order.get("tableName").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("Table: {}", table));
+    }
+
+    if let Some(guests) = order.get("guestCount").and_then(|v| v.as_i64()) {
+        esc.text_line(&format!("Guests: {}", guests));
+    } else if let Some(guests) = order.get("guestCount").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("Guests: {}", guests));
+    }
+
+    let current_time = chrono::Local::now().format("%m/%d/%Y %H:%M:%S").to_string();
+    esc.text_line(&format!("Time: {}", current_time));
+
+    // --- TABLE HEADER ---
+    esc.divider(width);
+    esc.bold(true);
+    esc.item_row("ITEM", "QTY", "PRICE", "AMT", cols);
+    esc.bold(false);
+    esc.divider(width);
+
+    // --- ITEMS LOOP ---
+    if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
+        for item in items {
+            let name = item.get("productName").and_then(|v| v.as_str())
+                .or(item.get("name").and_then(|v| v.as_str()))
+                .unwrap_or("Item");
+            let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+            let price = item.get("price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let total = item.get("total").and_then(|v| v.as_f64()).unwrap_or(qty * price);
+
+            let qty_str = if qty.fract() == 0.0 { format!("{}", qty) } else { format!("{:.2}", qty) };
+            let price_str = format!("{:.2}", price);
+            let total_str = format!("{:.2}", total);
+
+            esc.item_row(name, &qty_str, &price_str, &total_str, cols);
+        }
+    }
+    esc.divider(width);
+
+    // --- TOTALS ---
+    if let Some(subtotal) = order.get("subTotal").and_then(|v| v.as_f64()) {
+        esc.text_left_right("Subtotal:", &format!("{:.2}", subtotal), width);
+    }
+    if let Some(total) = order.get("total").and_then(|v| v.as_f64()) {
+        esc.feed(1);
+        esc.size(2, 2);
+        esc.bold(true);
+        // Correct character width for double-size text
+        let double_width = width / 2;
+        esc.text_left_right("TOTAL:", &format!("{:.2}", total), double_width);
+        esc.size(1, 1);
+        esc.bold(false);
+        esc.feed(1);
+    }
+
+    esc.divider(width);
+    esc.align(1);
+    esc.feed(1);
+    esc.text_line("Please present this bill at the counter.");
+    esc.text_line("Thank you!");
+
+    esc.feed(4);
+    esc.cut();
+
+    let bytes_to_print = esc.bytes;
+
+    let printer_config = get_printer_config(app.clone())
+        .await
+        .map_err(|e| format!("Failed to load printer config: {}", e))?;
+
+    // Use assigned bill printer or fallback to receipt printer
+    let target_printer = printer_config.bill_printer.or(printer_config.receipt_printer);
+
+    if let Some(printer) = target_printer {
+        match printer.method.as_str() {
+            "network" => {
+                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("Network print failed: {:?}", e))?;
+
+                Ok("Bill printed natively to network printer".into())
+            }
+            "system" | _ => {
+                print_system_raw_bytes(printer.target, bytes_to_print)
+                    .await
+                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
+
+                Ok("Bill printed natively to system printer".into())
+            }
+        }
+    } else {
+        Err("No receipt printer configured for bill".into())
+    }
 }

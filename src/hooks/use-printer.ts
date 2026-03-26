@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 import { Order, BusinessSettings } from '@/store/store';
-import { generateReceiptPDF, savePdfToTempFile } from '@/lib/receipt-generator';
 import { PrintResult } from '@/types/print-types';
 import { v4 as uuidv4 } from 'uuid';
 import posthog from 'posthog-js';
@@ -41,25 +40,25 @@ export const usePrinter = () => {
 
   const printDocument = async (
     type: PrinterJobType,
-    data: string,
-    isPdf: boolean = false
-    // options?: any
+    order: any,
+    settings: any,
+    branchName?: string
   ) => {
     // Note: We don't need to look up printerId manually here anymore,
     // because the backend 'print_job' does that lookup based on the 'type' (job_type).
 
     // However, we should check if the store has a config for it to fail fast UI side
-    const printerId = store.assignments[type];
+    const printerId = store.assignments[type] || store.assignments['receipt']; // Fallback to receipt for bill
     if (!printerId) {
-      // Optional: You can keep this check if you want UI feedback before hitting Rust
       throw new Error(`No printer assigned for ${type}s.`);
     }
 
     try {
       const result = await invoke('print_job', {
-        jobType: type, // Matches Rust: job_type
-        content: data, // Matches Rust: content
-        isPath: isPdf, // Matches Rust: is_path (Tauri converts camelCase to snake_case automatically)
+        jobType: type,
+        order,
+        settings,
+        branchName
       });
 
       console.log('Print Job Success:', result);
@@ -70,9 +69,11 @@ export const usePrinter = () => {
     }
   };
 
-  const printPdfReceipt = async (
+  const printNative = async (
+    type: PrinterJobType,
     order: Order,
     settings: BusinessSettings,
+    branchName?: string,
     copies: number = 1
   ): Promise<PrintResult> => {
     const jobId = uuidv4();
@@ -82,22 +83,19 @@ export const usePrinter = () => {
       orderNumber: order.orderNumber,
       timestamp: new Date(),
       status: 'printing',
-      format: 'pdf',
+      format: 'thermal',
       retryCount: 0,
       maxRetries: 2,
-      jobType: 'customer',
+      jobType: type === 'kitchen' ? 'kitchen' : 'customer',
     });
 
     try {
-      const pdfBlob = await generateReceiptPDF(order, settings);
-      const pdfPath = await savePdfToTempFile(pdfBlob, order.id);
-
       for (let i = 0; i < copies; i++) {
-        await printDocument('receipt', pdfPath, true);
+        await printDocument(type, order, settings, branchName);
       }
 
       store.updatePrintJob(jobId, { status: 'success' });
-      posthog.capture("receipt_printed", { job_type: 'receipt' });
+      posthog.capture("receipt_printed", { job_type: type });
       return { success: true, jobId };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -107,7 +105,13 @@ export const usePrinter = () => {
   };
 
   const retryPrintJob = async (queueItem: any): Promise<PrintResult> => {
-    return printPdfReceipt(queueItem.orderData, queueItem.orderData.settings, 1);
+    return printNative(
+      queueItem.jobType === 'kitchen' ? 'kitchen' : 'receipt',
+      queueItem.orderData,
+      queueItem.orderData.settings,
+      queueItem.orderData.branchName,
+      1
+    );
   };
 
   useEffect(() => {
@@ -120,7 +124,7 @@ export const usePrinter = () => {
     error,
     refreshPrinters,
     printDocument,
-    printPdfReceipt,
+    printNative,
     retryPrintJob,
   };
 };

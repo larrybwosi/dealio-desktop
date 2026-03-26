@@ -293,7 +293,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             <ActionPanel
               completedOrder={completedOrder}
               formattedOrder={formattedOrder}
-              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`)}
+              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder)}
               onDownload={() => DocumentInstance && handleDownload(DocumentInstance, `Receipt_${safeOrderNum}`)}
               onClose={onClose}
               isPrinting={isPrinting}
