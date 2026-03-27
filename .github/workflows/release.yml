@@ -4,6 +4,7 @@ on:
     branches:
       - main
       - beta
+      - nextgen
 
 jobs:
   # STEP 1: Determine version and create GitHub Release
@@ -125,17 +126,33 @@ jobs:
             New-Item -ItemType File -Path "src-tauri/binaries/sumatrapdf-i686-pc-windows-msvc.exe"
           }
 
-      - name: Update Version for Build
+      - name: Update Version and Updater for Build
         shell: bash
         run: |
           FULL_VERSION="${{ needs.release-management.outputs.new_release_version }}"
-          CLEAN_VERSION="${FULL_VERSION%%-*}"
+          BRANCH="${{ github.ref_name }}"
+          REPO="${{ github.repository }}"
 
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
 
-          echo "Bumping Tauri config version to $CLEAN_VERSION"
-          jq --arg v "$CLEAN_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          echo "Bumping Tauri config version to $FULL_VERSION"
+          jq --arg v "$FULL_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+
+          # Set branch-specific updater endpoint
+          if [ "$BRANCH" = "main" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/latest.json"
+          elif [ "$BRANCH" = "beta" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/latest.json"
+          elif [ "$BRANCH" = "nextgen" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/latest.json"
+          else
+             # Default fallback
+             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/latest.json"
+          fi
+
+          echo "Updating updater endpoint to $UPDATER_ENDPOINT"
+          jq --arg e "$UPDATER_ENDPOINT" '.plugins.updater.endpoints = [$e]' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
       - name: Generate .env file for build
         shell: bash
@@ -154,3 +171,87 @@ jobs:
           releaseDraft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
           args: ${{ matrix.args }}
+
+      - name: Extract latest.json
+        shell: bash
+        run: |
+          LATEST_JSON=$(find src-tauri/target -name "latest.json" | head -n 1)
+          if [ -z "$LATEST_JSON" ]; then
+            LATEST_JSON=$(find . -name "latest.json" | head -n 1)
+          fi
+          if [ -n "$LATEST_JSON" ]; then
+            cp "$LATEST_JSON" "latest-${{ strategy.job-index }}.json"
+          else
+            echo "latest.json not found for ${{ matrix.platform }}"
+            exit 1
+          fi
+
+      - name: Upload latest.json artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-json-${{ strategy.job-index }}
+          path: latest-${{ strategy.job-index }}.json
+
+  finalize-release:
+    needs: [release-management, publish-tauri]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all latest.json artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: latest-json-*
+          merge-multiple: true
+
+      - name: Merge latest.json files
+        shell: bash
+        run: |
+          VERSION="${{ needs.release-management.outputs.new_release_version }}"
+          REPO="${{ github.repository }}"
+          TAG="v$VERSION"
+          BRANCH="${{ github.ref_name }}"
+
+          # Create a template latest.json
+          echo "{\"version\":\"$VERSION\",\"notes\":\"Release $VERSION\",\"pub_date\":\"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",\"platforms\":{}}" > combined.json
+
+          # Merge all platforms from individual files
+          for f in latest-*.json; do
+            echo "Merging $f..."
+            jq -s '.[0].platforms * .[1].platforms | {version: .[0].version, notes: .[0].notes, pub_date: .[0].pub_date, platforms: .}' combined.json "$f" > tmp.json && mv tmp.json combined.json
+          done
+
+          # Update URLs in combined.json to point to GitHub assets
+          # This assumes filenames follow Tauri default patterns.
+          # We search for local file paths and replace them with the GitHub release download URL.
+          jq --arg repo "$REPO" --arg tag "$TAG" '
+            .platforms |= with_entries(
+              .value.url |= (
+                sub(".*/"; "https://github.com/\($repo)/releases/download/\($tag)/")
+              )
+            )
+          ' combined.json > latest.json
+
+          echo "Final latest.json:"
+          cat latest.json
+
+      - name: Upload final latest.json to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          VERSION="${{ needs.release-management.outputs.new_release_version }}"
+          TAG="v$VERSION"
+          gh release upload "$TAG" latest.json --clobber
+
+      - name: Update Rolling Latest Release (Prerelease only)
+        if: github.ref != 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          TAG="${BRANCH}-latest"
+          echo "Updating rolling release $TAG..."
+          gh release view "$TAG" || gh release create "$TAG" --prerelease --title "$TAG" --notes "Rolling release for $BRANCH branch"
+          gh release upload "$TAG" latest.json --clobber
