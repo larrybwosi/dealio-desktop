@@ -1,6 +1,5 @@
-import { Message } from 'ably';
+import { Message, Realtime } from 'ably';
 import { invoke } from '@tauri-apps/api/core';
-import { useAblyStore } from '@/store/ablyStore';
 
 interface InitiateMpesaPaymentParams {
   phoneNumber: string;
@@ -19,18 +18,19 @@ interface MpesaResponse {
 /**
  * Subscribes to an Ably channel to listen for M-Pesa payment status updates.
  * @param checkoutRequestId The unique ID for the checkout request to listen for.
+ * @param ably The Ably client instance from the store.
  * @param callbacks Object with onSuccess and onFailed callback functions.
  * @returns A function to unsubscribe and clean up the listener.
  */
 export function subscribeToAbly(
   checkoutRequestId: string,
+  ably: Realtime | null,
   callbacks: {
     onSuccess?: () => void;
     onFailed?: (message: string) => void;
   }
 ) {
   // Get the Ably channel for M-Pesa payments
-  const ably = useAblyStore(state => state.client);
   const channel = ably?.channels.get('mpesa-payments');
 
   // Define the subscription callback
