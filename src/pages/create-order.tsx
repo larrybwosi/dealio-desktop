@@ -40,6 +40,7 @@ import {
 import { CustomerSelect } from '@/components/customer.select';
 import { usePosProducts } from '@/hooks/products';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { usePrinter } from '@/hooks/use-printer';
 import { useDebounce } from 'use-debounce';
 import OrderSuccessView from '@/components/order-success';
 import { usePosPricingSync, useBatchPricing } from '@/hooks/use-pricing-sync';
@@ -526,6 +527,7 @@ function PaymentBalanceDisplay({ control, formatCurrency }: { control: any, form
 
 export default function CreateOrderPage() {
   const formatCurrency = useFormattedCurrency();
+  const { autoPrintInvoice, printDocument } = usePrinter();
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
   const [createdInvoiceUrl, setCreatedInvoiceUrl] = useState<string | null>(null);
@@ -533,15 +535,32 @@ export default function CreateOrderPage() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
 
   const { mutate: createOrder, isPending: isSubmitting } = useCreateOrder({
-    onSuccess: (res: any) => {
+    onSuccess: async (res: any) => {
       const data = res.data;
-      setCreatedOrderId(data?.data?.number || data?.data?.orderId || 'new-order');
-      setCreatedInvoiceUrl(data?.data?.invoiceUrl || null);
+      const orderData = data?.data;
+      const orderId = orderData?.number || orderData?.orderId || 'new-order';
+      const invoiceUrl = orderData?.invoiceUrl || null;
+
+      setCreatedOrderId(orderId);
+      setCreatedInvoiceUrl(invoiceUrl);
       setSubmitStatus('success');
+
       posthog.capture('order_created', {
-        order_id: data?.data?.number || data?.data?.orderId,
-        has_invoice_url: !!data?.data?.invoiceUrl,
+        order_id: orderId,
+        has_invoice_url: !!invoiceUrl,
       });
+
+      // AUTO-PRINT LOGIC
+      if (autoPrintInvoice && invoiceUrl) {
+        try {
+          toast.info('Auto-printing invoice...');
+          await printDocument('invoice', orderData, {}); // Settings can be empty as backend fetches its own or uses defaults
+        } catch (err) {
+          console.error('Auto-print failed:', err);
+          toast.error('Auto-print failed', { description: 'You can print manually from the success page.' });
+        }
+      }
+
       window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     onError: (error) => {

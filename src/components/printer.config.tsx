@@ -1,4 +1,4 @@
-import { Printer, RefreshCcw, Settings2, FileText, Receipt, ChefHat, ReceiptText } from 'lucide-react';
+import { Printer, RefreshCcw, Settings2, FileText, Receipt, ChefHat, ReceiptText, Truck, GlassWater } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +11,16 @@ import { PrinterJobType } from '@/store/printer-store';
 import { usePosStore } from '@/store/store';
 
 export default function PrinterSettings() {
-  const { availablePrinters, assignments, assignPrinter, refreshPrinters, loading, printDocument } = usePrinter();
+  const {
+    availablePrinters,
+    assignments,
+    assignPrinter,
+    refreshPrinters,
+    loading,
+    printDocument,
+    autoPrintInvoice,
+    setAutoPrintInvoice
+  } = usePrinter();
 
   const settings = usePosStore(state => state.settings);
   const updateBusinessSettings = usePosStore(state => state.updateBusinessSettings);
@@ -178,6 +187,57 @@ export default function PrinterSettings() {
               </div>
             </div>
 
+            {/* 5. Bar Printer (Optional) */}
+            <div className="bg-background p-4 rounded-lg border">
+              <div className="flex items-center gap-2 mb-2">
+                <GlassWater className="h-4 w-4 text-blue-400" />
+                <label className="text-sm font-semibold">Bar Printer</label>
+              </div>
+              <div className="flex gap-2">
+                <Select value={assignments.bar || ''} onValueChange={val => assignPrinter('bar', val)}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select a printer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" onClick={() => handleTest('bar')}>
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* 6. Waybill Printer (Optional) */}
+            <div className="bg-background p-4 rounded-lg border">
+              <div className="flex items-center gap-2 mb-2">
+                <Truck className="h-4 w-4 text-zinc-600" />
+                <label className="text-sm font-semibold">Waybill Printer</label>
+              </div>
+              <div className="flex gap-2">
+                <Select value={assignments.waybill || ''} onValueChange={val => assignPrinter('waybill', val)}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Select a printer..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="invoice">Same as Invoice Printer</SelectItem>
+                    {availablePrinters.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="icon" onClick={() => handleTest('waybill')}>
+                  <Printer className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
             <Separator className="my-4" />
 
             <div className="bg-background p-4 rounded-lg border">
@@ -192,6 +252,22 @@ export default function PrinterSettings() {
                 <Switch
                   checked={settings.enableAutoPrint}
                   onCheckedChange={val => updateBusinessSettings({ enableAutoPrint: val })}
+                />
+              </div>
+            </div>
+
+            <div className="bg-background p-4 rounded-lg border">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-blue-600" />
+                    <Label className="text-sm font-semibold">Auto-Print Invoices</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Automatically print A4 invoice after creating an order</p>
+                </div>
+                <Switch
+                  checked={autoPrintInvoice}
+                  onCheckedChange={val => setAutoPrintInvoice(val)}
                 />
               </div>
             </div>

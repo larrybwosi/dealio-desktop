@@ -28,6 +28,17 @@ pub struct PrinterConfig {
     pub port: Option<u16>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PrinterInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub method: String, // "system" or "network"
+    pub status: String,
+    pub driver_name: Option<String>,
+    pub port_name: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct PrinterSettings {
     pub receipt_printer: Option<PrinterConfig>,
@@ -35,6 +46,8 @@ pub struct PrinterSettings {
     pub bar_printer: Option<PrinterConfig>,
     pub invoice_printer: Option<PrinterConfig>,
     pub bill_printer: Option<PrinterConfig>,
+    pub waybill_printer: Option<PrinterConfig>,
+    pub auto_print_invoice: Option<bool>,
 }
 
 // Helper to get the path where we save settings
@@ -47,50 +60,98 @@ fn get_settings_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
 
 // --- NETWORK HELPER ---
 
-async fn print_network_raw(
-    ip: String,
-    port: Option<u16>,
-    content: String,
-) -> Result<String, PrinterError> {
-    let port = port.unwrap_or(9100);
-    let address = format!("{}:{}", ip, port);
+async fn print_raw_to_printer(
+    _app: &AppHandle,
+    config: Option<PrinterConfig>,
+    data: Vec<u8>,
+) -> Result<String, String> {
+    if let Some(printer) = config {
+        // We exclusively use the native path for print_job,
+        // even if the config says "network", we treat the target as a system printer name
+        // if the user has it installed.
+        // NOTE: The requirement was to use the native printer functions.
+        print_system_raw_bytes(printer.target, data)
+            .await
+            .map_err(|e| format!("Native print failed: {:?}", e))
+    } else {
+        Err("Printer not configured".into())
+    }
+}
 
-    // 1. Enforce a connection timeout (5 seconds)
-    let stream_result = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        TcpStream::connect(&address),
-    )
-    .await;
+pub async fn print_pdf_to_system_printer(
+    app: &AppHandle,
+    printer_name: String,
+    pdf_bytes: Vec<u8>,
+) -> Result<String, String> {
+    // 1. Save PDF bytes to a temporary file
+    let mut temp_file = Builder::new()
+        .suffix(".pdf")
+        .tempfile()
+        .map_err(|e| format!("Failed to create temp PDF: {}", e))?;
 
-    let mut stream = match stream_result {
-        Ok(Ok(s)) => s,
-        Ok(Err(e)) => return Err(PrinterError::ConnectionFailed(e.to_string())),
-        Err(_) => return Err(PrinterError::Timeout),
-    };
+    temp_file.write_all(&pdf_bytes).map_err(|e| format!("Failed to write PDF: {}", e))?;
 
-    // 2. Write content bytes
-    if let Err(e) = stream.write_all(content.as_bytes()).await {
-        return Err(PrinterError::SystemError(format!(
-            "Network Write Error: {}",
-            e
-        )));
+    let (_, path) = temp_file.keep().map_err(|e| format!("Failed to keep temp PDF: {}", e))?;
+    let file_path = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        use tauri_plugin_shell::ShellExt;
+
+        let sidecar = app.shell().sidecar("binaries/sumatrapdf")
+            .map_err(|e| format!("Failed to create sidecar: {}", e))?;
+
+        let output = sidecar
+            .args([
+                "-print-to",
+                &printer_name,
+                "-silent",
+                &file_path,
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("SumatraPDF execution failed: {}", e))?;
+
+        // Clean up
+        let _ = std::fs::remove_file(path);
+
+        if output.status.success() {
+            Ok("PDF sent to Windows printer via SumatraPDF".into())
+        } else {
+            Err(format!(
+                "SumatraPDF failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
     }
 
-    // 3. Flush
-    if let Err(e) = stream.flush().await {
-        return Err(PrinterError::SystemError(format!(
-            "Network Flush Error: {}",
-            e
-        )));
-    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = std::process::Command::new("lp")
+            .arg("-d")
+            .arg(&printer_name)
+            .arg(&file_path)
+            .output()
+            .map_err(|e| format!("Failed to execute lp: {}", e))?;
 
-    Ok("Network print job sent successfully".into())
+        // Clean up
+        let _ = std::fs::remove_file(path);
+
+        if output.status.success() {
+            Ok("PDF sent to CUPS successfully".into())
+        } else {
+            Err(format!(
+                "CUPS print failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
 }
 
 // --- COMMANDS ---
 
 #[tauri::command]
-pub async fn get_system_printers() -> Result<Vec<String>, String> {
+pub async fn get_system_printers() -> Result<Vec<PrinterInfo>, String> {
     #[cfg(target_os = "windows")]
     {
         const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -98,7 +159,7 @@ pub async fn get_system_printers() -> Result<Vec<String>, String> {
         let output = tokio::process::Command::new("powershell")
             .args([
                 "-Command",
-                "Get-Printer | Select-Object -ExpandProperty Name",
+                "Get-Printer | Select-Object Name, PrinterStatus, DriverName, PortName | ConvertTo-Json",
             ])
             .creation_flags(CREATE_NO_WINDOW)
             .output()
@@ -110,11 +171,39 @@ pub async fn get_system_printers() -> Result<Vec<String>, String> {
         }
 
         let text = String::from_utf8_lossy(&output.stdout);
-        let printers: Vec<String> = text
-            .lines()
-            .map(|line| line.trim().to_string())
-            .filter(|line| !line.is_empty())
-            .collect();
+        if text.trim().is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let json: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+        let printers = if let Some(arr) = json.as_array() {
+            arr.iter()
+                .map(|p| PrinterInfo {
+                    id: p["Name"].as_str().unwrap_or("").to_string(),
+                    name: p["Name"].as_str().unwrap_or("").to_string(),
+                    method: "system".into(),
+                    status: match p["PrinterStatus"].as_u64().unwrap_or(0) {
+                        1 => "Other".into(),
+                        2 => "Unknown".into(),
+                        3 => "Idle".into(),
+                        4 => "Printing".into(),
+                        5 => "Warmup".into(),
+                        _ => "Ready".into(),
+                    },
+                    driver_name: p["DriverName"].as_str().map(|s| s.to_string()),
+                    port_name: p["PortName"].as_str().map(|s| s.to_string()),
+                })
+                .collect()
+        } else {
+            vec![PrinterInfo {
+                id: json["Name"].as_str().unwrap_or("").to_string(),
+                name: json["Name"].as_str().unwrap_or("").to_string(),
+                method: "system".into(),
+                status: "Ready".into(),
+                driver_name: json["DriverName"].as_str().map(|s| s.to_string()),
+                port_name: json["PortName"].as_str().map(|s| s.to_string()),
+            }]
+        };
 
         Ok(printers)
     }
@@ -122,20 +211,84 @@ pub async fn get_system_printers() -> Result<Vec<String>, String> {
     #[cfg(not(target_os = "windows"))]
     {
         let output = tokio::process::Command::new("lpstat")
-            .arg("-e")
+            .arg("-p")
             .output()
             .await
             .map_err(|e| e.to_string())?;
 
         let text = String::from_utf8_lossy(&output.stdout);
-        let printers: Vec<String> = text
+        let printers: Vec<PrinterInfo> = text
             .lines()
-            .map(|line| line.trim().to_string())
             .filter(|line| !line.is_empty())
+            .map(|line| {
+                let name = line.split_whitespace().nth(1).unwrap_or("Unknown").to_string();
+                PrinterInfo {
+                    id: name.clone(),
+                    name: name,
+                    method: "system".into(),
+                    status: if line.contains("is idle") {
+                        "Idle".into()
+                    } else if line.contains("is printing") {
+                        "Printing".into()
+                    } else {
+                        "Ready".into()
+                    },
+                    driver_name: None,
+                    port_name: None,
+                }
+            })
             .collect();
 
         Ok(printers)
     }
+}
+
+#[tauri::command]
+pub async fn discover_network_printers() -> Result<Vec<PrinterInfo>, String> {
+    use std::net::{IpAddr, SocketAddr};
+    use tokio::net::TcpStream;
+    use tokio::time::{timeout, Duration};
+
+    let local_ip = local_ip_address::local_ip().map_err(|e| e.to_string())?;
+
+    let mut discovered = Vec::new();
+
+    if let IpAddr::V4(ipv4) = local_ip {
+        let octets = ipv4.octets();
+        let base_ip = format!("{}.{}.{}", octets[0], octets[1], octets[2]);
+
+        let mut tasks = Vec::new();
+
+        for i in 1..255 {
+            let ip = format!("{}.{}", base_ip, i);
+            if ip == local_ip.to_string() { continue; }
+
+            tasks.push(tokio::spawn(async move {
+                let addr = format!("{}:9100", ip);
+                let socket_addr: SocketAddr = addr.parse().ok()?;
+
+                match timeout(Duration::from_millis(200), TcpStream::connect(socket_addr)).await {
+                    Ok(Ok(_)) => Some(ip),
+                    _ => None,
+                }
+            }));
+        }
+
+        for task in tasks {
+            if let Ok(Some(ip)) = task.await {
+                discovered.push(PrinterInfo {
+                    id: ip.clone(),
+                    name: format!("Network Printer ({})", ip),
+                    method: "network".into(),
+                    status: "Found".into(),
+                    driver_name: Some("Generic Raw TCP".into()),
+                    port_name: Some("9100".into()),
+                });
+            }
+        }
+    }
+
+    Ok(discovered)
 }
 
 #[tauri::command]
@@ -180,7 +333,7 @@ pub async fn get_printer_config(app: AppHandle) -> Result<PrinterSettings, Strin
 #[tauri::command]
 pub async fn print_job(
     app: AppHandle,
-    job_type: String, // "receipt", "kitchen", "bar", "bill"
+    job_type: String, // "receipt", "kitchen", "bar", "bill", "invoice", "waybill"
     order: Value,
     settings: Value,
     branch_name: Option<String>,
@@ -188,7 +341,33 @@ pub async fn print_job(
     match job_type.as_str() {
         "receipt" => print_receipt_native(app, order, settings, branch_name).await,
         "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
-        "bill" | "invoice" => print_bill_native(app, order, settings, branch_name).await,
+        "bar" => print_bar_native(app, order, settings, branch_name).await,
+        "bill" => print_bill_native(app, order, settings, branch_name).await,
+        "invoice" | "waybill" => {
+            // PDF Printing path for A4/Full documents
+            let url = order.get("invoiceUrl")
+                .or(order.get("waybillUrl"))
+                .and_then(|v| v.as_str())
+                .ok_or("No document URL provided for printing")?;
+
+            // 1. Fetch PDF Bytes
+            let pdf_bytes = crate::sale_manager::get_invoice_blob_command(
+                app.state::<crate::stores::auth_store::AuthState>(),
+                url.to_string(),
+            ).await?;
+
+            // 2. Resolve target printer
+            let printer_config = get_printer_config(app.clone()).await?;
+            let target_config = if job_type == "invoice" {
+                printer_config.invoice_printer
+            } else {
+                // Try waybill printer, fallback to invoice printer
+                printer_config.waybill_printer.or(printer_config.invoice_printer)
+            }.ok_or_else(|| format!("No printer configured for {}", job_type))?;
+
+            // 3. Print PDF
+            print_pdf_to_system_printer(&app, target_config.target, pdf_bytes).await
+        },
         _ => Err(format!("Unknown job type: {}", job_type)),
     }
 }
@@ -203,6 +382,36 @@ pub fn get_serial_ports() -> Result<Vec<String>, String> {
         }
         Err(e) => Err(format!("Error listing ports: {}", e)),
     }
+}
+
+#[tauri::command]
+pub async fn print_test_page(printer_name: String) -> Result<String, String> {
+    let mut esc = EscPosBuilder::new();
+
+    esc.align(1);
+    esc.bold(true);
+    esc.size(2, 2);
+    esc.text_line("TEST PAGE");
+    esc.size(1, 1);
+    esc.bold(false);
+    esc.feed(1);
+
+    esc.align(0);
+    esc.text_line(&format!("Printer: {}", printer_name));
+    esc.text_line(&format!("Time: {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S")));
+    esc.divider(48);
+
+    esc.text_line("Native Raw Byte Printing: OK");
+    esc.text_line("ESC/POS Commands: OK");
+
+    esc.feed(4);
+    esc.cut();
+
+    print_system_raw_bytes(printer_name, esc.bytes)
+        .await
+        .map_err(|e| format!("Test print failed: {:?}", e))?;
+
+    Ok("Test page sent to printer".into())
 }
 
 // 2. Command to Open the Drawer
@@ -402,26 +611,7 @@ pub async fn print_receipt_native(
         .map_err(|e| format!("Failed to load printer config: {}", e))?;
 
     // 3. ROUTE TO THE CORRECT PRINTER HANDLER
-    if let Some(printer) = printer_config.receipt_printer {
-        match printer.method.as_str() {
-            "network" => {
-                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("Network print failed: {:?}", e))?;
-                
-                Ok("Printed natively to network printer".into())
-            }
-            "system" | _ => {
-                print_system_raw_bytes(printer.target, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
-
-                Ok("Printed natively to system printer".into())
-            }
-        }
-    } else {
-        Err("No receipt printer configured".into())
-    }
+    print_raw_to_printer(&app, printer_config.receipt_printer, bytes_to_print).await
 }
 
 pub async fn print_network_raw_bytes(ip: String, port: Option<u16>, data: Vec<u8>) -> Result<String, PrinterError> {
@@ -751,26 +941,67 @@ pub async fn print_kitchen_native(
         .await
         .map_err(|e| format!("Failed to load printer config: {}", e))?;
 
-    if let Some(printer) = printer_config.kitchen_printer {
-        match printer.method.as_str() {
-            "network" => {
-                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("Network print failed: {:?}", e))?;
+    print_raw_to_printer(&app, printer_config.kitchen_printer, bytes_to_print).await
+}
 
-                Ok("Kitchen ticket printed natively to network printer".into())
-            }
-            "system" | _ => {
-                print_system_raw_bytes(printer.target, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
+#[tauri::command]
+pub async fn print_bar_native(
+    app: tauri::AppHandle,
+    order: Value,
+    settings: Value,
+    branch_name: Option<String>,
+) -> Result<String, String> {
+    // Reuse kitchen ticket logic for bar for now, as they are usually similar (tickets)
+    // but use the bar_printer config.
+    let mut esc = EscPosBuilder::new();
 
-                Ok("Kitchen ticket printed natively to system printer".into())
-            }
-        }
-    } else {
-        Err("No kitchen printer configured".into())
+    // 1. Setup layout constraints based on Paper Size
+    let config = settings.get("kitchenTicketConfig").unwrap_or(&Value::Null); // Fallback to kitchen config for bar too
+    let paper_size = config.get("paperSize").and_then(|v| v.as_str()).unwrap_or("80mm");
+    let is_58mm = paper_size == "58mm";
+    let width = if is_58mm { 32 } else { 48 };
+
+    // --- HEADER ---
+    esc.align(1);
+    esc.bold(true);
+    esc.size(2, 2);
+    esc.text_line("BAR TICKET");
+    esc.size(1, 1);
+    esc.bold(false);
+    esc.divider(width);
+
+    // --- ORDER NUMBER ---
+    if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("ORDER #{}", order_num));
     }
+
+    if let Some(table) = order.get("tableName").and_then(|v| v.as_str()) {
+        esc.text_line(&format!("TABLE: {}", table));
+    }
+    esc.divider(width);
+
+    // --- ITEMS ---
+    if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
+        for item in items {
+            let name = item.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+            let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
+
+            esc.bold(true);
+            esc.text_line(&format!("{:<width$} x{}", name.to_uppercase(), qty, width = width - 4));
+            esc.bold(false);
+        }
+    }
+
+    esc.feed(4);
+    esc.cut();
+
+    let bytes_to_print = esc.bytes;
+
+    let printer_config = get_printer_config(app.clone())
+        .await
+        .map_err(|e| format!("Failed to load printer config: {}", e))?;
+
+    print_raw_to_printer(&app, printer_config.bar_printer, bytes_to_print).await
 }
 
 #[tauri::command]
@@ -887,26 +1118,7 @@ pub async fn print_bill_native(
     // Use assigned bill printer or fallback to receipt printer
     let target_printer = printer_config.bill_printer.or(printer_config.receipt_printer);
 
-    if let Some(printer) = target_printer {
-        match printer.method.as_str() {
-            "network" => {
-                print_network_raw_bytes(printer.target, printer.port, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("Network print failed: {:?}", e))?;
-
-                Ok("Bill printed natively to network printer".into())
-            }
-            "system" | _ => {
-                print_system_raw_bytes(printer.target, bytes_to_print)
-                    .await
-                    .map_err(|e| format!("System raw print failed: {:?}", e))?;
-
-                Ok("Bill printed natively to system printer".into())
-            }
-        }
-    } else {
-        Err("No receipt printer configured for bill".into())
-    }
+    print_raw_to_printer(&app, target_printer, bytes_to_print).await
 }
 
 // --- LEGACY COMPATIBILITY WRAPPERS (To be removed after full migration) ---
