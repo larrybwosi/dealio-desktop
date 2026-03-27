@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   ShoppingBag,
+  Printer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Transaction } from '@/types';
@@ -79,6 +80,14 @@ export function TransactionRow({
   };
 
   const hasItems = tx.items && tx.items.length > 0;
+
+  const onPrintInvoice = (tx: Transaction) => {
+    console.log('Print invoice', tx);
+  }
+
+  const onPrintWaybill = (tx: Transaction) => {
+    console.log('Print waybill', tx);
+  }
 
   return (
     <>
