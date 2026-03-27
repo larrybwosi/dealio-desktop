@@ -1,3 +1,27 @@
+# [3.3.0-nextgen.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-nextgen.1) (2026-03-27)
+
+
+### Bug Fixes
+
+* **backend errors fix:** updated to remve the warings and some errors ([7c61221](https://github.com/larrybwosi/dealio-desktop/commit/7c61221347dada345a63c7e3dde9aeb29d849876))
+* **member id:** removed the member id check in the backend ([a1cddad](https://github.com/larrybwosi/dealio-desktop/commit/a1cddad8cbadc78b454c247db30b72b6a5b19dfd))
+
+
+### Features
+
+* enhance KDS with multi-device support and enterprise resilience ([aac2055](https://github.com/larrybwosi/dealio-desktop/commit/aac20557838bdf73ab41227cf431ad1ef372ae0d))
+* enhance KDS with multi-role support and enterprise logic ([210272e](https://github.com/larrybwosi/dealio-desktop/commit/210272ea5074c606d90dd30c12c97b440e9052f0))
+* implement branch-specific releases and auto-updates ([d82ce27](https://github.com/larrybwosi/dealio-desktop/commit/d82ce27901166725fb45873b699f6e159927f11e))
+* implement god's eye view and staff communication ([f6326a4](https://github.com/larrybwosi/dealio-desktop/commit/f6326a4c6b8b47be20325cba49b1e7eec838beef))
+* **initiliazation:** initialized the v2 api ([4847eb4](https://github.com/larrybwosi/dealio-desktop/commit/4847eb436678760db55226fe3a2707c730cf9440))
+* **kds:** created the kds feature and the option to link it to the main system using websockets ([c162969](https://github.com/larrybwosi/dealio-desktop/commit/c162969c6f115cc87eab368696964b14c84a7352))
+* **kitchen display:** kitchen update ([f09e1cd](https://github.com/larrybwosi/dealio-desktop/commit/f09e1cd3b7bdd51ed4571604429e1582c3958d00))
+* **native printing:** kitchen tickets and correction of the errors ([dddd5f1](https://github.com/larrybwosi/dealio-desktop/commit/dddd5f127e948d01efb8c0e8bd6068771ad3e6ff))
+* **sql storage:** we now store the sales and products in sql lite ([16aa4b4](https://github.com/larrybwosi/dealio-desktop/commit/16aa4b4ebf27be88675c5f204bfdea94b35df352))
+* **table management:** tables are now managed from the backend using sql to store them ([6512dd8](https://github.com/larrybwosi/dealio-desktop/commit/6512dd83a43dcf4bcdd08664d218d1e5c785c9f4))
+* **v2 authentication:** corrected the models to properly match the data returned by the api ([e428076](https://github.com/larrybwosi/dealio-desktop/commit/e428076ca5665e5c9e8935c6876b8670e3f9a249))
+* **vite 8 restaurant update:** updated the vite package and table management ([a2f69b0](https://github.com/larrybwosi/dealio-desktop/commit/a2f69b0ef35e54e90da83f852d8974752aae6c0b))
+
 # [3.3.0-beta.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-beta.2...v3.3.0-beta.3) (2026-03-23)
 
 
