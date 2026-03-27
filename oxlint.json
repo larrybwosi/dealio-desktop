@@ -3,12 +3,15 @@
   "plugins": ["react", "unicorn", "typescript"],
   "rules": {
     "no-debugger": "error",
-    "no-console": "off",
-    "eqeqeq": "off",
+    "no-console": "error",
+    "eqeqeq": "error",
+    "no-unused-vars": "error",
     "react/jsx-no-undef": "error",
     "react/react-in-jsx-scope": "off",
     "react-hooks/rules-of-hooks": "error",
-    "react-hooks/exhaustive-deps": "off",
-    "unicorn/filename-case": "off"
+    "react-hooks/exhaustive-deps": "warn",
+    "unicorn/filename-case": "off",
+    "@typescript-eslint/no-explicit-any": "warn",
+    "@typescript-eslint/no-unused-vars": "error"
   }
 }

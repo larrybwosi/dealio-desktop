@@ -134,7 +134,7 @@ async fn migrate_legacy_files_to_db(app: &AppHandle, pool: &SqlitePool) -> Resul
     Ok(())
 }
 
-fn build_search_text(product: &PosProduct) -> String {
+pub(crate) fn build_search_text(product: &PosProduct) -> String {
     let mut search_terms = vec![product.product_name.to_lowercase()];
     for variant in &product.variants {
         search_terms.push(variant.sku.to_lowercase());

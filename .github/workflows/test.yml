@@ -81,8 +81,10 @@ jobs:
           echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> src-tauri/.env
           echo "POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}" >> src-tauri/.env
 
-      - name: Run Backend Tests
-        run: pnpm test:backend
+      - name: Run Backend Tests with Coverage
+        uses: actions-rs/tarpaulin@v0.1
+        with:
+          args: '--ignore-tests --manifest-path src-tauri/Cargo.toml'
 
   test-e2e:
     needs: [test-frontend, test-backend]
