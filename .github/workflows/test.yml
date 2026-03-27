@@ -7,7 +7,32 @@ on:
     branches: [main, develop, beta, nextgen]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install Node dependencies
+        run: pnpm install
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Run Linting (Frontend & Backend)
+        run: pnpm run lint:all
+
   test-frontend:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +52,7 @@ jobs:
         run: pnpm test:frontend
 
   test-backend:
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +108,7 @@ jobs:
           echo "POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}" >> src-tauri/.env
 
       - name: Run Backend Tests with Coverage
-        uses: actions-rs/tarpaulin@v0.1
+        uses: xd009642/tarpaulin-action@v0.1.0
         with:
           args: '--ignore-tests --manifest-path src-tauri/Cargo.toml'
 

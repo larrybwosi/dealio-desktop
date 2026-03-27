@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   ShoppingBag,
+  Printer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Transaction } from '@/types';
@@ -54,6 +55,8 @@ export function TransactionRow({
   onCopyId,
   onDownloadInvoice,
   onDownloadWaybill,
+  onPrintInvoice,
+  onPrintWaybill,
   onOpenReconcile,
   onOpenPayment,
   onOpenDispatch,

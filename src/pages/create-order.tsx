@@ -45,6 +45,7 @@ import { useDebounce } from 'use-debounce';
 import OrderSuccessView from '@/components/order-success';
 import { usePosPricingSync, useBatchPricing } from '@/hooks/use-pricing-sync';
 import { notify } from '@/lib/notify';
+import { toast } from 'sonner';
 
 // --- TYPES ---
 

@@ -24,6 +24,12 @@ impl ProductState {
     }
 }
 
+impl Default for ProductState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // --- DB Helper ---
 async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
@@ -491,12 +497,10 @@ pub async fn get_products_by_ids(
         let query = "SELECT payload FROM products WHERE location_id = ?1 AND (product_id = ?2 OR search_text LIKE ?3)";
         let like_id = format!("%{}%", id);
         
-        if let Ok(row) = sqlx::query(query).bind(location_id).bind(&id).bind(&like_id).fetch_optional(&pool).await {
-            if let Some(r) = row {
-                let payload: String = r.get("payload");
-                if let Ok(product) = serde_json::from_str::<PosProduct>(&payload) {
-                    products.push(product);
-                }
+        if let Ok(Some(r)) = sqlx::query(query).bind(location_id).bind(&id).bind(&like_id).fetch_optional(&pool).await {
+            let payload: String = r.get("payload");
+            if let Ok(product) = serde_json::from_str::<PosProduct>(&payload) {
+                products.push(product);
             }
         }
     }
@@ -514,7 +518,7 @@ pub async fn switch_location(
 ) -> Result<Vec<PosProduct>, String> {
     
     // 1. Return cached products immediately from DB (First 50 items to load UI fast)
-    let search_res = search_local(&app, &*state, &new_location_id, "".to_string(), "all".to_string(), Some(1), Some(50)).await;
+    let search_res = search_local(&app, &state, &new_location_id, "".to_string(), "all".to_string(), Some(1), Some(50)).await;
     let cached = search_res.products;
 
     // 2. Trigger background sync (delta if we have lastSync, full if first visit)
@@ -523,7 +527,7 @@ pub async fn switch_location(
     tauri::async_runtime::spawn(async move {
         let state_inner = app_clone.state::<ProductState>();
         let auth_inner = app_clone.state::<AuthState>();
-        let _ = run_sync(app_clone.clone(), &*state_inner, &*auth_inner, false).await;
+        let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
     });
 
     Ok(cached)

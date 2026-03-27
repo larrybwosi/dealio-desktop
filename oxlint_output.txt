@@ -1,0 +1,1798 @@
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/mpesa-client.ts:78:5]
+ 77 |   } catch (error) {
+ 78 |     console.error('Error initiating M-Pesa payment:', error);
+    :     ^^^^^^^^^^^^^
+ 79 |     throw error;
+    `----
+  help: Delete this console statement.
+
+  x eslint-plugin-react-hooks(rules-of-hooks): React Hook "useAblyStore" is called in function "subscribeToAbly" that is neither a React function component nor a custom React Hook function. React component names must start with an uppercase letter. React Hook names must start with the word "use".
+    ,-[src/lib/mpesa-client.ts:33:16]
+ 24 |  */
+ 25 | export function subscribeToAbly(
+    :                 ^^^^^^^|^^^^^^^
+    :                        `-- Outer function
+ 26 |   checkoutRequestId: string,
+ 27 |   callbacks: {
+ 28 |     onSuccess?: () => void;
+ 29 |     onFailed?: (message: string) => void;
+ 30 |   }
+ 31 | ) {
+ 32 |   // Get the Ably channel for M-Pesa payments
+ 33 |   const ably = useAblyStore(state => state.client);
+    :                ^^^^^^|^^^^^
+    :                      `-- Hook is called here
+ 34 |   const channel = ably?.channels.get('mpesa-payments');
+    `----
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/printerService.ts:23:7]
+ 22 |     } catch (err) {
+ 23 |       console.error(err);
+    :       ^^^^^^^^^^^^^
+ 24 |       return { success: false, message: String(err) };
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/printer.config.tsx:50:7]
+ 49 |     } catch (e: any) {
+ 50 |       console.error(e);
+    :       ^^^^^^^^^^^^^
+ 51 |       alert(`Error: ${e.message || 'Print failed'}`);
+    `----
+  help: Delete this console statement.
+
+  x eslint-plugin-react(jsx-no-undef): 'Printer' is not defined.
+     ,-[src/components/pending-page/transaction-row.tsx:178:22]
+ 177 |                   >
+ 178 |                     <Printer className="mr-2 h-4 w-4" />
+     :                      ^^^^^^^
+ 179 |                     Print Invoice (A4)
+     `----
+
+  x eslint-plugin-react(jsx-no-undef): 'Printer' is not defined.
+     ,-[src/components/pending-page/transaction-row.tsx:203:22]
+ 202 |                   >
+ 203 |                     <Printer className="mr-2 h-4 w-4" />
+     :                      ^^^^^^^
+ 204 |                     Print Waybill
+     `----
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/deliveries.ts:38:7]
+ 37 |     onError: (error: any) => {
+ 38 |       console.error('Dispatch error:', error);
+    :       ^^^^^^^^^^^^^
+ 39 |       toast.error('Error', {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/deliveries.ts:85:7]
+ 84 |     onError: (error: any) => {
+ 85 |       console.error('Reconciliation error:', error);
+    :       ^^^^^^^^^^^^^
+ 86 |       toast.error(error.response?.data?.error || 'Reconciliation failed');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/UpdateProvider.tsx:180:7]
+ 179 |     } catch (e: any) {
+ 180 |       console.error('Update failed:', e);
+     :       ^^^^^^^^^^^^^
+ 181 |       setError(e.message ?? 'Failed to update');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/UpdateProvider.tsx:273:7]
+ 272 |     } catch (e: any) {
+ 273 |       console.error('Failed to check for updates:', e);
+     :       ^^^^^^^^^^^^^
+ 274 |       setError(e.message);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/AblyProvider.tsx:17:7]
+ 16 |     if (isAuthInitialized && currentMember) {
+ 17 |       console.log('[AblyProvider] Auth ready, initializing Ably');
+    :       ^^^^^^^^^^^
+ 18 |       initializeAbly();
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/AblyProvider.tsx:30:14]
+ 29 |       .enter({ id: currentMember.id, name: currentMember.name, updatedAt: new Date().toISOString() })
+ 30 |       .catch(console.error);
+    :              ^^^^^^^^^^^^^
+ 31 |
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/AblyProvider.tsx:33:46]
+ 32 |     return () => {
+ 33 |       presenceChannel.presence.leave().catch(console.error);
+    :                                              ^^^^^^^^^^^^^
+ 34 |     };
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/AblyProvider.tsx:46:9]
+ 45 |       ) {
+ 46 |         console.log('[AblyProvider] Page visible – reconnecting Ably…');
+    :         ^^^^^^^^^^^
+ 47 |         current.client.connect();
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/AblyProvider.tsx:59:9]
+ 58 |       const timeoutId = setTimeout(() => {
+ 59 |         console.log('[AblyProvider] Connection failed – reinitialising…');
+    :         ^^^^^^^^^^^
+ 60 |         initializeAbly();
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/order-details-dialog.tsx:45:23]
+ 44 |         .then(url => setQrCodeDataUrl(url))
+ 45 |         .catch(err => console.error('QR Code generation error:', err));
+    :                       ^^^^^^^^^^^^^
+ 46 |     }
+    `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'handleBarcodeSubmit'
+    ,-[src/components/barcode-scanner-dialog.tsx:62:6]
+ 39 |       if (e.key === 'Enter' && scannedBuffer) {
+ 40 |         handleBarcodeSubmit(scannedBuffer);
+    :         ^^^^^^^^^|^^^^^^^^^
+    :                  `-- useEffect uses `handleBarcodeSubmit` here
+ 41 |         setScannedBuffer('');
+ 42 |       } else if (e.key.length === 1) {
+ 43 |         // Accumulate characters from scanner
+ 44 |         setScannedBuffer(prev => prev + e.key);
+ 45 |       }
+ 46 |     };
+ 47 |
+ 48 |     // Clear buffer after 100ms of inactivity (scanners are very fast)
+ 49 |     const timeoutId = setTimeout(() => {
+ 50 |       if (scannedBuffer && scannedBuffer.length > 3) {
+ 51 |         handleBarcodeSubmit(scannedBuffer);
+ 52 |       }
+ 53 |       setScannedBuffer('');
+ 54 |     }, 100);
+ 55 |
+ 56 |     window.addEventListener('keypress', handleKeyPress);
+ 57 |
+ 58 |     return () => {
+ 59 |       window.removeEventListener('keypress', handleKeyPress);
+ 60 |       clearTimeout(timeoutId);
+ 61 |     };
+ 62 |   }, [open, scannedBuffer]);
+    :      ^^^^^^^^^^^^^^^^^^^^^
+ 63 |
+    `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/ServerNotificationProvider.tsx:68:9]
+ 67 |       if (!notification?.id || !notification?.title) {
+ 68 |         console.warn('[ServerNotificationProvider] Received malformed notification:', msg);
+    :         ^^^^^^^^^^^^
+ 69 |         return;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/providers/ServerNotificationProvider.tsx:74:9]
+ 73 |       if (isDuplicate(notification.id)) {
+ 74 |         console.debug('[ServerNotificationProvider] Duplicate notification suppressed:', notification.id);
+    :         ^^^^^^^^^^^^^
+ 75 |         return;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/ServerNotificationProvider.tsx:100:7]
+  99 |     } catch (err) {
+ 100 |       console.error('[ServerNotificationProvider] Error handling message:', err);
+     :       ^^^^^^^^^^^^^
+ 101 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/ServerNotificationProvider.tsx:113:9]
+ 112 |       if (items.length > 0) {
+ 113 |         console.log(`[ServerNotificationProvider] Replaying ${items.length} missed message(s) from ${channelName}`);
+     :         ^^^^^^^^^^^
+ 114 |         // Oldest first so they arrive in chronological order
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/ServerNotificationProvider.tsx:120:7]
+ 119 |     } catch (err) {
+ 120 |       console.warn('[ServerNotificationProvider] History replay failed for', channelName, err);
+     :       ^^^^^^^^^^^^
+ 121 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/ServerNotificationProvider.tsx:127:5]
+ 126 |     if (!ably || !storeId) return;
+ 127 |     console.log('[ServerNotificationProvider] Subscribing to channels for store:', storeId);
+     :     ^^^^^^^^^^^
+ 128 |
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/providers/ServerNotificationProvider.tsx:138:7]
+ 137 |       systemChannel.unsubscribe(handleIncomingMessage);
+ 138 |       console.log('[ServerNotificationProvider] Unsubscribed from channels');
+     :       ^^^^^^^^^^^
+ 139 |     };
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/Payment.tsx:32:7]
+ 31 |       const { transactionId, status, data } = message.data;
+ 32 |       console.log('[Payment] Update received:', { transactionId, status, data });
+    :       ^^^^^^^^^^^
+ 33 |
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/Payment.tsx:60:13]
+ 59 |             // Logic to open a modal to assign this receipt to the current cart
+ 60 |             console.log('Open manual assignment modal for', receipt);
+    :             ^^^^^^^^^^^
+ 61 |           },
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/Payment.tsx:68:7]
+ 67 |     if (channel) {
+ 68 |       console.log('[Payment] Subscribing to channel:', channel.name);
+    :       ^^^^^^^^^^^
+ 69 |       channel.subscribe('payment-update', onPaymentUpdate);
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/Payment.tsx:76:9]
+ 75 |       if (channel) {
+ 76 |         console.log('[Payment] Unsubscribing from channel:', channel.name);
+    :         ^^^^^^^^^^^
+ 77 |         channel.unsubscribe('payment-update', onPaymentUpdate);
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/notify.tsx:68:26]
+ 67 |           label: 'Print',
+ 68 |           onClick: () => console.log(`Printing receipt ${receiptId}...`),
+    :                          ^^^^^^^^^^^
+ 69 |         },
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/shift-manager.tsx:29:7]
+ 28 |     const unlisten = listen<string>('nfc-read', event => {
+ 29 |       console.log('Card Scanned:', event.payload);
+    :       ^^^^^^^^^^^
+ 30 |       setCardId(event.payload); // Auto-fill the Card ID
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/shift-manager.tsx:47:7]
+ 46 |     } catch (err) {
+ 47 |       console.error('Failed to load shift', err);
+    :       ^^^^^^^^^^^^^
+ 48 |     }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1257:13]
+ 1256 |           } catch (error) {
+ 1257 |             console.error('Failed to clear table in backend:', error);
+      :             ^^^^^^^^^^^^^
+ 1258 |           }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1370:15]
+ 1369 |             } catch (error) {
+ 1370 |               console.error('Failed to occupy table in backend:', error);
+      :               ^^^^^^^^^^^^^
+ 1371 |             }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1629:9]
+ 1628 |
+ 1629 |         console.log(' Printing receipt for order:', orderId);
+      :         ^^^^^^^^^^^
+ 1630 |         if (window && 'print' in window) {
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1640:9]
+ 1639 |
+ 1640 |         console.log(' Emailing receipt for order:', orderId, 'to:', email);
+      :         ^^^^^^^^^^^
+ 1641 |         // In a real implementation, this would call an API to send the email
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1881:11]
+ 1880 |         } catch (error) {
+ 1881 |           console.error('Failed to fetch tables:', error);
+      :           ^^^^^^^^^^^^^
+ 1882 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1893:11]
+ 1892 |         } catch (error) {
+ 1893 |           console.error('Failed to add table:', error);
+      :           ^^^^^^^^^^^^^
+ 1894 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1906:11]
+ 1905 |         } catch (error) {
+ 1906 |           console.error('Failed to update table:', error);
+      :           ^^^^^^^^^^^^^
+ 1907 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1915:11]
+ 1914 |         } catch (error) {
+ 1915 |           console.error('Failed to delete table:', error);
+      :           ^^^^^^^^^^^^^
+ 1916 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1932:11]
+ 1931 |         } catch (error) {
+ 1932 |           console.error('Failed to set table status:', error);
+      :           ^^^^^^^^^^^^^
+ 1933 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1946:11]
+ 1945 |         } catch (error) {
+ 1946 |           console.error('Failed to assign order to table:', error);
+      :           ^^^^^^^^^^^^^
+ 1947 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1960:11]
+ 1959 |         } catch (error) {
+ 1960 |           console.error('Failed to clear table order:', error);
+      :           ^^^^^^^^^^^^^
+ 1961 |         }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/store/store.ts:1990:13]
+ 1989 |           if (state.heldOrders.length >= state.settings.maxHeldOrders) {
+ 1990 |             console.warn('Maximum held orders limit reached');
+      :             ^^^^^^^^^^^^
+ 1991 |             return state;
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/printer-store.ts:118:11]
+ 117 |         } catch (e) {
+ 118 |           console.error('Failed to save config', e);
+     :           ^^^^^^^^^^^^^
+ 119 |         }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/printer-store.ts:144:11]
+ 143 |         } catch (e) {
+ 144 |           console.error('Failed to save auto print config', e);
+     :           ^^^^^^^^^^^^^
+ 145 |         }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/printer-store.ts:191:11]
+ 190 |         } catch (e) {
+ 191 |           console.error('Failed to load config', e);
+     :           ^^^^^^^^^^^^^
+ 192 |         }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/cart.tsx:153:9]
+ 152 |       } catch (e) {
+ 153 |         console.warn('Failed to emit to customer screen:', e);
+     :         ^^^^^^^^^^^^
+ 154 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/cart.tsx:261:7]
+ 260 |     } catch (error) {
+ 261 |       console.error('Print Bill Error:', error);
+     :       ^^^^^^^^^^^^^
+ 262 |       toast.error('Print Failed', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/notification-service.ts:74:23]
+ 73 |   constructor() {
+ 74 |     this.init().catch(console.error);
+    :                       ^^^^^^^^^^^^^
+ 75 |   }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/notification-service.ts:84:9]
+ 83 |       } catch {
+ 84 |         console.warn('[NotificationService] Failed to parse saved settings; using defaults.');
+    :         ^^^^^^^^^^^^
+ 85 |       }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:119:11]
+ 118 |         if (item.attempt < SEND_MAX_RETRIES) {
+ 119 |           console.warn(
+     :           ^^^^^^^^^^^^
+ 120 |             `[NotificationService] Retry ${item.attempt + 1}/${SEND_MAX_RETRIES} for notification "${item.notification.id}"`
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:124:11]
+ 123 |         } else {
+ 124 |           console.error(
+     :           ^^^^^^^^^^^^^
+ 125 |             `[NotificationService] Permanently failed to persist notification "${item.notification.id}" after ${SEND_MAX_RETRIES} retries:`,
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:149:9]
+ 148 |       } catch (err) {
+ 149 |         console.error('[NotificationService] Listener error:', err);
+     :         ^^^^^^^^^^^^^
+ 150 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:192:9]
+ 191 |       } catch (err) {
+ 192 |         console.error('[NotificationService] Listener error:', err);
+     :         ^^^^^^^^^^^^^
+ 193 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:198:7]
+ 197 |     invoke<string>('send_native_notification', { notification }).catch((error: unknown) => {
+ 198 |       console.warn('[NotificationService] Backend persist failed, will retry:', error);
+     :       ^^^^^^^^^^^^
+ 199 |       this.retryQueue.push({ notification, attempt: 1 });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:231:7]
+ 230 |     } catch (error) {
+ 231 |       console.error('[NotificationService] getHistory failed:', error);
+     :       ^^^^^^^^^^^^^
+ 232 |       return [];
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:240:7]
+ 239 |     } catch (error) {
+ 240 |       console.error('[NotificationService] getUnreadCount failed:', error);
+     :       ^^^^^^^^^^^^^
+ 241 |       return 0;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:249:7]
+ 248 |     } catch (error) {
+ 249 |       console.error('[NotificationService] markRead failed:', error);
+     :       ^^^^^^^^^^^^^
+ 250 |       return false;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:258:7]
+ 257 |     } catch (error) {
+ 258 |       console.error('[NotificationService] markAllRead failed:', error);
+     :       ^^^^^^^^^^^^^
+ 259 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:266:7]
+ 265 |     } catch (error) {
+ 266 |       console.error('[NotificationService] delete failed:', error);
+     :       ^^^^^^^^^^^^^
+ 267 |       return false;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:275:7]
+ 274 |     } catch (error) {
+ 275 |       console.error('[NotificationService] clearAll failed:', error);
+     :       ^^^^^^^^^^^^^
+ 276 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:331:31]
+ 330 |       audio.volume = this.settings.soundVolume;
+ 331 |       audio.play().catch(e => console.warn('[NotificationService] Audio play failed:', e));
+     :                               ^^^^^^^^^^^^
+ 332 |     } catch (error) {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/notification-service.ts:333:7]
+ 332 |     } catch (error) {
+ 333 |       console.warn('[NotificationService] Failed to create Audio:', error);
+     :       ^^^^^^^^^^^^
+ 334 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/main.tsx:59:47]
+ 58 |         // If it is YOUR custom event, pass it to Rust via Tauri IPC
+ 59 |         captureEvent(event, properties).catch(console.error);
+    :                                               ^^^^^^^^^^^^^
+ 60 |
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/global-search.tsx:163:9]
+ 162 |       } catch (error) {
+ 163 |         console.error('Search failed:', error);
+     :         ^^^^^^^^^^^^^
+ 164 |       } finally {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:188:15]
+ 187 |             if (!currentLocation?.id && config.location_id) {
+ 188 |               console.log('[AuthStore] Fetching location from API via backend...');
+     :               ^^^^^^^^^^^
+ 189 |               try {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:194:19]
+ 193 |                   set({ currentLocation: location });
+ 194 |                   console.log('[AuthStore] Location restored from API');
+     :                   ^^^^^^^^^^^
+ 195 |                 }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:197:17]
+ 196 |               } catch (fetchError) {
+ 197 |                 console.error('[AuthStore] Failed to fetch location:', fetchError);
+     :                 ^^^^^^^^^^^^^
+ 198 |               }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:205:15]
+ 204 |             if (currentMember) {
+ 205 |               console.log('[AuthStore] Restoring backend session...');
+     :               ^^^^^^^^^^^
+ 206 |               invoke('restore_member_session', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:212:29]
+ 211 |                 },
+ 212 |               }).catch(e => console.error('Failed to restore backend session:', e));
+     :                             ^^^^^^^^^^^^^
+ 213 |             }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:218:11]
+ 217 |         } catch (error) {
+ 218 |           console.error('Failed to initialize auth store:', error);
+     :           ^^^^^^^^^^^^^
+ 219 |           set({ isInitialized: true, isConfigured: false });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:253:11]
+ 252 |         } catch (error) {
+ 253 |           console.error('Failed to provision device:', error);
+     :           ^^^^^^^^^^^^^
+ 254 |           throw error;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:269:11]
+ 268 |         } catch (error) {
+ 269 |           console.error('Failed to register device:', error);
+     :           ^^^^^^^^^^^^^
+ 270 |           throw error;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:302:11]
+ 301 |         } catch (error) {
+ 302 |           console.error('Failed to switch location:', error);
+     :           ^^^^^^^^^^^^^
+ 303 |         }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:311:11]
+ 310 |         } catch (error) {
+ 311 |           console.error('Failed to update negative stock setting:', error);
+     :           ^^^^^^^^^^^^^
+ 312 |           throw error;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/pos-auth-store.ts:339:11]
+ 338 |         if (isExpired) {
+ 339 |           console.log('Session expired. Clearing member data.');
+     :           ^^^^^^^^^^^
+ 340 |           state.sessionUpdatedAt = null;
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/orders-list.tsx:191:13]
+ 190 |           onPaymentComplete={order => {
+ 191 |             console.log(order);
+     :             ^^^^^^^^^^^
+ 192 |             const state = usePosStore.getState();
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/store/ablyStore.ts:80:11]
+ 79 |         try {
+ 80 |           console.log(`[AblyStore] Fetching auth token (attempt ${authAttempt + 1}/${BACKOFF_MAX_RETRIES})…`);
+    :           ^^^^^^^^^^^
+ 81 |           const data = await invoke<unknown>('get_ably_auth_token_command', { params: tokenParams });
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:106:11]
+ 105 |
+ 106 |           console.error(`[AblyStore] Auth error (attempt ${authAttempt}):`, errorMessage);
+     :           ^^^^^^^^^^^^^
+ 107 |
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:109:13]
+ 108 |           if (authAttempt >= BACKOFF_MAX_RETRIES) {
+ 109 |             console.error('[AblyStore] Max auth retries reached. Giving up.');
+     :             ^^^^^^^^^^^^^
+ 110 |             set({ status: 'error', error: errorMessage });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:116:11]
+ 115 |           const delay = jitteredBackoff(authAttempt);
+ 116 |           console.log(`[AblyStore] Retrying auth in ${Math.round(delay)}ms…`);
+     :           ^^^^^^^^^^^
+ 117 |           await sleep(delay);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:135:7]
+ 134 |       const state = stateChange.current as AblyConnectionState;
+ 135 |       console.log(`[AblyStore] Connection: ${stateChange.previous} → ${state}`, stateChange.reason?.message ?? '');
+     :       ^^^^^^^^^^^
+ 136 |       set({ connectionState: state });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:140:75]
+ 139 |       if (state === 'connected') {
+ 140 |         invoke('update_network_status_command', { isOnline: true }).catch(console.error);
+     :                                                                           ^^^^^^^^^^^^^
+ 141 |         // Reset auth retry counter on a clean connect
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:154:27]
+ 153 |             .enter({ id: member.id, name: member.name, lastSeen: new Date().toISOString() })
+ 154 |             .catch(err => console.error('[AblyStore] Presence enter error:', err));
+     :                           ^^^^^^^^^^^^^
+ 155 |         }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/store/ablyStore.ts:157:76]
+ 156 |       } else if (['disconnected', 'suspended', 'failed', 'closed'].includes(state)) {
+ 157 |         invoke('update_network_status_command', { isOnline: false }).catch(console.error);
+     :                                                                            ^^^^^^^^^^^^^
+ 158 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/file-receive.tsx:35:29]
+ 34 |     const audio = new Audio('/sounds/notification-success.mp3');
+ 35 |     audio.play().catch(e => console.error('Error playing sound:', e));
+    :                             ^^^^^^^^^^^^^
+ 36 |   };
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/file-receive.tsx:44:9]
+ 43 |       unlisten = await listen<string>('file-received', event => {
+ 44 |         console.log('File received:', event.payload);
+    :         ^^^^^^^^^^^
+ 45 |
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/file-receive.tsx:80:7]
+ 79 |     } catch (error) {
+ 80 |       console.error('Failed to start server:', error);
+    :       ^^^^^^^^^^^^^
+ 81 |     } finally {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/products.ts:109:21]
+ 108 |     },
+ 109 |     onError: err => console.error('Sync Failed:', err),
+     :                     ^^^^^^^^^^^^^
+ 110 |   });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pricing-view-page.tsx:304:7]
+ 303 |     } catch (error) {
+ 304 |       console.error('Failed to fetch pricing:', error);
+     :       ^^^^^^^^^^^^^
+ 305 |     } finally {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pricing-view-page.tsx:315:7]
+ 314 |     } catch (error) {
+ 315 |       console.error('Failed to refresh:', error);
+     :       ^^^^^^^^^^^^^
+ 316 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+   ,-[src/hooks/updater.ts:7:5]
+ 6 |   if (update) {
+ 7 |     console.log(`Found update ${update.version} from ${update.date}`);
+   :     ^^^^^^^^^^^
+ 8 |     let downloaded = 0;
+   `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/updater.ts:16:11]
+ 15 |           contentLength = event.data.contentLength || 0;
+ 16 |           console.log(`started downloading ${contentLength} bytes`);
+    :           ^^^^^^^^^^^
+ 17 |           break;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/updater.ts:20:11]
+ 19 |           downloaded += event.data.chunkLength;
+ 20 |           console.log(`downloaded ${downloaded} from ${contentLength}`);
+    :           ^^^^^^^^^^^
+ 21 |           break;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/updater.ts:23:11]
+ 22 |         case 'Finished':
+ 23 |           console.log('download finished');
+    :           ^^^^^^^^^^^
+ 24 |           break;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/updater.ts:28:5]
+ 27 |
+ 28 |     console.log('Update installed');
+    :     ^^^^^^^^^^^
+ 29 |     await relaunch();
+    `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useMemo has unnecessary dependency: isLoading
+     ,-[src/pages/history-page.tsx:140:6]
+ 139 |     })
+ 140 |   }, [queue, searchQuery, statusFilter, dateFilter, isLoading])
+     :      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 141 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/receipt-dialog.tsx:248:23]
+ 247 |         .then(url => setQrCodePdfUrl(url))
+ 248 |         .catch(err => console.error('QR Generation failed', err));
+     :                       ^^^^^^^^^^^^^
+ 249 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/receipt-dialog.tsx:266:9]
+ 265 |       } catch (e) {
+ 266 |         console.error('Barcode generation failed', e);
+     :         ^^^^^^^^^^^^^
+ 267 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pending-transactions.tsx:143:7]
+ 142 |     } catch (error) {
+ 143 |       console.error('Download error:', error);
+     :       ^^^^^^^^^^^^^
+ 144 |       toast.error('Failed to save invoice', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pending-transactions.tsx:183:7]
+ 182 |     } catch (error) {
+ 183 |       console.error('Waybill download error:', error);
+     :       ^^^^^^^^^^^^^
+ 184 |       toast.error('Failed to save waybill', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/components/notification-center.tsx:383:35]
+ 382 |                                   e.stopPropagation();
+ 383 |                                   console.log('Action clicked:', notification.action);
+     :                                   ^^^^^^^^^^^
+ 384 |                                 }}
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/settings/location-switch-dialog.tsx:66:7]
+ 65 |     } catch (error) {
+ 66 |       console.error(error);
+    :       ^^^^^^^^^^^^^
+ 67 |       toast.error('Failed to switch location');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/scan-order-dialog.tsx:58:7]
+ 57 |       const scannedCode = event.payload.message;
+ 58 |       console.log('Dialog received scan:', scannedCode);
+    :       ^^^^^^^^^^^
+ 59 |       setCode(scannedCode);
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/scan-order-dialog.tsx:89:7]
+ 88 |     } catch (err: any) {
+ 89 |       console.error('Scan error:', err);
+    :       ^^^^^^^^^^^^^
+ 90 |       setError(err.toString() || 'Failed to validate code.');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/tests/print-retry-dialog.tsx:33:7]
+ 32 |       // Error will be handled by parent component
+ 33 |       console.error('Retry failed:', err);
+    :       ^^^^^^^^^^^^^
+ 34 |     } finally {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/create-order.tsx:559:11]
+ 558 |         } catch (err) {
+ 559 |           console.error('Auto-print failed:', err);
+     :           ^^^^^^^^^^^^^
+ 560 |           toast.error('Auto-print failed', { description: 'You can print manually from the success page.' });
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/create-order.tsx:567:7]
+ 566 |     onError: (error) => {
+ 567 |       console.error('API Error:', error);
+     :       ^^^^^^^^^^^^^
+ 568 |       setSubmitStatus('error');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/create-order.tsx:645:5]
+ 644 |   const onError = (errs: any) => {
+ 645 |     console.error('Validation Errors:', errs);
+     :     ^^^^^^^^^^^^^
+ 646 |     setSubmitStatus('error');
+     `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'availableUnits'
+     ,-[src/pages/create-order.tsx:332:6]
+ 320 |           rowValues.sellingUnitId,
+ 321 |           availableUnits,
+     :           ^^^^^^^|^^^^^^
+     :                  `-- useEffect uses `availableUnits` here
+ 322 |           priceMap,
+ 323 |         );
+ 324 |
+ 325 |         if (prevResolvedPriceRef.current !== resolved) {
+ 326 |           prevResolvedPriceRef.current = resolved;
+ 327 |           setValue(`items.${index}.unitPrice`, resolved, {
+ 328 |             shouldValidate: false,
+ 329 |             shouldDirty: true,
+ 330 |           });
+ 331 |         }
+ 332 | ,->   }, [
+ 333 | |       rowValues?.variantId,
+ 334 | |       rowValues?.sellingUnitId,
+ 335 | |       availableUnitsKey,
+ 336 | |       customerId,
+ 337 | |       priceMap,       // New object reference every time React Query resolves
+ 338 | |       index,
+ 339 | |       setValue,
+ 340 | |       // availableUnits is intentionally not listed — availableUnitsKey covers it
+ 341 | `->   ]);
+ 342 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'refreshPrinters'
+    ,-[src/components/tests/Printer.tsx:19:6]
+ 17 |   useEffect(() => {
+ 18 |     refreshPrinters();
+    :     ^^^^^^^|^^^^^^^
+    :            `-- useEffect uses `refreshPrinters` here
+ 19 |   }, []);
+    :      ^^
+ 20 |
+    `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/checkin.tsx:101:9]
+ 100 |       } catch (err) {
+ 101 |         console.error('Failed to get app version:', err);
+     :         ^^^^^^^^^^^^^
+ 102 |         setAppVersion('Unknown');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/checkin.tsx:109:9]
+ 108 |       } catch (err) {
+ 109 |         console.error("Failed to start NFC background thread:", err);
+     :         ^^^^^^^^^^^^^
+ 110 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/checkin.tsx:278:11]
+ 277 |       } catch (err) {
+ 278 |           console.error("Reset failed:", err);
+     :           ^^^^^^^^^^^^^
+ 279 |           setError("Failed to reset device");
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/settings/logs-tab.tsx:62:7]
+ 61 |     } catch (error) {
+ 62 |       console.error('Failed to fetch audit logs:', error);
+    :       ^^^^^^^^^^^^^
+ 63 |       toast.error('Failed to load audit trails');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/settings/logs-tab.tsx:74:7]
+ 73 |     } catch (error) {
+ 74 |       console.error('Failed to fetch system logs:', error);
+    :       ^^^^^^^^^^^^^
+ 75 |       toast.error('Failed to load system logs');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/set-up.tsx:359:9]
+ 358 |       } catch (err) {
+ 359 |         console.error('Failed to get app version:', err);
+     :         ^^^^^^^^^^^^^
+ 360 |         setAppVersion('Unknown');
+     `----
+  help: Delete this console statement.
+
+  x eslint(eqeqeq): Expected === and instead saw ==
+     ,-[src/components/ui/field.tsx:186:30]
+ 185 |
+ 186 |     if (uniqueErrors?.length == 1) {
+     :                              ^^
+ 187 |       return uniqueErrors[0]?.message;
+     `----
+  help: Prefer === operator
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/pages/receipt-settings-page.tsx:1292:9]
+ 1291 |       } catch (e) {
+ 1292 |         console.error('Barcode generation failed', e);
+      :         ^^^^^^^^^^^^^
+ 1293 |       }
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pos.tsx:292:9]
+ 291 |       } catch (err) {
+ 292 |         console.error('Failed to resolve price for scanned item:', err);
+     :         ^^^^^^^^^^^^^
+ 293 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/pos.tsx:347:7]
+ 346 |     } catch (error) {
+ 347 |       console.error('Failed to open customer screen:', error);
+     :       ^^^^^^^^^^^^^
+ 348 |       toast.error('Failed to open screen', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'knownCategories'
+     ,-[src/pages/pos.tsx:130:6]
+ 123 |     if (activeCategory === 'all' && products.length > 0) {
+ 124 |       const categories = new Set(knownCategories);
+     :                                  ^^^^^^^|^^^^^^^
+     :                                         `-- useEffect uses `knownCategories` here
+ 125 |       products.forEach((p: any) => {
+ 126 |         if (p.category) categories.add(p.category);
+ 127 |       });
+ 128 |       setKnownCategories(new Set(Array.from(categories).sort()));
+ 129 |     }
+ 130 |   }, [products, activeCategory]);
+     :      ^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 131 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has missing dependencies: 'startScanner', and 'stopScanner'
+     ,-[src/pages/pos.tsx:211:6]
+ 205 |     if (settings.enableBarcodeScanner) {
+ 206 |       startScanner();
+     :       ^^^^^^^^^^^^
+ 207 |     }
+ 208 |     return () => {
+ 209 |       stopScanner();
+     :       ^^^^^^^^^^^
+ 210 |     };
+ 211 |   }, [settings.enableBarcodeScanner]);
+     :      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 212 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-gift-card.ts:45:7]
+ 44 |     } catch (error) {
+ 45 |       console.error('Gift Card Validation Error', error);
+    :       ^^^^^^^^^^^^^
+ 46 |       toast.error('Invalid or Expired Gift Card');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-printer.ts:27:9]
+ 26 |       } catch (e) {
+ 27 |         console.warn('Network discovery failed', e);
+    :         ^^^^^^^^^^^^
+ 28 |       }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-printer.ts:47:7]
+ 46 |     } catch (err: any) {
+ 47 |       console.error('Printer Error:', err);
+    :       ^^^^^^^^^^^^^
+ 48 |       setError('Failed to load printers.');
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-printer.ts:77:7]
+ 76 |
+ 77 |       console.log('Print Job Success:', result);
+    :       ^^^^^^^^^^^
+ 78 |       return true;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-printer.ts:80:7]
+ 79 |     } catch (err) {
+ 80 |       console.error('Print Failed:', err);
+    :       ^^^^^^^^^^^^^
+ 81 |       throw err;
+    `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'refreshPrinters'
+     ,-[src/hooks/use-printer.ts:132:6]
+ 130 |   useEffect(() => {
+ 131 |     refreshPrinters();
+     :     ^^^^^^^|^^^^^^^
+     :            `-- useEffect uses `refreshPrinters` here
+ 132 |   }, []);
+     :      ^^
+ 133 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/customers.ts:57:7]
+ 56 |
+ 57 |       console.log('Syncing Customers...');
+    :       ^^^^^^^^^^^
+ 58 |       // No args needed now, backend uses stored auth state
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/customers.ts:60:7]
+ 59 |       const res = await invoke('sync_customers_command', {});
+ 60 |       console.log('Sync Result:', res);
+    :       ^^^^^^^^^^^
+ 61 |       return res;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/customers.ts:67:21]
+ 66 |     },
+ 67 |     onError: err => console.error('Customer Sync Failed:', err),
+    :                     ^^^^^^^^^^^^^
+ 68 |   });
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-pricing-sync.ts:15:9]
+ 14 |       if (!API_ENDPOINT) {
+ 15 |         console.warn('API Endpoint is missing, sending empty string to Rust for debugging.');
+    :         ^^^^^^^^^^^^
+ 16 |       }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-pricing-sync.ts:22:7]
+ 21 |     onSuccess: newTimestamp => {
+ 22 |       console.log('Pricing Synced. New Timestamp:', newTimestamp);
+    :       ^^^^^^^^^^^
+ 23 |       // Invalidate relevant queries if needed
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-pricing-sync.ts:27:7]
+ 26 |     onError: error => {
+ 27 |       console.error('Pricing Sync Failed:', error);
+    :       ^^^^^^^^^^^^^
+ 28 |     },
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-cash-drawer.ts:32:9]
+ 31 |       if (!settings.enableCashDrawer) {
+ 32 |         console.log('[CashDrawer] Cash drawer disabled in settings');
+    :         ^^^^^^^^^^^
+ 33 |         return false;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-cash-drawer.ts:39:9]
+ 38 |         const result = await invoke<string>('open_cash_drawer', { portName: port });
+ 39 |         console.log('[CashDrawer] Drawer opened:', result);
+    :         ^^^^^^^^^^^
+ 40 |         return true;
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-cash-drawer.ts:42:9]
+ 41 |       } catch (error) {
+ 42 |         console.error('[CashDrawer] Failed to open drawer:', error);
+    :         ^^^^^^^^^^^^^
+ 43 |         toast.error('Failed to open cash drawer', {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-cash-drawer.ts:64:7]
+ 63 |     } catch (error) {
+ 64 |       console.error('[CashDrawer] Failed to list serial ports:', error);
+    :       ^^^^^^^^^^^^^
+ 65 |       toast.error('Failed to detect serial ports', {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:151:9]
+ 150 |         // Don't show success toast here for M-Pesa, the UI handles the "Waiting" state
+ 151 |         console.log('Sale processed in background:', data.message);
+     :         ^^^^^^^^^^^
+ 152 |       } else {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:160:7]
+ 159 |     onError: error => {
+ 160 |       console.error('Critical error processing sale:', error);
+     :       ^^^^^^^^^^^^^
+ 161 |       toast.error('System Error', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:215:9]
+ 214 |       } catch (error) {
+ 215 |         console.error('Failed to check network status:', error);
+     :         ^^^^^^^^^^^^^
+ 216 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:229:7]
+ 228 |     const unlistenSync = listen('trigger-sales-sync', async () => {
+ 229 |       console.log('[Network] Connection restored, triggering sync...');
+     :       ^^^^^^^^^^^
+ 230 |       toast.info('Connection Restored', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:241:9]
+ 240 |       } catch (error) {
+ 241 |         console.error('Auto-sync failed:', error);
+     :         ^^^^^^^^^^^^^
+ 242 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:316:9]
+ 315 |       } catch (error) {
+ 316 |         console.error('Failed to check old sales:', error);
+     :         ^^^^^^^^^^^^^
+ 317 |       }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/sales.ts:379:7]
+ 378 |     onError: error => {
+ 379 |       console.error('Failed to create order:', error);
+     :       ^^^^^^^^^^^^^
+ 380 |       options.onError?.(error as Error);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-scanner.ts:30:9]
+ 29 |         // You can now log/use the source (e.g., 'USB' or 'Network')
+ 30 |         console.log(`[${event.payload.source}] Barcode Received:`, event.payload.message);
+    :         ^^^^^^^^^^^
+ 31 |         store.addScannedItem(event.payload.message);
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-scanner.ts:60:7]
+ 59 |     } catch (err: any) {
+ 60 |       console.error('Failed to start scanner:', err);
+    :       ^^^^^^^^^^^^^
+ 61 |       store.setError(typeof err === 'string' ? err : 'Unknown error');
+    `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'stopScanner'
+    ,-[src/hooks/use-scanner.ts:81:6]
+ 78 |       isMounted.current = false;
+ 79 |       stopScanner();
+    :       ^^^^^|^^^^^
+    :            `-- useEffect uses `stopScanner` here
+ 80 |     };
+ 81 |   }, []);
+    :      ^^
+ 82 |
+    `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-auth.ts:93:7]
+ 92 |       // On error, clear any stale session
+ 93 |       console.error('Check-in failed:', error);
+    :       ^^^^^^^^^^^^^
+ 94 |       toast.error('Failed to check in', {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/hooks/use-auth.ts:127:7]
+ 126 |     onError: error => {
+ 127 |       console.error('Check-out failed:', error);
+     :       ^^^^^^^^^^^^^
+ 128 |       toast.error('Failed to check out');
+     `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useCallback received a function whose dependencies are unknown.
+     ,-[src/hooks/use-auth.ts:155:26]
+ 154 |   // It will only fire once every 5 seconds max, even if the user is typing furiously.
+ 155 |   const handleActivity = useCallback(
+     :                          ^^^^^^^^^^^
+ 156 |     throttle(() => {
+     `----
+  help: Pass an inline function instead.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-pdf-actions.ts:48:7]
+ 47 |     } catch (error) {
+ 48 |       console.error('Print failed:', error);
+    :       ^^^^^^^^^^^^^
+ 49 |       toast.error(`Print failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/hooks/use-pdf-actions.ts:67:7]
+ 66 |     } catch (error) {
+ 67 |       console.error('Download error:', error);
+    :       ^^^^^^^^^^^^^
+ 68 |       toast.error('Failed to save PDF', { id: loadingToastId });
+    `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useMemo has unnecessary dependency: isOpen
+     ,-[src/components/pos/payment-dialog.tsx:291:43]
+ 290 |   // ── IDs ──
+ 291 |   const orderId = useMemo(() => uuidv4(), [isOpen]);
+     :                                           ^^^^^^^^
+ 292 |   const saleNumber = useMemo(() => `SALE-${Date.now().toString().slice(-6)}`, [isOpen]);
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useMemo has unnecessary dependency: isOpen
+     ,-[src/components/pos/payment-dialog.tsx:292:79]
+ 291 |   const orderId = useMemo(() => uuidv4(), [isOpen]);
+ 292 |   const saleNumber = useMemo(() => `SALE-${Date.now().toString().slice(-6)}`, [isOpen]);
+     :                                                                               ^^^^^^^^
+ 293 |   const cleanAccountRef = useMemo(() => Date.now().toString().slice(-6), [isOpen]);
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useMemo has unnecessary dependency: isOpen
+     ,-[src/components/pos/payment-dialog.tsx:293:74]
+ 292 |   const saleNumber = useMemo(() => `SALE-${Date.now().toString().slice(-6)}`, [isOpen]);
+ 293 |   const cleanAccountRef = useMemo(() => Date.now().toString().slice(-6), [isOpen]);
+     :                                                                          ^^^^^^^^
+ 294 |   const paybillAccountNo = useMemo(() => cleanAccountRef, [cleanAccountRef]);
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useMemo has unnecessary dependency: mpesaMode
+     ,-[src/components/pos/payment-dialog.tsx:341:5]
+ 340 |     () => generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance),
+ 341 |     [mpesaMode, organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
+     :     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 342 |   );
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'handlePaymentMatch'
+     ,-[src/components/pos/payment-dialog.tsx:410:6]
+ 386 |       if ((mpesaMode === 'PAYBILL' || mpesaMode === 'QR') && data.accountRef) {
+ 387 |         if (data.accountRef.toUpperCase() === paybillAccountNo.toUpperCase()) handlePaymentMatch(data);
+     :                                                                               ^^^^^^^^^|^^^^^^^^
+     :                                                                                        `-- useEffect uses `handlePaymentMatch` here
+ 388 |       }
+ 389 |       if (mpesaMode === 'BUY_GOODS' && Math.abs(Number(data.amount) - remainingBalance) < 1.0) {
+ 390 |         handlePaymentMatch(data);
+ 391 |       }
+ 392 |     };
+ 393 |
+ 394 |     const handleUpdate = (msg: any) => {
+ 395 |       const txData = msg.data;
+ 396 |       if (txData.transactionId === fullSaleNumber || txData.data?.accountRef === paybillAccountNo) {
+ 397 |         const isSuccess = txData.status === 'COMPLETED' || txData.status === 'SUCCESS';
+ 398 |         if (isSuccess) {
+ 399 |           handlePaymentMatch(txData.data || txData);
+ 400 |         } else if (txData.status === 'FAILED' || txData.status === 'CANCELLED') {
+ 401 |           setMpesaStatus('FAILED');
+ 402 |           setMpesaWaiting(false);
+ 403 |         }
+ 404 |       }
+ 405 |     };
+ 406 |
+ 407 |     channel.subscribe('payment-unclaimed', handleUnclaimed);
+ 408 |     channel.subscribe('payment-update', handleUpdate);
+ 409 |     return () => channel.unsubscribe();
+ 410 |   }, [isOpen, selectedTab, mpesaMode, ably, paymentChannel, fullSaleNumber, paybillAccountNo, remainingBalance]);
+     :      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 411 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/stock-acceptance.tsx:140:7]
+ 139 |     } catch (error) {
+ 140 |       console.error('Fetch error:', error);
+     :       ^^^^^^^^^^^^^
+ 141 |       toast.error('Failed to load incoming shipments');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/stock-acceptance.tsx:266:7]
+ 265 |     } catch (error: any) {
+ 266 |       console.error('Receipt error:', error);
+     :       ^^^^^^^^^^^^^
+ 267 |       toast.error('Failed to submit receipt', { description: error.message });
+     `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'fetchShipments'
+     ,-[src/pages/stock-acceptance.tsx:109:6]
+ 106 |     if (locationId) {
+ 107 |       fetchShipments();
+     :       ^^^^^^^|^^^^^^
+     :              `-- useEffect uses `fetchShipments` here
+ 108 |     }
+ 109 |   }, [locationId]);
+     :      ^^^^^^^^^^^^
+ 110 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/notification-settings-dialog.tsx:47:33]
+ 46 |         audio.volume = settings.soundVolume;
+ 47 |         audio.play().catch(e => console.error('Failed to play test sound:', e));
+    :                                 ^^^^^^^^^^^^^
+ 48 |       } catch (error) {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/components/notification-settings-dialog.tsx:49:9]
+ 48 |       } catch (error) {
+ 49 |         console.error('Failed to create audio:', error);
+    :         ^^^^^^^^^^^^^
+ 50 |       }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:14:7]
+ 13 |       localStorage.setItem('HUB_WS_URL', wsUrl); // Save its own IP
+ 14 |       console.log("Hub started at:", wsUrl);
+    :       ^^^^^^^^^^^
+ 15 |       connectToHub(wsUrl); // Connect to itself
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:17:7]
+ 16 |     } catch (e) {
+ 17 |       console.error("Failed to start Hub:", e);
+    :       ^^^^^^^^^^^^^
+ 18 |     }
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:22:5]
+ 21 |     const hubIp = localStorage.getItem('HUB_IP_ADDRESS');
+ 22 |     console.log(`Connecting to Hub at ${hubIp}...`);
+    :     ^^^^^^^^^^^
+ 23 |     if (hubIp) {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:55:5]
+ 54 |   socket.onopen = () => {
+ 55 |     console.log("Connected to Local POS Hub!");
+    :     ^^^^^^^^^^^
+ 56 |     // Send initial status/heartbeat
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:77:7]
+ 76 |     if (queue.length > 0) {
+ 77 |       console.log(`Processing ${queue.length} offline messages...`);
+    :       ^^^^^^^^^^^
+ 78 |       queue.forEach(msg => {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/kds.ts:93:9]
+ 92 |         useKdsStore.getState().addOrder(order);
+ 93 |         console.log("KDS: New Ticket Arrived!", order);
+    :         ^^^^^^^^^^^
+ 94 |
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/kds.ts:99:13]
+  98 |         if (role === 'KDS' && kdsConfig.autoPrintKds) {
+  99 |             console.log("KDS: Auto-printing ticket...");
+     :             ^^^^^^^^^^^
+ 100 |             usePosStore.getState().printReceipt(order.id);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/kds.ts:120:9]
+ 119 |       if (device_id === myDeviceId) {
+ 120 |         console.log(`My assignment updated: ${user_name}`);
+     :         ^^^^^^^^^^^
+ 121 |         localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/kds.ts:156:5]
+ 155 |   socket.onclose = () => {
+ 156 |     console.warn("Lost connection to Hub. Reconnecting in 3s...");
+     :     ^^^^^^^^^^^^
+ 157 |     setTimeout(() => connectToHub(url), 3000); // Auto-reconnect
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/kds.ts:193:5]
+ 192 |   } else {
+ 193 |     console.error("Hub offline! Saving to local offline queue...");
+     :     ^^^^^^^^^^^^^
+ 194 |     addToOfflineQueue(jsonPayload);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/utils.ts:41:9]
+ 40 |       if (isNaN(parsedAmount)) {
+ 41 |         console.warn('Invalid amount provided to formatCurrency:', amount);
+    :         ^^^^^^^^^^^^
+ 42 |         return new Intl.NumberFormat(locale, {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+    ,-[src/lib/utils.ts:60:9]
+ 59 |         // Fallback to basic formatting with the currency symbol
+ 60 |         console.error(`Error formatting currency (locale: ${locale}, currency: ${currency}):`, error);
+    :         ^^^^^^^^^^^^^
+ 61 |         const fallbackFormatter = new Intl.NumberFormat(locale, {
+    `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/utils.ts:107:29]
+ 106 |                         } catch (e) {
+ 107 |                             console.error('Could not open file', e);
+     :                             ^^^^^^^^^^^^^
+ 108 |                             toast.error('Failed to open file');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/lib/utils.ts:131:9]
+ 130 |     } catch (error) {
+ 131 |         console.error('File processing error:', error);
+     :         ^^^^^^^^^^^^^
+ 132 |         toast.error('Failed to save file', {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/settings-page.tsx:134:7]
+ 133 |     } catch (err) {
+ 134 |       console.error('Failed to list devices', err);
+     :       ^^^^^^^^^^^^^
+ 135 |     } finally {
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/settings-page.tsx:186:21]
+ 185 |       })
+ 186 |       .catch(err => console.error('Failed to check auto-start status', err));
+     :                     ^^^^^^^^^^^^^
+ 187 |   }, []);
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/settings-page.tsx:237:7]
+ 236 |     } catch (error) {
+ 237 |       console.error('Failed to toggle customer screen:', error);
+     :       ^^^^^^^^^^^^^
+ 238 |       toast.error('Failed to toggle customer screen window');
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/settings-page.tsx:249:7]
+ 248 |     } catch (err) {
+ 249 |       console.error('Failed to update auto-start setting', err);
+     :       ^^^^^^^^^^^^^
+ 250 |     }
+     `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+      ,-[src/pages/settings-page.tsx:1547:21]
+ 1546 |                   } catch (err) {
+ 1547 |                     console.error('Wipe failed:', err);
+      :                     ^^^^^^^^^^^^^
+ 1548 |                     toast.error('Failed to complete system wipe');
+      `----
+  help: Delete this console statement.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/manage-tables-page.tsx:125:7]
+ 124 |     } catch (error) {
+ 125 |       console.error('Failed to fetch table history:', error);
+     :       ^^^^^^^^^^^^^
+ 126 |     } finally {
+     `----
+  help: Delete this console statement.
+
+  ! eslint-plugin-react-hooks(exhaustive-deps): React Hook useEffect has a missing dependency: 'fetchTables'
+     ,-[src/App.tsx:126:6]
+ 113 |     initializeNetworkRole();
+ 114 |     fetchTables();
+     :     ^^^^^|^^^^^
+     :          `-- useEffect uses `fetchTables` here
+ 115 |     posthog.capture('app_started');
+ 116 |     // Hide and remove the splashscreen from index.html
+ 117 |     const splash = document.getElementById('splash-root');
+ 118 |     if (splash) {
+ 119 |       setTimeout(() => {
+ 120 |         splash.style.opacity = '0';
+ 121 |         setTimeout(() => {
+ 122 |           splash.remove();
+ 123 |         }, 500);
+ 124 |       }, 500);
+ 125 |     }
+ 126 |   }, []);
+     :      ^^
+ 127 |
+     `----
+  help: Either include it or remove the dependency array.
+
+  ! eslint(no-console): Unexpected console statement.
+     ,-[src/pages/hub-overview.tsx:99:7]
+  98 |     } catch (error) {
+  99 |       console.error('Failed to fetch devices:', error);
+     :       ^^^^^^^^^^^^^
+ 100 |     } finally {
+     `----
+  help: Delete this console statement.
+
+Found 182 warnings and 4 errors.
+Finished in 71ms on 181 files with 100 rules using 4 threads.

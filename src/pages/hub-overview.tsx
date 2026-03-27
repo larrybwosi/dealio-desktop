@@ -118,7 +118,7 @@ export default function HubOverviewPage() {
       });
       toast.success(userId ? `Assigned ${user?.name} to device` : 'User unassigned');
       fetchDevices();
-    } catch (error) {
+    } catch (_error) {
       toast.error('Failed to update assignment');
     }
   };
