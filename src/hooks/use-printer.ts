@@ -16,14 +16,27 @@ export const usePrinter = () => {
     setLoading(true);
     setError(null);
     try {
-      const printers = await invoke<any[]>('get_system_printers');
+      // 1. Fetch system printers
+      const systemPrinters = await invoke<any[]>('get_system_printers');
 
-      const formatted: PrinterDevice[] = printers.map(p => ({
-        id: p,
-        name: p,
-        description: '',
-        driver_name: 'System Driver',
-        status: 'Ready',
+      // 2. Fetch network printers
+      let networkPrinters: any[] = [];
+      try {
+        networkPrinters = await invoke<any[]>('discover_network_printers');
+      } catch (e) {
+        console.warn('Network discovery failed', e);
+      }
+
+      const allPrinters = [...systemPrinters, ...networkPrinters];
+
+      const formatted: PrinterDevice[] = allPrinters.map(p => ({
+        id: p.id,
+        name: p.name,
+        description: p.port_name ? `Port: ${p.port_name}` : '',
+        driver_name: p.driver_name || 'Generic Driver',
+        status: p.status || 'Ready',
+        method: p.type,
+        port_name: p.port_name,
       }));
 
       store.setPrinters(formatted);

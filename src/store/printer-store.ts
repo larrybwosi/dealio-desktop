@@ -8,10 +8,13 @@ export interface PrinterDevice {
   name: string;
   driver_name: string;
   description: string;
+  status?: string;
+  method?: 'system' | 'network';
+  port_name?: string;
 }
 
 // Define the types of documents we handle
-export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill';
+export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill' | 'bar';
 
 interface PrinterState {
   availablePrinters: PrinterDevice[];
@@ -49,6 +52,7 @@ export const usePrinterStore = create<PrinterState>()(
         invoice: null,
         kitchen: null,
         bill: null,
+        bar: null,
       },
 
       // UPDATE setPrinters to not just set list, but also check for auto-assignments
@@ -57,30 +61,19 @@ export const usePrinterStore = create<PrinterState>()(
 
         // Check for auto-assignments
         const autoAssignments = get().assignments;
-        if (autoAssignments.receipt) {
-          const receiptPrinter = printers.find(p => p.id === autoAssignments.receipt);
-          if (receiptPrinter) {
-            set({ assignments: { ...autoAssignments, receipt: receiptPrinter.id } });
+        const newAssignments = { ...autoAssignments };
+
+        Object.keys(autoAssignments).forEach((key) => {
+          const type = key as PrinterJobType;
+          if (autoAssignments[type]) {
+            const printer = printers.find(p => p.id === autoAssignments[type]);
+            if (printer) {
+              newAssignments[type] = printer.id;
+            }
           }
-        }
-        if (autoAssignments.kitchen) {
-          const kitchenPrinter = printers.find(p => p.id === autoAssignments.kitchen);
-          if (kitchenPrinter) {
-            set({ assignments: { ...autoAssignments, kitchen: kitchenPrinter.id } });
-          }
-        }
-        if (autoAssignments.invoice) {
-          const invoicePrinter = printers.find(p => p.id === autoAssignments.invoice);
-          if (invoicePrinter) {
-            set({ assignments: { ...autoAssignments, invoice: invoicePrinter.id } });
-          }
-        }
-        if (autoAssignments.bill) {
-          const billPrinter = printers.find(p => p.id === autoAssignments.bill);
-          if (billPrinter) {
-            set({ assignments: { ...autoAssignments, bill: billPrinter.id } });
-          }
-        }
+        });
+
+        set({ assignments: newAssignments });
       },
 
       assignPrinter: async (type, printerId) => {
@@ -108,6 +101,7 @@ export const usePrinterStore = create<PrinterState>()(
               kitchen_printer: formatConfig(currentAssignments.kitchen),
               invoice_printer: formatConfig(currentAssignments.invoice),
               bill_printer: formatConfig(currentAssignments.bill),
+              bar_printer: formatConfig(currentAssignments.bar),
             },
           });
         } catch (e) {
@@ -152,6 +146,7 @@ export const usePrinterStore = create<PrinterState>()(
               kitchen: config.kitchen_printer?.target || null,
               invoice: config.invoice_printer?.target || null,
               bill: config.bill_printer?.target || config.receipt_printer?.target || null,
+              bar: config.bar_printer?.target || null,
             },
           }));
         } catch (e) {
