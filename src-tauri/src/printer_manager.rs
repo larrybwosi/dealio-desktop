@@ -46,6 +46,8 @@ pub struct PrinterSettings {
     pub bar_printer: Option<PrinterConfig>,
     pub invoice_printer: Option<PrinterConfig>,
     pub bill_printer: Option<PrinterConfig>,
+    pub waybill_printer: Option<PrinterConfig>,
+    pub auto_print_invoice: Option<bool>,
 }
 
 // Helper to get the path where we save settings
@@ -59,7 +61,7 @@ fn get_settings_path<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
 // --- NETWORK HELPER ---
 
 async fn print_raw_to_printer(
-    app: &AppHandle,
+    _app: &AppHandle,
     config: Option<PrinterConfig>,
     data: Vec<u8>,
 ) -> Result<String, String> {
@@ -73,6 +75,76 @@ async fn print_raw_to_printer(
             .map_err(|e| format!("Native print failed: {:?}", e))
     } else {
         Err("Printer not configured".into())
+    }
+}
+
+pub async fn print_pdf_to_system_printer(
+    app: &AppHandle,
+    printer_name: String,
+    pdf_bytes: Vec<u8>,
+) -> Result<String, String> {
+    // 1. Save PDF bytes to a temporary file
+    let mut temp_file = Builder::new()
+        .suffix(".pdf")
+        .tempfile()
+        .map_err(|e| format!("Failed to create temp PDF: {}", e))?;
+
+    temp_file.write_all(&pdf_bytes).map_err(|e| format!("Failed to write PDF: {}", e))?;
+
+    let (_, path) = temp_file.keep().map_err(|e| format!("Failed to keep temp PDF: {}", e))?;
+    let file_path = path.to_string_lossy().to_string();
+
+    #[cfg(target_os = "windows")]
+    {
+        use tauri_plugin_shell::ShellExt;
+
+        let sidecar = app.shell().sidecar("binaries/sumatrapdf")
+            .map_err(|e| format!("Failed to create sidecar: {}", e))?;
+
+        let output = sidecar
+            .args([
+                "-print-to",
+                &printer_name,
+                "-silent",
+                &file_path,
+            ])
+            .output()
+            .await
+            .map_err(|e| format!("SumatraPDF execution failed: {}", e))?;
+
+        // Clean up
+        let _ = std::fs::remove_file(path);
+
+        if output.status.success() {
+            Ok("PDF sent to Windows printer via SumatraPDF".into())
+        } else {
+            Err(format!(
+                "SumatraPDF failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let output = std::process::Command::new("lp")
+            .arg("-d")
+            .arg(&printer_name)
+            .arg(&file_path)
+            .output()
+            .map_err(|e| format!("Failed to execute lp: {}", e))?;
+
+        // Clean up
+        let _ = std::fs::remove_file(path);
+
+        if output.status.success() {
+            Ok("PDF sent to CUPS successfully".into())
+        } else {
+            Err(format!(
+                "CUPS print failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            ))
+        }
     }
 }
 
@@ -261,7 +333,7 @@ pub async fn get_printer_config(app: AppHandle) -> Result<PrinterSettings, Strin
 #[tauri::command]
 pub async fn print_job(
     app: AppHandle,
-    job_type: String, // "receipt", "kitchen", "bar", "bill"
+    job_type: String, // "receipt", "kitchen", "bar", "bill", "invoice", "waybill"
     order: Value,
     settings: Value,
     branch_name: Option<String>,
@@ -270,7 +342,32 @@ pub async fn print_job(
         "receipt" => print_receipt_native(app, order, settings, branch_name).await,
         "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
         "bar" => print_bar_native(app, order, settings, branch_name).await,
-        "bill" | "invoice" => print_bill_native(app, order, settings, branch_name).await,
+        "bill" => print_bill_native(app, order, settings, branch_name).await,
+        "invoice" | "waybill" => {
+            // PDF Printing path for A4/Full documents
+            let url = order.get("invoiceUrl")
+                .or(order.get("waybillUrl"))
+                .and_then(|v| v.as_str())
+                .ok_or("No document URL provided for printing")?;
+
+            // 1. Fetch PDF Bytes
+            let pdf_bytes = crate::sale_manager::get_invoice_blob_command(
+                app.state::<crate::stores::auth_store::AuthState>(),
+                url.to_string(),
+            ).await?;
+
+            // 2. Resolve target printer
+            let printer_config = get_printer_config(app.clone()).await?;
+            let target_config = if job_type == "invoice" {
+                printer_config.invoice_printer
+            } else {
+                // Try waybill printer, fallback to invoice printer
+                printer_config.waybill_printer.or(printer_config.invoice_printer)
+            }.ok_or_else(|| format!("No printer configured for {}", job_type))?;
+
+            // 3. Print PDF
+            print_pdf_to_system_printer(&app, target_config.target, pdf_bytes).await
+        },
         _ => Err(format!("Unknown job type: {}", job_type)),
     }
 }

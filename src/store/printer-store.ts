@@ -14,7 +14,7 @@ export interface PrinterDevice {
 }
 
 // Define the types of documents we handle
-export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill' | 'bar';
+export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill' | 'bar' | 'waybill';
 
 interface PrinterState {
   availablePrinters: PrinterDevice[];
@@ -22,12 +22,16 @@ interface PrinterState {
   // This maps a Job Type to a Printer ID
   assignments: Record<PrinterJobType, string | null>;
 
+  // Settings
+  autoPrintInvoice: boolean;
+
   // Print job tracking
   printHistory: PrintJob[];
   printQueue: PrintQueueItem[];
 
   setPrinters: (printers: PrinterDevice[]) => void;
   assignPrinter: (type: PrinterJobType, printerId: string) => void;
+  setAutoPrintInvoice: (enabled: boolean) => void;
 
   // Print job management
   addPrintJob: (job: PrintJob) => void;
@@ -53,7 +57,10 @@ export const usePrinterStore = create<PrinterState>()(
         kitchen: null,
         bill: null,
         bar: null,
+        waybill: null,
       },
+
+      autoPrintInvoice: false,
 
       // UPDATE setPrinters to not just set list, but also check for auto-assignments
       setPrinters: printers => {
@@ -84,6 +91,7 @@ export const usePrinterStore = create<PrinterState>()(
 
         // 2. Persist to Disk via Rust
         const currentAssignments = get().assignments;
+        const autoPrint = get().autoPrintInvoice;
 
         // Helper function to format the string ID into the Rust PrinterConfig struct
         const formatConfig = (id: string | null) => {
@@ -102,10 +110,38 @@ export const usePrinterStore = create<PrinterState>()(
               invoice_printer: formatConfig(currentAssignments.invoice),
               bill_printer: formatConfig(currentAssignments.bill),
               bar_printer: formatConfig(currentAssignments.bar),
+              waybill_printer: formatConfig(currentAssignments.waybill),
+              auto_print_invoice: autoPrint,
             },
           });
         } catch (e) {
           console.error('Failed to save config', e);
+        }
+      },
+
+      setAutoPrintInvoice: async enabled => {
+        set({ autoPrintInvoice: enabled });
+
+        const currentAssignments = get().assignments;
+        const formatConfig = (id: string | null) => {
+          if (!id) return null;
+          return { type: 'system', target: id };
+        };
+
+        try {
+          await invoke('save_printer_config', {
+            config: {
+              receipt_printer: formatConfig(currentAssignments.receipt),
+              kitchen_printer: formatConfig(currentAssignments.kitchen),
+              invoice_printer: formatConfig(currentAssignments.invoice),
+              bill_printer: formatConfig(currentAssignments.bill),
+              bar_printer: formatConfig(currentAssignments.bar),
+              waybill_printer: formatConfig(currentAssignments.waybill),
+              auto_print_invoice: enabled,
+            },
+          });
+        } catch (e) {
+          console.error('Failed to save auto print config', e);
         }
       },
 
@@ -147,7 +183,9 @@ export const usePrinterStore = create<PrinterState>()(
               invoice: config.invoice_printer?.target || null,
               bill: config.bill_printer?.target || config.receipt_printer?.target || null,
               bar: config.bar_printer?.target || null,
+              waybill: config.waybill_printer?.target || config.invoice_printer?.target || null,
             },
+            autoPrintInvoice: config.auto_print_invoice || false,
           }));
         } catch (e) {
           console.error('Failed to load config', e);

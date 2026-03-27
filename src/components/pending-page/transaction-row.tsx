@@ -38,6 +38,8 @@ interface TransactionRowProps {
   onCopyId: (id: string) => void;
   onDownloadInvoice: (tx: Transaction) => void;
   onDownloadWaybill: (tx: Transaction) => void;
+  onPrintInvoice: (tx: Transaction) => void;
+  onPrintWaybill: (tx: Transaction) => void;
   onOpenReconcile: (id: string) => void;
   onOpenPayment: (id: string) => void;
   onOpenDispatch: (id: string) => void;
@@ -155,33 +157,53 @@ export function TransactionRow({
               <DropdownMenuItem onClick={() => onCopyId(tx.id)}>Copy ID</DropdownMenuItem>
 
               {tx.invoiceLink && (
-                <DropdownMenuItem
-                  onClick={() => onDownloadInvoice(tx)}
-                  disabled={isDownloading}
-                  className="text-green-600 focus:text-green-600 cursor-pointer"
-                >
-                  {isDownloading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Download className="mr-2 h-4 w-4" />
-                  )}
-                  Download Invoice
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem
+                    onClick={() => onDownloadInvoice(tx)}
+                    disabled={isDownloading}
+                    className="text-green-600 focus:text-green-600 cursor-pointer"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="mr-2 h-4 w-4" />
+                    )}
+                    Download Invoice
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onPrintInvoice(tx)}
+                    disabled={isDownloading}
+                    className="text-blue-600 focus:text-blue-600 cursor-pointer"
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Invoice (A4)
+                  </DropdownMenuItem>
+                </>
               )}
 
               {tx.fulfillmentId && (
-                <DropdownMenuItem
-                  onClick={() => onDownloadWaybill(tx)}
-                  disabled={isDownloading}
-                  className="cursor-pointer"
-                >
-                  {isDownloading ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  Download Waybill
-                </DropdownMenuItem>
+                <>
+                  <DropdownMenuItem
+                    onClick={() => onDownloadWaybill(tx)}
+                    disabled={isDownloading}
+                    className="cursor-pointer"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileText className="mr-2 h-4 w-4" />
+                    )}
+                    Download Waybill
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onPrintWaybill(tx)}
+                    disabled={isDownloading}
+                    className="cursor-pointer"
+                  >
+                    <Printer className="mr-2 h-4 w-4" />
+                    Print Waybill
+                  </DropdownMenuItem>
+                </>
               )}
 
               {tx.status !== 'dispatched' && (

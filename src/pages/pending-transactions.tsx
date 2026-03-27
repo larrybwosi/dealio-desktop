@@ -191,6 +191,37 @@ export default function PendingTransactionsPage() {
     }
   };
 
+  const handlePrintInvoice = async (tx: Transaction) => {
+    if (!tx.invoiceLink) return;
+    try {
+      toast.info('Sending invoice to printer...');
+      await invoke('print_job', {
+        jobType: 'invoice',
+        order: { invoiceUrl: tx.invoiceLink, number: tx.number || tx.id },
+        settings: {},
+      });
+      toast.success('Print job sent');
+    } catch (err: any) {
+      toast.error('Print failed', { description: err.message || 'Check printer settings' });
+    }
+  };
+
+  const handlePrintWaybill = async (tx: Transaction) => {
+    if (!tx.fulfillmentId) return;
+    try {
+      toast.info('Sending waybill to printer...');
+      const url = API_ROUTES.FULFILLMENT.WAYBILL(tx.id);
+      await invoke('print_job', {
+        jobType: 'waybill',
+        order: { waybillUrl: url, number: tx.number || tx.id },
+        settings: {},
+      });
+      toast.success('Print job sent');
+    } catch (err: any) {
+      toast.error('Print failed', { description: err.message || 'Check printer settings' });
+    }
+  };
+
   const handleOpenMenuChange = (isOpen: boolean, txId: string) => {
     setOpenMenuId(isOpen ? txId : null);
   };
@@ -243,6 +274,8 @@ export default function PendingTransactionsPage() {
               onCopyId={handleCopyId}
               onDownloadInvoice={handleDownloadInvoice}
               onDownloadWaybill={handleDownloadWaybill}
+              onPrintInvoice={handlePrintInvoice}
+              onPrintWaybill={handlePrintWaybill}
               onOpenReconcile={handleOpenReconcile}
               onOpenPayment={handleOpenPayment}
               onOpenDispatch={handleOpenDispatch}
