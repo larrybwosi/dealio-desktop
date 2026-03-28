@@ -330,6 +330,7 @@ pub struct PosPricingData {
 
 // A robust error type for the frontend to consume
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum PrinterError {
     #[error("Network connection timed out")]
     Timeout,

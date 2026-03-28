@@ -6,9 +6,6 @@ use tempfile::Builder;
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpStream;
 use serde_json::Value; 
-use base64::{Engine as _, engine::general_purpose};
-use chrono;
-
 use crate::escpos_builder::EscPosBuilder; 
 use crate::models::PrinterError;
 
@@ -79,7 +76,7 @@ async fn print_raw_to_printer(
 }
 
 pub async fn print_pdf_to_system_printer(
-    app: &AppHandle,
+    _app: &AppHandle,
     printer_name: String,
     pdf_bytes: Vec<u8>,
 ) -> Result<String, String> {
@@ -98,7 +95,7 @@ pub async fn print_pdf_to_system_printer(
     {
         use tauri_plugin_shell::ShellExt;
 
-        let sidecar = app.shell().sidecar("binaries/sumatrapdf")
+        let sidecar = _app.shell().sidecar("binaries/sumatrapdf")
             .map_err(|e| format!("Failed to create sidecar: {}", e))?;
 
         let output = sidecar
@@ -224,7 +221,7 @@ pub async fn get_system_printers() -> Result<Vec<PrinterInfo>, String> {
                 let name = line.split_whitespace().nth(1).unwrap_or("Unknown").to_string();
                 PrinterInfo {
                     id: name.clone(),
-                    name: name,
+                    name,
                     method: "system".into(),
                     status: if line.contains("is idle") {
                         "Idle".into()
@@ -474,7 +471,7 @@ pub async fn print_receipt_native(
     if let Some(slogan) = settings.get("businessSlogan").and_then(|v| v.as_str()) {
         if !slogan.is_empty() { esc.text_line(slogan); }
     }
-    if let Some(branch) = branch_name {
+    if let Some(ref branch) = branch_name {
         if !branch.is_empty() { esc.text_line(&format!("Branch: {}", branch)); }
     }
     if let Some(address) = settings.get("address").and_then(|v| v.as_str()) {
@@ -887,7 +884,7 @@ pub async fn print_kitchen_native(
                 let mut var_str = String::from("  • ");
                 if variant_name != "Default Variant" {
                     var_str.push_str(variant_name);
-                    var_str.push_str(" ");
+                    var_str.push(' ');
                 }
                 if let Some(un) = unit_name {
                     var_str.push_str(&format!("({})", un));
@@ -949,7 +946,7 @@ pub async fn print_bar_native(
     app: tauri::AppHandle,
     order: Value,
     settings: Value,
-    branch_name: Option<String>,
+    _branch_name: Option<String>,
 ) -> Result<String, String> {
     // Reuse kitchen ticket logic for bar for now, as they are usually similar (tickets)
     // but use the bar_printer config.
@@ -1033,7 +1030,7 @@ pub async fn print_bill_native(
     if let Some(biz_name) = settings.get("businessName").and_then(|v| v.as_str()) {
         esc.text_line(biz_name);
     }
-    if let Some(branch) = branch_name {
+    if let Some(ref branch) = branch_name {
         if !branch.is_empty() { esc.text_line(&format!("Branch: {}", branch)); }
     }
 

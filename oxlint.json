@@ -4,11 +4,14 @@
   "rules": {
     "no-debugger": "error",
     "no-console": "off",
-    "eqeqeq": "off",
+    "eqeqeq": "error",
+    "no-unused-vars": "off",
     "react/jsx-no-undef": "error",
     "react/react-in-jsx-scope": "off",
     "react-hooks/rules-of-hooks": "error",
     "react-hooks/exhaustive-deps": "off",
-    "unicorn/filename-case": "off"
+    "unicorn/filename-case": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": "off"
   }
 }

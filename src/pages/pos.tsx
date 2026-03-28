@@ -127,6 +127,7 @@ export function POS() {
       });
       setKnownCategories(new Set(Array.from(categories).sort()));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [products, activeCategory]);
 
   // 5. Reset page on filter change
@@ -208,7 +209,7 @@ export function POS() {
     return () => {
       stopScanner();
     };
-  }, [settings.enableBarcodeScanner]);
+  }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
   // Handle barcode scans
   useEffect(() => {

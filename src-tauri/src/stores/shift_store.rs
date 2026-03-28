@@ -12,6 +12,12 @@ pub struct ShiftState {
     pub movements: Mutex<Vec<CashMovement>>,
 }
 
+impl Default for ShiftState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ShiftState {
     pub fn new() -> Self {
         Self {

@@ -16,7 +16,7 @@ export default function PrinterSettings() {
   // Auto-refresh on mount
   useEffect(() => {
     refreshPrinters();
-  }, []);
+  }, [refreshPrinters]);
 
   const handleAssign = (type: PrinterJobType, e: React.ChangeEvent<HTMLSelectElement>) => {
     const printerId = e.target.value;

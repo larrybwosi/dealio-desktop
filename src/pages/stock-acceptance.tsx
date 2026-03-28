@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Check, RefreshCw, Package, ArrowRight, FileText, X as XIcon, Truck, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,12 +101,28 @@ export default function StockAcceptancePage() {
   const [attachedFiles, setAttachedFiles] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const fetchShipments = useCallback(async () => {
+    if (!locationId) return;
+    setLoading(true);
+    try {
+      const response = await invoke<IncomingResponse>('fetch_incoming_shipments', {
+        locationId,
+      });
+      setShipments(response.data);
+    } catch (error) {
+      console.error('Fetch error:', error);
+      toast.error('Failed to load incoming shipments');
+    } finally {
+      setLoading(false);
+    }
+  }, [locationId]);
+
   // Initialize data
   useEffect(() => {
     if (locationId) {
       fetchShipments();
     }
-  }, [locationId]);
+  }, [locationId, fetchShipments]);
 
   // Reset form when opening dialog
   useEffect(() => {
@@ -128,21 +144,6 @@ export default function StockAcceptancePage() {
     }
   }, [selectedShipment]);
 
-  const fetchShipments = async () => {
-    if (!locationId) return;
-    setLoading(true);
-    try {
-      const response = await invoke<IncomingResponse>('fetch_incoming_shipments', {
-        locationId,
-      });
-      setShipments(response.data);
-    } catch (error) {
-      console.error('Fetch error:', error);
-      toast.error('Failed to load incoming shipments');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleOpenReceive = (shipment: IncomingShipment) => {
     setSelectedShipment(shipment);

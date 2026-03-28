@@ -45,6 +45,12 @@ pub struct AuthState {
 const KEYRING_SERVICE: &str = "dealio-desktop";
 const KEYRING_USER: &str = "device-config";
 
+impl Default for AuthState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AuthState {
     pub fn new() -> Self {
         // Try keyring first, then file

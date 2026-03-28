@@ -78,7 +78,7 @@ export const useScanner = () => {
       isMounted.current = false;
       stopScanner();
     };
-  }, []);
+  }, [stopScanner]);
 
   return { startScanner, stopScanner, ...store };
 };
