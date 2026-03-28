@@ -55,6 +55,8 @@ export function TransactionRow({
   onCopyId,
   onDownloadInvoice,
   onDownloadWaybill,
+  onPrintInvoice,
+  onPrintWaybill,
   onOpenReconcile,
   onOpenPayment,
   onOpenDispatch,

@@ -63,6 +63,12 @@ impl SalesState {
     }
 }
 
+impl Default for SalesState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // --- DB Helper ---
 async fn get_db_pool(app: &AppHandle, db_name: &str) -> Result<sqlx::SqlitePool, String> {
     let instances = app.state::<DbInstances>();
@@ -321,7 +327,7 @@ pub async fn process_sale(
     // Strategy B: Row-Level Database Insertion
     let pool = get_db_pool(&app, MAIN_DB_NAME)
         .await
-        .map_err(|e| SalesError::StorageError(e))?;
+        .map_err(SalesError::StorageError)?;
 
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)?
@@ -460,7 +466,7 @@ async fn push_single_sale(
     location_id: &str,
     payload: &serde_json::Value,
 ) -> Result<serde_json::Value> {
-    let encoded_loc = urlencoding::encode(&location_id);
+    let encoded_loc = urlencoding::encode(location_id);
     let url_path = format!(
         "{}?locationId={}&enableStockTracking=true",
         crate::api_config::routes::SALE_PROCESS,
@@ -657,7 +663,7 @@ pub async fn invalidate_sale(
         info!("[SalesStore] Sale {} invalidated.", sale_id);
         Ok(true)
     } else {
-        Err(anyhow::anyhow!("Sale not found in local DB").into())
+        Err(anyhow::anyhow!("Sale not found in local DB"))
     }
 }
 
@@ -678,7 +684,7 @@ pub async fn get_sales_history_command(
     auth_state: State<'_, AuthState>,
     location_id: Option<String>,
 ) -> Result<Vec<serde_json::Value>, String> {
-    let mut url_path = format!("{}", crate::api_config::routes::SALE_BASE);
+    let mut url_path = crate::api_config::routes::SALE_BASE.to_string();
     if let Some(loc_id) = location_id {
         let encoded_loc = urlencoding::encode(&loc_id);
         url_path = format!("{}?locationId={}", url_path, encoded_loc);
@@ -698,7 +704,7 @@ pub async fn record_payment_command(
     auth_state: State<'_, AuthState>,
     payload: serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    let url_path = format!("{}", crate::api_config::routes::SALE_PAYMENTS);
+    let url_path = crate::api_config::routes::SALE_PAYMENTS.to_string();
     let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
 
     if !res.status().is_success() {
@@ -715,7 +721,7 @@ pub async fn initiate_mpesa_payment_command(
     amount: f64,
     sale_number: String,
 ) -> Result<serde_json::Value, String> {
-    let url_path = format!("{}", crate::api_config::routes::MPESA_INITIATE);
+    let url_path = crate::api_config::routes::MPESA_INITIATE.to_string();
     let payload = serde_json::json!({ "phoneNumber": phone_number, "amount": amount, "saleNumber": sale_number });
 
     let res = auth_state.build_request(reqwest::Method::POST, &url_path)?.json(&payload).send().await.map_err(|e| e.to_string())?;
@@ -728,7 +734,7 @@ pub async fn initiate_mpesa_payment_command(
 }
 
 pub async fn scan_transaction_qr(auth_state: &AuthState, qr_code: String) -> Result<serde_json::Value> {
-    let url_path = format!("{}", crate::api_config::routes::TRANSACTION_SCAN);
+    let url_path = crate::api_config::routes::TRANSACTION_SCAN.to_string();
     let req = auth_state.build_request(reqwest::Method::POST, &url_path).map_err(SalesError::AuthError)?;
     let payload = serde_json::json!({ "code": qr_code });
 
@@ -774,6 +780,12 @@ pub struct SyncConfigState {
 impl SyncConfigState {
     pub fn new() -> Self {
         Self { interval: Arc::new(RwLock::new(Duration::from_secs(5 * 60))) }
+    }
+}
+
+impl Default for SyncConfigState {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

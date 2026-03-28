@@ -4,6 +4,12 @@ pub struct EscPosBuilder {
     pub bytes: Vec<u8>,
 }
 
+impl Default for EscPosBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EscPosBuilder {
     pub fn new() -> Self {
         Self {
@@ -195,7 +201,7 @@ impl EscPosBuilder {
         let (width, height) = grayscale.dimensions();
         
         // Width in bytes (1 bit per pixel)
-        let width_bytes = ((width + 7) / 8) as u16;
+        let width_bytes = width.div_ceil(8) as u16;
         let x_l = (width_bytes % 256) as u8;
         let x_h = (width_bytes / 256) as u8;
         let y_l = (height % 256) as u8;
@@ -214,7 +220,7 @@ impl EscPosBuilder {
                     let x = (x_byte * 8) + bit as u16;
                     if (x as u32) < width {
                         // Get the pixel's grayscale value
-                        let pixel = grayscale.get_pixel(x as u32, y as u32)[0];
+                        let pixel = grayscale.get_pixel(x as u32, y)[0];
                         
                         // Threshold: If darker than 128, burn a dot (bit = 1)
                         if pixel < 128 {

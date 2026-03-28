@@ -32,6 +32,12 @@ pub struct PricingState {
     pub last_sync_at: Mutex<Option<String>>,
 }
 
+impl Default for PricingState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PricingState {
     pub fn new() -> Self {
         Self {

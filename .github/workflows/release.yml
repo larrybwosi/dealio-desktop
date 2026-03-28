@@ -7,8 +7,83 @@ on:
       - nextgen
 
 jobs:
+  # STEP 0: Pre-flight checks (Robustness)
+  pre-flight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libudev-dev \
+            libusb-1.0-0-dev \
+            libpcsclite-dev \
+            pkg-config \
+            patchelf
+
+      - name: Create dummy binaries
+        run: |
+          mkdir -p src-tauri/binaries
+          touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
+          touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
+          touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
+          chmod +x src-tauri/binaries/*
+
+      - name: Run Linting (Frontend & Backend)
+        run: pnpm run lint:all
+
+      - name: Run Frontend Tests
+        run: pnpm test:frontend
+
+      - name: Run Backend Tests
+        run: pnpm test:backend
+
+      - name: Cache Playwright Browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: pnpm exec playwright install --with-deps
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+
   # STEP 1: Determine version and create GitHub Release
   release-management:
+    needs: pre-flight
     runs-on: ubuntu-latest
     permissions:
       contents: write

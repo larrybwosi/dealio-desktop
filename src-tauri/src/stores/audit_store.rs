@@ -63,6 +63,7 @@ fn get_audit_log_path(app: &AppHandle) -> Result<PathBuf> {
 // ============================================================
 
 /// Append a single structured audit event to the JSONL log file.
+#[allow(clippy::too_many_arguments)]
 pub fn write_event(
     app: &AppHandle,
     level: AuditLevel,
@@ -228,6 +229,7 @@ pub fn read_system_log(app: &AppHandle, lines: usize) -> Result<String> {
 
 /// Write an arbitrary audit event from the frontend.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub fn write_audit_log(
     app: AppHandle,
     action: String,

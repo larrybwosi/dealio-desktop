@@ -29,6 +29,12 @@ pub struct CustomerState {
     pub last_sync_token: Mutex<Option<String>>,
 }
 
+impl Default for CustomerState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CustomerState {
     pub fn new() -> Self {
         Self {
