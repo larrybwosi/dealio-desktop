@@ -174,20 +174,25 @@ export function POS() {
 
   const handleAddToCartWrapper = useCallback(
     (item: any) => {
+      // Normalize product for the store
       const storeProduct = {
         ...item.product,
-        variantId: item.variant.variantId,
-        variantName: item.variant.name,
-        productName: item.product.productName,
+        productName: item.product.productName || item.product.name,
         variants: item.product.variants?.map((v: any) => ({
           ...v,
           name: v.variantName || v.name || 'Default Variant',
         })),
       };
 
-      addItemToOrder(storeProduct, { ...item.unit, originalRetailPrice: item.unit.price }, item.quantity, {
-        isWholesale: pricingMode === 'wholesale',
-      });
+      addItemToOrder(
+        storeProduct,
+        item.variant.variantId, // Pass variantId explicitly if we update the store signature
+        { ...item.unit, originalRetailPrice: item.unit.price },
+        item.quantity,
+        {
+          isWholesale: pricingMode === 'wholesale',
+        }
+      );
     },
     [addItemToOrder, pricingMode]
   );
@@ -302,7 +307,7 @@ export function POS() {
         originalRetailPrice: defaultUnit.price,
       };
 
-      addItemToOrder(storeProduct, unitToAdd, 1, { isWholesale: pricingMode === 'wholesale' });
+      addItemToOrder(storeProduct, variant.variantId, unitToAdd, 1, { isWholesale: pricingMode === 'wholesale' });
 
       posthog.capture('product_added_to_cart', {
         product_id: product.productId,

@@ -14,6 +14,15 @@ export const useScanner = () => {
   const isMounted = useRef(false);
   const unlisteners = useRef<UnlistenFn[]>([]);
 
+  const stopScanner = useCallback(() => {
+    unlisteners.current.forEach(fn => fn());
+    unlisteners.current = [];
+
+    const { setIsScanning, setIsConnected } = useScannerStore.getState();
+    setIsScanning(false);
+    setIsConnected(false);
+  }, []);
+
   const startScanner = async () => {
     if (store.isScanning) return;
 

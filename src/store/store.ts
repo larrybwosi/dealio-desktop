@@ -75,6 +75,7 @@ export interface OrderItem {
   isWholesale?: boolean;
   imageUrl?: string;
   sku?: string;
+  price?: number;
   notes?: string;
 }
 
@@ -512,10 +513,10 @@ interface PosStore {
   setCustomerId: (id: string) => void;
   setCustomer: (customer: Customer) => void;
   setOrderType: (type: OrderType) => void;
-  addItemToOrder: (product: Product, unit: SellableUnit, quantity: number, options?: { isWholesale?: boolean }) => void;
-  updateItemQuantity: (productId: string, unitId: string, quantity: number) => void;
+  addItemToOrder: (product: Product, variantId: string, unit: SellableUnit, quantity: number, options?: { isWholesale?: boolean }) => void;
+  updateItemQuantity: (productId: string, variantId: string, unitId: string, quantity: number) => void;
   updateItemInOrder: (item: OrderItem) => void;
-  removeItemFromOrder: (productId: string, unitId: string) => void;
+  removeItemFromOrder: (productId: string, variantId: string, unitId: string) => void;
   setProducts: (products: Product[]) => void;
   resetOrder: () => void;
   resetStore: () => void;
@@ -932,11 +933,12 @@ export const usePosStore = create<PosStore>()(
           currentOrder: { ...state.currentOrder, orderType: type },
         })),
 
-      addItemToOrder: (product, unit, quantity, options) =>
+      addItemToOrder: (product, variantId, unit, quantity, options) =>
         set(state => {
           const existingItemIndex = state.currentOrder.items.findIndex(
             i =>
               i.productId === product.productId &&
+              i.variantId === variantId &&
               i.selectedUnit.unitId === unit.unitId &&
               i.isWholesale === options?.isWholesale
           );
@@ -950,15 +952,16 @@ export const usePosStore = create<PosStore>()(
           }
 
           // Find the variant name from the variants array
-          const variant = product.variants?.find(v => v.variantId === product.variantId);
+          const variant = product.variants?.find(v => v.variantId === variantId);
           const variantName = variant?.name || 'Default Variant';
 
           const newItem: OrderItem = {
             productId: product.productId,
-            variantId: product.variantId,
+            variantId: variantId,
             productName: product.name || product.productName, // Use productName which is required
             variantName: variantName || 'Default Variant',
             selectedUnit: unit,
+            price: (unit as any).price, // Ensure price is set at root
             quantity,
             imageUrl: product.imageUrl,
             isWholesale: options?.isWholesale || false,
@@ -972,34 +975,69 @@ export const usePosStore = create<PosStore>()(
           };
         }),
 
-      updateItemQuantity: (productId, unitId, quantity) =>
+      updateItemQuantity: (productId, variantId, unitId, quantity) =>
         set(state => ({
           currentOrder: {
             ...state.currentOrder,
             items: state.currentOrder.items.map(item =>
-              item.productId === productId && item.selectedUnit.unitId === unitId ? { ...item, quantity } : item
+              item.productId === productId && item.variantId === variantId && item.selectedUnit.unitId === unitId ? { ...item, quantity } : item
             ),
           },
         })),
 
       updateItemInOrder: updatedItem =>
-        set(state => ({
-          currentOrder: {
-            ...state.currentOrder,
-            items: state.currentOrder.items.map(item =>
-              item.productId === updatedItem.productId && item.selectedUnit.unitId === updatedItem.selectedUnit.unitId
-                ? { ...item, ...updatedItem }
-                : item
-            ),
-          },
-        })),
+        set(state => {
+          const originalUnitId = (updatedItem as any).originalUnitId || updatedItem.selectedUnit.unitId;
 
-      removeItemFromOrder: (productId, unitId) =>
+          // 1. Identify the item being edited
+          const items = state.currentOrder.items.map(item => {
+            if (
+              item.productId === updatedItem.productId &&
+              item.variantId === updatedItem.variantId &&
+              item.selectedUnit.unitId === originalUnitId
+            ) {
+              return { ...item, ...updatedItem };
+            }
+            return item;
+          });
+
+          // 2. Check for duplicates (if unit was changed to one that already exists)
+          // We'll do a simple merge if we find two items with same (product, variant, unit, isWholesale)
+          const mergedItems: OrderItem[] = [];
+          items.forEach(item => {
+            const existing = mergedItems.find(
+              m =>
+                m.productId === item.productId &&
+                m.variantId === item.variantId &&
+                m.selectedUnit.unitId === item.selectedUnit.unitId &&
+                m.isWholesale === item.isWholesale
+            );
+
+            if (existing) {
+              existing.quantity += item.quantity;
+              // Keep notes if they were added
+              if (item.notes) {
+                existing.notes = existing.notes ? `${existing.notes}; ${item.notes}` : item.notes;
+              }
+            } else {
+              mergedItems.push({ ...item });
+            }
+          });
+
+          return {
+            currentOrder: {
+              ...state.currentOrder,
+              items: mergedItems,
+            },
+          };
+        }),
+
+      removeItemFromOrder: (productId, variantId, unitId) =>
         set(state => ({
           currentOrder: {
             ...state.currentOrder,
             items: state.currentOrder.items.filter(
-              item => !(item.productId === productId && item.selectedUnit.unitId === unitId)
+              item => !(item.productId === productId && item.variantId === variantId && item.selectedUnit.unitId === unitId)
             ),
           },
         })),
