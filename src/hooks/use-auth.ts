@@ -21,15 +21,12 @@ interface CheckInVariables {
 export function useAuth() {
   const queryClient = useQueryClient();
 
-  // Get state and actions directly from the Zustand store
-  const { currentMember, currentLocation, isRestoredSession, setMemberSession, clearMemberSession } =
-    useAuthStore(state => ({
-      currentMember: state.currentMember,
-      isRestoredSession: state.isRestoredSession,
-      setMemberSession: state.setMemberSession,
-      clearMemberSession: state.clearMemberSession,
-      currentLocation: state.currentLocation,
-    }));
+  // Get state and actions directly from the Zustand store using individual selectors
+  const currentMember = useAuthStore(state => state.currentMember);
+  const currentLocation = useAuthStore(state => state.currentLocation);
+  const isRestoredSession = useAuthStore(state => state.isRestoredSession);
+  const setMemberSession = useAuthStore(state => state.setMemberSession);
+  const clearMemberSession = useAuthStore(state => state.clearMemberSession);
 
   /**
    * Derived boolean to check if a member is currently authenticated (checked in).

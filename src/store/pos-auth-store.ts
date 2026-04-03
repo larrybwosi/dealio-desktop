@@ -176,6 +176,9 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       },
 
       initializeFromBackend: async () => {
+        const { isInitialized } = get();
+        if (isInitialized) return;
+
         try {
           // rust struct: SanitizedDeviceConfig { location_id, allow_negative_stock }
           const config = await invoke<{ location_id: string; allow_negative_stock: boolean } | null>(
