@@ -96,7 +96,7 @@ export default function HubOverviewPage() {
       const connectedDevices = await invoke<ConnectedDevice[]>('get_connected_devices');
       setDevices(connectedDevices);
     } catch (error) {
-      console.error('Failed to fetch devices:', error);
+      // Failed to fetch devices
     } finally {
       setIsRefreshing(false);
     }

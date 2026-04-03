@@ -14,7 +14,6 @@ export default function AblyInitializer() {
   // ── Initialize Ably once auth is ready ─────────────────────────────────────
   useEffect(() => {
     if (isAuthInitialized && currentMember) {
-      console.log('[AblyProvider] Auth ready, initializing Ably');
       initializeAbly();
     }
   }, [initializeAbly, isAuthInitialized, currentMember]);
@@ -27,10 +26,10 @@ export default function AblyInitializer() {
 
     presenceChannel.presence
       .enter({ id: currentMember.id, name: currentMember.name, updatedAt: new Date().toISOString() })
-      .catch(console.error);
+      .catch(() => {});
 
     return () => {
-      presenceChannel.presence.leave().catch(console.error);
+      presenceChannel.presence.leave().catch(() => {});
     };
   }, [client, currentLocation?.id, currentMember]);
 
@@ -43,7 +42,6 @@ export default function AblyInitializer() {
         current.client &&
         ['disconnected', 'suspended', 'failed'].includes(current.connectionState)
       ) {
-        console.log('[AblyProvider] Page visible – reconnecting Ably…');
         current.client.connect();
       }
     };
@@ -56,7 +54,6 @@ export default function AblyInitializer() {
   useEffect(() => {
     if (connectionState === 'failed' && isAuthInitialized && currentMember) {
       const timeoutId = setTimeout(() => {
-        console.log('[AblyProvider] Connection failed – reinitialising…');
         initializeAbly();
       }, 5_000);
       return () => clearTimeout(timeoutId);

@@ -73,6 +73,14 @@ export const useScanner = () => {
     }
   };
 
+  const stopScanner = useCallback(() => {
+    unlisteners.current.forEach(fn => fn());
+    unlisteners.current = [];
+
+    store.setIsScanning(false);
+    store.setIsConnected(false);
+  }, [store]);
+
   useEffect(() => {
     isMounted.current = true;
     return () => {

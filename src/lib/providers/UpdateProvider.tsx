@@ -177,7 +177,6 @@ export const UpdaterProvider = ({
       clearSnooze();
       await relaunch();
     } catch (e: any) {
-      console.error('Update failed:', e);
       setError(e.message ?? 'Failed to update');
       setStatus('ERROR');
       setIsModalOpen(true);
@@ -270,7 +269,6 @@ export const UpdaterProvider = ({
 
       setIsModalOpen(true);
     } catch (e: any) {
-      console.error('Failed to check for updates:', e);
       setError(e.message);
       setStatus('ERROR');
     }

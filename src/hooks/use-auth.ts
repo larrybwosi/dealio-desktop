@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 // import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
 import posthog from 'posthog-js';
@@ -21,15 +21,12 @@ interface CheckInVariables {
 export function useAuth() {
   const queryClient = useQueryClient();
 
-  // Get state and actions directly from the Zustand store
-  const { currentMember, currentLocation, isRestoredSession, setMemberSession, clearMemberSession } =
-    useAuthStore(state => ({
-      currentMember: state.currentMember,
-      isRestoredSession: state.isRestoredSession,
-      setMemberSession: state.setMemberSession,
-      clearMemberSession: state.clearMemberSession,
-      currentLocation: state.currentLocation,
-    }));
+  // Get state and actions directly from the Zustand store using individual selectors
+  const currentMember = useAuthStore(state => state.currentMember);
+  const currentLocation = useAuthStore(state => state.currentLocation);
+  const isRestoredSession = useAuthStore(state => state.isRestoredSession);
+  const setMemberSession = useAuthStore(state => state.setMemberSession);
+  const clearMemberSession = useAuthStore(state => state.clearMemberSession);
 
   /**
    * Derived boolean to check if a member is currently authenticated (checked in).
@@ -152,8 +149,8 @@ export const useSessionActivityListener = () => {
 
   // Throttled function to prevent too many state updates.
   // It will only fire once every 5 seconds max, even if the user is typing furiously.
-  const handleActivity = useCallback(
-    throttle(() => {
+  const handleActivity = useMemo(
+    () => throttle(() => {
       if (currentMember) {
         refreshSession();
       }
