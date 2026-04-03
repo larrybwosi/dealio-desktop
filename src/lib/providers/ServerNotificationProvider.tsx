@@ -65,13 +65,11 @@ export function ServerNotificationProvider({ children }: { children: React.React
 
       // Guard: ignore bad payloads
       if (!notification?.id || !notification?.title) {
-        console.warn('[ServerNotificationProvider] Received malformed notification:', msg);
         return;
       }
 
       // Guard: deduplicate
       if (isDuplicate(notification.id)) {
-        console.debug('[ServerNotificationProvider] Duplicate notification suppressed:', notification.id);
         return;
       }
 
@@ -97,7 +95,7 @@ export function ServerNotificationProvider({ children }: { children: React.React
         } : undefined
       });
     } catch (err) {
-      console.error('[ServerNotificationProvider] Error handling message:', err);
+      // Error handling message
     }
   }, [isDuplicate]);
 
@@ -110,21 +108,19 @@ export function ServerNotificationProvider({ children }: { children: React.React
       const page = await channel.history({ limit: 100 });
       const items: Message[] = page.items ?? [];
       if (items.length > 0) {
-        console.log(`[ServerNotificationProvider] Replaying ${items.length} missed message(s) from ${channelName}`);
         // Oldest first so they arrive in chronological order
         for (const msg of [...items].reverse()) {
           await handleIncomingMessage(msg);
         }
       }
     } catch (err) {
-      console.warn('[ServerNotificationProvider] History replay failed for', channelName, err);
+      // History replay failed
     }
   }, [ably, handleIncomingMessage]);
 
   // ── Ably subscription ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!ably || !storeId) return;
-    console.log('[ServerNotificationProvider] Subscribing to channels for store:', storeId);
 
     const storeChannel = ably.channels.get(`store:${storeId}`);
     const systemChannel = ably.channels.get(`system:global`);
@@ -135,7 +131,6 @@ export function ServerNotificationProvider({ children }: { children: React.React
     return () => {
       storeChannel.unsubscribe(handleIncomingMessage);
       systemChannel.unsubscribe(handleIncomingMessage);
-      console.log('[ServerNotificationProvider] Unsubscribed from channels');
     };
   }, [ably, storeId, handleIncomingMessage]);
 

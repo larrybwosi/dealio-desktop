@@ -128,7 +128,7 @@ const DynamicRenderer = () => {
         }, 500);
       }, 500);
     }
-  }, []);
+  }, [fetchTables]);
 
   return (
     <Router>
