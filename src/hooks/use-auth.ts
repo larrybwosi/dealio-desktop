@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 // import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
 import posthog from 'posthog-js';
@@ -149,8 +149,8 @@ export const useSessionActivityListener = () => {
 
   // Throttled function to prevent too many state updates.
   // It will only fire once every 5 seconds max, even if the user is typing furiously.
-  const handleActivity = useCallback(
-    throttle(() => {
+  const handleActivity = useMemo(
+    () => throttle(() => {
       if (currentMember) {
         refreshSession();
       }

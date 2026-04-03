@@ -188,16 +188,14 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
             // If currentLocation is not already hydrated from localStorage, fetch it
             const { currentLocation } = get();
             if (!currentLocation?.id && config.location_id) {
-              console.log('[AuthStore] Fetching location from API via backend...');
               try {
                 const data = await invoke<{ locations: InventoryLocation[] }>('get_locations_command');
                 const location = data.locations?.find(loc => loc.id === config.location_id);
                 if (location) {
                   set({ currentLocation: location });
-                  console.log('[AuthStore] Location restored from API');
                 }
               } catch (fetchError) {
-                console.error('[AuthStore] Failed to fetch location:', fetchError);
+                // Failed to fetch location
               }
             }
             set({ isInitialized: true, isConfigured: true });
@@ -205,73 +203,61 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
             // Sync existing session to Rust if present
             const { currentMember } = get();
             if (currentMember) {
-              console.log('[AuthStore] Restoring backend session...');
               invoke('restore_member_session', {
                 member: {
                   id: currentMember.id,
                   name: currentMember.name,
                   role: (currentMember as any).role || 'staff',
                 },
-              }).catch(e => console.error('Failed to restore backend session:', e));
+              }).catch(() => {});
             }
           } else {
             set({ isInitialized: true, isConfigured: false });
           }
         } catch (error) {
-          console.error('Failed to initialize auth store:', error);
           set({ isInitialized: true, isConfigured: false });
         }
       },
 
       provisionDevice: async (setupToken: string) => {
-        try {
-          const response = await invoke<any>('authenticated_api_request', {
-            method: 'POST',
-            path: 'api/v2/devices/provision',
-            body: { setupToken },
+        const response = await invoke<any>('authenticated_api_request', {
+          method: 'POST',
+          path: 'api/v2/devices/provision',
+          body: { setupToken },
+        });
+
+        if (response.success) {
+          const { apiKey, device } = response.data;
+
+          await invoke('set_device_config', {
+            baseUrl: API_ENDPOINT,
+            locationId: device.locationId,
+            deviceKey: apiKey,
           });
 
-          if (response.success) {
-            const { apiKey, device } = response.data;
+          // We need to fetch the location details
+          const data = await invoke<{ locations: InventoryLocation[] }>('get_locations_command');
+          const location = data.locations?.find(loc => loc.id === device.locationId);
 
-            await invoke('set_device_config', {
-              baseUrl: API_ENDPOINT,
-              locationId: device.locationId,
-              deviceKey: apiKey,
-            });
-
-            // We need to fetch the location details
-            const data = await invoke<{ locations: InventoryLocation[] }>('get_locations_command');
-            const location = data.locations?.find(loc => loc.id === device.locationId);
-
-            set({
-              // Do not set isConfigured here so that the Success UI can play out.
-              // completeSetup() will be called after the animation.
-              currentLocation: location || ({ ...device, id: device.locationId, name: device.name || 'Terminal' } as any),
-            });
-          } else {
-            throw new Error(response.error?.message || 'Provisioning failed');
-          }
-        } catch (error) {
-          console.error('Failed to provision device:', error);
-          throw error;
+          set({
+            // Do not set isConfigured here so that the Success UI can play out.
+            // completeSetup() will be called after the animation.
+            currentLocation: location || ({ ...device, id: device.locationId, name: device.name || 'Terminal' } as any),
+          });
+        } else {
+          throw new Error(response.error?.message || 'Provisioning failed');
         }
       },
 
       registerDevice: async (apiKey: string, location: InventoryLocation) => {
-        try {
-          await invoke('set_device_config', {
-            baseUrl: API_ENDPOINT,
-            locationId: location.id,
-            deviceKey: apiKey,
-          });
+        await invoke('set_device_config', {
+          baseUrl: API_ENDPOINT,
+          locationId: location.id,
+          deviceKey: apiKey,
+        });
 
-          // Update local state
-          set({ isConfigured: true, currentLocation: location });
-        } catch (error) {
-          console.error('Failed to register device:', error);
-          throw error;
-        }
+        // Update local state
+        set({ isConfigured: true, currentLocation: location });
       },
 
       switchLocation: async location => {
@@ -302,18 +288,13 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
             })
           );
         } catch (error) {
-          console.error('Failed to switch location:', error);
+          // Failed to switch location
         }
       },
 
       setAllowNegativeStock: async allow => {
-        try {
-          await invoke('set_negative_stock_command', { allowNegativeStock: allow });
-          set({ allowNegativeStock: allow });
-        } catch (error) {
-          console.error('Failed to update negative stock setting:', error);
-          throw error;
-        }
+        await invoke('set_negative_stock_command', { allowNegativeStock: allow });
+        set({ allowNegativeStock: allow });
       },
     }),
     {
