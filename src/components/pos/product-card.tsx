@@ -1,13 +1,13 @@
-import { memo, useState, useMemo, useEffect } from 'react';
+import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
 import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { UnitSelectionDialog } from './unit-selection-dialog';
 
 // --- Types ---
 interface Unit {
@@ -43,11 +43,13 @@ interface ProductProps {
 }
 
 export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
-  const [selectedVariantId, setSelectedVariantId] = useState<string>(product.variants[0]?.variantId);
+  const selectedVariantId = product.variants[0]?.variantId;
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
   const [imgError, setImgError] = useState(false);
+  const [showUnitSelection, setShowUnitSelection] = useState(false);
+
   const formatCurrency = useFormattedCurrency();
 
   // Derive Current Variant
@@ -74,6 +76,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   const isOutOfStock = stock <= 0;
   const isLowStock = stock > 0 && stock < 10;
 
+  const hasMultipleUnits = useMemo(() => {
+    if (product.variants.length > 1) return true;
+    return (product.variants[0]?.sellableUnits?.length || 0) > 1;
+  }, [product.variants]);
+
   // Calculate Price
   const price = useMemo(() => {
     if (!currentUnit) return 0;
@@ -95,6 +102,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   const handleAdd = () => {
     if (!currentVariant || !currentUnit) return;
 
+    if (hasMultipleUnits && qty === 0) {
+      setShowUnitSelection(true);
+      return;
+    }
+
     const quantityToAdd = qty > 0 ? qty : 1;
     if (quantityToAdd > stock) return;
 
@@ -107,17 +119,38 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
     setQty(0);
   };
 
+  const handleSelectionConfirm = useCallback(
+    (variant: any, unit: any, quantity: number) => {
+      onAddToCart({
+        product: { ...product, imageUrls: [product.imageUrl] },
+        variant,
+        unit,
+        quantity,
+      });
+      setQty(0);
+    },
+    [onAddToCart, product]
+  );
+
   const handleQtyChange = (val: number) => {
     if (val < 0) return;
     if (val > stock) return;
+
+    if (val > 0 && hasMultipleUnits && qty === 0) {
+      setShowUnitSelection(true);
+      return;
+    }
+
     setQty(val);
   };
 
   return (
     <Card
+      onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
       className={cn(
         'group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300',
-        'hover:shadow-md hover:border-primary/40 bg-card rounded-sm'
+        'hover:shadow-md hover:border-primary/40 bg-card rounded-sm',
+        hasMultipleUnits && 'cursor-pointer'
       )}
     >
       {/* --- Image Section --- */}
@@ -183,69 +216,31 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
 
         <Separator className="bg-border/50" />
 
-        {/* Dynamic Controls (Variants/Units) and Price in one row */}
-        <div className="space-y-1.5">
-          {/* If we have multiple variants OR multiple units, we show selectors */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1.5">
-            {/* Variant and Unit Selectors */}
-            <div className="grid grid-cols-2 gap-1.5 flex-1">
-              {product.variants.length > 1 ? (
-                <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                  <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
-                    <span className="truncate">{currentVariant.name}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {product.variants.map(v => (
-                      <SelectItem key={v.variantId} value={v.variantId} className="text-xs">
-                        {v.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div />
+        {/* Price Display */}
+        <div className="flex items-center justify-between mt-auto">
+          <div className="flex flex-col">
+            <span className="text-[10px] text-muted-foreground font-medium leading-tight">Price</span>
+            <span
+              className={cn(
+                'font-bold tracking-tight leading-tight text-base',
+                pricingMode === 'wholesale' ? 'text-blue-600' : 'text-foreground'
               )}
-
-              {currentVariant?.sellableUnits?.length > 1 ? (
-                <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
-                  <SelectTrigger className="h-7 text-xs bg-muted/20 border-border/60">
-                    <span className="truncate">{currentUnit?.unitName}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {currentVariant.sellableUnits.map(u => (
-                      <SelectItem key={u.unitId} value={u.unitId} className="text-xs">
-                        {u.unitName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div />
-              )}
-            </div>
-
-            {/* Price Display */}
-            <div className="flex flex-col items-end min-w-[100px]">
-              <span className="text-[10px] text-muted-foreground font-medium text-right leading-tight">Price</span>
-              <span
-                className={cn(
-                  'font-bold tracking-tight leading-tight',
-                  pricingMode === 'wholesale' ? 'text-blue-600' : 'text-foreground'
-                )}
-              >
-                {formatCurrency(price)}
-              </span>
-              <span className="text-[9px] text-muted-foreground text-right leading-tight">
-                per {currentUnit?.unitName}
-              </span>
-            </div>
+            >
+              {formatCurrency(price)}
+            </span>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-[9px] text-muted-foreground text-right leading-tight">Unit</span>
+            <span className="text-xs font-semibold text-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/40">
+              {currentUnit?.unitName}
+            </span>
           </div>
         </div>
 
         {/* Footer: Actions Only */}
         <div className="mt-auto pt-1">
           {/* Action Bar */}
-          <div className="flex items-center gap-1.5 h-9">
+          <div className="flex items-center gap-1.5 h-9" onClick={e => e.stopPropagation()}>
             {/* Quantity Segmented Control */}
             <div
               className={cn(
@@ -293,11 +288,22 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
               variant={qty > 0 ? 'default' : 'secondary'}
             >
               <ShoppingCart className="w-3.5 h-3.5 mr-2" />
-              Add
+              {hasMultipleUnits && qty === 0 ? 'Select' : 'Add'}
             </Button>
           </div>
         </div>
       </div>
+
+      <UnitSelectionDialog
+        open={showUnitSelection}
+        onOpenChange={setShowUnitSelection}
+        product={product as any}
+        pricingMode={pricingMode}
+        onConfirm={handleSelectionConfirm}
+        initialVariantId={selectedVariantId}
+        initialUnitId={selectedUnitId}
+        customPriceCalculator={customPriceCalculator}
+      />
     </Card>
   );
 });
