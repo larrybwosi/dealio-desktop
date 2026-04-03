@@ -82,15 +82,6 @@ export function TransactionRow({
   };
 
   const hasItems = tx.items && tx.items.length > 0;
-
-  const onPrintInvoice = (tx: Transaction) => {
-    console.log('Print invoice', tx);
-  }
-
-  const onPrintWaybill = (tx: Transaction) => {
-    console.log('Print waybill', tx);
-  }
-
   return (
     <>
       <TableRow
