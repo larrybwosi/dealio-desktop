@@ -1,3 +1,18 @@
+# [3.3.0-nextgen.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.1...v3.3.0-nextgen.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* **binary error and ts error:** restored the sumatra engine ([9ec8db7](https://github.com/larrybwosi/dealio-desktop/commit/9ec8db73a053d59c1f4e85d07f5a841549d6064a))
+
+
+### Features
+
+* broaden test coverage and enhance CI/CD robustness ([96b6db6](https://github.com/larrybwosi/dealio-desktop/commit/96b6db68f8172f894c793d05e6ad95e84c8431ce))
+* enhance CI/CD robustness and expand test coverage ([dd294d2](https://github.com/larrybwosi/dealio-desktop/commit/dd294d22c9a77e69fd8d945e50e410a262a5d4e2))
+* enterprise-grade CI/CD and comprehensive testing ([6afa9c9](https://github.com/larrybwosi/dealio-desktop/commit/6afa9c9ddaae08b9990b259777b9137a306cd15c))
+* robust CI/CD, expanded testing, and comprehensive linting ([0e6c99f](https://github.com/larrybwosi/dealio-desktop/commit/0e6c99fb69444ed7fd6b2b41272571c734a49c2e))
+
 # [3.3.0-nextgen.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.2.0...v3.3.0-nextgen.1) (2026-03-27)
 
 
