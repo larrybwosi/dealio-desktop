@@ -1,4 +1,4 @@
-# [3.4.0](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0...v3.4.0) (2026-03-24)
+# [3.4.0-beta.1](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0...v3.4.0-beta.1) (2026-03-24)
 
 
 ### Features
