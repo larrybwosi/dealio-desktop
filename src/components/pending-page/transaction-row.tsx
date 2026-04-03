@@ -82,7 +82,6 @@ export function TransactionRow({
   };
 
   const hasItems = tx.items && tx.items.length > 0;
-
   return (
     <>
       <TableRow

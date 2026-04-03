@@ -83,7 +83,11 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     tauri::async_runtime::spawn(async move {
         let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         info!("KDS Hub WebSocket running on ws://{}:8080/kds-ws", ip);
-        let _ = axum::serve(listener, router).await;
+        let _ = axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await;
     });
 
     Ok(format!("ws://{}:8080/kds-ws", ip))

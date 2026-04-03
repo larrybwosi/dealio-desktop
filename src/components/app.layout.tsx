@@ -31,9 +31,9 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const { checkOut } = useAuth();
-  const { deviceType } = useAuthStore();
+  const deviceType = useAuthStore(state => state.deviceType);
   const location = useLocation();
-  const { currentOrder } = usePosStore();
+  const currentOrder = usePosStore(state => state.currentOrder);
 
   useEffect(() => {
     if (deviceType === 'TABLET') {
