@@ -16,9 +16,10 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer } from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { AgeVerificationDialog } from '@/components/age-verification-dialog';
 import type { Order, CartItem, Customer, OrderType } from '@/types';
 import { ReceiptDialog } from '@/components/receipt-dialog';
@@ -49,6 +50,7 @@ export function Cart() {
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [editQuantity, setEditQuantity] = useState(1);
   const [editNotes, setEditNotes] = useState('');
+  const [editUnitId, setEditUnitId] = useState('');
 
   // --- Hold Sale States ---
   const [showHoldDialog, setShowHoldDialog] = useState(false);
@@ -189,16 +191,42 @@ export function Cart() {
     setEditingItem(item);
     setEditQuantity(item.quantity);
     setEditNotes(item.notes || '');
+    setEditUnitId(item.selectedUnit?.unitId || '');
     setIsEditDialogOpen(true);
   };
 
   const handleSaveEdit = () => {
     if (!editingItem) return;
+
+    // Find the product to get the full unit info
+    const product = usePosStore.getState().products.find(p => p.productId === editingItem.productId);
+    const variant = (product?.variants as any[])?.find(v => v.variantId === editingItem.variantId);
+    const unit = variant?.sellableUnits.find((u: any) => u.unitId === editUnitId);
+    const newUnit = unit || editingItem.selectedUnit;
+
+    // Recalculate price based on the current pricing mode (if needed, although store usually handles it on add)
+    // Here we should probably just use the unit's price as the default,
+    // but the store expect `price` at the root of OrderItem too.
+
+    // We check the URL or state to see if we are in wholesale mode.
+    // In this component, we don't have a direct `pricingMode` state like POS.tsx,
+    // but we can infer it from the item itself if it was already marked as wholesale,
+    // or better, check if the business supports it.
+
+    const isWholesale = editingItem.isWholesale;
+    let newPrice = Number(newUnit.price);
+    if (isWholesale && newUnit.wholesalePrice) {
+      newPrice = Number(newUnit.wholesalePrice);
+    }
+
     updateItemInOrder({
       ...editingItem,
       quantity: editQuantity,
       notes: editNotes,
-    });
+      price: newPrice, // CRITICAL: Update the root price
+      selectedUnit: newUnit,
+      originalUnitId: editingItem.selectedUnit?.unitId,
+    } as any);
     setIsEditDialogOpen(false);
     setEditingItem(null);
   };
@@ -517,7 +545,7 @@ export function Cart() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                            onClick={() => removeItemFromOrder(item.productId, unitId)}
+                            onClick={() => removeItemFromOrder(item.productId, item.variantId, unitId)}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </Button>
@@ -647,9 +675,46 @@ export function Cart() {
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Edit Item</DialogTitle>
-            <DialogDescription>Make changes to {editingItem?.productName}</DialogDescription>
+            <DialogDescription className="flex flex-col gap-1">
+              <span>{editingItem?.productName}</span>
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Package className="w-3 h-3" /> {editingItem?.variantName}
+              </span>
+            </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Unit Selection in Edit Dialog */}
+            {(() => {
+              const product = usePosStore.getState().products.find(p => p.productId === editingItem?.productId);
+              const variant = (product?.variants as any[])?.find(v => v.variantId === editingItem?.variantId);
+              const units = variant?.sellableUnits || [];
+
+              if (units.length <= 1) return null;
+
+              return (
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold uppercase tracking-wider opacity-70">Selling Unit</Label>
+                  <ToggleGroup
+                    type="single"
+                    value={editUnitId}
+                    onValueChange={val => val && setEditUnitId(val)}
+                    className="flex-wrap gap-2 justify-start"
+                  >
+                    {units.map((u: any) => (
+                      <ToggleGroupItem
+                        key={u.unitId}
+                        value={u.unitId}
+                        variant="outline"
+                        className="h-8 px-3 text-xs rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                      >
+                        {u.unitName}
+                      </ToggleGroupItem>
+                    ))}
+                  </ToggleGroup>
+                </div>
+              );
+            })()}
+
             <div className="flex items-center justify-between">
               <Label htmlFor="quantity" className="text-right">
                 Quantity

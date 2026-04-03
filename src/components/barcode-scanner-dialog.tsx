@@ -84,7 +84,7 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
     }
 
     const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
-    addItemToOrder(product, defaultUnit, 1);
+    addItemToOrder(product, product.variantId, defaultUnit, 1);
 
     // Success feedback
     setBarcode('');

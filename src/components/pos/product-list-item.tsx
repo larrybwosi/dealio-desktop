@@ -1,11 +1,11 @@
-import { memo, useState, useMemo, useEffect } from 'react';
+import { memo, useState, useMemo, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Minus, Plus, ShoppingCart, Package, ImageOff, Tag } from 'lucide-react';
 import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { convertFileSrc } from '@tauri-apps/api/core';
+import { UnitSelectionDialog } from './unit-selection-dialog';
 
 // --- Types ---
 // Reusing types from ProductCard for consistency
@@ -42,11 +42,13 @@ interface ProductProps {
 }
 
 export const ProductListItem = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
-  const [selectedVariantId, setSelectedVariantId] = useState<string>(product.variants[0]?.variantId);
+  const selectedVariantId = product.variants[0]?.variantId;
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
   const [qty, setQty] = useState<number>(0);
   const [imgError, setImgError] = useState(false);
+  const [showUnitSelection, setShowUnitSelection] = useState(false);
+
   const formatCurrency = useFormattedCurrency();
 
   // Derive Current Variant
@@ -73,6 +75,11 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
   const isOutOfStock = stock <= 0;
   const isLowStock = stock > 0 && stock < 10;
 
+  const hasMultipleUnits = useMemo(() => {
+    if (product.variants.length > 1) return true;
+    return (product.variants[0]?.sellableUnits?.length || 0) > 1;
+  }, [product.variants]);
+
   // Calculate Price
   const price = useMemo(() => {
     if (!currentUnit) return 0;
@@ -94,6 +101,11 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
   const handleAdd = () => {
     if (!currentVariant || !currentUnit) return;
 
+    if (hasMultipleUnits && qty === 0) {
+      setShowUnitSelection(true);
+      return;
+    }
+
     const quantityToAdd = qty > 0 ? qty : 1;
     if (quantityToAdd > stock) return;
 
@@ -106,17 +118,38 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
     setQty(0);
   };
 
+  const handleSelectionConfirm = useCallback(
+    (variant: any, unit: any, quantity: number) => {
+      onAddToCart({
+        product: { ...product, imageUrls: [product.imageUrl] },
+        variant,
+        unit,
+        quantity,
+      });
+      setQty(0);
+    },
+    [onAddToCart, product]
+  );
+
   const handleQtyChange = (val: number) => {
     if (val < 0) return;
     if (val > stock) return;
+
+    if (val > 0 && hasMultipleUnits && qty === 0) {
+      setShowUnitSelection(true);
+      return;
+    }
+
     setQty(val);
   };
 
   return (
     <div
+      onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
       className={cn(
         'group relative flex items-center w-full overflow-hidden border rounded-xs bg-card transition-all duration-200',
-        'hover:shadow-sm hover:border-primary/40 p-1.5 gap-2.5'
+        'hover:shadow-sm hover:border-primary/40 p-1.5 gap-2.5',
+        hasMultipleUnits && 'cursor-pointer'
       )}
     >
       {/* --- Image Section (Small Thumbnail) --- */}
@@ -190,41 +223,20 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
 
         {/* --- Controls Section --- */}
         <div className="flex items-center gap-2 mt-0.5">
-          {/* Variant/Unit Selectors */}
+          {/* Unit Info (Simplified for List) */}
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            {product.variants.length > 1 && (
-              <Select value={selectedVariantId} onValueChange={setSelectedVariantId}>
-                <SelectTrigger className="h-6 text-[10px] bg-muted/20 border-border/60 w-[110px]">
-                  <span className="truncate">{currentVariant.name}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  {product.variants.map(v => (
-                    <SelectItem key={v.variantId} value={v.variantId} className="text-[10px]">
-                      {v.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-
-            {currentVariant?.sellableUnits?.length > 1 && (
-              <Select value={selectedUnitId} onValueChange={setSelectedUnitId} disabled={isOutOfStock}>
-                <SelectTrigger className="h-6 text-[10px] bg-muted/20 border-border/60 w-[90px]">
-                  <span className="truncate">{currentUnit?.unitName}</span>
-                </SelectTrigger>
-                <SelectContent>
-                  {currentVariant.sellableUnits.map(u => (
-                    <SelectItem key={u.unitId} value={u.unitId} className="text-[10px]">
-                      {u.unitName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+             <span className="text-[10px] font-medium text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full border border-border/40">
+               {currentUnit?.unitName}
+             </span>
+             {product.variants.length > 1 && (
+                <span className="text-[10px] text-muted-foreground italic truncate">
+                  {currentVariant.name}
+                </span>
+             )}
           </div>
 
           {/* Quantity & Add */}
-          <div className="flex items-center gap-1.5 h-7 shrink-0">
+          <div className="flex items-center gap-1.5 h-7 shrink-0" onClick={e => e.stopPropagation()}>
             {/* Quantity Segmented Control */}
             <div
               className={cn(
@@ -272,11 +284,22 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
               size="sm"
             >
               <ShoppingCart className="w-3.5 h-3.5 mr-1" />
-              Add
+              {hasMultipleUnits && qty === 0 ? 'Select' : 'Add'}
             </Button>
           </div>
         </div>
       </div>
+
+      <UnitSelectionDialog
+        open={showUnitSelection}
+        onOpenChange={setShowUnitSelection}
+        product={product as any}
+        pricingMode={pricingMode}
+        onConfirm={handleSelectionConfirm}
+        initialVariantId={selectedVariantId}
+        initialUnitId={selectedUnitId}
+        customPriceCalculator={customPriceCalculator}
+      />
     </div>
   );
 });
