@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -125,7 +126,7 @@ export function UnitSelectionDialog({
 
   const handleQtyChange = (val: number) => {
     const newQty = Math.max(1, val);
-    if (newQty <= stock || stock === 0) { // allow if stock tracking is off or handle stock limit
+    if (newQty <= stock || stock === 0) {
        setQuantity(newQty);
     }
   };
@@ -173,7 +174,7 @@ export function UnitSelectionDialog({
                     key={v.variantId}
                     value={v.variantId}
                     variant="outline"
-                    className="h-9 px-4 rounded-full data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+                    className="h-9 px-4 rounded-md data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary"
                   >
                     {v.name}
                   </ToggleGroupItem>
@@ -236,7 +237,7 @@ export function UnitSelectionDialog({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 rounded-full"
+                  className="h-10 w-10 rounded-md"
                   onClick={() => handleQtyChange(quantity - 1)}
                   disabled={quantity <= 1}
                 >
@@ -246,12 +247,12 @@ export function UnitSelectionDialog({
                   type="number"
                   value={quantity}
                   onChange={(e) => handleQtyChange(parseInt(e.target.value) || 1)}
-                  className="w-16 text-center text-lg font-bold h-10 border-none bg-transparent focus-visible:ring-0"
+                  className="w-16 text-center text-lg font-bold h-10 border-none bg-transparent focus-visible:ring-0 no-spinners"
                 />
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-10 w-10 rounded-full"
+                  className="h-10 w-10 rounded-md"
                   onClick={() => handleQtyChange(quantity + 1)}
                   disabled={stock > 0 && quantity >= stock}
                 >
@@ -285,9 +286,14 @@ export function UnitSelectionDialog({
           )}
         </div>
 
-        <DialogFooter className="p-6 pt-0">
+        <DialogFooter className="p-6 pt-0 flex gap-2">
+          <DialogClose asChild>
+            <Button variant="outline" className="flex-1 h-12 text-base font-bold rounded-xl">
+              Cancel
+            </Button>
+          </DialogClose>
           <Button
-            className="w-full h-12 text-base font-bold rounded-xl shadow-lg"
+            className="flex-[2] h-12 text-base font-bold rounded-xl shadow-lg"
             disabled={isOutOfStock || !currentUnit}
             onClick={handleConfirm}
           >

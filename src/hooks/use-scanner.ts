@@ -9,6 +9,7 @@ interface ScanPayload {
 }
 
 export const useScanner = () => {
+  // We keep this so components using the hook still re-render when UI state changes
   const store = useScannerStore();
 
   const isMounted = useRef(false);
@@ -18,68 +19,68 @@ export const useScanner = () => {
     unlisteners.current.forEach(fn => fn());
     unlisteners.current = [];
 
+    // Use getState() to avoid adding state to dependency array
     const { setIsScanning, setIsConnected } = useScannerStore.getState();
     setIsScanning(false);
     setIsConnected(false);
   }, []);
 
-  const startScanner = async () => {
-    if (store.isScanning) return;
+  const startScanner = useCallback(async () => {
+    // 1. Read the fresh state directly when the function is called
+    const state = useScannerStore.getState();
 
-    if (!store.vid || !store.pid) {
-      store.setError('Vendor ID and Product ID are missing.');
+    if (state.isScanning) return;
+
+    if (!state.vid || !state.pid) {
+      state.setError('Vendor ID and Product ID are missing.');
       return;
     }
 
-    store.setError(null);
+    state.setError(null);
 
     try {
       const unlistenData = await listen<ScanPayload>('scanner-data', event => {
-        // You can now log/use the source (e.g., 'USB' or 'Network')
         console.log(`[${event.payload.source}] Barcode Received:`, event.payload.message);
-        store.addScannedItem(event.payload.message);
+        // 2. Use getState() inside listeners to prevent stale closures
+        useScannerStore.getState().addScannedItem(event.payload.message);
       });
       unlisteners.current.push(unlistenData);
 
       const unlistenStatus = await listen<string>('scanner-status', event => {
         const status = event.payload;
-        // UPDATE 2: Use .includes() to catch "Connected (USB)" or "Network Server Listening"
+        const { setIsConnected } = useScannerStore.getState();
+        
         if (status.includes('Connected') || status.includes('Listening')) {
-          store.setIsConnected(true);
+          setIsConnected(true);
         }
         if (status.includes('Disconnected')) {
-          store.setIsConnected(false);
+          setIsConnected(false);
         }
       });
       unlisteners.current.push(unlistenStatus);
 
       const unlistenError = await listen<string>('scanner-error', event => {
-        store.setError(event.payload);
-        store.setIsConnected(false);
+        const { setError, setIsConnected } = useScannerStore.getState();
+        setError(event.payload);
+        setIsConnected(false);
       });
       unlisteners.current.push(unlistenError);
 
       await invoke('start_scan', {
-        vid_hex: store.vid,
-        pid_hex: store.pid,
+        vid_hex: state.vid,
+        pid_hex: state.pid,
       });
 
-      store.setIsScanning(true);
+      // 3. Update state at the end
+      useScannerStore.getState().setIsScanning(true);
     } catch (err: any) {
       console.error('Failed to start scanner:', err);
-      store.setError(typeof err === 'string' ? err : 'Unknown error');
-      store.setIsScanning(false);
+      const { setError, setIsScanning } = useScannerStore.getState();
+      setError(typeof err === 'string' ? err : 'Unknown error');
+      setIsScanning(false);
       stopScanner();
     }
-  };
-
-  const stopScanner = useCallback(() => {
-    unlisteners.current.forEach(fn => fn());
-    unlisteners.current = [];
-
-    store.setIsScanning(false);
-    store.setIsConnected(false);
-  }, [store]);
+  }, [stopScanner]); // Only depends on stopScanner, which is safely memoized
 
   useEffect(() => {
     isMounted.current = true;

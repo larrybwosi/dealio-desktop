@@ -128,6 +128,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
         quantity,
       });
       setQty(0);
+      setShowUnitSelection(false); // Explicitly close dialog on confirmation
     },
     [onAddToCart, product]
   );
@@ -145,154 +146,156 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
   };
 
   return (
-    <Card
-      onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
-      className={cn(
-        'group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300',
-        'hover:shadow-md hover:border-primary/40 bg-card rounded-sm',
-        hasMultipleUnits && 'cursor-pointer'
-      )}
-    >
-      {/* --- Image Section --- */}
-      <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
-        {!imgError && product.imageUrl ? (
-          <img
-            src={convertFileSrc(product.imageUrl)}
-            alt={product.name}
-            onError={() => setImgError(true)}
-            className={cn(
-              'object-cover w-full h-full transition-transform duration-500 group-hover:scale-105',
-              isOutOfStock && 'grayscale opacity-50'
-            )}
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
-            <ImageOff className="w-10 h-10 mb-1.5" />
-            <span className="text-xs font-medium">No Image</span>
-          </div>
+    <>
+      <Card
+        onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
+        className={cn(
+          'group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300',
+          'hover:shadow-md hover:border-primary/40 bg-card rounded-sm',
+          hasMultipleUnits && 'cursor-pointer'
         )}
-
-        {/* Status Badges Overlay */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
-          {isOutOfStock && (
-            <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
-              Sold Out
-            </Badge>
-          )}
-          {isLowStock && !isOutOfStock && (
-            <Badge
-              variant="secondary"
-              className="bg-amber-100 text-amber-700 border-amber-200 shadow-sm text-[10px] font-medium"
-            >
-              Only {stock} left
-            </Badge>
-          )}
-          {pricingMode === 'wholesale' && (
-            <Badge className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-fit text-[10px] gap-1">
-              <Tag className="w-3 h-3" /> Wholesale
-            </Badge>
-          )}
-        </div>
-      </div>
-
-      {/* --- Content Section --- */}
-      <div className="flex flex-col flex-1 p-2.5 space-y-1.5">
-        {/* Title & Category */}
-        <div className="space-y-0.5">
-          <div className="flex justify-between items-start gap-2">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
-              {product.category}
-            </span>
-            {/* SKU for quick reference */}
-            <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-70">
-              <Package className="w-3 h-3" /> {currentVariant?.sku}
-            </span>
-          </div>
-          <h3 className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
-            {product.name}
-          </h3>
-        </div>
-
-        <Separator className="bg-border/50" />
-
-        {/* Price Display */}
-        <div className="flex items-center justify-between mt-auto">
-          <div className="flex flex-col">
-            <span className="text-[10px] text-muted-foreground font-medium leading-tight">Price</span>
-            <span
+      >
+        {/* --- Image Section --- */}
+        <div className="relative aspect-[4/3] w-full bg-muted/20 overflow-hidden border-b border-border/50">
+          {!imgError && product.imageUrl ? (
+            <img
+              src={convertFileSrc(product.imageUrl)}
+              alt={product.name}
+              onError={() => setImgError(true)}
               className={cn(
-                'font-bold tracking-tight leading-tight text-base',
-                pricingMode === 'wholesale' ? 'text-blue-600' : 'text-foreground'
+                'object-cover w-full h-full transition-transform duration-500 group-hover:scale-105',
+                isOutOfStock && 'grayscale opacity-50'
               )}
-            >
-              {formatCurrency(price)}
-            </span>
-          </div>
-          <div className="flex flex-col items-end">
-            <span className="text-[9px] text-muted-foreground text-right leading-tight">Unit</span>
-            <span className="text-xs font-semibold text-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/40">
-              {currentUnit?.unitName}
-            </span>
-          </div>
-        </div>
-
-        {/* Footer: Actions Only */}
-        <div className="mt-auto pt-1">
-          {/* Action Bar */}
-          <div className="flex items-center gap-1.5 h-9" onClick={e => e.stopPropagation()}>
-            {/* Quantity Segmented Control */}
-            <div
-              className={cn(
-                'flex items-center h-full rounded-md border bg-background shadow-sm',
-                isOutOfStock ? 'opacity-50 pointer-events-none' : 'hover:border-primary/50'
-              )}
-            >
-              <button
-                className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-l-md transition-colors disabled:opacity-50"
-                disabled={qty <= 0}
-                onClick={() => handleQtyChange(qty - 1)}
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-
-              <div className="h-4 w-px bg-border/50" />
-
-              <Input
-                type="number"
-                className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                value={qty > 0 ? qty : ''}
-                placeholder="0"
-                onChange={e => handleQtyChange(parseInt(e.target.value) || 0)}
-              />
-
-              <div className="h-4 w-px bg-border/50" />
-
-              <button
-                className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-r-md transition-colors disabled:opacity-50"
-                disabled={qty >= stock}
-                onClick={() => handleQtyChange(qty + 1)}
-              >
-                <Plus className="w-3.5 h-3.5" />
-              </button>
+              loading="lazy"
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center w-full h-full text-muted-foreground/30">
+              <ImageOff className="w-10 h-10 mb-1.5" />
+              <span className="text-xs font-medium">No Image</span>
             </div>
+          )}
 
-            {/* Add Button */}
-            <Button
-              className={cn(
-                'flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide',
-                qty > 0 ? 'animate-in zoom-in-95 duration-200' : ''
-              )}
-              disabled={isOutOfStock}
-              onClick={handleAdd}
-              variant={qty > 0 ? 'default' : 'secondary'}
-            >
-              <ShoppingCart className="w-3.5 h-3.5 mr-2" />
-              {hasMultipleUnits && qty === 0 ? 'Select' : 'Add'}
-            </Button>
+          {/* Status Badges Overlay */}
+          <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+            {isOutOfStock && (
+              <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
+                Sold Out
+              </Badge>
+            )}
+            {isLowStock && !isOutOfStock && (
+              <Badge
+                variant="secondary"
+                className="bg-amber-100 text-amber-700 border-amber-200 shadow-sm text-[10px] font-medium"
+              >
+                Only {stock} left
+              </Badge>
+            )}
+            {pricingMode === 'wholesale' && (
+              <Badge className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm w-fit text-[10px] gap-1">
+                <Tag className="w-3 h-3" /> Wholesale
+              </Badge>
+            )}
           </div>
         </div>
-      </div>
+
+        {/* --- Content Section --- */}
+        <div className="flex flex-col flex-1 p-2.5 space-y-1.5">
+          {/* Title & Category */}
+          <div className="space-y-0.5">
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
+                {product.category}
+              </span>
+              {/* SKU for quick reference */}
+              <span className="text-[10px] font-mono text-muted-foreground flex items-center gap-1 opacity-70">
+                <Package className="w-3 h-3" /> {currentVariant?.sku}
+              </span>
+            </div>
+            <h3 className="font-medium text-sm leading-tight line-clamp-2 min-h-[2.5rem] group-hover:text-primary transition-colors">
+              {product.name}
+            </h3>
+          </div>
+
+          <Separator className="bg-border/50" />
+
+          {/* Price Display */}
+          <div className="flex items-center justify-between mt-auto">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-muted-foreground font-medium leading-tight">Price</span>
+              <span
+                className={cn(
+                  'font-bold tracking-tight leading-tight text-base',
+                  pricingMode === 'wholesale' ? 'text-blue-600' : 'text-foreground'
+                )}
+              >
+                {formatCurrency(price)}
+              </span>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[9px] text-muted-foreground text-right leading-tight">Unit</span>
+              <span className="text-xs font-semibold text-foreground bg-muted/50 px-2 py-0.5 rounded-full border border-border/40">
+                {currentUnit?.unitName}
+              </span>
+            </div>
+          </div>
+
+          {/* Footer: Actions Only */}
+          <div className="mt-auto pt-1">
+            {/* Action Bar */}
+            <div className="flex items-center gap-1.5 h-9" onClick={e => e.stopPropagation()}>
+              {/* Quantity Segmented Control */}
+              <div
+                className={cn(
+                  'flex items-center h-full rounded-md border bg-background shadow-sm',
+                  isOutOfStock ? 'opacity-50 pointer-events-none' : 'hover:border-primary/50'
+                )}
+              >
+                <button
+                  className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-l-md transition-colors disabled:opacity-50"
+                  disabled={qty <= 0}
+                  onClick={() => handleQtyChange(qty - 1)}
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="h-4 w-px bg-border/50" />
+
+                <Input
+                  type="number"
+                  className="h-full w-10 border-0 p-0 text-center text-sm focus-visible:ring-0 shadow-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  value={qty > 0 ? qty : ''}
+                  placeholder="0"
+                  onChange={e => handleQtyChange(parseInt(e.target.value) || 0)}
+                />
+
+                <div className="h-4 w-px bg-border/50" />
+
+                <button
+                  className="h-full px-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-r-md transition-colors disabled:opacity-50"
+                  disabled={qty >= stock}
+                  onClick={() => handleQtyChange(qty + 1)}
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Add Button */}
+              <Button
+                className={cn(
+                  'flex-1 h-full shadow-sm text-xs font-semibold uppercase tracking-wide',
+                  qty > 0 ? 'animate-in zoom-in-95 duration-200' : ''
+                )}
+                disabled={isOutOfStock}
+                onClick={handleAdd}
+                variant={qty > 0 ? 'default' : 'secondary'}
+              >
+                <ShoppingCart className="w-3.5 h-3.5 mr-2" />
+                {hasMultipleUnits && qty === 0 ? 'Select' : 'Add'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <UnitSelectionDialog
         open={showUnitSelection}
@@ -304,7 +307,7 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
         initialUnitId={selectedUnitId}
         customPriceCalculator={customPriceCalculator}
       />
-    </Card>
+    </>
   );
 });
 
