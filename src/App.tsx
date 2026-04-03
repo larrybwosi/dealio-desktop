@@ -38,7 +38,12 @@ const LayoutWrapper = () => {
 };
 
 const AppRoutes = () => {
-  const { isConfigured, currentLocation, initializeFromBackend, isInitialized, deviceType } = useAuthStore();
+  const isConfigured = useAuthStore(state => state.isConfigured);
+  const currentLocation = useAuthStore(state => state.currentLocation);
+  const initializeFromBackend = useAuthStore(state => state.initializeFromBackend);
+  const isInitialized = useAuthStore(state => state.isInitialized);
+  const deviceType = useAuthStore(state => state.deviceType);
+
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
@@ -123,7 +128,7 @@ const DynamicRenderer = () => {
         }, 500);
       }, 500);
     }
-  }, []);
+  }, [fetchTables]);
 
   return (
     <Router>

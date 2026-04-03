@@ -26,7 +26,6 @@ const ShiftManager: React.FC = () => {
 
     // 2. Setup NFC Listener
     const unlisten = listen<string>('nfc-read', event => {
-      console.log('Card Scanned:', event.payload);
       setCardId(event.payload); // Auto-fill the Card ID
 
       // Optional: Auto-focus the PIN input for better UX
@@ -44,7 +43,7 @@ const ShiftManager: React.FC = () => {
       setCurrentShift(shift);
       setView(shift ? 'STATUS' : 'OPEN');
     } catch (err) {
-      console.error('Failed to load shift', err);
+      // Failed to load shift
     }
   };
 

@@ -38,7 +38,6 @@ export const useFormattedCurrency = (): ((
 
       // Handle invalid amounts
       if (isNaN(parsedAmount)) {
-        console.warn('Invalid amount provided to formatCurrency:', amount);
         return new Intl.NumberFormat(locale, {
           style: 'currency',
           currency,
@@ -57,7 +56,6 @@ export const useFormattedCurrency = (): ((
         }).format(parsedAmount);
       } catch (error) {
         // Fallback to basic formatting with the currency symbol
-        console.error(`Error formatting currency (locale: ${locale}, currency: ${currency}):`, error);
         const fallbackFormatter = new Intl.NumberFormat(locale, {
           style: 'currency',
           currency: 'USD', // Fallback to USD if the currency is invalid
@@ -104,7 +102,6 @@ export const processFileDownload = async (blob: Blob, fileName: string, loadingT
                             const { openPath } = await import('@tauri-apps/plugin-opener');
                             await openPath(absoluteFilePath);
                         } catch (e) {
-                            console.error('Could not open file', e);
                             toast.error('Failed to open file');
                         }
                     },
@@ -128,7 +125,6 @@ export const processFileDownload = async (blob: Blob, fileName: string, loadingT
             });
         }
     } catch (error) {
-        console.error('File processing error:', error);
         toast.error('Failed to save file', {
             description: error instanceof Error ? error.message : 'Unknown error',
             id: loadingToastId

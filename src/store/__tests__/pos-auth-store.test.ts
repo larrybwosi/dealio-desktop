@@ -28,10 +28,14 @@ describe('PosAuthStore', () => {
   });
 
   it('should initialize from backend successfully', async () => {
-    mockInvoke.mockResolvedValueOnce({
-      location_id: 'loc-1',
-      allow_negative_stock: false,
-    });
+    mockInvoke
+      .mockResolvedValueOnce({
+        location_id: 'loc-1',
+        allow_negative_stock: false,
+      })
+      .mockResolvedValueOnce({
+        locations: [{ id: 'loc-1', name: 'Test Location' }],
+      });
 
     await useAuthStore.getState().initializeFromBackend();
 

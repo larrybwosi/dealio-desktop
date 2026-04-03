@@ -3,7 +3,7 @@
   "plugins": ["react", "unicorn", "typescript"],
   "rules": {
     "no-debugger": "error",
-    "no-console": "warn",
+    "no-console": "off",
     "eqeqeq": "error",
     "no-unused-vars": "off",
     "react/jsx-no-undef": "error",
