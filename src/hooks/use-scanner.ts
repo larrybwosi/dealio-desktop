@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useScannerStore } from '@/store/barcode-scanner';
@@ -13,6 +13,14 @@ export const useScanner = () => {
 
   const isMounted = useRef(false);
   const unlisteners = useRef<UnlistenFn[]>([]);
+
+  const stopScanner = useCallback(() => {
+    unlisteners.current.forEach(fn => fn());
+    unlisteners.current = [];
+
+    store.setIsScanning(false);
+    store.setIsConnected(false);
+  }, [store]);
 
   const startScanner = async () => {
     if (store.isScanning) return;
@@ -62,14 +70,6 @@ export const useScanner = () => {
       store.setIsScanning(false);
       stopScanner();
     }
-  };
-
-  const stopScanner = () => {
-    unlisteners.current.forEach(fn => fn());
-    unlisteners.current = [];
-
-    store.setIsScanning(false);
-    store.setIsConnected(false);
   };
 
   useEffect(() => {

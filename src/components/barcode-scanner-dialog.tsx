@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,41 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
 
   const products = usePosStore(state => state.products);
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
+
+  const handleBarcodeSubmit = useCallback((scannedCode: string) => {
+    setError('');
+
+    if (!scannedCode.trim()) {
+      setError('Please enter a barcode');
+      return;
+    }
+
+    const product = products.find(p => p.barcode === scannedCode.trim());
+
+    if (!product) {
+      setError(`Product not found for barcode: ${scannedCode}`);
+      setBarcode('');
+      return;
+    }
+
+    if (product.stock <= 0) {
+      setError(`${product.productName} is out of stock`);
+      setBarcode('');
+      return;
+    }
+
+    const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
+    addItemToOrder(product, product.variantId, defaultUnit, 1);
+
+    // Success feedback
+    setBarcode('');
+    setError('');
+
+    // Auto-close after successful scan
+    setTimeout(() => {
+      onOpenChange(false);
+    }, 500);
+  }, [products, addItemToOrder, onOpenChange]);
 
   useEffect(() => {
     if (open) {
@@ -59,42 +94,7 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
       window.removeEventListener('keypress', handleKeyPress);
       clearTimeout(timeoutId);
     };
-  }, [open, scannedBuffer]);
-
-  const handleBarcodeSubmit = (scannedCode: string) => {
-    setError('');
-
-    if (!scannedCode.trim()) {
-      setError('Please enter a barcode');
-      return;
-    }
-
-    const product = products.find(p => p.barcode === scannedCode.trim());
-
-    if (!product) {
-      setError(`Product not found for barcode: ${scannedCode}`);
-      setBarcode('');
-      return;
-    }
-
-    if (product.stock <= 0) {
-      setError(`${product.productName} is out of stock`);
-      setBarcode('');
-      return;
-    }
-
-    const defaultUnit = product.sellableUnits.find(u => u.isBaseUnit) || product.sellableUnits[0];
-    addItemToOrder(product, product.variantId, defaultUnit, 1);
-
-    // Success feedback
-    setBarcode('');
-    setError('');
-
-    // Auto-close after successful scan
-    setTimeout(() => {
-      onOpenChange(false);
-    }, 500);
-  };
+  }, [open, scannedBuffer, handleBarcodeSubmit]);
 
   const handleManualSubmit = () => {
     handleBarcodeSubmit(barcode);
