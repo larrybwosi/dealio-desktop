@@ -1,4 +1,3 @@
-// components/pending-page/transaction-row.tsx
 'use client';
 
 import { useState } from 'react';
@@ -27,7 +26,7 @@ import {
   ShoppingBag,
   Printer,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, useFormattedCurrency } from '@/lib/utils';
 import { Transaction } from '@/types';
 
 interface TransactionRowProps {
@@ -63,8 +62,7 @@ export function TransactionRow({
 }: TransactionRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'KSH' }).format(amount);
+  const formatCurrency = useFormattedCurrency();
 
   const getStatusColor = (status: string) => {
     switch (status) {
