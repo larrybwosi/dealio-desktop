@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@/test/utils';
+import { render, screen } from '@/test/utils';
 import { Cart } from '../cart';
 import { usePosStore } from '@/store/store';
 import { vi, describe, it, expect, beforeEach } from 'vitest';

@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { Member, useAuthStore } from '@/store/pos-auth-store';
 import { toast } from 'sonner';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 // import { trackEvent } from "@aptabase/tauri";
 import throttle from 'lodash/throttle';
 import posthog from 'posthog-js';
