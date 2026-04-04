@@ -1,14 +1,16 @@
 #[cfg(not(debug_assertions))]
+use better_posthog::events::capture;
+#[cfg(not(debug_assertions))]
 use dotenvy_macro::dotenv;
 use log::error;
+pub mod escpos_builder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
-use better_posthog::events::capture;
-pub mod escpos_builder;
 
 pub mod stores;
 
+mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
@@ -33,7 +35,6 @@ mod product_manager;
 mod sale_manager;
 mod shift_manager;
 
-mod api_config;
 mod security;
 
 mod notification_manager;
@@ -47,24 +48,29 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
-mod kds_models;
 mod kds_hub_server;
+mod kds_models;
 mod utils;
 
 pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
-    log::info!("Analytics Event: {} - Properties: {:?}", event_name, properties);
-    
+    log::info!(
+        "Analytics Event: {} - Properties: {:?}",
+        event_name,
+        properties
+    );
+
     let mut builder = better_posthog::Event::builder()
         .event(event_name)
         .distinct_id("desktop_client");
-        
+
     if let Some(serde_json::Value::Object(map)) = properties {
         for (key, value) in map {
             builder = builder.property(key, value);
         }
     }
-    
+
     // Fire and forget. The background thread handles the rest.
+    #[cfg(not(debug_assertions))]
     capture(builder.build());
 }
 
@@ -110,8 +116,7 @@ pub fn run() {
         .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_sql::Builder::new().build());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_sql::Builder::new().build());
 
     builder
         .manage(ProductState::new())
@@ -125,11 +130,14 @@ pub fn run() {
         .manage(CustomerScreenState::new())
         .manage(sales_store::SyncConfigState::new())
         .setup(|app| {
-            
             capture_event("app_started", None);
-            
-            // Initialize the Product SQLite DB and run migrations
+
+            // Initialize the SQLite DBs and run migrations
             tauri::async_runtime::block_on(product_store::init_state(app.handle()));
+            tauri::async_runtime::block_on(customer_store::init_state(app.handle()));
+            tauri::async_runtime::block_on(pricing_store::init_state(app.handle()));
+            tauri::async_runtime::block_on(shift_store::init_state(app.handle()));
+            tauri::async_runtime::block_on(audit_store::init_state(app.handle()));
 
             // Note: We can't load products at startup since we need location_id
             // Products will be loaded when the device is configured/location is set
@@ -179,7 +187,10 @@ pub fn run() {
             }
 
             let notification_state = app.state::<NotificationState>();
-            notification_manager::init_notification_state(app.handle(), &notification_state);
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                notification_manager::init_notification_state(&app_handle, &notification_state).await;
+            });
 
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
@@ -189,11 +200,13 @@ pub fn run() {
                 error!("Failed to load customer screen state: {}", e);
             }
 
-           // Check for old pending sales and notify user
-            let old_sales = tauri::async_runtime::block_on(
-                sales_store::check_old_pending_sales(app.handle().clone(), &sales_state, 3)
-            );
-            
+            // Check for old pending sales and notify user
+            let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
+                app.handle().clone(),
+                &sales_state,
+                3,
+            ));
+
             if !old_sales.is_empty() {
                 let notification = notification_manager::AppNotification::new(
                     notification_manager::NotificationType::Warning,
@@ -212,10 +225,12 @@ pub fn run() {
             }
 
             // Check for failed sales and notify
-            let failed_sales = tauri::async_runtime::block_on(
-                sales_store::check_failed_sales(app.handle().clone(), &sales_state, 5)
-            );
-            
+            let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
+                app.handle().clone(),
+                &sales_state,
+                5,
+            ));
+
             if !failed_sales.is_empty() {
                 let _ = app.emit("failed-sales-detected", failed_sales);
             }
@@ -294,7 +309,8 @@ pub fn run() {
                         let state = app.state::<CustomerScreenState>();
                         if state.is_enabled() {
                             tauri::async_runtime::spawn(async move {
-                                let _ = customer_screen_state::open_customer_screen(app_handle).await;
+                                let _ =
+                                    customer_screen_state::open_customer_screen(app_handle).await;
                             });
                         }
                     }
@@ -327,7 +343,7 @@ pub fn run() {
                     let app_handle = window.app_handle().clone();
                     let state = app_handle.state::<CustomerScreenState>();
                     state.set_enabled(false);
-                    
+
                     // Save asynchronously
                     tauri::async_runtime::spawn(async move {
                         let state = app_handle.state::<CustomerScreenState>();
@@ -452,12 +468,10 @@ pub fn run() {
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
-
             kds_hub_server::start_kds_hub,
             kds_hub_server::get_connected_devices,
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
-
             table_store::get_tables_command,
             table_store::upsert_table_command,
             table_store::delete_table_command,

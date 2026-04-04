@@ -12,12 +12,25 @@ mockWindows('main');
 export const mockInvoke = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: (...args: any[]) => mockInvoke(...args),
+  convertFileSrc: vi.fn((path) => path),
 }));
 
 // Provide a global mock implementation for specific commands if needed
-mockInvoke.mockImplementation(async (_cmd, _args) => {
-  // console.log(`[MockIPC] ${_cmd}`, _args);
-  return undefined;
+mockInvoke.mockImplementation(async (cmd, _args) => {
+  switch (cmd) {
+    case 'get_system_printers':
+      return [];
+    case 'get_printer_config':
+      return null;
+    case 'get_device_config':
+      return null;
+    case 'get_unread_notification_count':
+      return 0;
+    case 'get_notification_history':
+      return [];
+    default:
+      return undefined;
+  }
 });
 
 // Prevent PostHog from attempting background IPC calls
@@ -50,6 +63,31 @@ global.ResizeObserver = class ResizeObserver {
   unobserve = vi.fn();
   disconnect = vi.fn();
 };
+
+// Mock DOMMatrix for pdfjs-dist
+global.DOMMatrix = class DOMMatrix {
+  constructor() {}
+  static fromFloat32Array() { return new DOMMatrix(); }
+  static fromFloat64Array() { return new DOMMatrix(); }
+} as any;
+
+// Mock react-pdf since it fails in jsdom due to canvas requirements
+vi.mock('react-pdf', () => ({
+  Document: ({ children }: any) => children,
+  Page: () => null,
+  pdfjs: { GlobalWorkerOptions: { workerSrc: '' } },
+}));
+
+vi.mock('@react-pdf/renderer', () => ({
+  PDFViewer: ({ children }: any) => children,
+  Document: ({ children }: any) => children,
+  Page: ({ children }: any) => children,
+  Text: ({ children }: any) => children,
+  View: ({ children }: any) => children,
+  StyleSheet: { create: (s: any) => s },
+  Font: { register: vi.fn() },
+  usePDF: () => [{ url: '' }, vi.fn()],
+}));
 
 // Cleanup after each test
 afterEach(() => {

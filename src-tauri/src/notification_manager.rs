@@ -1,9 +1,11 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::collections::VecDeque;
+use sqlx::{Row, SqlitePool};
 use std::sync::RwLock;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_sql::{DbInstances, DbPool};
 
+const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 const MAX_NOTIFICATIONS: usize = 100;
 const AUTO_CLEAR_DAYS: i64 = 7;
 
@@ -51,7 +53,6 @@ pub struct AppNotification {
 }
 
 impl AppNotification {
-    #[allow(dead_code)]
     pub fn new(
         notification_type: NotificationType,
         priority: NotificationPriority,
@@ -73,141 +74,50 @@ impl AppNotification {
     }
 }
 
-// ─── State – uses RwLock so concurrent reads don't block each other ───────────
 pub struct NotificationState {
-    notifications: RwLock<VecDeque<AppNotification>>,
+    notifications: RwLock<Vec<AppNotification>>,
 }
 
 impl NotificationState {
     pub fn new() -> Self {
         Self {
-            notifications: RwLock::new(VecDeque::new()),
+            notifications: RwLock::new(Vec::new()),
         }
     }
 
-    fn read_lock(&self) -> std::sync::RwLockReadGuard<'_, VecDeque<AppNotification>> {
-        self.notifications
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-    }
-
-    fn write_lock(&self) -> std::sync::RwLockWriteGuard<'_, VecDeque<AppNotification>> {
-        self.notifications
-            .write()
-            .unwrap_or_else(|e| e.into_inner())
-    }
-
-    /// Add a notification. Duplicates (same `id`) are silently ignored.
     pub fn add_notification(&self, notification: AppNotification) {
-        let mut notifications = self.write_lock();
-
-        // ── Deduplication: reject if we already have this ID ──────────────────
-        if notifications.iter().any(|n| n.id == notification.id) {
-            log::debug!(
-                "[NotificationState] Duplicate notification suppressed: {}",
-                notification.id
-            );
-            return;
-        }
-
-        // Auto-clear old read notifications before inserting
-        self.auto_clear_old(&mut notifications);
-
-        // Insert newest first
-        notifications.push_front(notification);
-
-        // Enforce maximum size
-        if notifications.len() > MAX_NOTIFICATIONS {
-            notifications.truncate(MAX_NOTIFICATIONS);
-        }
+        let mut notifications = self.notifications.write().unwrap_or_else(|e| e.into_inner());
+        if notifications.iter().any(|n| n.id == notification.id) { return; }
+        notifications.insert(0, notification);
+        if notifications.len() > MAX_NOTIFICATIONS { notifications.truncate(MAX_NOTIFICATIONS); }
     }
 
     pub fn get_all(&self) -> Vec<AppNotification> {
-        self.read_lock().iter().cloned().collect()
-    }
-
-    pub fn get_unread_count(&self) -> usize {
-        self.read_lock().iter().filter(|n| !n.read).count()
-    }
-
-    pub fn mark_read(&self, id: &str) -> bool {
-        let mut notifications = self.write_lock();
-        if let Some(notification) = notifications.iter_mut().find(|n| n.id == id) {
-            notification.read = true;
-            return true;
-        }
-        false
-    }
-
-    pub fn mark_all_read(&self) {
-        let mut notifications = self.write_lock();
-        for notification in notifications.iter_mut() {
-            notification.read = true;
-        }
-    }
-
-    pub fn delete_notification(&self, id: &str) -> bool {
-        let mut notifications = self.write_lock();
-        if let Some(pos) = notifications.iter().position(|n| n.id == id) {
-            notifications.remove(pos);
-            return true;
-        }
-        false
-    }
-
-    pub fn clear_all(&self) {
-        self.write_lock().clear();
-    }
-
-    pub fn load_from_store(&self, app: &AppHandle) -> Result<(), String> {
-        use tauri_plugin_store::StoreExt;
-
-        let store = app
-            .store("notification-history.json")
-            .map_err(|e| format!("Failed to open store: {}", e))?;
-
-        if let Some(value) = store.get("notifications") {
-            if let Ok(loaded_notifications) =
-                serde_json::from_value::<Vec<AppNotification>>(value.clone())
-            {
-                let mut notifications = self.write_lock();
-                notifications.clear();
-                notifications.extend(loaded_notifications);
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn save_to_store(&self, app: &AppHandle) -> Result<(), String> {
-        use tauri_plugin_store::StoreExt;
-
-        let store = app
-            .store("notification-history.json")
-            .map_err(|e| format!("Failed to open store: {}", e))?;
-
-        let notifications = self.get_all();
-        let value = serde_json::to_value(&notifications)
-            .map_err(|e| format!("Failed to serialize notifications: {}", e))?;
-
-        store.set("notifications", value);
-        store
-            .save()
-            .map_err(|e| format!("Failed to save store: {}", e))?;
-
-        Ok(())
-    }
-
-    fn auto_clear_old(&self, notifications: &mut VecDeque<AppNotification>) {
-        let cutoff = Utc::now() - Duration::days(AUTO_CLEAR_DAYS);
-        notifications.retain(|n| {
-            // Keep unread notifications or those newer than cutoff
-            !n.read || n.timestamp > cutoff
-        });
+        self.notifications.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
-// ─── Commands ─────────────────────────────────────────────────────────────────
+async fn get_db_pool(app: &AppHandle) -> Option<SqlitePool> {
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+    guard.get(MAIN_DB_NAME).and_then(|p| match p { DbPool::Sqlite(pool) => Some(pool.clone()) })
+}
+
+pub async fn init_notification_state(app: &AppHandle, state: &NotificationState) {
+    let pool = match get_db_pool(app).await { Some(p) => p, None => return };
+
+    let _ = sqlx::query("CREATE TABLE IF NOT EXISTS notifications (id TEXT PRIMARY KEY, payload TEXT, timestamp TEXT, is_read BOOLEAN)").execute(&pool).await;
+
+    // Load from DB
+    if let Ok(rows) = sqlx::query("SELECT payload FROM notifications ORDER BY timestamp DESC LIMIT ?1").bind(MAX_NOTIFICATIONS as i32).fetch_all(&pool).await {
+        let mut notifications = state.notifications.write().unwrap_or_else(|e| e.into_inner());
+        for row in rows {
+            if let Ok(n) = serde_json::from_str::<AppNotification>(&row.get::<String, _>("payload")) {
+                notifications.push(n);
+            }
+        }
+    }
+}
 
 #[tauri::command]
 pub async fn send_native_notification(
@@ -216,127 +126,100 @@ pub async fn send_native_notification(
     notification: AppNotification,
 ) -> Result<String, String> {
     use tauri_plugin_notification::NotificationExt;
-
     let id = notification.id.clone();
-
-    // Add to in-memory state (dedup check inside)
     state.add_notification(notification.clone());
 
-    // Persist
-    if let Err(e) = state.save_to_store(&app) {
-        log::warn!("[NotificationState] save_to_store failed: {}", e);
+    if let Some(pool) = get_db_pool(&app).await {
+        let _ = sqlx::query("INSERT OR REPLACE INTO notifications (id, payload, timestamp, is_read) VALUES (?1, ?2, ?3, ?4)")
+            .bind(&id).bind(serde_json::to_string(&notification).unwrap_or_default()).bind(notification.timestamp.to_rfc3339()).bind(notification.read)
+            .execute(&pool).await;
     }
 
-    // Send native OS notification (best-effort)
-    let builder = app
-        .notification()
-        .builder()
-        .title(&notification.title)
-        .body(&notification.body);
-
-    if let Err(e) = builder.show() {
-        log::warn!("[NotificationState] Native notification show failed: {}", e);
-        // Do NOT return an error – the in-app notification already fires from the frontend
-    }
-
-    // Emit event to frontend (so the notification center updates)
-    app.emit("notification-received", &notification)
-        .map_err(|e| format!("Failed to emit event: {}", e))?;
-
-    // Update tray badge
-    update_tray_badge(&app, &state)?;
-
+    let _ = app.notification().builder().title(&notification.title).body(&notification.body).show();
+    let _ = app.emit("notification-received", &notification);
+    let _ = app.emit("notification-badge-update", state.notifications.read().unwrap().iter().filter(|n| !n.read).count());
     Ok(id)
 }
 
 #[tauri::command]
-pub fn get_notification_history(
-    state: tauri::State<'_, NotificationState>,
-) -> Vec<AppNotification> {
+pub fn get_notification_history(state: tauri::State<'_, NotificationState>) -> Vec<AppNotification> {
     state.get_all()
 }
 
 #[tauri::command]
 pub fn get_unread_notification_count(state: tauri::State<'_, NotificationState>) -> usize {
-    state.get_unread_count()
+    state.notifications.read().unwrap().iter().filter(|n| !n.read).count()
 }
 
 #[tauri::command]
-pub fn mark_notification_read(
-    app: AppHandle,
-    state: tauri::State<'_, NotificationState>,
-    id: String,
-) -> Result<bool, String> {
-    let result = state.mark_read(&id);
-
-    if result {
-        if let Err(e) = state.save_to_store(&app) {
-            log::warn!("[NotificationState] save_to_store after mark_read failed: {}", e);
+pub async fn mark_notification_read(app: AppHandle, state: tauri::State<'_, NotificationState>, id: String) -> Result<bool, String> {
+    let (mut n_to_update, unread_count) = {
+        let mut notifications = state.notifications.write().unwrap();
+        if let Some(n) = notifications.iter_mut().find(|n| n.id == id) {
+            n.read = true;
+            (Some(n.clone()), notifications.iter().filter(|n| !n.read).count())
+        } else {
+            (None, 0)
         }
-        update_tray_badge(&app, &state)?;
-    }
+    };
 
-    Ok(result)
-}
-
-#[tauri::command]
-pub fn mark_all_notifications_read(
-    app: AppHandle,
-    state: tauri::State<'_, NotificationState>,
-) -> Result<(), String> {
-    state.mark_all_read();
-    if let Err(e) = state.save_to_store(&app) {
-        log::warn!("[NotificationState] save_to_store after mark_all_read failed: {}", e);
-    }
-    update_tray_badge(&app, &state)?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn delete_notification(
-    app: AppHandle,
-    state: tauri::State<'_, NotificationState>,
-    id: String,
-) -> Result<bool, String> {
-    let result = state.delete_notification(&id);
-
-    if result {
-        if let Err(e) = state.save_to_store(&app) {
-            log::warn!("[NotificationState] save_to_store after delete failed: {}", e);
+    if let Some(n) = n_to_update {
+        if let Some(pool) = get_db_pool(&app).await {
+            let _ = sqlx::query("UPDATE notifications SET is_read = 1, payload = ?1 WHERE id = ?2")
+                .bind(serde_json::to_string(&n).unwrap_or_default()).bind(&id).execute(&pool).await;
         }
-        update_tray_badge(&app, &state)?;
+        let _ = app.emit("notification-badge-update", unread_count);
+        return Ok(true);
     }
-
-    Ok(result)
+    Ok(false)
 }
 
 #[tauri::command]
-pub fn clear_all_notifications(
-    app: AppHandle,
-    state: tauri::State<'_, NotificationState>,
-) -> Result<(), String> {
-    state.clear_all();
-    if let Err(e) = state.save_to_store(&app) {
-        log::warn!("[NotificationState] save_to_store after clear_all failed: {}", e);
+pub async fn mark_all_notifications_read(app: AppHandle, state: tauri::State<'_, NotificationState>) -> Result<(), String> {
+    let updated_notifications = {
+        let mut notifications = state.notifications.write().unwrap();
+        for n in notifications.iter_mut() { n.read = true; }
+        notifications.clone()
+    };
+
+    if let Some(pool) = get_db_pool(&app).await {
+        let _ = sqlx::query("UPDATE notifications SET is_read = 1").execute(&pool).await;
+        for n in updated_notifications {
+             let _ = sqlx::query("UPDATE notifications SET payload = ?1 WHERE id = ?2").bind(serde_json::to_string(&n).unwrap_or_default()).bind(&n.id).execute(&pool).await;
+        }
     }
-    update_tray_badge(&app, &state)?;
+    let _ = app.emit("notification-badge-update", 0);
     Ok(())
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
+#[tauri::command]
+pub async fn delete_notification(app: AppHandle, state: tauri::State<'_, NotificationState>, id: String) -> Result<bool, String> {
+    let (found, unread_count) = {
+        let mut notifications = state.notifications.write().unwrap();
+        if let Some(pos) = notifications.iter().position(|n| n.id == id) {
+            notifications.remove(pos);
+            (true, notifications.iter().filter(|n| !n.read).count())
+        } else {
+            (false, 0)
+        }
+    };
 
-fn update_tray_badge(app: &AppHandle, state: &NotificationState) -> Result<(), String> {
-    let unread_count = state.get_unread_count();
-
-    app.emit("notification-badge-update", unread_count)
-        .map_err(|e| format!("Failed to emit badge update: {}", e))?;
-
-    Ok(())
+    if found {
+        if let Some(pool) = get_db_pool(&app).await {
+            let _ = sqlx::query("DELETE FROM notifications WHERE id = ?1").bind(&id).execute(&pool).await;
+        }
+        let _ = app.emit("notification-badge-update", unread_count);
+        return Ok(true);
+    }
+    Ok(false)
 }
 
-// Initialize notification state from store on app startup
-pub fn init_notification_state(app: &AppHandle, state: &NotificationState) {
-    if let Err(e) = state.load_from_store(app) {
-        log::error!("[NotificationState] Failed to load notification history: {}", e);
+#[tauri::command]
+pub async fn clear_all_notifications(app: AppHandle, state: tauri::State<'_, NotificationState>) -> Result<(), String> {
+    state.notifications.write().unwrap().clear();
+    if let Some(pool) = get_db_pool(&app).await {
+        let _ = sqlx::query("DELETE FROM notifications").execute(&pool).await;
     }
+    let _ = app.emit("notification-badge-update", 0);
+    Ok(())
 }

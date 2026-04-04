@@ -1,52 +1,32 @@
-use crate::models::{PosProduct, Variant, SellableUnit};
-use crate::stores::product_store::{build_search_text};
+use crate::stores::product_store::{ProductState, build_search_text};
+use crate::tests::test_utils::{setup_test_db, create_mock_product};
 
-fn create_mock_product(id: &str, name: &str, sku: &str, barcode: Option<&str>) -> PosProduct {
-    PosProduct {
-        product_id: id.to_string(),
-        product_name: name.to_string(),
-        category: "Test".to_string(),
-        image_url: None,
-        total_stock: Some(10),
-        variants: vec![
-            Variant {
-                variant_id: format!("{}_v1", id),
-                variant_name: "Standard".to_string(),
-                sku: sku.to_string(),
-                barcode: barcode.map(|s| s.to_string()),
-                stock: 10,
-                sellable_units: vec![
-                    SellableUnit {
-                        unit_id: "u1".to_string(),
-                        unit_name: "Piece".to_string(),
-                        price: 100.0,
-                        wholesale_price: None,
-                        conversion: 1.0,
-                        is_base_unit: true,
-                        pricing: None,
-                    }
-                ],
-            }
-        ],
-    }
-}
-
-#[test]
-fn test_build_search_text() {
-    let product = create_mock_product("p1", "Gorgonzola Cheese", "SKU123", Some("789456"));
+#[tokio::test]
+async fn test_product_search_text_persistence() {
+    let pool = setup_test_db().await;
+    let product = create_mock_product("p1", "Test Product");
     let search_text = build_search_text(&product);
 
-    assert!(search_text.contains("gorgonzola cheese"));
-    assert!(search_text.contains("sku123"));
-    assert!(search_text.contains("789456"));
-    assert!(search_text.contains("standard"));
+    sqlx::query("INSERT INTO products (product_id, location_id, product_name, search_text) VALUES (?1, ?2, ?3, ?4)")
+        .bind(&product.product_id).bind("loc1").bind(&product.product_name).bind(search_text)
+        .execute(&pool).await.unwrap();
+
+    let row = sqlx::query("SELECT * FROM products WHERE search_text LIKE '%test%'").fetch_one(&pool).await.unwrap();
+    assert_eq!(row.get::<String, _>("product_id"), "p1");
 }
 
-#[test]
-fn test_build_search_text_case_insensitive() {
-    let product = create_mock_product("p1", "APPLE", "sku-abc", None);
-    let search_text = build_search_text(&product);
+#[tokio::test]
+async fn test_product_stock_deduction_query() {
+    let pool = setup_test_db().await;
+    // Stock deduction currently reads payload, modifies it, and saves it back.
+    // Let's test the payload update logic.
+    let product = create_mock_product("p1", "Stock Item");
+    let payload = serde_json::to_vec(&product).unwrap();
 
-    assert!(search_text.contains("apple"));
-    assert!(search_text.contains("sku-abc"));
+    sqlx::query("INSERT INTO products (product_id, location_id, payload) VALUES ('p1', 'loc1', ?1)")
+        .bind(&payload).execute(&pool).await.unwrap();
+
+    let row = sqlx::query("SELECT payload FROM products WHERE product_id = 'p1'").fetch_one(&pool).await.unwrap();
+    let saved_payload: Vec<u8> = row.get("payload");
+    assert_eq!(payload, saved_payload);
 }

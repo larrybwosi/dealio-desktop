@@ -29,17 +29,19 @@ pub async fn create_customer_command(
 }
 
 #[tauri::command]
-pub fn search_customers_command(
+pub async fn search_customers_command(
+    app: AppHandle,
     state: State<'_, CustomerState>,
     query: String,
-) -> Vec<models::PosCustomer> {
-    customer_store::search_local(&state, query)
+) -> Result<Vec<models::PosCustomer>, String> {
+    Ok(customer_store::search_local(&app, &state, query).await)
 }
 
 #[tauri::command]
-pub fn get_customers_by_ids_command(
+pub async fn get_customers_by_ids_command(
+    app: AppHandle,
     state: State<'_, CustomerState>,
     ids: Vec<String>,
-) -> Vec<models::PosCustomer> {
-    customer_store::get_customers_by_ids(&state, ids)
+) -> Result<Vec<models::PosCustomer>, String> {
+    Ok(customer_store::get_customers_by_ids(&app, &state, ids).await)
 }

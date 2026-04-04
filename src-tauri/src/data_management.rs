@@ -5,8 +5,6 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 
 const KEYRING_SERVICE: &str = "dealio-desktop";
 
-use crate::customer_store::CustomerState;
-
 #[tauri::command]
 pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     warn!("[DangerZone] Starting full data wipe...");
@@ -60,7 +58,7 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     }
 
     // 3. Clear Keyring Entries
-    let keyring_keys = ["device-config", "customer_store_key", "sales_queue_key"];
+    let keyring_keys = ["device-config", "customer_store_key", "sales_queue_key", "pricing_store_key"];
 
     for key in keyring_keys {
         if let Ok(entry) = Entry::new(KEYRING_SERVICE, key) {
@@ -80,29 +78,23 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
         let _ = sqlx::query("DELETE FROM products").execute(pool).await;
         let _ = sqlx::query("DELETE FROM product_sync_meta").execute(pool).await;
         let _ = sqlx::query("DELETE FROM queued_sales").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM customers").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM customer_sync_meta").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM price_lists").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM price_items").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM customer_allocations").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM pricing_sync_meta").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM shifts").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM cash_movements").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM audit_logs").execute(pool).await;
         info!("[DangerZone] Cleared pos_main.db SQLite tables.");
     }
     
     if let Some(DbPool::Sqlite(pool)) = guard.get("sqlite:kds_orders.db") {
         let _ = sqlx::query("DELETE FROM kds_orders").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM tables").execute(pool).await;
+        let _ = sqlx::query("DELETE FROM table_history").execute(pool).await;
         info!("[DangerZone] Cleared kds_orders.db SQLite tables.");
-    }
-
-    // 5. Reset In-Memory State for Customers
-    let customer_state = app.state::<CustomerState>();
-    {
-        let mut customers = customer_state
-            .customers
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        customers.clear();
-    }
-    {
-        let mut last_sync = customer_state
-            .last_sync_token
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
-        *last_sync = None;
     }
 
     info!("[DangerZone] Full data wipe completed (files, database, and memory).");
