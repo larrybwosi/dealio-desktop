@@ -1,11 +1,13 @@
 use anyhow::Result;
 use chrono::Utc;
-use log::{info, warn};
+use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use std::fs::{self, OpenOptions};
-use std::io::{BufRead, BufReader, Write};
+use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_sql::{DbInstances, DbPool};
+
+const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
 // ============================================================
 // Data Structures
@@ -48,21 +50,95 @@ pub struct AuditFilter {
 // Internal helpers
 // ============================================================
 
-fn get_audit_log_path(app: &AppHandle) -> Result<PathBuf> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?;
-    let logs_dir = app_data_dir.join("logs");
-    fs::create_dir_all(&logs_dir)?;
-    Ok(logs_dir.join("audit.jsonl"))
+async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+        Ok(pool.clone())
+    } else {
+        Err(format!(
+            "Database {} not found.",
+            MAIN_DB_NAME
+        ))
+    }
 }
 
 // ============================================================
 // Public API
 // ============================================================
 
-/// Append a single structured audit event to the JSONL log file.
+pub async fn init_state(app: &AppHandle) {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[AuditStore] Failed to get main DB pool: {}", e);
+            return;
+        }
+    };
+
+    let create_audit_table = r#"
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id TEXT PRIMARY KEY,
+            timestamp TEXT,
+            level TEXT,
+            action TEXT,
+            actor_id TEXT,
+            actor_name TEXT,
+            location_id TEXT,
+            device_id TEXT,
+            details TEXT
+        )
+    "#;
+
+    let _ = sqlx::query(create_audit_table).execute(&pool).await;
+
+    // Migrate from legacy JSONL if it exists
+    let _ = migrate_legacy_logs(app, &pool).await;
+}
+
+async fn migrate_legacy_logs(app: &AppHandle, pool: &SqlitePool) -> Result<()> {
+    let app_data_dir = app.path().app_data_dir()?;
+    let legacy_path = app_data_dir.join("logs").join("audit.jsonl");
+
+    if !legacy_path.exists() {
+        return Ok(());
+    }
+
+    info!("[AuditStore] Migrating legacy audit logs...");
+    let content = tokio::fs::read_to_string(&legacy_path).await?;
+    let mut tx = pool.begin().await?;
+
+    for line in content.lines() {
+        if let Ok(event) = serde_json::from_str::<AuditEvent>(line) {
+            let level_str = match event.level {
+                AuditLevel::Info => "INFO",
+                AuditLevel::Warning => "WARNING",
+                AuditLevel::Critical => "CRITICAL",
+            };
+
+            let _ = sqlx::query(
+                "INSERT OR IGNORE INTO audit_logs (id, timestamp, level, action, actor_id, actor_name, location_id, device_id, details) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            )
+            .bind(&event.id)
+            .bind(&event.timestamp)
+            .bind(level_str)
+            .bind(&event.action)
+            .bind(&event.actor_id)
+            .bind(&event.actor_name)
+            .bind(&event.location_id)
+            .bind(&event.device_id)
+            .bind(serde_json::to_string(&event.details).unwrap_or_default())
+            .execute(&mut *tx)
+            .await;
+        }
+    }
+    tx.commit().await?;
+    let _ = tokio::fs::remove_file(&legacy_path).await;
+    Ok(())
+}
+
+/// Append a single structured audit event to the database.
 #[allow(clippy::too_many_arguments)]
 pub fn write_event(
     app: &AppHandle,
@@ -74,113 +150,102 @@ pub fn write_event(
     device_id: Option<String>,
     details: serde_json::Value,
 ) -> Result<()> {
-    let path = get_audit_log_path(app)?;
-
+    let action_str = action.into();
     let event = AuditEvent {
         id: uuid::Uuid::now_v7().to_string(),
         timestamp: Utc::now().to_rfc3339(),
-        level,
-        action: action.into(),
-        actor_id,
-        actor_name,
-        location_id,
-        device_id,
-        details,
+        level: level.clone(),
+        action: action_str.clone(),
+        actor_id: actor_id.clone(),
+        actor_name: actor_name.clone(),
+        location_id: location_id.clone(),
+        device_id: device_id.clone(),
+        details: details.clone(),
     };
 
-    // Also emit to the structured system log so it appears in log files
+    // Also emit to the structured system log
     info!(
         "[AUDIT] {} | {:?} | {}",
         event.timestamp, event.action, event.details
     );
 
-    let json_line = serde_json::to_string(&event)?;
-
-    let mut file = OpenOptions::new().create(true).append(true).open(&path)?;
-
-    writeln!(file, "{}", json_line)?;
-
-    Ok(())
-}
-
-/// Read audit events from the JSONL file with optional filtering.
-pub fn read_events(app: &AppHandle, filter: AuditFilter) -> Result<Vec<AuditEvent>> {
-    let path = get_audit_log_path(app)?;
-
-    if !path.exists() {
-        return Ok(vec![]);
-    }
-
-    let file = fs::File::open(&path)?;
-    let reader = BufReader::new(file);
-
-    let mut events: Vec<AuditEvent> = reader
-        .lines()
-        .filter_map(|line| {
-            let line = line.ok()?;
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                return None;
-            }
-            match serde_json::from_str::<AuditEvent>(trimmed) {
-                Ok(ev) => Some(ev),
-                Err(e) => {
-                    warn!(
-                        "[AUDIT] Failed to parse audit line: {} — error: {}",
-                        trimmed, e
-                    );
-                    None
-                }
-            }
-        })
-        .collect();
-
-    // Latest first
-    events.reverse();
-
-    // Apply filters
-    if let Some(action_filter) = &filter.action {
-        events.retain(|e| {
-            e.action
-                .to_lowercase()
-                .contains(&action_filter.to_lowercase())
-        });
-    }
-    if let Some(actor_filter) = &filter.actor_id {
-        events.retain(|e| {
-            e.actor_id
-                .as_deref()
-                .map(|a| a == actor_filter.as_str())
-                .unwrap_or(false)
-        });
-    }
-    if let Some(level_filter) = &filter.level {
-        let target = level_filter.to_uppercase();
-        events.retain(|e| {
-            let lev = match &e.level {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Ok(pool) = get_db_pool(&app_handle).await {
+            let level_str = match level {
                 AuditLevel::Info => "INFO",
                 AuditLevel::Warning => "WARNING",
                 AuditLevel::Critical => "CRITICAL",
             };
-            lev == target.as_str()
+
+            let _ = sqlx::query(
+                "INSERT INTO audit_logs (id, timestamp, level, action, actor_id, actor_name, location_id, device_id, details) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            )
+            .bind(event.id)
+            .bind(event.timestamp)
+            .bind(level_str)
+            .bind(action_str)
+            .bind(actor_id)
+            .bind(actor_name)
+            .bind(location_id)
+            .bind(device_id)
+            .bind(serde_json::to_string(&details).unwrap_or_default())
+            .execute(&pool)
+            .await;
+        }
+    });
+
+    Ok(())
+}
+
+/// Read audit events from the database with optional filtering.
+pub async fn read_events(app: &AppHandle, filter: AuditFilter) -> Result<Vec<AuditEvent>> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+
+    let mut query_str = "SELECT * FROM audit_logs WHERE 1=1".to_string();
+    if filter.action.is_some() { query_str.push_str(" AND action LIKE ?"); }
+    if filter.actor_id.is_some() { query_str.push_str(" AND actor_id = ?"); }
+    if filter.level.is_some() { query_str.push_str(" AND level = ?"); }
+    query_str.push_str(" ORDER BY timestamp DESC");
+
+    let limit = filter.limit.unwrap_or(200);
+    let offset = filter.offset.unwrap_or(0);
+    query_str.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
+
+    let mut query = sqlx::query(&query_str);
+    if let Some(action) = &filter.action { query = query.bind(format!("%{}%", action)); }
+    if let Some(actor_id) = &filter.actor_id { query = query.bind(actor_id); }
+    if let Some(level) = &filter.level { query = query.bind(level.to_uppercase()); }
+
+    let rows = query.fetch_all(&pool).await?;
+    let mut events = Vec::new();
+    for row in rows {
+        let level_str: String = row.get("level");
+        let level = match level_str.as_str() {
+            "WARNING" => AuditLevel::Warning,
+            "CRITICAL" => AuditLevel::Critical,
+            _ => AuditLevel::Info,
+        };
+
+        events.push(AuditEvent {
+            id: row.get("id"),
+            timestamp: row.get("timestamp"),
+            level,
+            action: row.get("action"),
+            actor_id: row.get("actor_id"),
+            actor_name: row.get("actor_name"),
+            location_id: row.get("location_id"),
+            device_id: row.get("device_id"),
+            details: serde_json::from_str(&row.get::<String, _>("details")).unwrap_or(serde_json::Value::Null),
         });
     }
 
-    // Pagination
-    let offset = filter.offset.unwrap_or(0);
-    let limit = filter.limit.unwrap_or(200);
-    let paginated = events.into_iter().skip(offset).take(limit).collect();
-
-    Ok(paginated)
+    Ok(events)
 }
 
 /// Get the path to the current system log directory.
 fn get_system_log_path(app: &AppHandle) -> Result<PathBuf> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?;
-    // tauri-plugin-log writes to this location
+    let app_data_dir = app.path().app_data_dir()?;
     Ok(app_data_dir.join("logs"))
 }
 
@@ -188,14 +253,12 @@ fn get_system_log_path(app: &AppHandle) -> Result<PathBuf> {
 pub fn read_system_log(app: &AppHandle, lines: usize) -> Result<String> {
     let log_dir = get_system_log_path(app)?;
 
-    // Find the latest .log file (tauri-plugin-log uses rotating files)
     let mut log_files: Vec<PathBuf> = fs::read_dir(&log_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
         .filter(|p| p.extension().map(|ext| ext == "log").unwrap_or(false))
         .collect();
 
-    // Sort by modification time, latest first
     log_files.sort_by(|a, b| {
         let ta = fs::metadata(a).and_then(|m| m.modified()).ok();
         let tb = fs::metadata(b).and_then(|m| m.modified()).ok();
@@ -227,10 +290,8 @@ pub fn read_system_log(app: &AppHandle, lines: usize) -> Result<String> {
 // Tauri Commands
 // ============================================================
 
-/// Write an arbitrary audit event from the frontend.
 #[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub fn write_audit_log(
+pub async fn write_audit_log(
     app: AppHandle,
     action: String,
     level: Option<String>,
@@ -259,9 +320,8 @@ pub fn write_audit_log(
     .map_err(|e| e.to_string())
 }
 
-/// Get audit log entries with optional filters.
 #[tauri::command]
-pub fn get_audit_logs(
+pub async fn get_audit_logs(
     app: AppHandle,
     action: Option<String>,
     actor_id: Option<String>,
@@ -276,10 +336,9 @@ pub fn get_audit_logs(
         limit,
         offset,
     };
-    read_events(&app, filter).map_err(|e| e.to_string())
+    read_events(&app, filter).await.map_err(|e| e.to_string())
 }
 
-/// Read recent system log lines (for developers / support).
 #[tauri::command]
 pub fn get_system_logs(app: AppHandle, lines: Option<usize>) -> Result<String, String> {
     read_system_log(&app, lines.unwrap_or(500)).map_err(|e| e.to_string())

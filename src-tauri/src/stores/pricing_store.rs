@@ -5,32 +5,31 @@ use aes_gcm::{
 };
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
+use log::{error, info};
 use rand::RngCore;
 use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
+use sqlx::{Row, SqlitePool};
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_sql::{DbInstances, DbPool};
 
 const PRICING_FILENAME: &str = "secure_pricing.bin";
-const TIMEOUT_SECONDS: u64 = 30; // Slightly longer for potentially large pricing data
+const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
+const TIMEOUT_SECONDS: u64 = 30;
 
 static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 
 fn get_legacy_secret() -> &'static str {
     LEGACY_SECRET.get_or_init(|| {
-        option_env!("LEGACY_APP_SECRET")
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
+        std::env::var("LEGACY_APP_SECRET")
+            .unwrap_or_else(|_| "dealio-pos-secure-storage-salt".to_string())
     })
 }
+
 // --- State Management ---
-pub struct PricingState {
-    pub data: Mutex<PosPricingData>,
-    pub last_sync_at: Mutex<Option<String>>,
-}
+pub struct PricingState;
 
 impl Default for PricingState {
     fn default() -> Self {
@@ -40,442 +39,325 @@ impl Default for PricingState {
 
 impl PricingState {
     pub fn new() -> Self {
-        Self {
-            data: Mutex::new(PosPricingData {
-                lists: Vec::new(),
-                items: Vec::new(),
-                allocations: HashMap::new(),
-            }),
-            last_sync_at: Mutex::new(None),
-        }
+        Self
     }
 }
 
-// --- Helper: Encryption Logic (Same as Customer Store) ---
-fn get_cipher_key() -> [u8; 32] {
+// --- DB Helper ---
+async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
+    let instances = app.state::<DbInstances>();
+    let guard = instances.0.read().await;
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+        Ok(pool.clone())
+    } else {
+        Err(format!("Database {} not found.", MAIN_DB_NAME))
+    }
+}
+
+// --- Encryption Helpers ---
+fn get_legacy_key() -> [u8; 32] {
     let mut hasher = Sha256::new();
     hasher.update(get_legacy_secret().as_bytes());
     hasher.finalize().into()
 }
 
-async fn save_encrypted(
-    path: PathBuf,
-    sync_at: Option<String>,
-    data: &PosPricingData,
-) -> Result<()> {
-    // 1. Serialize data to JSON
-    let data_wrapper = (sync_at, data);
-    let json_data = serde_json::to_string(&data_wrapper)?;
+// --- Initialization & Migration ---
+pub async fn init_state(app: &AppHandle) {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(e) => {
+            error!("[PricingStore] Failed to get main DB pool: {}", e);
+            return;
+        }
+    };
 
-    // 2. Encrypt with Secure Key from Keyring
-    let key = crate::security::get_or_create_key("pricing_store_key")
-        .map_err(|e| anyhow::anyhow!("Keyring error: {}", e))?;
+    let create_price_lists = r#"
+        CREATE TABLE IF NOT EXISTS price_lists (
+            id TEXT PRIMARY KEY,
+            code TEXT,
+            priority INTEGER,
+            is_global BOOLEAN,
+            is_active BOOLEAN,
+            valid_from TEXT,
+            valid_to TEXT,
+            updated_at TEXT
+        )
+    "#;
 
-    let cipher = Aes256Gcm::new(&key.into());
+    let create_price_items = r#"
+        CREATE TABLE IF NOT EXISTS price_items (
+            id TEXT PRIMARY KEY,
+            price_list_id TEXT,
+            variant_id TEXT,
+            selling_unit_id TEXT,
+            min_quantity INTEGER,
+            price TEXT,
+            updated_at TEXT
+        )
+    "#;
 
-    // Generate a random 96-bit nonce
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from(nonce_bytes);
+    let create_allocations = r#"
+        CREATE TABLE IF NOT EXISTS customer_allocations (
+            customer_id TEXT,
+            price_list_id TEXT,
+            PRIMARY KEY (customer_id, price_list_id)
+        )
+    "#;
 
-    let ciphertext = cipher
-        .encrypt(&nonce, json_data.as_bytes())
-        .map_err(|_| anyhow::anyhow!("Encryption failed"))?;
+    let create_sync_meta = r#"
+        CREATE TABLE IF NOT EXISTS pricing_sync_meta (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_sync TEXT
+        )
+    "#;
 
-    // 3. Store: [Nonce (12 bytes)] + [Ciphertext]
-    let mut final_payload = nonce_bytes.to_vec();
-    final_payload.extend_from_slice(&ciphertext);
+    let _ = sqlx::query(create_price_lists).execute(&pool).await;
+    let _ = sqlx::query(create_price_items).execute(&pool).await;
+    let _ = sqlx::query(create_allocations).execute(&pool).await;
+    let _ = sqlx::query(create_sync_meta).execute(&pool).await;
 
-    tokio::fs::write(path, final_payload)
-        .await
-        .context("Failed to write secure file")?;
-    Ok(())
+    let _ = migrate_legacy_file_to_db(app, &pool).await;
 }
 
-async fn load_encrypted(path: PathBuf) -> Result<(Option<String>, PosPricingData)> {
-    let file_bytes = tokio::fs::read(&path)
-        .await
-        .context("Failed to read secure file")?;
+async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result<()> {
+    let app_dir = app.path().app_data_dir()?;
+    let path = app_dir.join(PRICING_FILENAME);
 
+    if !path.exists() { return Ok(()); }
+
+    info!("[PricingStore] Migrating legacy pricing data...");
+    let file_bytes = tokio::fs::read(&path).await?;
     if file_bytes.len() < 12 {
-        return Err(anyhow::anyhow!("File corrupted or too short"));
+        let _ = tokio::fs::remove_file(&path).await;
+        return Ok(());
     }
 
-    // 1. Split Nonce and Ciphertext
     let (nonce_slice, ciphertext) = file_bytes.split_at(12);
-
     let mut nonce_arr = [0u8; 12];
     nonce_arr.copy_from_slice(nonce_slice);
     let nonce = Nonce::from(nonce_arr);
 
-    // 2a. Try Secure Key
+    let mut plaintext_opt = None;
     if let Ok(key) = crate::security::get_or_create_key("pricing_store_key") {
         let cipher = Aes256Gcm::new(&key.into());
-        if let Ok(plaintext) = cipher.decrypt(&nonce, ciphertext) {
-            let data = serde_json::from_slice(&plaintext)?;
-            return Ok(data);
-        }
+        plaintext_opt = cipher.decrypt(&nonce, ciphertext).ok();
     }
 
-    // 2b. Try Legacy Key (Migration)
-    println!("[PricingStore] Decryption with secure key failed. Attempting legacy migration...");
-    let legacy_key = get_cipher_key();
-    let cipher = Aes256Gcm::new(&legacy_key.into());
-
-    let plaintext = cipher
-        .decrypt(&nonce, ciphertext)
-        .map_err(|_| anyhow::anyhow!("Decryption failed - Invalid Key or Corrupted Data"))?;
-
-    let data: (Option<String>, PosPricingData) = serde_json::from_slice(&plaintext)?;
-
-    // Re-save immediately with new secure key
-    println!("[PricingStore] Legacy migration successful. Re-saving with secure key...");
-    if let Err(e) = save_encrypted(path, data.0.clone(), &data.1).await {
-        eprintln!("[PricingStore] Migration save failed: {}", e);
+    if plaintext_opt.is_none() {
+        let legacy_key = get_legacy_key();
+        let cipher = Aes256Gcm::new(&legacy_key.into());
+        plaintext_opt = cipher.decrypt(&nonce, ciphertext).ok();
     }
 
-    Ok(data)
-}
-
-// --- Helper: File Path ---
-fn get_store_path(app: &AppHandle) -> Result<PathBuf> {
-    let app_dir = app
-        .path()
-        .app_data_dir()
-        .context("Failed to resolve App Data Directory")?;
-    if !app_dir.exists() {
-        fs::create_dir_all(&app_dir)?;
-    }
-    Ok(app_dir.join(PRICING_FILENAME))
-}
-
-// --- 1. Load Data on Startup ---
-pub async fn load_pricing_from_disk(app: &AppHandle, state: &PricingState) -> Result<()> {
-    let path = get_store_path(app)?;
-
-    if path.exists() {
-        match load_encrypted(path).await {
-            Ok((sync_at, data)) => {
-                *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = sync_at;
-                *state.data.lock().unwrap_or_else(|e| e.into_inner()) = data;
-            }
-            Err(e) => eprintln!("[SecureStore] Failed to load pricing: {}", e),
+    if let Some(plaintext) = plaintext_opt {
+        if let Ok((last_sync, data)) = serde_json::from_slice::<(Option<String>, PosPricingData)>(&plaintext) {
+            save_data_to_db(pool, data, last_sync).await?;
+            info!("[PricingStore] Migration complete. Deleting legacy file.");
+            let _ = tokio::fs::remove_file(&path).await;
         }
     }
     Ok(())
 }
 
-// --- 2. Sync Engine ---
+async fn save_data_to_db(pool: &SqlitePool, data: PosPricingData, last_sync: Option<String>) -> Result<()> {
+    let mut tx = pool.begin().await?;
+
+    for list in data.lists {
+        sqlx::query("INSERT OR REPLACE INTO price_lists (id, code, priority, is_global, is_active, valid_from, valid_to, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
+            .bind(list.id).bind(list.code).bind(list.priority).bind(list.is_global).bind(list.is_active).bind(list.valid_from).bind(list.valid_to).bind(list.updated_at)
+            .execute(&mut *tx).await?;
+    }
+
+    for item in data.items {
+        sqlx::query("INSERT OR REPLACE INTO price_items (id, price_list_id, variant_id, selling_unit_id, min_quantity, price, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+            .bind(item.id).bind(item.price_list_id).bind(item.variant_id).bind(item.selling_unit_id).bind(item.min_quantity).bind(item.price).bind(item.updated_at)
+            .execute(&mut *tx).await?;
+    }
+
+    for (cust_id, lists) in data.allocations {
+        for list_id in lists {
+            sqlx::query("INSERT OR IGNORE INTO customer_allocations (customer_id, price_list_id) VALUES (?1, ?2)")
+                .bind(&cust_id).bind(&list_id)
+                .execute(&mut *tx).await?;
+        }
+    }
+
+    if let Some(ts) = last_sync {
+        sqlx::query("INSERT OR REPLACE INTO pricing_sync_meta (id, last_sync) VALUES (1, ?1)")
+            .bind(ts).execute(&mut *tx).await?;
+    }
+
+    tx.commit().await?;
+    Ok(())
+}
+
+pub async fn load_pricing_from_disk(_app: &AppHandle, _state: &PricingState) -> Result<()> {
+    Ok(())
+}
+
+// --- Sync Engine ---
 use crate::auth_store::AuthState;
 
 pub async fn run_sync(
     app: AppHandle,
-    state: &PricingState,
+    _state: &PricingState,
     auth_state: &AuthState,
 ) -> Result<String> {
-    // Returns new sync timestamp
+    let pool = get_db_pool(&app).await.map_err(|e| anyhow::anyhow!(e))?;
 
-    // 1. Get Config/Auth from State
     let (base_url, device_key) = {
-        let config_guard = auth_state
-            .device_config
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
-        let config = config_guard
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
         (config.base_url.clone(), config.device_key.clone())
     };
 
     let member_token = {
-        let token_guard = auth_state
-            .member_token
-            .lock()
-            .map_err(|_| anyhow::anyhow!("Lock error"))?;
+        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
         token_guard.clone()
     };
 
-    if base_url.is_empty() {
-        return Err(anyhow::anyhow!("Base URL is empty"));
-    }
-
-    let clean_base_url = base_url.trim_end_matches('/');
-    // Endpoint: /api/v2/pos/pricing OR /api/v2/pos/pricing/sync
-
-    let last_sync = state
-        .last_sync_at
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .clone();
+    let last_sync: Option<String> = sqlx::query("SELECT last_sync FROM pricing_sync_meta WHERE id = 1")
+        .fetch_optional(&pool).await?.map(|r| r.get("last_sync"));
 
     let target_url = if last_sync.is_some() {
-        format!(
-            "{}/{}",
-            clean_base_url,
-            crate::api_config::routes::PRICING_SYNC
-        )
+        format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::PRICING_SYNC)
     } else {
-        format!("{}/{}", clean_base_url, crate::api_config::routes::PRICING)
+        format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::PRICING)
     };
 
-    // --- BUILD HEADERS ---
     let mut headers = HeaderMap::new();
-
-    let mut val =
-        HeaderValue::from_str(&device_key).map_err(|_| anyhow::anyhow!("Invalid Device Key"))?;
-    val.set_sensitive(true);
-    headers.insert("X-API-KEY", val);
-
+    headers.insert("X-API-KEY", HeaderValue::from_str(&device_key)?);
     if let Some(token) = member_token {
-        let mut val =
-            HeaderValue::from_str(&token).map_err(|_| anyhow::anyhow!("Invalid Token"))?;
-        val.set_sensitive(true);
-        headers.insert("X-MEMBER-TOKEN", val);
+        headers.insert("X-MEMBER-TOKEN", HeaderValue::from_str(&token)?);
     }
 
-    let client = reqwest::Client::builder()
-        .default_headers(headers)
-        .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
-        .build()?;
-
-    // --- PREPARE PARAMS ---
+    let client = reqwest::Client::builder().default_headers(headers).timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS)).build()?;
     let mut query_params = vec![];
-    if let Some(token) = &last_sync {
-        query_params.push(("lastSync", token.clone()));
-    }
+    if let Some(token) = &last_sync { query_params.push(("lastSync", token.clone())); }
 
-    // --- EXECUTE REQUEST ---
-    let response = client
-        .get(&target_url)
-        .query(&query_params)
-        .send()
-        .await
-        .context("Failed to send request to server")?;
-
+    let response = client.get(&target_url).query(&query_params).send().await?;
     if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Server returned error: {} - {}",
-            status,
-            body
-        ));
+        return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
     }
 
-    let res_body = response
-        .json::<crate::models::ServerPricingResponse>()
-        .await
-        .context("Failed to parse server response JSON")?;
-
+    let res_body = response.json::<crate::models::ServerPricingResponse>().await?;
     let metadata = res_body.metadata;
     let server_data = res_body.data;
 
-    // Transform Server Data -> Client Flat Data
-    let mut flat_lists = Vec::new();
-    for slist in server_data.lists {
-        flat_lists.push(ClientPriceList {
-            id: slist.id,
-            code: slist.code,
-            priority: slist.priority,
-            is_global: slist.is_global,
-            is_active: slist.is_active,
-            valid_from: slist.valid_from,
-            valid_to: slist.valid_to,
-            updated_at: slist.updated_at,
-        });
+    let mut tx = pool.begin().await?;
+
+    if !metadata.is_delta || metadata.temp_full_sync {
+        sqlx::query("DELETE FROM price_lists").execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM price_items").execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM customer_allocations").execute(&mut *tx).await?;
     }
 
-    let mut flat_items = Vec::new();
-    for sitem in server_data.items {
-        flat_items.push(ClientPriceListItem {
-            id: sitem.id,
-            price_list_id: sitem.price_list_id,
-            variant_id: sitem.variant_id,
-            selling_unit_id: sitem.selling_unit_id,
-            min_quantity: sitem.min_quantity,
-            price: sitem.price,
-            updated_at: sitem.updated_at,
-        });
+    for list in server_data.lists {
+        sqlx::query("INSERT OR REPLACE INTO price_lists (id, code, priority, is_global, is_active, valid_from, valid_to, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
+            .bind(list.id).bind(list.code).bind(list.priority).bind(list.is_global).bind(list.is_active).bind(list.valid_from).bind(list.valid_to).bind(list.updated_at)
+            .execute(&mut *tx).await?;
     }
 
-    let customer_allocations = server_data.customer_allocations.unwrap_or_default();
+    for item in server_data.items {
+        sqlx::query("INSERT OR REPLACE INTO price_items (id, price_list_id, variant_id, selling_unit_id, min_quantity, price, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
+            .bind(item.id).bind(item.price_list_id).bind(item.variant_id).bind(item.selling_unit_id).bind(item.min_quantity).bind(item.price).bind(item.updated_at)
+            .execute(&mut *tx).await?;
+    }
 
-    // Idempotency check
-    if let Some(last) = &last_sync {
-        if last == &metadata.synced_at {
-            return Ok(last.clone());
+    if let Some(allocations) = server_data.customer_allocations {
+        for (cust_id, lists) in allocations {
+            for list_id in lists {
+                sqlx::query("INSERT OR IGNORE INTO customer_allocations (customer_id, price_list_id) VALUES (?1, ?2)")
+                    .bind(cust_id.clone()).bind(list_id)
+                    .execute(&mut *tx).await?;
+            }
         }
     }
 
-    // --- MERGE LOGIC ---
-    let (new_time, updated_data) = {
-        let mut data_guard = state.data.lock().unwrap_or_else(|e| e.into_inner());
+    for deleted_id in server_data.deleted_item_ids {
+        sqlx::query("DELETE FROM price_items WHERE id = ?1").bind(deleted_id).execute(&mut *tx).await?;
+    }
 
-        if !metadata.is_delta || metadata.temp_full_sync {
-            // Full Sync - Overwrite
-            *data_guard = PosPricingData {
-                lists: flat_lists,
-                items: flat_items,
-                allocations: customer_allocations,
-            };
-            println!(
-                "[PricingStore] Performed full sync. Items: {}",
-                data_guard.items.len()
-            );
-        } else {
-            // Delta Sync - Merge
-            // 1. Lists
-            let mut list_map: HashMap<String, ClientPriceList> = data_guard
-                .lists
-                .drain(..)
-                .map(|l| (l.id.clone(), l))
-                .collect();
-            for list in flat_lists {
-                list_map.insert(list.id.clone(), list);
-            }
-            data_guard.lists = list_map.into_values().collect();
+    sqlx::query("INSERT OR REPLACE INTO pricing_sync_meta (id, last_sync) VALUES (1, ?1)")
+        .bind(&metadata.synced_at).execute(&mut *tx).await?;
 
-            // 2. Items
-            let mut item_map: HashMap<String, ClientPriceListItem> = data_guard
-                .items
-                .drain(..)
-                .map(|i| (i.id.clone(), i))
-                .collect();
-
-            // Remove deleted items if list provided
-            for deleted_id in server_data.deleted_item_ids {
-                item_map.remove(&deleted_id);
-            }
-
-            // Add/Update new
-            for item in flat_items {
-                item_map.insert(item.id.clone(), item);
-            }
-            data_guard.items = item_map.into_values().collect();
-
-            // 3. Allocations (Merge maps)
-            for (cust_id, lists) in customer_allocations {
-                data_guard.allocations.insert(cust_id, lists);
-            }
-            println!(
-                "[PricingStore] Performed delta sync. Active Items: {}",
-                data_guard.items.len()
-            );
-        }
-
-        // --- SAVE TO DISK SECURELY ---
-        let new_time = metadata.synced_at;
-        *state.last_sync_at.lock().unwrap_or_else(|e| e.into_inner()) = Some(new_time.clone());
-        (new_time, data_guard.clone())
-    };
-
-    let path = get_store_path(&app)?;
-    save_encrypted(path, Some(new_time.clone()), &updated_data).await?;
-
-    Ok(new_time)
+    tx.commit().await?;
+    Ok(metadata.synced_at)
 }
 
-// --- 3. Pricing Resolution Engine ---
-pub fn resolve_price(
-    state: &PricingState,
+// --- Pricing Resolution Engine ---
+pub async fn resolve_price(
+    app: &AppHandle,
+    _state: &PricingState,
     customer_id: Option<String>,
     variant_id: String,
-    unit_id: Option<String>, // Explicit Unit ID or None (for base unit implicit)
+    unit_id: Option<String>,
     is_base_unit: bool,
 ) -> Option<f64> {
-    let data = state.data.lock().unwrap_or_else(|e| e.into_inner());
+    let pool = get_db_pool(app).await.ok()?;
 
-    // 1. Identify Applicable Price Lists
-    let mut applicable_list_ids = HashSet::new();
-
-    // a. Customer Specific Lists
+    // 1. Get applicable price lists
+    let mut list_ids = HashSet::new();
     if let Some(cid) = &customer_id {
-        if let Some(lists) = data.allocations.get(cid) {
-            for list_id in lists {
-                applicable_list_ids.insert(list_id.clone());
-            }
+        if let Ok(rows) = sqlx::query("SELECT price_list_id FROM customer_allocations WHERE customer_id = ?1").bind(cid).fetch_all(&pool).await {
+            for row in rows { list_ids.insert(row.get::<String, _>("price_list_id")); }
         }
     }
-
-    // b. Global Lists
-    for list in &data.lists {
-        if list.is_global {
-            applicable_list_ids.insert(list.id.clone());
-        }
+    if let Ok(rows) = sqlx::query("SELECT id FROM price_lists WHERE is_global = 1 AND is_active = 1").fetch_all(&pool).await {
+        for row in rows { list_ids.insert(row.get::<String, _>("id")); }
     }
 
-    if applicable_list_ids.is_empty() {
-        return None;
-    }
+    if list_ids.is_empty() { return None; }
 
-    // 2. Filter and Sort Lists
-    let now = Utc::now();
-    let mut sorted_lists: Vec<&ClientPriceList> = data
-        .lists
-        .iter()
-        .filter(|list| {
-            if !applicable_list_ids.contains(&list.id) {
-                return false;
-            }
-            if !list.is_active {
-                return false;
-            }
+    // 2. Fetch and filter sorted lists
+    let now = Utc::now().to_rfc3339();
+    let mut placeholders = vec!["?"; list_ids.len()].join(",");
+    let query_str = format!("SELECT * FROM price_lists WHERE id IN ({}) AND is_active = 1 ORDER BY priority DESC", placeholders);
+    let mut query = sqlx::query(&query_str);
+    for id in &list_ids { query = query.bind(id); }
 
-            // Check dates
-            if let Some(from) = &list.valid_from {
-                if let Ok(dt) = DateTime::parse_from_rfc3339(from) {
-                    if dt > now {
-                        return false;
-                    }
-                }
-            }
-            if let Some(to) = &list.valid_to {
-                if let Ok(dt) = DateTime::parse_from_rfc3339(to) {
-                    if dt < now {
-                        return false;
-                    }
-                }
-            }
-            true
-        })
-        .collect();
+    let Ok(rows) = query.fetch_all(&pool).await else { return None; };
 
-    // Sort by priority DESC (Higher is better)
-    sorted_lists.sort_by(|a, b| b.priority.cmp(&a.priority));
+    for row in rows {
+        let id: String = row.get("id");
+        let valid_from: Option<String> = row.get("valid_from");
+        let valid_to: Option<String> = row.get("valid_to");
 
-    // 3. Find first matching item
-    for list in sorted_lists {
-        let matched = data.items.iter().find(|item| {
-            if item.price_list_id != list.id {
-                return false;
-            }
-            if item.variant_id != variant_id {
-                return false;
-            }
+        if let Some(from) = valid_from { if from > now { continue; } }
+        if let Some(to) = valid_to { if to < now { continue; } }
 
-            // Match Logic:
-            // 1. Exact Unit Match: item.selling_unit_id == unit_id
-            // 2. Base Unit Match: is_base_unit=true AND item.selling_unit_id is None
-
-            match (&item.selling_unit_id, &unit_id) {
-                (Some(id1), Some(id2)) => id1 == id2,
-                (None, _) => is_base_unit, // If item has no unit, it applies to base unit. So we match if current request implies base unit.
-                (Some(_), None) => false, // Item is for a specific unit, but we have none? Unlikely if is_base_unit logic holds.
-            }
-        });
-
-        if let Some(item) = matched {
-            // Parse price string to f64
-            if let Ok(price) = item.price.parse::<f64>() {
-                return Some(price);
-            }
+        // 3. Find matching item
+        let item_query = "SELECT price FROM price_items WHERE price_list_id = ?1 AND variant_id = ?2 AND (selling_unit_id = ?3 OR (selling_unit_id IS NULL AND ?4 = 1))";
+        if let Ok(Some(item_row)) = sqlx::query(item_query).bind(&id).bind(&variant_id).bind(&unit_id).bind(is_base_unit).fetch_optional(&pool).await {
+            let price_str: String = item_row.get("price");
+            return price_str.parse::<f64>().ok();
         }
     }
 
     None
 }
 
-// --- 4. Data Access ---
-pub fn get_all_pricing(state: &PricingState) -> PosPricingData {
-    state.data.lock().unwrap_or_else(|e| e.into_inner()).clone()
+pub async fn get_all_pricing(app: &AppHandle, _state: &PricingState) -> PosPricingData {
+    let pool = match get_db_pool(app).await {
+        Ok(p) => p,
+        Err(_) => return PosPricingData { lists: vec![], items: vec![], allocations: HashMap::new() },
+    };
+
+    let lists = sqlx::query("SELECT * FROM price_lists").fetch_all(&pool).await.unwrap_or_default().into_iter().map(|r| ClientPriceList {
+        id: r.get("id"), code: r.get("code"), priority: r.get("priority"), is_global: r.get("is_global"), is_active: r.get("is_active"), valid_from: r.get("valid_from"), valid_to: r.get("valid_to"), updated_at: r.get("updated_at"),
+    }).collect();
+
+    let items = sqlx::query("SELECT * FROM price_items").fetch_all(&pool).await.unwrap_or_default().into_iter().map(|r| ClientPriceListItem {
+        id: r.get("id"), price_list_id: r.get("price_list_id"), variant_id: r.get("variant_id"), selling_unit_id: r.get("selling_unit_id"), min_quantity: r.get("min_quantity"), price: r.get("price"), updated_at: r.get("updated_at"),
+    }).collect();
+
+    let mut allocations: HashMap<String, Vec<String>> = HashMap::new();
+    if let Ok(rows) = sqlx::query("SELECT * FROM customer_allocations").fetch_all(&pool).await {
+        for row in rows {
+            allocations.entry(row.get("customer_id")).or_default().push(row.get("price_list_id"));
+        }
+    }
+
+    PosPricingData { lists, items, allocations }
 }
