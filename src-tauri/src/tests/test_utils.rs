@@ -56,6 +56,15 @@ pub async fn setup_test_db() -> SqlitePool {
         )
     "#).execute(&pool).await.unwrap();
 
+    // Customer Allocations
+    sqlx::query(r#"
+        CREATE TABLE customer_allocations (
+            customer_id TEXT,
+            price_list_id TEXT,
+            PRIMARY KEY (customer_id, price_list_id)
+        )
+    "#).execute(&pool).await.unwrap();
+
     // Audit Logs
     sqlx::query(r#"
         CREATE TABLE audit_logs (

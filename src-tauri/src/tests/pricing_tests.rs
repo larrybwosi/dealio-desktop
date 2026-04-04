@@ -1,6 +1,5 @@
-use crate::stores::pricing_store::{PricingState, resolve_price};
+use sqlx::Row;
 use crate::tests::test_utils::{setup_test_db};
-use tauri_plugin_sql::{DbInstances, DbPool};
 
 #[tokio::test]
 async fn test_price_resolution_logic() {

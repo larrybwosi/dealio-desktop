@@ -186,11 +186,13 @@ pub fn run() {
                 error!("Failed to load initial pricing data: {}", e);
             }
 
-            let notification_state = app.state::<NotificationState>();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                notification_manager::init_notification_state(&app_handle, &notification_state).await;
+                let state = app_handle.state::<NotificationState>();
+                notification_manager::init_notification_state(&app_handle, &state).await;
             });
+
+            let notification_state = app.state::<NotificationState>();
 
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
@@ -218,7 +220,7 @@ pub fn run() {
                     ),
                 );
                 notification_state.add_notification(notification.clone());
-                let _ = notification_state.save_to_store(app.handle());
+                let _ = tauri::async_runtime::block_on(notification_manager::save_notification_to_db(app.handle(), &notification));
 
                 // Send native notification
                 let _ = app.emit("old-sales-detected", old_sales.len());

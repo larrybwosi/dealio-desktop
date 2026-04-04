@@ -7,7 +7,6 @@ use tauri_plugin_sql::{DbInstances, DbPool};
 
 const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 const MAX_NOTIFICATIONS: usize = 100;
-const AUTO_CLEAR_DAYS: i64 = 7;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -103,6 +102,18 @@ async fn get_db_pool(app: &AppHandle) -> Option<SqlitePool> {
     guard.get(MAIN_DB_NAME).and_then(|p| match p { DbPool::Sqlite(pool) => Some(pool.clone()) })
 }
 
+pub async fn save_notification_to_db(app: &AppHandle, notification: &AppNotification) {
+    if let Some(pool) = get_db_pool(app).await {
+        let _ = sqlx::query("INSERT OR REPLACE INTO notifications (id, payload, timestamp, is_read) VALUES (?1, ?2, ?3, ?4)")
+            .bind(&notification.id)
+            .bind(serde_json::to_string(notification).unwrap_or_default())
+            .bind(notification.timestamp.to_rfc3339())
+            .bind(notification.read)
+            .execute(&pool)
+            .await;
+    }
+}
+
 pub async fn init_notification_state(app: &AppHandle, state: &NotificationState) {
     let pool = match get_db_pool(app).await { Some(p) => p, None => return };
 
@@ -128,12 +139,7 @@ pub async fn send_native_notification(
     use tauri_plugin_notification::NotificationExt;
     let id = notification.id.clone();
     state.add_notification(notification.clone());
-
-    if let Some(pool) = get_db_pool(&app).await {
-        let _ = sqlx::query("INSERT OR REPLACE INTO notifications (id, payload, timestamp, is_read) VALUES (?1, ?2, ?3, ?4)")
-            .bind(&id).bind(serde_json::to_string(&notification).unwrap_or_default()).bind(notification.timestamp.to_rfc3339()).bind(notification.read)
-            .execute(&pool).await;
-    }
+    save_notification_to_db(&app, &notification).await;
 
     let _ = app.notification().builder().title(&notification.title).body(&notification.body).show();
     let _ = app.emit("notification-received", &notification);
@@ -153,7 +159,7 @@ pub fn get_unread_notification_count(state: tauri::State<'_, NotificationState>)
 
 #[tauri::command]
 pub async fn mark_notification_read(app: AppHandle, state: tauri::State<'_, NotificationState>, id: String) -> Result<bool, String> {
-    let (mut n_to_update, unread_count) = {
+    let (n_to_update, unread_count) = {
         let mut notifications = state.notifications.write().unwrap();
         if let Some(n) = notifications.iter_mut().find(|n| n.id == id) {
             n.read = true;

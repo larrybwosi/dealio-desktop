@@ -1,9 +1,5 @@
-use crate::stores::customer_store::{CustomerState, search_local, get_customers_by_ids};
+use sqlx::Row;
 use crate::tests::test_utils::{setup_test_db, create_mock_customer};
-use tauri_plugin_sql::{DbInstances, DbPool};
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::RwLock;
 
 // Note: Testing functions that require AppHandle/DbInstances is tricky in pure unit tests.
 // We've moved logic to SQLite, so we should focus on testing the SQL queries or higher-level flows.

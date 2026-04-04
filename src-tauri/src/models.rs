@@ -376,14 +376,6 @@ pub struct Shift {
     pub device_id: Option<String>,        // The Device ID where shift was opened
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CashMovement {
-    pub amount: f64,
-    pub reason: String,
-    pub timestamp: DateTime<Utc>,
-    pub movement_type: String, // "DROP", "PAYOUT", "REFUND"
-}
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ShiftSyncPayload {
     pub location_id: String,

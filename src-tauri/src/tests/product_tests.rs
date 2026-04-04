@@ -1,5 +1,6 @@
-use crate::stores::product_store::{ProductState, build_search_text};
+use sqlx::Row;
 use crate::tests::test_utils::{setup_test_db, create_mock_product};
+use crate::stores::product_store::build_search_text;
 
 #[tokio::test]
 async fn test_product_search_text_persistence() {

@@ -3,8 +3,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use anyhow::{Context, Result};
-use log::{error, info, warn};
+use anyhow::Result;
+use log::{error, info};
 use rand::RngCore;
 use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
