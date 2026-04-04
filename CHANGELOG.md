@@ -1,3 +1,22 @@
+# [3.3.0-nextgen.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.2...v3.3.0-nextgen.3) (2026-04-04)
+
+
+### Bug Fixes
+
+* add dummy binaries to CI lint job and refine hooks ([c097a18](https://github.com/larrybwosi/dealio-desktop/commit/c097a18eb3c50bd69fa5ce74a5b29ea29d4bbb68))
+* **backend errors:** corrected the backend errors ([301885f](https://github.com/larrybwosi/dealio-desktop/commit/301885fbfeaabfcf55803172bef8dbcc0be51d87))
+* **product card unit selection:** corrected the maximum update depth error ([cff8219](https://github.com/larrybwosi/dealio-desktop/commit/cff82192d1f5c3d16d2372dcea0a40d7bdcbc97f))
+* remove remaining forbidden console statements to unblock CI ([2ecb2d5](https://github.com/larrybwosi/dealio-desktop/commit/2ecb2d5e9d849b61e0f18f237ea3d3c30e6316ce))
+* resolve CI failures and pos integration issues ([67b7d01](https://github.com/larrybwosi/dealio-desktop/commit/67b7d01b8d41d14f625e7a3dedff29b5855ad31c))
+* resolve CI lint failures ([80997fa](https://github.com/larrybwosi/dealio-desktop/commit/80997faf1d261d2a9f4eea90419d887d1a4b4af4))
+* resolve startup infinite update loop and websocket 500 error ([1d784ac](https://github.com/larrybwosi/dealio-desktop/commit/1d784ac7ae9fae0aeb1e60b235d74ec3178aa9b2))
+* resolve startup infinite update loop and websocket 500 error ([a1323f6](https://github.com/larrybwosi/dealio-desktop/commit/a1323f68ad3825094a2579418f9d978c93957864))
+
+
+### Features
+
+* allow selecting and editing product selling units in POS ([a7da8ee](https://github.com/larrybwosi/dealio-desktop/commit/a7da8eeb5d0d41f6ff044d0b2f9a07494ffa3b6c))
+
 # [3.3.0-nextgen.2](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.1...v3.3.0-nextgen.2) (2026-04-03)
 
 
