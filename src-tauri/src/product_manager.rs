@@ -77,7 +77,8 @@ pub async fn search_global_command(
     .await
     .products;
 
-    let customers = crate::stores::customer_store::search_local(&customer_state, query.clone())
+    let customers = crate::stores::customer_store::search_local(&app, &customer_state, query.clone())
+        .await
         .into_iter()
         .take(5)
         .collect();

@@ -281,7 +281,7 @@ pub async fn process_sale(
 
     if payment_method == "CASH" {
         if let Some(total) = payload.get("total").and_then(|v| v.as_f64()) {
-            if let Err(e) = crate::shift_store::record_cash_sale(shift_state, total) {
+            if let Err(e) = crate::shift_store::record_cash_sale(&app, shift_state, total).await {
                 error!("[SalesStore] Failed to record cash sale in shift: {}", e);
             } else {
                 info!("[SalesStore] Recorded cash sale of {:.2}", total);

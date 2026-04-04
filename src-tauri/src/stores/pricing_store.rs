@@ -1,12 +1,11 @@
 use crate::models::{ClientPriceList, ClientPriceListItem, PosPricingData};
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use anyhow::Result;
+use chrono::Utc;
 use log::{error, info};
-use rand::RngCore;
 use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
@@ -121,13 +120,13 @@ pub async fn init_state(app: &AppHandle) {
 }
 
 async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result<()> {
-    let app_dir = app.path().app_data_dir()?;
+    let app_dir = app.path().app_data_dir().map_err(|e| anyhow::anyhow!(e))?;
     let path = app_dir.join(PRICING_FILENAME);
 
     if !path.exists() { return Ok(()); }
 
     info!("[PricingStore] Migrating legacy pricing data...");
-    let file_bytes = tokio::fs::read(&path).await?;
+    let file_bytes = tokio::fs::read(&path).await.map_err(|e| anyhow::anyhow!(e))?;
     if file_bytes.len() < 12 {
         let _ = tokio::fs::remove_file(&path).await;
         return Ok(());
@@ -161,34 +160,34 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
 }
 
 async fn save_data_to_db(pool: &SqlitePool, data: PosPricingData, last_sync: Option<String>) -> Result<()> {
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| anyhow::anyhow!(e))?;
 
     for list in data.lists {
         sqlx::query("INSERT OR REPLACE INTO price_lists (id, code, priority, is_global, is_active, valid_from, valid_to, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
             .bind(list.id).bind(list.code).bind(list.priority).bind(list.is_global).bind(list.is_active).bind(list.valid_from).bind(list.valid_to).bind(list.updated_at)
-            .execute(&mut *tx).await?;
+            .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     for item in data.items {
         sqlx::query("INSERT OR REPLACE INTO price_items (id, price_list_id, variant_id, selling_unit_id, min_quantity, price, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
             .bind(item.id).bind(item.price_list_id).bind(item.variant_id).bind(item.selling_unit_id).bind(item.min_quantity).bind(item.price).bind(item.updated_at)
-            .execute(&mut *tx).await?;
+            .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     for (cust_id, lists) in data.allocations {
         for list_id in lists {
             sqlx::query("INSERT OR IGNORE INTO customer_allocations (customer_id, price_list_id) VALUES (?1, ?2)")
                 .bind(&cust_id).bind(&list_id)
-                .execute(&mut *tx).await?;
+                .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
         }
     }
 
     if let Some(ts) = last_sync {
         sqlx::query("INSERT OR REPLACE INTO pricing_sync_meta (id, last_sync) VALUES (1, ?1)")
-            .bind(ts).execute(&mut *tx).await?;
+            .bind(ts).execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -218,7 +217,7 @@ pub async fn run_sync(
     };
 
     let last_sync: Option<String> = sqlx::query("SELECT last_sync FROM pricing_sync_meta WHERE id = 1")
-        .fetch_optional(&pool).await?.map(|r| r.get("last_sync"));
+        .fetch_optional(&pool).await.map_err(|e| anyhow::anyhow!(e))?.map(|r| r.get("last_sync"));
 
     let target_url = if last_sync.is_some() {
         format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::PRICING_SYNC)
@@ -227,42 +226,42 @@ pub async fn run_sync(
     };
 
     let mut headers = HeaderMap::new();
-    headers.insert("X-API-KEY", HeaderValue::from_str(&device_key)?);
+    headers.insert("X-API-KEY", HeaderValue::from_str(&device_key).map_err(|e| anyhow::anyhow!(e))?);
     if let Some(token) = member_token {
-        headers.insert("X-MEMBER-TOKEN", HeaderValue::from_str(&token)?);
+        headers.insert("X-MEMBER-TOKEN", HeaderValue::from_str(&token).map_err(|e| anyhow::anyhow!(e))?);
     }
 
-    let client = reqwest::Client::builder().default_headers(headers).timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS)).build()?;
+    let client = reqwest::Client::builder().default_headers(headers).timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS)).build().map_err(|e| anyhow::anyhow!(e))?;
     let mut query_params = vec![];
     if let Some(token) = &last_sync { query_params.push(("lastSync", token.clone())); }
 
-    let response = client.get(&target_url).query(&query_params).send().await?;
+    let response = client.get(&target_url).query(&query_params).send().await.map_err(|e| anyhow::anyhow!(e))?;
     if !response.status().is_success() {
         return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
     }
 
-    let res_body = response.json::<crate::models::ServerPricingResponse>().await?;
+    let res_body = response.json::<crate::models::ServerPricingResponse>().await.map_err(|e| anyhow::anyhow!(e))?;
     let metadata = res_body.metadata;
     let server_data = res_body.data;
 
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| anyhow::anyhow!(e))?;
 
     if !metadata.is_delta || metadata.temp_full_sync {
-        sqlx::query("DELETE FROM price_lists").execute(&mut *tx).await?;
-        sqlx::query("DELETE FROM price_items").execute(&mut *tx).await?;
-        sqlx::query("DELETE FROM customer_allocations").execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM price_lists").execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
+        sqlx::query("DELETE FROM price_items").execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
+        sqlx::query("DELETE FROM customer_allocations").execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     for list in server_data.lists {
         sqlx::query("INSERT OR REPLACE INTO price_lists (id, code, priority, is_global, is_active, valid_from, valid_to, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)")
             .bind(list.id).bind(list.code).bind(list.priority).bind(list.is_global).bind(list.is_active).bind(list.valid_from).bind(list.valid_to).bind(list.updated_at)
-            .execute(&mut *tx).await?;
+            .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     for item in server_data.items {
         sqlx::query("INSERT OR REPLACE INTO price_items (id, price_list_id, variant_id, selling_unit_id, min_quantity, price, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)")
             .bind(item.id).bind(item.price_list_id).bind(item.variant_id).bind(item.selling_unit_id).bind(item.min_quantity).bind(item.price).bind(item.updated_at)
-            .execute(&mut *tx).await?;
+            .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     if let Some(allocations) = server_data.customer_allocations {
@@ -270,19 +269,19 @@ pub async fn run_sync(
             for list_id in lists {
                 sqlx::query("INSERT OR IGNORE INTO customer_allocations (customer_id, price_list_id) VALUES (?1, ?2)")
                     .bind(cust_id.clone()).bind(list_id)
-                    .execute(&mut *tx).await?;
+                    .execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
             }
         }
     }
 
     for deleted_id in server_data.deleted_item_ids {
-        sqlx::query("DELETE FROM price_items WHERE id = ?1").bind(deleted_id).execute(&mut *tx).await?;
+        sqlx::query("DELETE FROM price_items WHERE id = ?1").bind(deleted_id).execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     sqlx::query("INSERT OR REPLACE INTO pricing_sync_meta (id, last_sync) VALUES (1, ?1)")
-        .bind(&metadata.synced_at).execute(&mut *tx).await?;
+        .bind(&metadata.synced_at).execute(&mut *tx).await.map_err(|e| anyhow::anyhow!(e))?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| anyhow::anyhow!(e))?;
     Ok(metadata.synced_at)
 }
 
@@ -312,7 +311,7 @@ pub async fn resolve_price(
 
     // 2. Fetch and filter sorted lists
     let now = Utc::now().to_rfc3339();
-    let mut placeholders = vec!["?"; list_ids.len()].join(",");
+    let placeholders = vec!["?"; list_ids.len()].join(",");
     let query_str = format!("SELECT * FROM price_lists WHERE id IN ({}) AND is_active = 1 ORDER BY priority DESC", placeholders);
     let mut query = sqlx::query(&query_str);
     for id in &list_ids { query = query.bind(id); }

@@ -1,8 +1,7 @@
 use crate::auth_store::AuthState;
-use crate::models::{CashMovement, Shift, ShiftSyncPayload};
-use anyhow::{Context, Result};
+use crate::models::{Shift, ShiftSyncPayload};
 use chrono::Utc;
-use log::{error, info};
+use log::error;
 use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
@@ -120,8 +119,10 @@ pub async fn open_new_shift(
     float_amount: f64,
     device_id: Option<String>,
 ) -> Result<Shift, String> {
-    let mut shift_lock = state.current_shift.lock().map_err(|_| "Failed to lock shift state")?;
-    if shift_lock.is_some() { return Err("A shift is already open.".to_string()); }
+    {
+        let shift_lock = state.current_shift.lock().map_err(|_| "Failed to lock shift state")?;
+        if shift_lock.is_some() { return Err("A shift is already open.".to_string()); }
+    }
 
     let pool = get_db_pool(&app).await?;
     let new_shift = Shift {
@@ -145,67 +146,77 @@ pub async fn open_new_shift(
         .bind(&new_shift.id).bind(new_shift.opened_at.to_rfc3339()).bind(&new_shift.operator_id).bind(&new_shift.operator_card_id).bind(&new_shift.operator_pin).bind(new_shift.starting_float).bind(0.0).bind(0.0).bind(0.0).bind(new_shift.expected_cash).bind(&new_shift.device_id)
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
-    *shift_lock = Some(new_shift.clone());
+    *state.current_shift.lock().unwrap() = Some(new_shift.clone());
     Ok(new_shift)
 }
 
 pub async fn record_cash_sale(app: &AppHandle, state: &ShiftState, amount: f64) -> Result<(), String> {
-    let mut shift_lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-    if let Some(ref mut shift) = *shift_lock {
-        let pool = get_db_pool(app).await?;
-        shift.total_cash_sales += amount;
-        shift.expected_cash += amount;
+    let mut shift = {
+        let mut lock = state.current_shift.lock().map_err(|_| "Lock error")?;
+        lock.as_mut().ok_or("No active shift found")?.clone()
+    };
 
-        sqlx::query("UPDATE shifts SET total_cash_sales = ?1, expected_cash = ?2 WHERE id = ?3")
-            .bind(shift.total_cash_sales).bind(shift.expected_cash).bind(&shift.id)
-            .execute(&pool).await.map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("No active shift found".to_string())
+    let pool = get_db_pool(app).await?;
+    shift.total_cash_sales += amount;
+    shift.expected_cash += amount;
+
+    sqlx::query("UPDATE shifts SET total_cash_sales = ?1, expected_cash = ?2 WHERE id = ?3")
+        .bind(shift.total_cash_sales).bind(shift.expected_cash).bind(&shift.id)
+        .execute(&pool).await.map_err(|e| e.to_string())?;
+
+    if let Some(ref mut s) = *state.current_shift.lock().unwrap() {
+        s.total_cash_sales = shift.total_cash_sales;
+        s.expected_cash = shift.expected_cash;
     }
+    Ok(())
 }
 
 pub async fn record_cash_drop(app: &AppHandle, state: &ShiftState, amount: f64, reason: String) -> Result<(), String> {
-    let mut shift_lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-    if let Some(ref mut shift) = *shift_lock {
-        let pool = get_db_pool(app).await?;
-        shift.total_cash_drops += amount;
-        shift.expected_cash -= amount;
+    let mut shift = {
+        let mut lock = state.current_shift.lock().map_err(|_| "Lock error")?;
+        lock.as_mut().ok_or("No active shift found")?.clone()
+    };
 
-        let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-        sqlx::query("UPDATE shifts SET total_cash_drops = ?1, expected_cash = ?2 WHERE id = ?3")
-            .bind(shift.total_cash_drops).bind(shift.expected_cash).bind(&shift.id)
-            .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+    let pool = get_db_pool(app).await?;
+    shift.total_cash_drops += amount;
+    shift.expected_cash -= amount;
 
-        sqlx::query("INSERT INTO cash_movements (id, shift_id, amount, reason, timestamp, movement_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
-            .bind(Uuid::new_v4().to_string()).bind(&shift.id).bind(amount).bind(&reason).bind(Utc::now().to_rfc3339()).bind("DROP")
-            .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+    let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
+    sqlx::query("UPDATE shifts SET total_cash_drops = ?1, expected_cash = ?2 WHERE id = ?3")
+        .bind(shift.total_cash_drops).bind(shift.expected_cash).bind(&shift.id)
+        .execute(&mut *tx).await.map_err(|e| e.to_string())?;
 
-        tx.commit().await.map_err(|e| e.to_string())?;
-        Ok(())
-    } else {
-        Err("No active shift found".to_string())
+    sqlx::query("INSERT INTO cash_movements (id, shift_id, amount, reason, timestamp, movement_type) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+        .bind(Uuid::new_v4().to_string()).bind(&shift.id).bind(amount).bind(&reason).bind(Utc::now().to_rfc3339()).bind("DROP")
+        .execute(&mut *tx).await.map_err(|e| e.to_string())?;
+
+    tx.commit().await.map_err(|e| e.to_string())?;
+
+    if let Some(ref mut s) = *state.current_shift.lock().unwrap() {
+        s.total_cash_drops = shift.total_cash_drops;
+        s.expected_cash = shift.expected_cash;
     }
+    Ok(())
 }
 
 pub async fn close_current_shift(app: &AppHandle, state: &ShiftState, actual_count: f64) -> Result<Shift, String> {
-    let mut shift_lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-    if let Some(ref mut shift) = *shift_lock {
-        let pool = get_db_pool(app).await?;
-        shift.closed_at = Some(Utc::now());
-        shift.actual_cash = Some(actual_count);
-        shift.variance = Some(actual_count - shift.expected_cash);
+    let mut shift = {
+        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
+        lock.as_ref().ok_or("No active shift to close")?.clone()
+    };
 
-        sqlx::query("UPDATE shifts SET closed_at = ?1, actual_cash = ?2, variance = ?3 WHERE id = ?4")
-            .bind(shift.closed_at.unwrap().to_rfc3339()).bind(shift.actual_cash).bind(shift.variance).bind(&shift.id)
-            .execute(&pool).await.map_err(|e| e.to_string())?;
+    let pool = get_db_pool(app).await?;
+    shift.closed_at = Some(Utc::now());
+    shift.actual_cash = Some(actual_count);
+    shift.variance = Some(actual_count - shift.expected_cash);
 
-        let closed_shift = shift.clone();
-        *shift_lock = None;
-        Ok(closed_shift)
-    } else {
-        Err("No active shift to close".to_string())
-    }
+    sqlx::query("UPDATE shifts SET closed_at = ?1, actual_cash = ?2, variance = ?3 WHERE id = ?4")
+        .bind(shift.closed_at.unwrap().to_rfc3339()).bind(shift.actual_cash).bind(shift.variance).bind(&shift.id)
+        .execute(&pool).await.map_err(|e| e.to_string())?;
+
+    let closed_shift = shift.clone();
+    *state.current_shift.lock().unwrap() = None;
+    Ok(closed_shift)
 }
 
 pub fn get_shift_status(state: &ShiftState) -> Option<Shift> {

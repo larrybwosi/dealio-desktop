@@ -1,8 +1,9 @@
 use anyhow::Result;
 use chrono::Utc;
-use log::{error, info, warn};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
+use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_sql::{DbInstances, DbPool};
@@ -256,8 +257,13 @@ pub fn read_system_log(app: &AppHandle, lines: usize) -> Result<String> {
     let mut log_files: Vec<PathBuf> = fs::read_dir(&log_dir)?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.extension().map(|ext| ext == "log").unwrap_or(false))
-        .collect();
+        .filter(|p| {
+            p.extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext == "log")
+                .unwrap_or(false)
+        })
+        .collect::<Vec<PathBuf>>();
 
     log_files.sort_by(|a, b| {
         let ta = fs::metadata(a).and_then(|m| m.modified()).ok();

@@ -153,14 +153,22 @@ pub fn get_unread_notification_count(state: tauri::State<'_, NotificationState>)
 
 #[tauri::command]
 pub async fn mark_notification_read(app: AppHandle, state: tauri::State<'_, NotificationState>, id: String) -> Result<bool, String> {
-    let mut notifications = state.notifications.write().unwrap();
-    if let Some(n) = notifications.iter_mut().find(|n| n.id == id) {
-        n.read = true;
+    let (mut n_to_update, unread_count) = {
+        let mut notifications = state.notifications.write().unwrap();
+        if let Some(n) = notifications.iter_mut().find(|n| n.id == id) {
+            n.read = true;
+            (Some(n.clone()), notifications.iter().filter(|n| !n.read).count())
+        } else {
+            (None, 0)
+        }
+    };
+
+    if let Some(n) = n_to_update {
         if let Some(pool) = get_db_pool(&app).await {
             let _ = sqlx::query("UPDATE notifications SET is_read = 1, payload = ?1 WHERE id = ?2")
-                .bind(serde_json::to_string(n).unwrap_or_default()).bind(&id).execute(&pool).await;
+                .bind(serde_json::to_string(&n).unwrap_or_default()).bind(&id).execute(&pool).await;
         }
-        let _ = app.emit("notification-badge-update", notifications.iter().filter(|n| !n.read).count());
+        let _ = app.emit("notification-badge-update", unread_count);
         return Ok(true);
     }
     Ok(false)
@@ -168,14 +176,16 @@ pub async fn mark_notification_read(app: AppHandle, state: tauri::State<'_, Noti
 
 #[tauri::command]
 pub async fn mark_all_notifications_read(app: AppHandle, state: tauri::State<'_, NotificationState>) -> Result<(), String> {
-    let mut notifications = state.notifications.write().unwrap();
-    for n in notifications.iter_mut() { n.read = true; }
+    let updated_notifications = {
+        let mut notifications = state.notifications.write().unwrap();
+        for n in notifications.iter_mut() { n.read = true; }
+        notifications.clone()
+    };
+
     if let Some(pool) = get_db_pool(&app).await {
         let _ = sqlx::query("UPDATE notifications SET is_read = 1").execute(&pool).await;
-        // Since we store full payload, we might need to update each payload or change DB schema to not store full JSON for 'read' status.
-        // For efficiency, let's just update the flag. In reality, we should update the JSON too if we rely on it for loading.
-        for n in notifications.iter() {
-             let _ = sqlx::query("UPDATE notifications SET payload = ?1 WHERE id = ?2").bind(serde_json::to_string(n).unwrap_or_default()).bind(&n.id).execute(&pool).await;
+        for n in updated_notifications {
+             let _ = sqlx::query("UPDATE notifications SET payload = ?1 WHERE id = ?2").bind(serde_json::to_string(&n).unwrap_or_default()).bind(&n.id).execute(&pool).await;
         }
     }
     let _ = app.emit("notification-badge-update", 0);
@@ -184,13 +194,21 @@ pub async fn mark_all_notifications_read(app: AppHandle, state: tauri::State<'_,
 
 #[tauri::command]
 pub async fn delete_notification(app: AppHandle, state: tauri::State<'_, NotificationState>, id: String) -> Result<bool, String> {
-    let mut notifications = state.notifications.write().unwrap();
-    if let Some(pos) = notifications.iter().position(|n| n.id == id) {
-        notifications.remove(pos);
+    let (found, unread_count) = {
+        let mut notifications = state.notifications.write().unwrap();
+        if let Some(pos) = notifications.iter().position(|n| n.id == id) {
+            notifications.remove(pos);
+            (true, notifications.iter().filter(|n| !n.read).count())
+        } else {
+            (false, 0)
+        }
+    };
+
+    if found {
         if let Some(pool) = get_db_pool(&app).await {
             let _ = sqlx::query("DELETE FROM notifications WHERE id = ?1").bind(&id).execute(&pool).await;
         }
-        let _ = app.emit("notification-badge-update", notifications.iter().filter(|n| !n.read).count());
+        let _ = app.emit("notification-badge-update", unread_count);
         return Ok(true);
     }
     Ok(false)

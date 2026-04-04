@@ -3,8 +3,8 @@ use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
 };
-use anyhow::{Context, Result};
-use log::{error, info, warn};
+use anyhow::Result;
+use log::{error, info};
 use rand::RngCore;
 use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
@@ -22,7 +22,7 @@ static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 fn get_legacy_secret() -> &'static str {
     LEGACY_SECRET.get_or_init(|| {
         std::env::var("LEGACY_APP_SECRET")
-            .unwrap_or_else(|_| "dealio-pos-secure-storage-salt".to_string())
+            .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
     })
 }
 
@@ -148,7 +148,7 @@ pub async fn init_state(app: &AppHandle) {
 }
 
 async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result<()> {
-    let app_dir = app.path().app_data_dir().context("No App Data Dir")?;
+    let app_dir = app.path().app_data_dir().map_err(|e| anyhow::anyhow!(e))?;
     let path = app_dir.join(CUSTOMER_FILENAME);
 
     if !path.exists() {
@@ -157,7 +157,7 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
 
     info!("[CustomerStore] Found legacy secure_customers.bin. Migrating...");
 
-    let file_bytes = tokio::fs::read(&path).await?;
+    let file_bytes = tokio::fs::read(&path).await.map_err(|e| anyhow::anyhow!(e))?;
     if file_bytes.len() < 12 {
         let _ = tokio::fs::remove_file(&path).await;
         return Ok(());
@@ -182,7 +182,7 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
 
     if let Some(plaintext) = plaintext_opt {
         if let Ok((last_sync, customers)) = serde_json::from_slice::<(Option<String>, Vec<PosCustomer>)>(&plaintext) {
-            let mut tx = pool.begin().await?;
+            let mut tx = pool.begin().await.map_err(|e| anyhow::anyhow!(e))?;
             for customer in customers {
                 let search_text = build_search_text(&customer);
                 let encrypted_payload = encrypt_payload(&customer).await?;
@@ -197,16 +197,16 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
                 .bind(search_text)
                 .bind(encrypted_payload)
                 .execute(&mut *tx)
-                .await;
+                .await.map_err(|e| anyhow::anyhow!(e))?;
             }
 
             if let Some(ts) = last_sync {
                 let _ = sqlx::query("INSERT OR REPLACE INTO customer_sync_meta (id, last_sync) VALUES (1, ?1)")
                     .bind(ts)
                     .execute(&mut *tx)
-                    .await;
+                    .await.map_err(|e| anyhow::anyhow!(e))?;
             }
-            tx.commit().await?;
+            tx.commit().await.map_err(|e| anyhow::anyhow!(e))?;
             info!("[CustomerStore] Migration complete. Deleting legacy file.");
             let _ = tokio::fs::remove_file(&path).await;
         }
@@ -255,7 +255,7 @@ pub async fn run_sync(
 
     let last_sync: Option<String> = sqlx::query("SELECT last_sync FROM customer_sync_meta WHERE id = 1")
         .fetch_optional(&pool)
-        .await?
+        .await.map_err(|e| anyhow::anyhow!(e))?
         .map(|r| r.get("last_sync"));
 
     let mut headers = HeaderMap::new();
@@ -272,24 +272,24 @@ pub async fn run_sync(
     let client = reqwest::Client::builder()
         .default_headers(headers)
         .timeout(std::time::Duration::from_secs(TIMEOUT_SECONDS))
-        .build()?;
+        .build().map_err(|e| anyhow::anyhow!(e))?;
 
     let mut query_params = vec![("limit", "1000".to_string())];
     if let Some(token) = &last_sync {
         query_params.push(("lastSync", token.clone()));
     }
 
-    let response = client.get(&target_url).query(&query_params).send().await?;
+    let response = client.get(&target_url).query(&query_params).send().await.map_err(|e| anyhow::anyhow!(e))?;
 
     if !response.status().is_success() {
         return Err(anyhow::anyhow!("Server returned error: {}", response.status()));
     }
 
-    let v2_resp = response.json::<crate::models::V2Response<CustomersSyncResponse>>().await?;
+    let v2_resp = response.json::<crate::models::V2Response<CustomersSyncResponse>>().await.map_err(|e| anyhow::anyhow!(e))?;
     let res_body = v2_resp.data;
 
     let incoming_count = res_body.data.len();
-    let mut tx = pool.begin().await?;
+    let mut tx = pool.begin().await.map_err(|e| anyhow::anyhow!(e))?;
 
     for customer in res_body.data {
         let search_text = build_search_text(&customer);
@@ -314,15 +314,15 @@ pub async fn run_sync(
             .bind(search_text)
             .bind(encrypted_payload)
             .execute(&mut *tx)
-            .await?;
+            .await.map_err(|e| anyhow::anyhow!(e))?;
     }
 
     sqlx::query("INSERT OR REPLACE INTO customer_sync_meta (id, last_sync) VALUES (1, ?1)")
         .bind(&res_body.next_sync_token)
         .execute(&mut *tx)
-        .await?;
+        .await.map_err(|e| anyhow::anyhow!(e))?;
 
-    tx.commit().await?;
+    tx.commit().await.map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(incoming_count)
 }
@@ -396,23 +396,23 @@ pub async fn create_customer(
     let target_url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::CUSTOMERS);
 
     let mut headers = HeaderMap::new();
-    headers.insert("X-API-KEY", HeaderValue::from_str(&device_key)?);
+    headers.insert("X-API-KEY", HeaderValue::from_str(&device_key).map_err(|e| anyhow::anyhow!(e))?);
     if let Some(token) = member_token {
-        headers.insert("X-MEMBER-TOKEN", HeaderValue::from_str(&token)?);
+        headers.insert("X-MEMBER-TOKEN", HeaderValue::from_str(&token).map_err(|e| anyhow::anyhow!(e))?);
     }
 
-    let client = reqwest::Client::builder().default_headers(headers).build()?;
-    let response = client.post(&target_url).json(&payload).send().await?;
+    let client = reqwest::Client::builder().default_headers(headers).build().map_err(|e| anyhow::anyhow!(e))?;
+    let response = client.post(&target_url).json(&payload).send().await.map_err(|e| anyhow::anyhow!(e))?;
 
     if !response.status().is_success() {
         return Err(anyhow::anyhow!("Server error: {}", response.status()));
     }
 
-    let raw_val: serde_json::Value = response.json().await?;
+    let raw_val: serde_json::Value = response.json().await.map_err(|e| anyhow::anyhow!(e))?;
     let new_customer: PosCustomer = if raw_val.get("data").is_some() {
-        serde_json::from_value(raw_val["data"].clone())?
+        serde_json::from_value(raw_val["data"].clone()).map_err(|e| anyhow::anyhow!(e))?
     } else {
-        serde_json::from_value(raw_val)?
+        serde_json::from_value(raw_val).map_err(|e| anyhow::anyhow!(e))?
     };
 
     // Save to DB
@@ -428,7 +428,7 @@ pub async fn create_customer(
         .bind(search_text)
         .bind(encrypted_payload)
         .execute(&pool)
-        .await?;
+        .await.map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(new_customer)
 }
