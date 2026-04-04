@@ -22,7 +22,7 @@ static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 fn get_legacy_secret() -> &'static str {
     LEGACY_SECRET.get_or_init(|| {
         std::env::var("LEGACY_APP_SECRET")
-            .unwrap_or_else(|| "dealio-pos-secure-storage-salt".to_string())
+            .unwrap_or_else(|_| "dealio-pos-secure-storage-salt".to_string())
     })
 }
 

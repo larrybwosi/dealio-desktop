@@ -152,8 +152,8 @@ pub async fn open_new_shift(
 
 pub async fn record_cash_sale(app: &AppHandle, state: &ShiftState, amount: f64) -> Result<(), String> {
     let mut shift = {
-        let mut lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-        lock.as_mut().ok_or("No active shift found")?.clone()
+        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
+        lock.as_ref().ok_or("No active shift found")?.clone()
     };
 
     let pool = get_db_pool(app).await?;
@@ -173,8 +173,8 @@ pub async fn record_cash_sale(app: &AppHandle, state: &ShiftState, amount: f64) 
 
 pub async fn record_cash_drop(app: &AppHandle, state: &ShiftState, amount: f64, reason: String) -> Result<(), String> {
     let mut shift = {
-        let mut lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-        lock.as_mut().ok_or("No active shift found")?.clone()
+        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
+        lock.as_ref().ok_or("No active shift found")?.clone()
     };
 
     let pool = get_db_pool(app).await?;

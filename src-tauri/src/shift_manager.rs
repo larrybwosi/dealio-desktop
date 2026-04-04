@@ -2,10 +2,9 @@ use tauri::{AppHandle, State};
 // use tauri_plugin_aptabase::EventTracker;
 
 use crate::models::Shift;
-use crate::stores::auth_state::AuthState; // Note: possible typo in previous code, checking imports
 use crate::stores::shift_store::{self, ShiftState};
 
-// Fixed import from previous read_file showed auth_store, let's stick to that
+// Fixed import: correctly use auth_store
 use crate::stores::auth_store::AuthState as AuthStateStore;
 
 // --- SHIFT COMMANDS ---

@@ -187,7 +187,10 @@ pub fn run() {
             }
 
             let notification_state = app.state::<NotificationState>();
-            notification_manager::init_notification_state(app.handle(), &notification_state);
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                notification_manager::init_notification_state(&app_handle, &notification_state).await;
+            });
 
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
