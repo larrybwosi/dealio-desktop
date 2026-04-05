@@ -1,3 +1,11 @@
+# [3.3.0-nextgen.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.3...v3.3.0-nextgen.4) (2026-04-05)
+
+
+### Bug Fixes
+
+* resolve product sync issues and ably auth errors ([06edb83](https://github.com/larrybwosi/dealio-desktop/commit/06edb83e0e8badf9f8bc9d19d89ccea58a3b524a))
+* resolve product sync issues, ably auth errors, and CI failure ([3d6e329](https://github.com/larrybwosi/dealio-desktop/commit/3d6e329451c7cac544d9ea4c09af42b79854e8ba))
+
 # [3.3.0-nextgen.3](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.2...v3.3.0-nextgen.3) (2026-04-04)
 
 
