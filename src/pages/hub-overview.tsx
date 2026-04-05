@@ -27,7 +27,9 @@ import {
   ShoppingCart,
   Layout,
   MessageSquare,
-  Timer
+  Timer,
+  Play,
+  Square
 } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePosStore } from '@/store/store';
@@ -35,7 +37,7 @@ import { useKdsStore } from '@/store/kds-store';
 import { invoke } from '@tauri-apps/api/core';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { updateOrderStatusInKitchen, queryOrderEta } from '@/lib/kds';
+import { updateOrderStatusInKitchen, queryOrderEta, startHub, stopHub, HubStatus } from '@/lib/kds';
 
 interface ConnectedDevice {
   id: string;
@@ -55,13 +57,15 @@ interface ConnectedDevice {
 }
 
 export default function HubOverviewPage() {
-  const { currentLocation } = useAuthStore();
+  const { currentLocation, deviceType } = useAuthStore();
   const { employees } = usePosStore();
   const orders = useKdsStore(state => state.orders);
   const [devices, setDevices] = useState<ConnectedDevice[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hubIp, setHubIp] = useState<string>('Loading...');
   const [orderEtas, setOrderEtas] = useState<Record<string, number>>({});
+  const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+  const [isActionPending, setIsActionPending] = useState(false);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -87,11 +91,22 @@ export default function HubOverviewPage() {
     return () => window.removeEventListener('tablet-activity-update', handler);
   }, []);
 
+  const fetchHubStatus = async () => {
+    try {
+      const status = await invoke<HubStatus>('get_hub_status');
+      setHubStatus(status);
+    } catch (error) {
+      console.error("Failed to fetch hub status:", error);
+    }
+  };
+
   const fetchDevices = async () => {
     setIsRefreshing(true);
     try {
       const ip = await invoke<string>('get_local_ip_command').catch(() => '127.0.0.1');
       setHubIp(ip);
+
+      await fetchHubStatus();
 
       const connectedDevices = await invoke<ConnectedDevice[]>('get_connected_devices');
       setDevices(connectedDevices);
@@ -107,6 +122,32 @@ export default function HubOverviewPage() {
     const interval = setInterval(fetchDevices, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleStartHub = async () => {
+    setIsActionPending(true);
+    try {
+      await startHub();
+      toast.success('KDS Hub Server started successfully');
+      await fetchDevices();
+    } catch (error) {
+      toast.error('Failed to start Hub server');
+    } finally {
+      setIsActionPending(false);
+    }
+  };
+
+  const handleStopHub = async () => {
+    setIsActionPending(true);
+    try {
+      await stopHub();
+      toast.success('KDS Hub Server stopped');
+      await fetchDevices();
+    } catch (error) {
+      toast.error('Failed to stop Hub server');
+    } finally {
+      setIsActionPending(false);
+    }
+  };
 
   const handleAssign = async (deviceId: string, userId: string | null) => {
     const user = employees.find(e => e.id === userId);
@@ -162,15 +203,42 @@ export default function HubOverviewPage() {
             Monitor and manage terminals in <span className="font-bold text-foreground">{currentLocation?.name}</span>
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={fetchDevices}
-          disabled={isRefreshing}
-          className="gap-2"
-        >
-          <RefreshCcw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
-          Refresh Status
-        </Button>
+        <div className="flex gap-2">
+          {deviceType === 'MAIN_HUB' && (
+            <>
+              {hubStatus?.is_running ? (
+                <Button
+                  variant="destructive"
+                  onClick={handleStopHub}
+                  disabled={isActionPending}
+                  className="gap-2"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop Hub
+                </Button>
+              ) : (
+                <Button
+                  variant="default"
+                  onClick={handleStartHub}
+                  disabled={isActionPending}
+                  className="gap-2 bg-blue-600 hover:bg-blue-700"
+                >
+                  <Play className="w-4 h-4" />
+                  Start Hub
+                </Button>
+              )}
+            </>
+          )}
+          <Button
+            variant="outline"
+            onClick={fetchDevices}
+            disabled={isRefreshing}
+            className="gap-2"
+          >
+            <RefreshCcw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <Tabs defaultValue="devices" className="w-full">
@@ -192,25 +260,44 @@ export default function HubOverviewPage() {
         <TabsContent value="devices" className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
           {/* Hub Status Card */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="md:col-span-2 bg-zinc-950 text-white border-zinc-800 shadow-2xl">
+            <Card className={cn(
+              "md:col-span-2 text-white border-zinc-800 shadow-2xl transition-colors duration-500",
+              hubStatus?.is_running ? "bg-zinc-950" : "bg-zinc-900 opacity-80"
+            )}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-bold uppercase tracking-widest text-zinc-400">Hub Server Status</CardTitle>
-                <Server className="h-4 w-4 text-blue-500" />
+                <Server className={cn("h-4 w-4", hubStatus?.is_running ? "text-blue-500" : "text-zinc-600")} />
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-4 mt-2">
                   <div className="flex-1">
-                    <div className="text-4xl font-black tracking-tighter uppercase">Active</div>
+                    <div className="text-4xl font-black tracking-tighter uppercase">
+                      {hubStatus?.is_running ? 'Active' : 'Stopped'}
+                    </div>
                     <div className="flex items-center gap-2 mt-2 text-zinc-400 font-mono text-sm">
-                      <Wifi className="w-4 h-4 text-green-500" />
-                      Broadcasting on {hubIp}:8080
+                      {hubStatus?.is_running ? (
+                        <>
+                          <Wifi className="w-4 h-4 text-green-500" />
+                          Broadcasting on {hubIp}:8080
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="w-4 h-4 text-red-500" />
+                          Offline - Start to enable tablet connectivity
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="hidden sm:block p-4 bg-zinc-900 border border-zinc-800 rounded-none">
-                    <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Security</p>
-                    <div className="flex items-center gap-2 text-green-500">
+                    <p className="text-[10px] font-bold text-zinc-500 uppercase mb-1">Status</p>
+                    <div className={cn(
+                      "flex items-center gap-2",
+                      hubStatus?.is_running ? "text-green-500" : "text-zinc-500"
+                    )}>
                       <ShieldCheck className="w-4 h-4" />
-                      <span className="text-xs font-bold">ENCRYPTED</span>
+                      <span className="text-xs font-bold uppercase">
+                        {hubStatus?.is_running ? 'Encrypted' : 'Disabled'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -219,13 +306,13 @@ export default function HubOverviewPage() {
 
             <Card className="shadow-lg">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Terminals</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Active Connections</CardTitle>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-black tracking-tighter">{devices.length}</div>
+                <div className="text-4xl font-black tracking-tighter">{hubStatus?.active_connections || 0}</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {devices.filter(d => isRecentlySeen(d.last_seen)).length} active / {devices.filter(d => !isRecentlySeen(d.last_seen)).length} inactive
+                  Connected devices via WebSocket
                 </p>
               </CardContent>
             </Card>
