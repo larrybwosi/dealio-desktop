@@ -10,8 +10,9 @@ pub async fn sync_products_command(
     app: AppHandle,
     state: State<'_, ProductState>,
     auth_state: State<'_, AuthState>,
+    force_full_sync: Option<bool>,
 ) -> Result<String, String> {
-    match product_store::run_sync(app, &state, &auth_state, false).await {
+    match product_store::run_sync(app, &state, &auth_state, force_full_sync.unwrap_or(false)).await {
         Ok(count) => Ok(format!("Synced {} products", count)),
         Err(e) => {
             // We still convert the error to a string so the frontend can display it

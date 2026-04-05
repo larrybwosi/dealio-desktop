@@ -6,14 +6,16 @@ import { AuthOptions, ErrorInfo, Realtime } from 'ably';
 import { useAuthStore } from './pos-auth-store';
 
 const AblyConfigSchema = z.object({
-  tokenRequest: z
-    .object({
-      token: z.string(),
-    })
-    .loose(),
-  metadata: z.object({
-    paymentChannel: z.string(),
-    organizationId: z.string().optional(),
+  data: z.object({
+    tokenRequest: z
+      .object({
+        token: z.string(),
+      })
+      .loose(),
+    metadata: z.object({
+      paymentChannel: z.string(),
+      organizationId: z.string().optional(),
+    }),
   }),
 });
 
@@ -78,20 +80,21 @@ export const useAblyStore = create<AblyState>((set, get) => ({
       while (authAttempt < BACKOFF_MAX_RETRIES) {
         try {
           console.log(`[AblyStore] Fetching auth token (attempt ${authAttempt + 1}/${BACKOFF_MAX_RETRIES})…`);
-          const data = await invoke<unknown>('get_ably_auth_token_command', { params: tokenParams });
+          const response = await invoke<unknown>('get_ably_auth_token_command', { params: tokenParams });
 
-          const parsedData = AblyConfigSchema.parse(data);
+          const parsed = AblyConfigSchema.parse(response);
+          const { data } = parsed;
 
           // Reset retry counter on success
           authAttempt = 0;
           set({
-            paymentChannel: parsedData.metadata.paymentChannel,
+            paymentChannel: data.metadata.paymentChannel,
             status: 'success',
             authRetryCount: 0,
             error: null,
           });
 
-          callback(null, parsedData.tokenRequest.token);
+          callback(null, data.tokenRequest.token);
           return;
         } catch (error) {
           authAttempt += 1;
