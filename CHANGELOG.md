@@ -1,3 +1,15 @@
+# [3.3.0-nextgen.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.4...v3.3.0-nextgen.5) (2026-04-05)
+
+
+### Bug Fixes
+
+* align sales_store with kds_models standardization ([a46866a](https://github.com/larrybwosi/dealio-desktop/commit/a46866a57c62bf590766772caba2c5015f597d1e))
+
+
+### Features
+
+* add manual/auto hub server control and improve stability ([2b023da](https://github.com/larrybwosi/dealio-desktop/commit/2b023daa211eb06811f20a2f3d961fe5df8ee50a))
+
 # [3.3.0-nextgen.4](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.3...v3.3.0-nextgen.4) (2026-04-05)
 
 
