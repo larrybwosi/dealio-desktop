@@ -851,7 +851,7 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
         let items: Vec<OrderItem> = serde_json::from_str(&items_json).unwrap_or_default();
 
         orders.push(KdsOrderPayload {
-            order_id: row.get("order_id"),
+            id: row.get("order_id"),
             table_number: row.get("table_number"),
             waiter_name: row.get("waiter_name"),
             items,
@@ -892,7 +892,7 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     "#;
 
     if let Err(e) = sqlx::query(query)
-        .bind(&order.order_id)
+        .bind(&order.id)
         .bind(&order.table_number)
         .bind(&order.waiter_name)
         .bind(&items_json)
@@ -903,7 +903,7 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     {
         error!("[SalesStore] Failed to save KDS order to SQLite: {}", e);
     } else {
-        info!("[SalesStore] KDS Order {} saved to SQLite.", order.order_id);
+        info!("[SalesStore] KDS Order {} saved to SQLite.", order.id);
     }
 }
 

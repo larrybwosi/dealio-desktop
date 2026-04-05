@@ -8,14 +8,16 @@ use axum::{
     Router,
 };
 use local_ip_address::local_ip;
-use log::{info, warn}; 
+use log::{info, warn, error};
 use std::net::SocketAddr; 
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, oneshot};
+use tokio::time::{sleep, Duration};
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use tauri::{AppHandle, Manager, State as TauriState};
 use crate::kds_models::{WsMessage, AssignmentPayload};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use serde::Serialize;
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ConnectedDevice {
@@ -38,6 +40,16 @@ pub struct ConnectedDevice {
 pub struct DeviceRegistry {
     pub devices: Mutex<HashMap<String, ConnectedDevice>>,
     pub tx: broadcast::Sender<String>,
+    pub is_running: Mutex<bool>,
+    pub shutdown_tx: Mutex<Option<oneshot::Sender<()>>>,
+    pub active_connections: Mutex<usize>,
+    pub session_id: Mutex<u64>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct HubStatus {
+    pub is_running: bool,
+    pub active_connections: usize,
 }
 
 // Application state shared across all WebSocket connections
@@ -53,44 +65,109 @@ struct AppState {
 
 #[tauri::command]
 pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
-    if app.try_state::<Arc<DeviceRegistry>>().is_none() {
+    let registry = if let Some(r) = app.try_state::<Arc<DeviceRegistry>>() {
+        r.inner().clone()
+    } else {
         let (tx, _rx) = broadcast::channel(100);
-        app.manage(Arc::new(DeviceRegistry {
+        let r = Arc::new(DeviceRegistry {
             devices: Mutex::new(HashMap::new()),
             tx,
-        }));
+            is_running: Mutex::new(false),
+            shutdown_tx: Mutex::new(None),
+            active_connections: Mutex::new(0),
+            session_id: Mutex::new(0),
+        });
+        app.manage(r.clone());
+        r
+    };
+
+    let current_session = {
+        let mut is_running = registry.is_running.lock().unwrap();
+        if *is_running {
+            let ip = local_ip().map_err(|e| e.to_string())?;
+            return Ok(format!("ws://{}:8080/kds-ws", ip));
+        }
+        *is_running = true;
+
+        let mut sid = registry.session_id.lock().unwrap();
+        *sid += 1;
+        *sid
+    };
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+    {
+        let mut tx_guard = registry.shutdown_tx.lock().unwrap();
+        *tx_guard = Some(shutdown_tx);
     }
 
-    let registry = app.state::<Arc<DeviceRegistry>>().inner().clone();
+    let registry_clone = registry.clone();
+    let app_clone = app.clone();
     let tx = registry.tx.clone();
     let ip = local_ip().map_err(|e| e.to_string())?;
     
-    // Inject the AppHandle into our Axum state
+    // Bind to a fixed port for the POS hub (e.g., 8080) on 0.0.0.0
+    // Using 0.0.0.0 to listen on all interfaces, more robust
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+
     let state = AppState { 
         tx,
         app_handle: app,
-        registry,
+        registry: registry_clone.clone(),
     };
 
-    // Bind to a fixed port for the POS hub (e.g., 8080) on 0.0.0.0
-    let addr = SocketAddr::from((ip, 8080));
-    
     let router = Router::new()
         .route("/kds-ws", get(ws_handler))
         .layer(axum::extract::DefaultBodyLimit::disable())
         .with_state(state);
 
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        let mut is_running = registry_clone.is_running.lock().unwrap();
+        *is_running = false;
+        format!("Failed to bind to {}: {}", addr, e)
+    })?;
+
     tauri::async_runtime::spawn(async move {
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
         info!("KDS Hub WebSocket running on ws://{}:8080/kds-ws", ip);
-        let _ = axum::serve(
+        let serve = axum::serve(
             listener,
             router.into_make_service_with_connect_info::<SocketAddr>(),
         )
-        .await;
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.await;
+            info!("KDS Hub server received shutdown signal.");
+        });
+
+        if let Err(e) = serve.await {
+            error!("KDS Hub server error: {}", e);
+        }
+
+        // Reset state when server stops
+        let mut is_running = registry_clone.is_running.lock().unwrap();
+        *is_running = false;
+        let mut tx_guard = registry_clone.shutdown_tx.lock().unwrap();
+        *tx_guard = None;
+        info!("KDS Hub server stopped.");
     });
 
     Ok(format!("ws://{}:8080/kds-ws", ip))
+}
+
+#[tauri::command]
+pub async fn stop_kds_hub(state: TauriState<'_, Arc<DeviceRegistry>>) -> Result<(), String> {
+    let mut tx_guard = state.shutdown_tx.lock().unwrap();
+    if let Some(tx) = tx_guard.take() {
+        let _ = tx.send(());
+        Ok(())
+    } else {
+        Err("Server not running".to_string())
+    }
+}
+
+#[tauri::command]
+pub async fn get_hub_status(state: TauriState<'_, Arc<DeviceRegistry>>) -> Result<HubStatus, String> {
+    let is_running = *state.is_running.lock().unwrap();
+    let active_connections = *state.active_connections.lock().unwrap();
+    Ok(HubStatus { is_running, active_connections })
 }
 
 async fn ws_handler(
@@ -103,8 +180,15 @@ async fn ws_handler(
 
 async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
     let client_ip = addr.ip().to_string();
+
+    {
+        let mut count = state.registry.active_connections.lock().unwrap();
+        *count += 1;
+        info!("KDS Client connected from {}. Total active: {}", client_ip, *count);
+    }
+
     // --- 1. INITIAL CONNECTION SYNC ---
-    info!("New KDS client connected from {}. Starting initial sync...", client_ip);
+    info!("Starting initial sync for client {}...", client_ip);
     
     // Fetch active/preparing orders from the local SQLite DB using the AppHandle
     let active_orders = crate::stores::sales_store::get_active_kds_orders(&state.app_handle).await;
@@ -116,6 +200,7 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
     if let Ok(text) = serde_json::to_string(&sync_msg) {
         if sender.send(Message::Text(text)).await.is_err() {
             info!("KDS client disconnected before initial sync finished.");
+            decrement_connections(&state.registry);
             return;
         }
     }
@@ -170,15 +255,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
             if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
                 match ws_msg {
                     WsMessage::NewOrder(order) => {
-                        info!("Received new order locally: {}", order.order_id);
+                        info!("Received new order locally: {}", order.id);
                         // Save to local SQLite database using Tauri app_handle
                         crate::stores::sales_store::save_local_kds_order(&app_handle_for_recv, &order).await;
                         let _ = tx.send(text.clone());
                     },
-                    WsMessage::OrderStatusUpdated { order_id, new_status } => {
-                        info!("Order {} status updated to: {}", order_id, new_status);
+                    WsMessage::OrderStatusUpdated { id, new_status } => {
+                        info!("Order {} status updated to: {}", id, new_status);
                         // Update local SQLite database state
-                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &order_id, &new_status).await;
+                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &id, &new_status).await;
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::DeviceStatus(device) => {
@@ -238,6 +323,45 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
     };
+
+    decrement_connections(&state.registry);
+}
+
+fn decrement_connections(registry: &Arc<DeviceRegistry>) {
+    let mut count = registry.active_connections.lock().unwrap();
+    if *count > 0 {
+        *count -= 1;
+    }
+    info!("KDS Client disconnected. Total active: {}", *count);
+
+    if *count == 0 {
+        let registry_clone = registry.clone();
+        let current_session = *registry.session_id.lock().unwrap();
+
+        tauri::async_runtime::spawn(async move {
+            info!("No active connections. Starting 5-minute auto-shutdown timer for session {}...", current_session);
+            sleep(Duration::from_secs(300)).await;
+
+            // Check if we are still in the same session and count is still zero
+            let count = registry_clone.active_connections.lock().unwrap();
+            let session = registry_clone.session_id.lock().unwrap();
+
+            if *count == 0 && *session == current_session {
+                let is_running = registry_clone.is_running.lock().unwrap();
+                if *is_running {
+                    info!("Auto-shutting down KDS Hub (session {}) due to inactivity.", current_session);
+                    let mut tx_guard = registry_clone.shutdown_tx.lock().unwrap();
+                    if let Some(tx) = tx_guard.take() {
+                        let _ = tx.send(());
+                    }
+                }
+            } else if *session != current_session {
+                info!("Auto-shutdown timer for session {} discarded (new session {} active).", current_session, *session);
+            } else {
+                info!("Auto-shutdown for session {} cancelled, new client connected.", current_session);
+            }
+        });
+    }
 }
 
 #[tauri::command]

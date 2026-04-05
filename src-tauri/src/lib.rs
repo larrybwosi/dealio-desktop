@@ -471,6 +471,8 @@ pub fn run() {
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
             kds_hub_server::start_kds_hub,
+            kds_hub_server::stop_kds_hub,
+            kds_hub_server::get_hub_status,
             kds_hub_server::get_connected_devices,
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,

@@ -10,7 +10,7 @@ pub struct OrderItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KdsOrderPayload {
-    pub order_id: String, // Client-generated UUID (Idempotency key)
+    pub id: String, // Client-generated UUID (Idempotency key)
     pub table_number: Option<String>,
     pub waiter_name: String,
     pub items: Vec<OrderItem>,
@@ -50,12 +50,12 @@ pub struct TabletActivityPayload {
 #[serde(tag = "type", content = "payload")]
 pub enum WsMessage {
     NewOrder(KdsOrderPayload),
-    OrderStatusUpdated { order_id: String, new_status: String },
+    OrderStatusUpdated { id: String, new_status: String },
     SyncOrders(Vec<KdsOrderPayload>), // <-- ADD THIS for initial syncs
     DeviceStatus(DeviceStatusPayload),
     AssignmentUpdate(AssignmentPayload),
     TabletActivity(TabletActivityPayload),
-    OrderEtaQuery { order_id: String, station: String },
-    OrderEtaResponse { order_id: String, eta_minutes: u32 },
+    OrderEtaQuery { id: String, station: String },
+    OrderEtaResponse { id: String, eta_minutes: u32 },
     Ping,
 }

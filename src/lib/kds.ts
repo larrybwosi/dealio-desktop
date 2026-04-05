@@ -2,32 +2,71 @@ import { invoke } from '@tauri-apps/api/core';
 import { useKdsStore } from '@/store/kds-store';
 import { usePosStore } from '@/store/store';
 
+export interface HubStatus {
+  is_running: boolean;
+  active_connections: number;
+}
+
 // --- 1. Role Initialization (Run this on app startup) ---
 export async function initializeNetworkRole() {
   const role = localStorage.getItem('DEVICE_ROLE'); // 'MAIN_HUB', 'TABLET', or 'KDS'
   
   if (role === 'MAIN_HUB') {
-    // If this device is the main register, start the local server!
+    // For MAIN_HUB, we check if the hub was previously started
+    // But we don't auto-start it anymore as per the requirement: "initiated by the user instead of auto listening"
     try {
-      const wsUrl = await invoke<string>('start_kds_hub');
-      localStorage.setItem('HUB_WS_URL', wsUrl); // Save its own IP
-      console.log("Hub started at:", wsUrl);
-      connectToHub(wsUrl); // Connect to itself
+      const status = await invoke<HubStatus>('get_hub_status');
+      if (status.is_running) {
+        const ip = await invoke<string>('get_local_ip_command');
+        const wsUrl = `ws://${ip}:8080/kds-ws`;
+        localStorage.setItem('HUB_WS_URL', wsUrl);
+        connectToHub(wsUrl);
+      }
     } catch (e) {
-      console.error("Failed to start Hub:", e);
+      console.error("Failed to check Hub status:", e);
     }
   } else if (role === 'TABLET' || role === 'KDS') {
     // For other devices, grab the IP of the Hub (Inputted during setup)
     const hubIp = localStorage.getItem('HUB_IP_ADDRESS');
-    console.log(`Connecting to Hub at ${hubIp}...`);
     if (hubIp) {
+       console.log(`Connecting to Hub at ${hubIp}...`);
        connectToHub(`ws://${hubIp}:8080/kds-ws`);
     }
   }
 }
 
+export async function startHub() {
+  try {
+    const wsUrl = await invoke<string>('start_kds_hub');
+    localStorage.setItem('HUB_WS_URL', wsUrl);
+    console.log("Hub started at:", wsUrl);
+    // Wait a bit for the server to be fully ready before connecting
+    setTimeout(() => connectToHub(wsUrl), 500);
+    return wsUrl;
+  } catch (e) {
+    console.error("Failed to start Hub:", e);
+    throw e;
+  }
+}
+
+export async function stopHub() {
+  try {
+    await invoke('stop_kds_hub');
+    localStorage.removeItem('HUB_WS_URL');
+    if (socket) {
+      socket.close();
+      socket = null;
+    }
+    console.log("Hub stopped.");
+  } catch (e) {
+    console.error("Failed to stop Hub:", e);
+    throw e;
+  }
+}
+
 // --- 2. The WebSocket Client ---
 let socket: WebSocket | null = null;
+let reconnectTimeout: any = null;
 
 function getOfflineQueue(): string[] {
   const stored = localStorage.getItem('KDS_OFFLINE_QUEUE');
@@ -49,6 +88,13 @@ export function connectToHub(url: string) {
     return;
   }
 
+  // Clear any existing reconnect timeout
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+    reconnectTimeout = null;
+  }
+
+  console.log(`Attempting connection to ${url}...`);
   socket = new WebSocket(url);
 
   socket.onopen = () => {
@@ -83,78 +129,87 @@ export function connectToHub(url: string) {
   };
 
   socket.onmessage = (event) => {
-    const message = JSON.parse(event.data);
-    
-    // Handle incoming broadcast messages
-    if (message.type === 'NewOrder') {
-        const order = message.payload;
-        // If this is the KDS device, add to the screen array
-        useKdsStore.getState().addOrder(order);
-        console.log("KDS: New Ticket Arrived!", order);
+    try {
+      const message = JSON.parse(event.data);
 
-        // Check for Auto-Print (Only on KDS role)
-        const role = localStorage.getItem('DEVICE_ROLE');
-        const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
-        if (role === 'KDS' && kdsConfig.autoPrintKds) {
-            console.log("KDS: Auto-printing ticket...");
-            usePosStore.getState().printReceipt(order.id);
+      // Handle incoming broadcast messages
+      if (message.type === 'NewOrder') {
+          const order = message.payload;
+          // If this is the KDS device, add to the screen array
+          useKdsStore.getState().addOrder(order);
+          console.log("KDS: New Ticket Arrived!", order);
+
+          // Check for Auto-Print (Only on KDS role)
+          const role = localStorage.getItem('DEVICE_ROLE');
+          const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
+          if (role === 'KDS' && kdsConfig.autoPrintKds) {
+              console.log("KDS: Auto-printing ticket...");
+              usePosStore.getState().printReceipt(order.id);
+          }
+      }
+
+      if (message.type === 'OrderStatusUpdated') {
+          const { id, new_status } = message.payload;
+          useKdsStore.getState().updateOrderStatus(id, new_status);
+
+          // Also update POS store if it's running on this device
+          let posStatus = 'pending';
+          if (new_status === 'in_progress') posStatus = 'cooking';
+          if (new_status === 'done') posStatus = 'ready';
+          usePosStore.getState().updateOrderStatus(id, posStatus as any);
+      }
+
+      if (message.type === 'AssignmentUpdate') {
+        const { device_id, user_id, user_name } = message.payload;
+        const myDeviceId = localStorage.getItem('DEVICE_ID');
+
+        if (device_id === myDeviceId) {
+          console.log(`My assignment updated: ${user_name}`);
+          localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
+          localStorage.setItem('ASSIGNED_USER_NAME', user_name || '');
+
+          // Optional: Trigger a custom event or store update if needed UI-wide
+          window.dispatchEvent(new CustomEvent('assignment-updated', {
+            detail: { userId: user_id, userName: user_name }
+          }));
         }
-    }
-    
-    if (message.type === 'OrderStatusUpdated') {
-        const { order_id, new_status } = message.payload;
-        useKdsStore.getState().updateOrderStatus(order_id, new_status);
-        
-        // Also update POS store if it's running on this device
-        let posStatus = 'pending';
-        if (new_status === 'in_progress') posStatus = 'cooking';
-        if (new_status === 'done') posStatus = 'ready';
-        usePosStore.getState().updateOrderStatus(order_id, posStatus as any);
-    }
+      }
 
-    if (message.type === 'AssignmentUpdate') {
-      const { device_id, user_id, user_name } = message.payload;
-      const myDeviceId = localStorage.getItem('DEVICE_ID');
+      if (message.type === 'OrderEtaQuery') {
+        const { id, station } = message.payload;
+        const myStation = localStorage.getItem('KDS_STATION') || 'all';
+        if (station === 'all' || station === myStation) {
+          window.dispatchEvent(new CustomEvent('order-eta-query', {
+            detail: { orderId: id }
+          }));
+        }
+      }
 
-      if (device_id === myDeviceId) {
-        console.log(`My assignment updated: ${user_name}`);
-        localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
-        localStorage.setItem('ASSIGNED_USER_NAME', user_name || '');
-
-        // Optional: Trigger a custom event or store update if needed UI-wide
-        window.dispatchEvent(new CustomEvent('assignment-updated', {
-          detail: { userId: user_id, userName: user_name }
+      if (message.type === 'OrderEtaResponse') {
+        const { id, eta_minutes } = message.payload;
+        window.dispatchEvent(new CustomEvent('order-eta-response', {
+          detail: { orderId: id, etaMinutes: eta_minutes }
         }));
       }
-    }
 
-    if (message.type === 'OrderEtaQuery') {
-      const { order_id, station } = message.payload;
-      const myStation = localStorage.getItem('KDS_STATION') || 'all';
-      if (station === 'all' || station === myStation) {
-        window.dispatchEvent(new CustomEvent('order-eta-query', {
-          detail: { orderId: order_id }
+      if (message.type === 'TabletActivity') {
+        window.dispatchEvent(new CustomEvent('tablet-activity-update', {
+          detail: message.payload
         }));
       }
-    }
-
-    if (message.type === 'OrderEtaResponse') {
-      const { order_id, eta_minutes } = message.payload;
-      window.dispatchEvent(new CustomEvent('order-eta-response', {
-        detail: { orderId: order_id, etaMinutes: eta_minutes }
-      }));
-    }
-
-    if (message.type === 'TabletActivity') {
-      window.dispatchEvent(new CustomEvent('tablet-activity-update', {
-        detail: message.payload
-      }));
+    } catch (e) {
+      console.error("Failed to parse WebSocket message:", e);
     }
   };
 
+  socket.onerror = (error) => {
+    console.error("WebSocket Error:", error);
+  };
+
   socket.onclose = () => {
-    console.warn("Lost connection to Hub. Reconnecting in 3s...");
-    setTimeout(() => connectToHub(url), 3000); // Auto-reconnect
+    console.warn("Lost connection to Hub. Reconnecting in 5s...");
+    socket = null;
+    reconnectTimeout = setTimeout(() => connectToHub(url), 5000); // Auto-reconnect
   };
 }
 
@@ -199,7 +254,7 @@ export function updateOrderStatusInKitchen(orderId: string, status: string) {
   const payload = {
     type: "OrderStatusUpdated",
     payload: {
-      order_id: orderId,
+      id: orderId,
       new_status: status
     }
   };
@@ -231,7 +286,7 @@ export function queryOrderEta(orderId: string, station: string = 'all') {
   const payload = {
     type: "OrderEtaQuery",
     payload: {
-      order_id: orderId,
+      id: orderId,
       station: station
     }
   };
@@ -246,7 +301,7 @@ export function sendOrderEtaResponse(orderId: string, etaMinutes: number) {
   const payload = {
     type: "OrderEtaResponse",
     payload: {
-      order_id: orderId,
+      id: orderId,
       eta_minutes: etaMinutes
     }
   };
