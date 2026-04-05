@@ -96,10 +96,12 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
   }, [products, debouncedSearch, category, page, setProducts]);
 
   const syncMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (variables?: { forceFullSync?: boolean }) => {
       if (!locationId) throw new Error('No Location ID');
 
-      const res = await invoke('sync_products_command', {});
+      const res = await invoke('sync_products_command', {
+        forceFullSync: variables?.forceFullSync ?? false,
+      });
       return res;
     },
     onSuccess: () => {
@@ -109,11 +111,14 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
     onError: err => console.error('Sync Failed:', err),
   });
 
-  const handleSync = useCallback(() => {
-    if (enabled && locationId && !syncMutation.isPending) {
-      syncMutation.mutate();
-    }
-  }, [enabled, locationId, syncMutation]);
+  const handleSync = useCallback(
+    (forceFullSync: boolean = false) => {
+      if (enabled && locationId && !syncMutation.isPending) {
+        syncMutation.mutate({ forceFullSync });
+      }
+    },
+    [enabled, locationId, syncMutation]
+  );
 
   return {
     products,

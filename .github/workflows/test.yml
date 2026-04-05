@@ -131,10 +131,12 @@ jobs:
           echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> src-tauri/.env
           echo "POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}" >> src-tauri/.env
 
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
       - name: Run Backend Tests with Coverage
-        uses: xd009642/tarpaulin-action@v0.1.0
-        with:
-          args: '--ignore-tests --manifest-path src-tauri/Cargo.toml'
+        run: |
+          cargo tarpaulin --ignore-tests --manifest-path src-tauri/Cargo.toml --out Xml
 
   test-e2e:
     needs: [test-frontend, test-backend]

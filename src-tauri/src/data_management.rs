@@ -58,7 +58,13 @@ pub async fn dangerously_clear_all_data(app: AppHandle) -> Result<(), String> {
     }
 
     // 3. Clear Keyring Entries
-    let keyring_keys = ["device-config", "customer_store_key", "sales_queue_key", "pricing_store_key"];
+    let keyring_keys = [
+        "device-config",
+        "customer_store_key",
+        "sales_queue_key",
+        "pricing_store_key",
+        "product_store_key",
+    ];
 
     for key in keyring_keys {
         if let Ok(entry) = Entry::new(KEYRING_SERVICE, key) {
