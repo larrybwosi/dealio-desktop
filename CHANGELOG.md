@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.6](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.5...v3.3.0-nextgen.6) (2026-04-10)
+
+
+### Features
+
+* implement branch-specific dynamic updates ([76c50a9](https://github.com/larrybwosi/dealio-desktop/commit/76c50a95a010c7a456c461d9b0b1e83e987a7c29))
+
 # [3.3.0-nextgen.5](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.4...v3.3.0-nextgen.5) (2026-04-05)
 
 
