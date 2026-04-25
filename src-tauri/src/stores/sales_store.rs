@@ -17,6 +17,7 @@ use tokio::sync::RwLock;
 use tokio::time::{sleep, Instant};
 
 use crate::auth_store::AuthState;
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 use crate::kds_models::{KdsOrderPayload, OrderItem};
 use crate::models::{QueuedSale, SaleResponse, SaleStatus};
 use crate::shift_store::ShiftState;
@@ -26,6 +27,7 @@ static LEGACY_SECRET: OnceLock<String> = OnceLock::new();
 
 // Name of the DBs as registered/loaded by the sql plugin in your setup/frontend
 const MAIN_DB_NAME: &str = "sqlite:pos_main.db"; 
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 const KDS_DB_NAME: &str = "sqlite:kds_orders.db";
 
 fn get_legacy_secret() -> &'static str {
@@ -827,6 +829,7 @@ pub fn start_auto_sync_task(app: AppHandle) {
 
 // --- KDS SQLite Storage Logic ---
 
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
     let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,
@@ -863,6 +866,7 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
     orders
 }
 
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,
@@ -907,6 +911,7 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     }
 }
 
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 pub async fn update_kds_order_status(app: &AppHandle, order_id: &str, new_status: &str) {
     let pool = match get_db_pool(app, KDS_DB_NAME).await {
         Ok(p) => p,

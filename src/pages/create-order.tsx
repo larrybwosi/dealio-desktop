@@ -290,23 +290,16 @@ const OrderItemRow = memo(({
   register(`items.${index}._availableUnits`);
   register(`items.${index}._maxStock`);
 
-  const availableUnits: SellableUnit[] = rowValues?._availableUnits || [];
+  const availableUnits: SellableUnit[] = useMemo(() => rowValues?._availableUnits || [], [rowValues?._availableUnits]);
+
   const rowTotal = (rowValues?.quantity || 0) * (rowValues?.unitPrice || 0);
 
-  const standardUnit = availableUnits.find((u) => u.unitId === rowValues?.sellingUnitId);
+  const standardUnit = availableUnits.find((u: any) => u.unitId === rowValues?.sellingUnitId);
   const standardPrice = standardUnit?.price ?? 0;
   const hasCustomPrice =
     rowValues?.unitPrice > 0 &&
     rowValues?.unitPrice !== standardPrice &&
     !!customerId;
-
-  // Stable string key for availableUnits — useWatch returns a new array
-  // reference every render, so we stringify for the dependency array.
-  const availableUnitsKey = useMemo(
-    () => availableUnits.map(u => `${u.unitId}:${u.price}`).join(','),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [availableUnits.length, availableUnits.map(u => u.unitId).join(',')]
-  );
 
   const prevResolvedPriceRef = useRef<number | null>(null);
 
@@ -333,12 +326,11 @@ const OrderItemRow = memo(({
   }, [
     rowValues?.variantId,
     rowValues?.sellingUnitId,
-    availableUnitsKey,
+    availableUnits,
     customerId,
-    priceMap,       // New object reference every time React Query resolves
+    priceMap,
     index,
     setValue,
-    // availableUnits is intentionally not listed — availableUnitsKey covers it
   ]);
 
   return (

@@ -288,9 +288,9 @@ const PaymentModal = ({
   const PHONE_CONFIG = getCurrentPhoneConfig();
 
   // ── IDs ──
-  const orderId = useMemo(() => uuidv4(), [isOpen]);
-  const saleNumber = useMemo(() => `SALE-${Date.now().toString().slice(-6)}`, [isOpen]);
-  const cleanAccountRef = useMemo(() => Date.now().toString().slice(-6), [isOpen]);
+  const orderId = useMemo(() => (isOpen ? uuidv4() : ''), [isOpen]);
+  const saleNumber = useMemo(() => (isOpen ? `SALE-${Date.now().toString().slice(-6)}` : ''), [isOpen]);
+  const cleanAccountRef = useMemo(() => (isOpen ? Date.now().toString().slice(-6) : ''), [isOpen]);
   const paybillAccountNo = useMemo(() => cleanAccountRef, [cleanAccountRef]);
   const fullSaleNumber = saleNumber;
 
@@ -338,7 +338,7 @@ const PaymentModal = ({
   // ── QR data ──
   const mpesaQrData = useMemo(
     () => generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance),
-    [mpesaMode, organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
+    [organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
   );
 
   // ── Emit display updates ──
@@ -377,6 +377,37 @@ const PaymentModal = ({
   const paymentChannel = useAblyStore(state => state.paymentChannel);
   const ably = useAblyStore(state => state.client);
 
+
+  // ── Payment helpers ──
+  const addPayment = useCallback((payment: Omit<AddedPayment, 'id'>) => {
+    setCurrentPayments(prev => [...prev, { ...payment, id: uuidv4() }]);
+    setAmountInput('');
+    setValidationErrors([]);
+  }, []);
+
+  const handlePaymentMatch = useCallback(
+    (data: any) => {
+      setDetectedPayment(data);
+      setMpesaStatus('SUCCESS');
+      setMpesaWaiting(false);
+      setTimeout(() => {
+        addPayment({
+          method: PaymentMethod.MPESA,
+          amount: data.amount,
+          reference: data.receipt,
+          meta: {
+            mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL,
+            mpesaPhoneNumber: data.phone || mpesaPhone,
+            ...data,
+          },
+        });
+        setDetectedPayment(null);
+        setMpesaStatus('IDLE');
+      }, 1500);
+    },
+    [addPayment, mpesaMode, mpesaPhone]
+  );
+
   useEffect(() => {
     if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably || !paymentChannel) return;
     const channel = ably.channels.get(paymentChannel);
@@ -406,15 +437,20 @@ const PaymentModal = ({
 
     channel.subscribe('payment-unclaimed', handleUnclaimed);
     channel.subscribe('payment-update', handleUpdate);
-    return () => channel.unsubscribe();
-  }, [isOpen, selectedTab, mpesaMode, ably, paymentChannel, fullSaleNumber, paybillAccountNo, remainingBalance]);
-
-  // ── Payment helpers ──
-  const addPayment = useCallback((payment: Omit<AddedPayment, 'id'>) => {
-    setCurrentPayments(prev => [...prev, { ...payment, id: uuidv4() }]);
-    setAmountInput('');
-    setValidationErrors([]);
-  }, []);
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [
+    isOpen,
+    selectedTab,
+    mpesaMode,
+    ably,
+    paymentChannel,
+    fullSaleNumber,
+    paybillAccountNo,
+    remainingBalance,
+    handlePaymentMatch,
+  ]);
 
   const removePayment = useCallback((id: string) => {
     setCurrentPayments(prev => prev.filter(p => p.id !== id));
@@ -450,25 +486,6 @@ const PaymentModal = ({
     }
   };
 
-  const handlePaymentMatch = (data: any) => {
-    setDetectedPayment(data);
-    setMpesaStatus('SUCCESS');
-    setMpesaWaiting(false);
-    setTimeout(() => {
-      addPayment({
-        method: PaymentMethod.MPESA,
-        amount: data.amount,
-        reference: data.receipt,
-        meta: {
-          mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL,
-          mpesaPhoneNumber: data.phone || mpesaPhone,
-          ...data,
-        },
-      });
-      setDetectedPayment(null);
-      setMpesaStatus('IDLE');
-    }, 1500);
-  };
 
   const handleMpesaStkTrigger = async () => {
     const amount = parseFloat(amountInput);

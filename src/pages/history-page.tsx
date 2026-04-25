@@ -137,7 +137,7 @@ export function HistoryPage() {
 
       return matchesSearch && matchesStatus && matchesDate
     })
-  }, [queue, searchQuery, statusFilter, dateFilter, isLoading])
+  }, [queue, searchQuery, statusFilter, dateFilter])
 
   const selectedOrderData = selectedOrderId ? queue.find((o) => o.id === selectedOrderId) : null
 
