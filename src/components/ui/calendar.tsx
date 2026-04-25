@@ -6,12 +6,13 @@ import { DayButton, DayPicker, getDefaultClassNames } from 'react-day-picker';
 
 import { cn } from '@/lib/utils';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = 'label',
+  captionLayout = 'dropdown',
   buttonVariant = 'ghost',
   formatters,
   components,
@@ -31,6 +32,8 @@ function Calendar({
         className
       )}
       captionLayout={captionLayout}
+      startMonth={props.startMonth ?? new Date(new Date().getFullYear() - 100, 0)}
+      endMonth={props.endMonth ?? new Date(new Date().getFullYear() + 100, 11)}
       formatters={{
         formatMonthDropdown: date => date.toLocaleString('default', { month: 'short' }),
         ...formatters,
@@ -42,12 +45,12 @@ function Calendar({
         nav: cn('flex items-center gap-1 w-full absolute top-0 inset-x-0 justify-between', defaultClassNames.nav),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none',
+          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none z-10',
           defaultClassNames.button_previous
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none',
+          'size-(--cell-size) aria-disabled:opacity-50 p-0 select-none z-10',
           defaultClassNames.button_next
         ),
         month_caption: cn(
@@ -55,14 +58,11 @@ function Calendar({
           defaultClassNames.month_caption
         ),
         dropdowns: cn(
-          'w-full flex items-center text-sm font-medium justify-center h-(--cell-size) gap-1.5',
+          'w-full flex items-center text-sm font-medium justify-center h-(--cell-size) gap-1',
           defaultClassNames.dropdowns
         ),
-        dropdown_root: cn(
-          'relative has-focus:border-ring border border-input shadow-xs has-focus:ring-ring/50 has-focus:ring-[3px] rounded-md',
-          defaultClassNames.dropdown_root
-        ),
-        dropdown: cn('absolute bg-popover inset-0 opacity-0', defaultClassNames.dropdown),
+        dropdown_root: cn('relative inline-flex items-center', defaultClassNames.dropdown_root),
+        dropdown: cn('p-0', defaultClassNames.dropdown),
         caption_label: cn(
           'select-none font-medium',
           captionLayout === 'label'
@@ -119,6 +119,31 @@ function Calendar({
             <td {...props}>
               <div className="flex size-(--cell-size) items-center justify-center text-center">{children}</div>
             </td>
+          );
+        },
+        Dropdown: ({ value, onChange, options }) => {
+          const selected = options?.find(option => option.value === value);
+          const handleChange = (value: string) => {
+            const changeEvent = {
+              target: { value },
+            } as React.ChangeEvent<HTMLSelectElement>;
+            onChange?.(changeEvent);
+          };
+          return (
+            <Select value={value?.toString()} onValueChange={handleChange}>
+              <SelectTrigger
+                className="h-7 pr-1.5 focus:ring-0 focus:ring-offset-0 [&>svg]:size-3 border-none bg-transparent hover:bg-accent hover:text-accent-foreground font-medium text-sm"
+              >
+                <SelectValue>{selected?.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent position="popper">
+                {options?.map(option => (
+                  <SelectItem key={option.value} value={option.value.toString()} className="text-xs">
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           );
         },
         ...components,
