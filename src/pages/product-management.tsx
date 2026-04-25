@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 export default function ProductManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
-  const { products, triggerSync } = usePosProducts({ search: searchTerm, pageSize: 1000 });
+  const { products, triggerSync } = usePosProducts({ search: searchTerm, category: 'all', pageSize: 1000 });
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 

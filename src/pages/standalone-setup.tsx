@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
-import { Key, ShieldCheck, User } from 'lucide-react';
+import { Key, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 
 export default function StandaloneSetup() {
@@ -46,13 +46,7 @@ export default function StandaloneSetup() {
     try {
       await invoke('set_local_auth', { pin });
       // Mock device config for standalone
-      await setConfigured({
-        location_id: 'standalone',
-        location_name: 'Standalone Store',
-        device_key: 'standalone-key',
-        base_url: '',
-        business_id: 'standalone-biz'
-      });
+      await setConfigured('MAIN_HUB', null);
       toast.success('Setup complete!');
       window.location.reload();
     } catch (error) {
