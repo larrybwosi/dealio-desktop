@@ -434,30 +434,32 @@ export function POS() {
             )}
 
             {/* Pricing Toggle */}
-            <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
-              <button
-                onClick={() => setPricingMode('retail')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
-                  pricingMode === 'retail'
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20'
-                    : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
-                )}
-              >
-                <Store className="w-3.5 h-3.5" /> Retail
-              </button>
-              <button
-                onClick={() => setPricingMode('wholesale')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
-                  pricingMode === 'wholesale'
-                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800'
-                    : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
-                )}
-              >
-                <Truck className="w-3.5 h-3.5" /> Wholesale
-              </button>
-            </div>
+            {(import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'restaurant' && (
+              <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
+                <button
+                  onClick={() => setPricingMode('retail')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
+                    pricingMode === 'retail'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20'
+                      : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                  )}
+                >
+                  <Store className="w-3.5 h-3.5" /> Retail
+                </button>
+                <button
+                  onClick={() => setPricingMode('wholesale')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
+                    pricingMode === 'wholesale'
+                      ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800'
+                      : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                  )}
+                >
+                  <Truck className="w-3.5 h-3.5" /> Wholesale
+                </button>
+              </div>
+            )}
 
             <div className="w-px h-6 bg-border/60 mx-1" />
 

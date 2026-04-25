@@ -153,8 +153,13 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const isActive = isRouteActive(route);
 
             const isStandalone = import.meta.env.MODE === 'standalone';
+            const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
+
             const excludedInStandalone = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'pricing'];
             if (isStandalone && excludedInStandalone.includes(item.id)) return null;
+
+            const restaurantOnly = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'manage-table'];
+            if (businessMode !== 'restaurant' && restaurantOnly.includes(item.id)) return null;
 
             return (
               <Button
@@ -172,7 +177,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             );
           })}
 
-          {deviceType === 'MAIN_HUB' && import.meta.env.MODE !== 'standalone' && (
+          {deviceType === 'MAIN_HUB' && import.meta.env.MODE !== 'standalone' && (import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'restaurant' && (
             <Button
               asChild
               variant={isRouteActive('/hub-overview') ? 'secondary' : 'ghost'}

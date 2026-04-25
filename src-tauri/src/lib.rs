@@ -14,8 +14,11 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
+#[cfg(feature = "restaurant")]
 mod stock_acceptance;
+#[cfg(feature = "restaurant")]
 mod stock_acceptance_models;
+#[cfg(feature = "restaurant")]
 pub mod stock_transfer;
 
 use stores::audit_store;
@@ -26,6 +29,7 @@ use stores::pricing_store::{self, PricingState};
 use stores::product_store::{self, ProductState};
 use stores::sales_store::{self, SalesState};
 use stores::shift_store::{self, ShiftState};
+#[cfg(feature = "restaurant")]
 use stores::table_store;
 
 mod customer_manager;
@@ -50,9 +54,9 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
-#[cfg(not(feature = "standalone"))]
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 mod kds_hub_server;
-#[cfg(not(feature = "standalone"))]
+#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
 mod kds_models;
 mod utils;
 
@@ -187,7 +191,7 @@ pub fn run() {
             sales_store::start_auto_sync_task(app.handle().clone());
 
             // Initialize Table Store DB
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
                 error!("Failed to initialize table database: {}", e);
             }
@@ -489,33 +493,44 @@ pub fn run() {
             auth_store::get_locations_command,
             #[cfg(not(feature = "standalone"))]
             auth_store::get_ably_auth_token_command,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             auth_store::start_device_setup_command,
+            #[cfg(feature = "restaurant")]
             stock_acceptance::save_document_locally,
+            #[cfg(feature = "restaurant")]
             stock_acceptance::fetch_incoming_shipments,
+            #[cfg(feature = "restaurant")]
             stock_acceptance::receive_purchase_order,
+            #[cfg(feature = "restaurant")]
             stock_acceptance::receive_stock_transfer,
+            #[cfg(feature = "restaurant")]
             stock_acceptance::submit_stock_process,
+            #[cfg(feature = "restaurant")]
             stock_transfer::submit_stock_transfer,
             http_server::start_file_server,
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             kds_hub_server::start_kds_hub,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             kds_hub_server::stop_kds_hub,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             kds_hub_server::get_hub_status,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             kds_hub_server::get_connected_devices,
-            #[cfg(not(feature = "standalone"))]
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
+            #[cfg(feature = "restaurant")]
             table_store::get_tables_command,
+            #[cfg(feature = "restaurant")]
             table_store::upsert_table_command,
+            #[cfg(feature = "restaurant")]
             table_store::delete_table_command,
+            #[cfg(feature = "restaurant")]
             table_store::update_table_status_command,
+            #[cfg(feature = "restaurant")]
             table_store::get_table_history_command,
             licensing::get_machine_id,
             licensing::activate_license,

@@ -47,6 +47,7 @@ const AppRoutes = () => {
   const deviceType = useAuthStore(state => state.deviceType);
 
   const { isAuthenticated } = useAuth();
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
 
   useEffect(() => {
     initializeFromBackend();
@@ -91,18 +92,26 @@ const AppRoutes = () => {
         <Route path="/history" element={<HistoryPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/customers" element={<CustomersPage />} />
-        <Route path="/manage-tables" element={<ManageTablesPage />} />
         <Route path="/cash-drawer" element={<CashDrawerPage />} />
         <Route path="/till-management" element={<TillManagementPage />} />
         <Route path="/receipt-settings" element={<ReceiptSettingsPage />} />
         <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
         <Route path="/create-order" element={<CreateOrderPage />} />
-        <Route path="/pricing" element={<PricingViewPage />} />
+
+        {/* Restaurant/Hub and Spoke routes */}
+        {businessMode === 'restaurant' && (
+          <>
+            <Route path="/pricing" element={<PricingViewPage />} />
+            <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
+            <Route path="/stock-transfer" element={<StockTransferCreate />} />
+            <Route path="/kds" element={<KDSPage />} />
+            <Route path="/hub-overview" element={<HubOverviewPage />} />
+            <Route path="/manage-tables" element={<ManageTablesPage />} />
+          </>
+        )}
+
         <Route path="/shift-manager" element={<ShiftManager />} />
-        <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
-        <Route path="/stock-transfer" element={<StockTransferCreate />} />
-        <Route path="/kds" element={<KDSPage />} />
-        <Route path="/hub-overview" element={<HubOverviewPage />} />
+
         <Route path="/product-management" element={<ProductManagementPage />} />
       </Route>
 
