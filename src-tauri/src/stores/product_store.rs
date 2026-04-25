@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
 use tauri_plugin_sql::{DbInstances, DbPool};
 use tokio::fs as async_fs;
 
@@ -435,7 +435,7 @@ pub async fn create_local_product(app: &AppHandle, state: &ProductState, product
     let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
     let search_text = build_search_text(&product);
     let encrypted_payload = encrypt_payload(&product).await?;
-    let location_id = product.location_id.clone().unwrap_or_else(|| "standalone".to_string());
+    let location_id = "standalone".to_string();
 
     sqlx::query("INSERT INTO products (product_id, location_id, category, product_name, search_text, payload) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
         .bind(&product.product_id).bind(&location_id).bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload)
@@ -451,7 +451,7 @@ pub async fn update_local_product(app: &AppHandle, state: &ProductState, product
     let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
     let search_text = build_search_text(&product);
     let encrypted_payload = encrypt_payload(&product).await?;
-    let location_id = product.location_id.clone().unwrap_or_else(|| "standalone".to_string());
+    let location_id = "standalone".to_string();
 
     sqlx::query("UPDATE products SET category = ?1, product_name = ?2, search_text = ?3, payload = ?4 WHERE product_id = ?5 AND location_id = ?6")
         .bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload).bind(&product.product_id).bind(&location_id)

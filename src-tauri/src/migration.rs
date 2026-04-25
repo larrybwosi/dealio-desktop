@@ -1,12 +1,12 @@
 use tauri::{AppHandle, command, State};
-use crate::stores::product_store::{self, ProductState};
+use crate::stores::product_store::ProductState;
 use crate::stores::auth_store::AuthState;
 use anyhow::Result;
 
 #[command]
 pub async fn push_local_to_cloud(
-    app: AppHandle,
-    product_state: State<'_, ProductState>,
+    _app: AppHandle,
+    _product_state: State<'_, ProductState>,
     auth_state: State<'_, AuthState>,
 ) -> Result<String, String> {
     // This is a placeholder for the actual migration logic

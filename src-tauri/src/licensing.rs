@@ -1,5 +1,4 @@
-use tauri::{AppHandle, command};
-use machine_uid;
+use tauri::command;
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize)]
@@ -21,7 +20,7 @@ pub fn get_machine_id() -> Result<String, String> {
 
 #[command]
 pub async fn activate_license(license_key: String) -> Result<ActivationResponse, String> {
-    let machine_id = machine_uid::get().map_err(|e| e.to_string())?;
+    let _machine_id = machine_uid::get().map_err(|e| e.to_string())?;
 
     // For now, client-side logic only.
     // In a real scenario, this would call a remote licensing server.
