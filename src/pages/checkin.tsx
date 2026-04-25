@@ -217,6 +217,33 @@ export default function CheckinPage() {
   const handleSubmit = async (): Promise<void> => {
     setError('');
 
+    if (import.meta.env.MODE === 'standalone') {
+        if (!password.trim()) {
+            setError('Please enter your PIN');
+            passwordInputRef.current?.focus();
+            return;
+        }
+
+        try {
+            const isValid = await invoke<boolean>('verify_local_auth', { pin: password });
+            if (isValid) {
+                // Mock member session for standalone
+                useAuthStore.getState().setMemberSession({
+                    id: 'standalone-admin',
+                    name: 'Admin',
+                    email: 'admin@standalone.com',
+                    role: 'admin'
+                } as any);
+                navigate('/');
+            } else {
+                setError('Invalid PIN');
+            }
+        } catch (err) {
+            setError('Authentication error');
+        }
+        return;
+    }
+
     if (!cardId.trim()) {
       setError('Please enter or scan your card ID');
       cardInputRef.current?.focus();
@@ -353,6 +380,7 @@ export default function CheckinPage() {
 
           <CardContent className="space-y-6">
             {/* Scan Button - Now sets Visual State */}
+            {import.meta.env.MODE !== 'standalone' && (
             <Button
               onClick={handleScanClick}
               disabled={isCheckingIn || isScanning}
@@ -399,7 +427,9 @@ export default function CheckinPage() {
                 </div>
               </div>
             </Button>
+            )}
 
+            {import.meta.env.MODE !== 'standalone' && (
             <div className="relative py-2">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-slate-800"></div>
@@ -408,36 +438,39 @@ export default function CheckinPage() {
                 <span className="bg-slate-950 lg:bg-slate-900 px-2 text-slate-500">Or continue with ID</span>
               </div>
             </div>
+            )}
 
             {/* Inputs */}
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="cardId" className="text-slate-300">
-                  Card ID
-                </Label>
-                <div className="relative group">
-                  <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
-                  <Input
-                    ref={cardInputRef}
-                    id="cardId"
-                    value={cardId}
-                    onChange={handleCardIdChange}
-                    onKeyDown={handleKeyPress}
-                    placeholder="Enter ID or Scan..."
-                    autoFocus
-                    className="pl-10 bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:ring-blue-500/20 h-11 transition-all"
-                    disabled={isCheckingIn}
-                  />
-                  {/* Visual indicator for Keyboard/Scanner support */}
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600" title="Scanner Ready">
-                    <Keyboard className="h-4 w-4 opacity-50" />
+                {import.meta.env.MODE !== 'standalone' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cardId" className="text-slate-300">
+                      Card ID
+                    </Label>
+                    <div className="relative group">
+                      <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />
+                      <Input
+                        ref={cardInputRef}
+                        id="cardId"
+                        value={cardId}
+                        onChange={handleCardIdChange}
+                        onKeyDown={handleKeyPress}
+                        placeholder="Enter ID or Scan..."
+                        autoFocus
+                        className="pl-10 bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:ring-blue-500/20 h-11 transition-all"
+                        disabled={isCheckingIn}
+                      />
+                      {/* Visual indicator for Keyboard/Scanner support */}
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-600" title="Scanner Ready">
+                        <Keyboard className="h-4 w-4 opacity-50" />
+                      </div>
                   </div>
                 </div>
-              </div>
+                )}
 
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-slate-300">
-                  Password
+                    {import.meta.env.MODE === 'standalone' ? 'Access PIN' : 'Password'}
                 </Label>
                 <div className="relative group">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 group-focus-within:text-blue-400 transition-colors" />

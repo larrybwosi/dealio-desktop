@@ -6,6 +6,7 @@ use crate::stores::product_store::{self, ProductState};
 use crate::stores::sales_store::SalesState;
 
 #[tauri::command]
+#[cfg(not(feature = "standalone"))]
 pub async fn sync_products_command(
     app: AppHandle,
     state: State<'_, ProductState>,
@@ -117,4 +118,35 @@ pub async fn get_products_by_ids_command(
     
     let products = product_store::get_products_by_ids(&app, &state, &location_id, ids).await;
     Ok(products)
+}
+
+#[tauri::command]
+pub async fn create_local_product_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    product: crate::models::PosProduct,
+) -> Result<String, String> {
+    product_store::create_local_product(&app, &state, product).await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_local_product_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    product: crate::models::PosProduct,
+) -> Result<String, String> {
+    product_store::update_local_product(&app, &state, product).await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_local_product_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    product_id: String,
+    location_id: String,
+) -> Result<String, String> {
+    product_store::delete_local_product(&app, &state, &product_id, &location_id).await
+        .map_err(|e| e.to_string())
 }

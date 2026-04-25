@@ -35,6 +35,7 @@ import {
   Bell,
   HardDrive,
   FileText,
+  CloudUpload,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -345,8 +346,9 @@ export default function SettingsPage() {
             </TabsList>
           </div>
 
-          <GeneralSettings
-            businessName={businessName}
+          <TabsContent value="general">
+            <GeneralSettings
+              businessName={businessName}
             setBusinessName={setBusinessName}
             businessType={businessType}
             handleBusinessTypeChange={handleBusinessTypeChange}
@@ -359,8 +361,37 @@ export default function SettingsPage() {
             allowSaveUnpaidOrders={allowSaveUnpaidOrders}
             setAllowSaveUnpaidOrders={setAllowSaveUnpaidOrders}
             enableAutoStart={enableAutoStart}
-            setEnableAutoStart={setEnableAutoStart}
-          />
+              setEnableAutoStart={setEnableAutoStart}
+            />
+
+            {import.meta.env.MODE === 'standalone' && (
+              <Card className="mt-6 border-blue-100 bg-blue-50/50 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                    <CloudUpload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Cloud Migration</h2>
+                    <p className="text-sm text-muted-foreground">Push local data to your Dealio Cloud account</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                  onClick={async () => {
+                    try {
+                      const res = await invoke<string>('push_local_to_cloud');
+                      toast.success(res);
+                    } catch (err: any) {
+                      toast.error(err);
+                    }
+                  }}
+                >
+                  Sync to Cloud
+                </Button>
+              </Card>
+            )}
+          </TabsContent>
 
           <LogsTab />
 

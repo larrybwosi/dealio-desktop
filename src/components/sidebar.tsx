@@ -25,6 +25,7 @@ import {
   LayoutGrid,
   MapPin,
   Activity,
+  Box,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -151,6 +152,10 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const route = routeMap[item.id] || `/${item.id}`;
             const isActive = isRouteActive(route);
 
+            const isStandalone = import.meta.env.MODE === 'standalone';
+            const excludedInStandalone = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'pricing'];
+            if (isStandalone && excludedInStandalone.includes(item.id)) return null;
+
             return (
               <Button
                 key={item.id}
@@ -167,7 +172,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             );
           })}
 
-          {deviceType === 'MAIN_HUB' && (
+          {deviceType === 'MAIN_HUB' && import.meta.env.MODE !== 'standalone' && (
             <Button
               asChild
               variant={isRouteActive('/hub-overview') ? 'secondary' : 'ghost'}
@@ -199,6 +204,9 @@ export function Sidebar({ onCheckout }: SidebarProps) {
               { id: 'pending-transactions', label: 'Pending', icon: Clock, route: '/pending-transactions' },
               { id: 'create-order', label: 'Create Order', icon: Plus, route: '/create-order' },
               { id: 'cash-drawer', label: 'Cash Drawer', icon: Wallet, route: '/cash-drawer' },
+              ...(import.meta.env.MODE === 'standalone'
+                  ? [{ id: 'product-management', label: 'Products', icon: Box, route: '/product-management' }]
+                  : [])
             ].map(item => {
               const isActive = isRouteActive(item.route);
               return (

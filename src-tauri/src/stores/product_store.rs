@@ -41,14 +41,20 @@ impl Default for ProductState {
 }
 
 // --- DB Helper ---
-async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
+pub async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+    let db_name = if cfg!(feature = "standalone") {
+        "sqlite:pos_standalone.db"
+    } else {
+        MAIN_DB_NAME
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
         Ok(pool.clone())
     } else {
-        Err(format!("Database {} not found.", MAIN_DB_NAME))
+        Err(format!("Database {} not found.", db_name))
     }
 }
 
@@ -204,9 +210,31 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     }
 }
 
-pub async fn load_products_from_disk(_app: &AppHandle, _state: &ProductState, _location_id: &str) -> Result<()> { Ok(()) }
+pub async fn load_products_from_disk(app: &AppHandle, _state: &ProductState, location_id: &str) -> Result<()> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let rows = sqlx::query("SELECT payload FROM products WHERE location_id = ?1")
+        .bind(location_id)
+        .fetch_all(&pool).await?;
+
+    let mut products = Vec::new();
+    for row in rows {
+        let encrypted: Vec<u8> = row.get("payload");
+        if let Ok(product) = decrypt_payload(&encrypted).await {
+            products.push(product);
+        }
+    }
+
+    info!("[ProductStore] Loaded {} products from disk for location {}", products.len(), location_id);
+    // In this architecture, search_local is used to fetch products from DB.
+    // The ProductState struct is a marker for tauri manage.
+    // However, if we need to notify the frontend, we could emit an event.
+    let _ = app.emit("products-loaded", products);
+
+    Ok(())
+}
 
 // --- 2. Sync Engine ---
+#[cfg(not(feature = "standalone"))]
 pub async fn run_sync(
     app: AppHandle,
     _state: &ProductState,
@@ -385,6 +413,7 @@ pub async fn get_products_by_ids(app: &AppHandle, _state: &ProductState, locatio
 }
 
 #[tauri::command]
+#[cfg(not(feature = "standalone"))]
 pub async fn switch_location(
     app: AppHandle,
     state: tauri::State<'_, ProductState>,
@@ -400,4 +429,46 @@ pub async fn switch_location(
         let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
     });
     Ok(cached)
+}
+
+pub async fn create_local_product(app: &AppHandle, state: &ProductState, product: PosProduct) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let search_text = build_search_text(&product);
+    let encrypted_payload = encrypt_payload(&product).await?;
+    let location_id = product.location_id.clone().unwrap_or_else(|| "standalone".to_string());
+
+    sqlx::query("INSERT INTO products (product_id, location_id, category, product_name, search_text, payload) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+        .bind(&product.product_id).bind(&location_id).bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload)
+        .execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, &location_id).await?;
+
+    Ok(product.product_id)
+}
+
+pub async fn update_local_product(app: &AppHandle, state: &ProductState, product: PosProduct) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let search_text = build_search_text(&product);
+    let encrypted_payload = encrypt_payload(&product).await?;
+    let location_id = product.location_id.clone().unwrap_or_else(|| "standalone".to_string());
+
+    sqlx::query("UPDATE products SET category = ?1, product_name = ?2, search_text = ?3, payload = ?4 WHERE product_id = ?5 AND location_id = ?6")
+        .bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload).bind(&product.product_id).bind(&location_id)
+        .execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, &location_id).await?;
+
+    Ok(product.product_id)
+}
+
+pub async fn delete_local_product(app: &AppHandle, state: &ProductState, product_id: &str, location_id: &str) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    sqlx::query("DELETE FROM products WHERE product_id = ?1 AND location_id = ?2").bind(product_id).bind(location_id).execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, location_id).await?;
+
+    Ok(product_id.to_string())
 }
