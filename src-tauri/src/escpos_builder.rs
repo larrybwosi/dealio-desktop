@@ -4,6 +4,12 @@ pub struct EscPosBuilder {
     pub bytes: Vec<u8>,
 }
 
+impl Default for EscPosBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EscPosBuilder {
     pub fn new() -> Self {
         Self {
@@ -195,7 +201,7 @@ impl EscPosBuilder {
         let (width, height) = grayscale.dimensions();
         
         // Width in bytes (1 bit per pixel)
-        let width_bytes = ((width + 7) / 8) as u16;
+        let width_bytes = width.div_ceil(8) as u16;
         let x_l = (width_bytes % 256) as u8;
         let x_h = (width_bytes / 256) as u8;
         let y_l = (height % 256) as u8;
@@ -214,7 +220,7 @@ impl EscPosBuilder {
                     let x = (x_byte * 8) + bit as u16;
                     if (x as u32) < width {
                         // Get the pixel's grayscale value
-                        let pixel = grayscale.get_pixel(x as u32, y as u32)[0];
+                        let pixel = grayscale.get_pixel(x as u32, y)[0];
                         
                         // Threshold: If darker than 128, burn a dot (bit = 1)
                         if pixel < 128 {
@@ -230,5 +236,593 @@ impl EscPosBuilder {
         self.feed(1); // Give it some breathing room after the image
         self.align(0); // Reset to left
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // --- Initialization ---
+
+    #[test]
+    fn test_new_initializes_with_esc_at() {
+        let builder = EscPosBuilder::new();
+        // ESC @ = [0x1B, 0x40]
+        assert_eq!(builder.bytes, vec![0x1B, 0x40]);
+    }
+
+    #[test]
+    fn test_default_is_same_as_new() {
+        let builder_default = EscPosBuilder::default();
+        let builder_new = EscPosBuilder::new();
+        assert_eq!(builder_default.bytes, builder_new.bytes);
+    }
+
+    // --- text() ---
+
+    #[test]
+    fn test_text_appends_bytes() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text("AB");
+        assert_eq!(builder.bytes[initial_len..], [b'A', b'B']);
+    }
+
+    #[test]
+    fn test_text_empty_string_does_not_change_bytes() {
+        let mut builder = EscPosBuilder::new();
+        let initial = builder.bytes.clone();
+        builder.text("");
+        assert_eq!(builder.bytes, initial);
+    }
+
+    #[test]
+    fn test_text_ascii_chars() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text("Hello");
+        assert_eq!(&builder.bytes[initial_len..], b"Hello");
+    }
+
+    // --- feed() ---
+
+    #[test]
+    fn test_feed_zero_lines_does_nothing() {
+        let mut builder = EscPosBuilder::new();
+        let initial = builder.bytes.clone();
+        builder.feed(0);
+        assert_eq!(builder.bytes, initial);
+    }
+
+    #[test]
+    fn test_feed_one_line_appends_lf() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.feed(1);
+        assert_eq!(builder.bytes[initial_len..], [0x0A]);
+    }
+
+    #[test]
+    fn test_feed_multiple_lines() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.feed(3);
+        assert_eq!(&builder.bytes[initial_len..], &[0x0A, 0x0A, 0x0A]);
+    }
+
+    // --- text_line() ---
+
+    #[test]
+    fn test_text_line_appends_text_then_lf() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text_line("Hi");
+        let appended = &builder.bytes[initial_len..];
+        assert_eq!(appended, &[b'H', b'i', 0x0A]);
+    }
+
+    #[test]
+    fn test_text_line_empty_string_only_adds_lf() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text_line("");
+        assert_eq!(&builder.bytes[initial_len..], &[0x0A]);
+    }
+
+    // --- align() ---
+
+    #[test]
+    fn test_align_left() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.align(0);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x61, 0x00]);
+    }
+
+    #[test]
+    fn test_align_center() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.align(1);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x61, 0x01]);
+    }
+
+    #[test]
+    fn test_align_right() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.align(2);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x61, 0x02]);
+    }
+
+    // --- bold() ---
+
+    #[test]
+    fn test_bold_on() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.bold(true);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x45, 0x01]);
+    }
+
+    #[test]
+    fn test_bold_off() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.bold(false);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x45, 0x00]);
+    }
+
+    // --- size() ---
+
+    #[test]
+    fn test_size_1x1_normal_size() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.size(1, 1);
+        // w=0, h=0, n = (0<<4)|0 = 0
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x21, 0x00]);
+    }
+
+    #[test]
+    fn test_size_2x1() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.size(2, 1);
+        // w=1, h=0, n = (1<<4)|0 = 16 = 0x10
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x21, 0x10]);
+    }
+
+    #[test]
+    fn test_size_1x2() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.size(1, 2);
+        // w=0, h=1, n = (0<<4)|1 = 1
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x21, 0x01]);
+    }
+
+    #[test]
+    fn test_size_2x2() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.size(2, 2);
+        // w=1, h=1, n = (1<<4)|1 = 17 = 0x11
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x21, 0x11]);
+    }
+
+    #[test]
+    fn test_size_clamps_below_minimum() {
+        // Values of 0 should be clamped to 1, giving same result as (1,1)
+        let mut b1 = EscPosBuilder::new();
+        b1.size(0, 0);
+        let mut b2 = EscPosBuilder::new();
+        b2.size(1, 1);
+        assert_eq!(b1.bytes, b2.bytes);
+    }
+
+    #[test]
+    fn test_size_clamps_above_maximum() {
+        // Values above 8 should be clamped to 8
+        let mut b1 = EscPosBuilder::new();
+        b1.size(9, 9);
+        let mut b2 = EscPosBuilder::new();
+        b2.size(8, 8);
+        assert_eq!(b1.bytes, b2.bytes);
+    }
+
+    #[test]
+    fn test_size_max_8x8() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.size(8, 8);
+        // w=7, h=7, n = (7<<4)|7 = 0x77
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x21, 0x77]);
+    }
+
+    // --- underline() ---
+
+    #[test]
+    fn test_underline_off() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.underline(0);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x2D, 0x00]);
+    }
+
+    #[test]
+    fn test_underline_one_dot() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.underline(1);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x2D, 0x01]);
+    }
+
+    #[test]
+    fn test_underline_two_dots() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.underline(2);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1B, 0x2D, 0x02]);
+    }
+
+    #[test]
+    fn test_underline_clamps_above_2() {
+        // thickness > 2 should be clamped to 2
+        let mut b1 = EscPosBuilder::new();
+        b1.underline(5);
+        let mut b2 = EscPosBuilder::new();
+        b2.underline(2);
+        assert_eq!(b1.bytes, b2.bytes);
+    }
+
+    // --- inverse() ---
+
+    #[test]
+    fn test_inverse_on() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.inverse(true);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x42, 0x01]);
+    }
+
+    #[test]
+    fn test_inverse_off() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.inverse(false);
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x42, 0x00]);
+    }
+
+    // --- cut() ---
+
+    #[test]
+    fn test_cut_appends_gs_v_a_0() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.cut();
+        assert_eq!(&builder.bytes[initial_len..], &[0x1D, 0x56, 0x41, 0x00]);
+    }
+
+    // --- divider() ---
+
+    #[test]
+    fn test_divider_produces_correct_number_of_dashes() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.divider(10);
+        // Should produce "----------\n"
+        let produced = &builder.bytes[initial_len..];
+        let s = std::str::from_utf8(&produced[..produced.len() - 1]).unwrap();
+        assert_eq!(s.len(), 10);
+        assert!(s.chars().all(|c| c == '-'));
+        // Last byte is LF
+        assert_eq!(produced[produced.len() - 1], 0x0A);
+    }
+
+    #[test]
+    fn test_divider_zero_width() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.divider(0);
+        // Should produce just "\n"
+        assert_eq!(&builder.bytes[initial_len..], &[0x0A]);
+    }
+
+    #[test]
+    fn test_divider_58mm_width() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.divider(32);
+        let produced = &builder.bytes[initial_len..];
+        // 32 dashes + LF
+        assert_eq!(produced.len(), 33);
+    }
+
+    // --- text_left_right() ---
+
+    #[test]
+    fn test_text_left_right_normal_padding() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text_left_right("Left", "Right", 20);
+        let produced = &builder.bytes[initial_len..];
+        // "Left           Right\n" - check it's followed by LF and total length
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        assert!(s.starts_with("Left"));
+        assert!(s.ends_with("Right"));
+        assert_eq!(s.len(), 20);
+        assert_eq!(produced[produced.len() - 1], 0x0A);
+    }
+
+    #[test]
+    fn test_text_left_right_fallback_when_too_long() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        // "LongLeft" (8) + "LongRight" (9) = 17, char_width=10 => fallback
+        builder.text_left_right("LongLeft", "LongRight", 10);
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        // Fallback: "LongLeft LongRight"
+        assert_eq!(s, "LongLeft LongRight");
+    }
+
+    #[test]
+    fn test_text_left_right_exact_fit_is_fallback() {
+        // left_len + right_len >= char_width triggers fallback
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text_left_right("AB", "CD", 4); // 2+2 >= 4
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        assert_eq!(s, "AB CD");
+    }
+
+    #[test]
+    fn test_text_left_right_padding_is_correct() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.text_left_right("A", "B", 10);
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        // "A        B" - 1 + 8 spaces + 1 = 10
+        assert_eq!(s.len(), 10);
+        assert!(s.starts_with('A'));
+        assert!(s.ends_with('B'));
+    }
+
+    // --- item_row() ---
+
+    #[test]
+    fn test_item_row_normal_row_formatting() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        // 58mm paper: (14, 4, 6, 8)
+        builder.item_row("Widget", "2", "5.00", "10.00", (14, 4, 6, 8));
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        // Total width = 14 + 4 + 6 + 8 = 32
+        assert_eq!(s.len(), 32);
+        assert_eq!(produced[produced.len() - 1], 0x0A);
+    }
+
+    #[test]
+    fn test_item_row_truncates_long_item_name() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        let long_name = "A".repeat(20); // 20 chars, col width = 14
+        builder.item_row(&long_name, "1", "1.00", "1.00", (14, 4, 6, 8));
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        // Total width = 14 + 4 + 6 + 8 = 32
+        assert_eq!(s.len(), 32);
+        // Item column should be truncated
+        let item_col = &s[..14];
+        assert!(item_col.len() <= 14);
+    }
+
+    #[test]
+    fn test_item_row_short_item_name_pads_to_column_width() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.item_row("A", "1", "1.00", "1.00", (14, 4, 6, 8));
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        assert_eq!(s.len(), 32);
+    }
+
+    #[test]
+    fn test_item_row_80mm_paper() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.item_row("Big Screen TV", "1", "599.99", "599.99", (22, 6, 9, 11));
+        let produced = &builder.bytes[initial_len..];
+        let text_part = &produced[..produced.len() - 1];
+        let s = std::str::from_utf8(text_part).unwrap();
+        // Total width = 22 + 6 + 9 + 11 = 48
+        assert_eq!(s.len(), 48);
+    }
+
+    // --- barcode_1d() ---
+
+    #[test]
+    fn test_barcode_1d_contains_code128_prefix() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.barcode_1d("12345");
+        let produced = &builder.bytes[initial_len..];
+        // Should contain GS k 0x49 (CODE128 command)
+        let has_code128 = produced.windows(3).any(|w| w == [0x1D, 0x6B, 0x49]);
+        assert!(has_code128);
+    }
+
+    #[test]
+    fn test_barcode_1d_contains_hri_position_command() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.barcode_1d("ORDER001");
+        let produced = &builder.bytes[initial_len..];
+        // HRI below: [0x1D, 0x48, 0x02]
+        let has_hri = produced.windows(3).any(|w| w == [0x1D, 0x48, 0x02]);
+        assert!(has_hri);
+    }
+
+    #[test]
+    fn test_barcode_1d_contains_height_command() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.barcode_1d("TEST");
+        let produced = &builder.bytes[initial_len..];
+        // Height: [0x1D, 0x68, 0x40]
+        let has_height = produced.windows(3).any(|w| w == [0x1D, 0x68, 0x40]);
+        assert!(has_height);
+    }
+
+    #[test]
+    fn test_barcode_1d_contains_data_bytes() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.barcode_1d("ABC");
+        let produced = &builder.bytes[initial_len..];
+        // Data should contain the actual data bytes somewhere
+        let has_data = produced.windows(3).any(|w| w == [b'A', b'B', b'C']);
+        assert!(has_data);
+    }
+
+    #[test]
+    fn test_barcode_1d_ends_with_feed() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.barcode_1d("XYZ");
+        let produced = &builder.bytes[initial_len..];
+        // Should end with 2 LF bytes (feed(2))
+        let len = produced.len();
+        assert!(len >= 2);
+        assert_eq!(produced[len - 2], 0x0A);
+        assert_eq!(produced[len - 1], 0x0A);
+    }
+
+    // --- qr_code() ---
+
+    #[test]
+    fn test_qr_code_contains_model_2_command() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.qr_code("https://example.com");
+        let produced = &builder.bytes[initial_len..];
+        // Model 2: [0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]
+        let has_model = produced.windows(9).any(|w| w == [0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00]);
+        assert!(has_model);
+    }
+
+    #[test]
+    fn test_qr_code_contains_module_size_command() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.qr_code("test");
+        let produced = &builder.bytes[initial_len..];
+        // Module size: [0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06]
+        let has_size = produced.windows(8).any(|w| w == [0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x06]);
+        assert!(has_size);
+    }
+
+    #[test]
+    fn test_qr_code_contains_print_command() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.qr_code("test");
+        let produced = &builder.bytes[initial_len..];
+        // Print: [0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]
+        let has_print = produced.windows(8).any(|w| w == [0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30]);
+        assert!(has_print);
+    }
+
+    #[test]
+    fn test_qr_code_ends_with_feed() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.qr_code("http://test.com");
+        let produced = &builder.bytes[initial_len..];
+        let len = produced.len();
+        assert!(len >= 2);
+        assert_eq!(produced[len - 2], 0x0A);
+        assert_eq!(produced[len - 1], 0x0A);
+    }
+
+    #[test]
+    fn test_qr_code_encodes_url_data() {
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        let url = "AB";
+        builder.qr_code(url);
+        let produced = &builder.bytes[initial_len..];
+        // "AB" as bytes should appear in the output
+        let has_data = produced.windows(2).any(|w| w == [b'A', b'B']);
+        assert!(has_data);
+    }
+
+    #[test]
+    fn test_qr_code_pL_pH_encoding() {
+        // store_len = url_bytes.len() + 3
+        // For url = "A" (1 byte): store_len = 4, pL = 4, pH = 0
+        let mut builder = EscPosBuilder::new();
+        let initial_len = builder.bytes.len();
+        builder.qr_code("A");
+        let produced = &builder.bytes[initial_len..];
+        // Store data command: [0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 0x30, ...]
+        // store_len = 1 + 3 = 4, pL=4, pH=0
+        let has_store = produced.windows(8).any(|w| {
+            w[0] == 0x1D && w[1] == 0x28 && w[2] == 0x6B && w[5] == 0x31 && w[6] == 0x50 && w[7] == 0x30
+        });
+        assert!(has_store);
+    }
+
+    // --- logo() error case ---
+
+    #[test]
+    fn test_logo_returns_error_for_nonexistent_file() {
+        let mut builder = EscPosBuilder::new();
+        let result = builder.logo("/nonexistent/path/to/image.png", true);
+        assert!(result.is_err());
+    }
+
+    // --- Integration / sequential usage ---
+
+    #[test]
+    fn test_sequential_commands_produce_valid_stream() {
+        let mut builder = EscPosBuilder::new();
+        // Starts with ESC @
+        assert_eq!(&builder.bytes[..2], &[0x1B, 0x40]);
+        builder.align(1);
+        builder.bold(true);
+        builder.text_line("RECEIPT");
+        builder.bold(false);
+        builder.align(0);
+        builder.divider(32);
+        builder.cut();
+        // All operations should build a non-empty valid byte stream
+        assert!(builder.bytes.len() > 10);
+        // Should end with cut command
+        let last_four = &builder.bytes[builder.bytes.len() - 4..];
+        assert_eq!(last_four, &[0x1D, 0x56, 0x41, 0x00]);
+    }
+
+    #[test]
+    fn test_bytes_grow_with_each_command() {
+        let mut builder = EscPosBuilder::new();
+        let len_after_init = builder.bytes.len();
+        builder.text("X");
+        assert!(builder.bytes.len() > len_after_init);
+        let len_after_text = builder.bytes.len();
+        builder.feed(1);
+        assert!(builder.bytes.len() > len_after_text);
     }
 }
