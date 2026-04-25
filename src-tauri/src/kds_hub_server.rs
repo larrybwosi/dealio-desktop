@@ -255,15 +255,15 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
             if let Ok(ws_msg) = serde_json::from_str::<WsMessage>(&text) {
                 match ws_msg {
                     WsMessage::NewOrder(order) => {
-                        info!("Received new order locally: {}", order.id);
+                        info!("Received new order locally: {}", order.order_id);
                         // Save to local SQLite database using Tauri app_handle
                         crate::stores::sales_store::save_local_kds_order(&app_handle_for_recv, &order).await;
                         let _ = tx.send(text.clone());
                     },
-                    WsMessage::OrderStatusUpdated { id, new_status } => {
-                        info!("Order {} status updated to: {}", id, new_status);
+                    WsMessage::OrderStatusUpdated { order_id, status } => {
+                        info!("Order {} status updated to: {}", order_id, status);
                         // Update local SQLite database state
-                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &id, &new_status).await;
+                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &order_id, &status).await;
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::DeviceStatus(device) => {
@@ -764,7 +764,7 @@ mod tests {
     #[test]
     fn test_shutdown_tx_can_be_set_and_taken() {
         let registry = make_registry();
-        let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
         {
             let mut guard = registry.shutdown_tx.lock().unwrap();
             *guard = Some(shutdown_tx);
