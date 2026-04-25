@@ -1709,6 +1709,7 @@ dependencies = [
  "keyring",
  "local-ip-address",
  "log",
+ "machine-uid",
  "mockito",
  "pcsc",
  "rand 0.8.5",
@@ -4048,6 +4049,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d640282b302c0bb0a2a8e0233ead9035e3bed871f0b7e81fe4a1ec829765db44"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "machine-uid"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26141aceb9f046065617266f41a4a652e4583da643472a10a89b4b3664d99eb6"
+dependencies = [
+ "winreg 0.11.0",
 ]
 
 [[package]]
@@ -10141,6 +10151,16 @@ version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80d0f4e272c85def139476380b12f9ac60926689dd2e01d4923222f40580869d"
 dependencies = [
+ "winapi",
+]
+
+[[package]]
+name = "winreg"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a1a57ff50e9b408431e8f97d5456f2807f8eb2a2cd79b06068fc87f8ecf189"
+dependencies = [
+ "cfg-if",
  "winapi",
 ]
 

@@ -41,6 +41,8 @@ mod notification_manager;
 use notification_manager::NotificationState;
 
 mod data_management;
+mod licensing;
+mod migration;
 
 mod network_monitor;
 use network_monitor::NetworkState;
@@ -48,7 +50,9 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+#[cfg(not(feature = "standalone"))]
 mod kds_hub_server;
+#[cfg(not(feature = "standalone"))]
 mod kds_models;
 mod utils;
 
@@ -145,13 +149,15 @@ pub fn run() {
 
             // Try to load products for the configured location if available
             let auth_state_init = app.state::<AuthState>();
-            if let Some(location_id) = {
+            let location_id_opt = {
                 let config_guard = auth_state_init
                     .device_config
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
                 config_guard.as_ref().map(|c| c.location_id.clone())
-            } {
+            };
+
+            if let Some(location_id) = location_id_opt {
                 if let Err(e) = tauri::async_runtime::block_on(
                     product_store::load_products_from_disk(app.handle(), &state, &location_id),
                 ) {
@@ -160,6 +166,11 @@ pub fn run() {
                         location_id, e
                     );
                 }
+            } else if cfg!(feature = "standalone") {
+                // For standalone, always try to load products even if not "configured" yet
+                let _ = tauri::async_runtime::block_on(
+                    product_store::load_products_from_disk(app.handle(), &state, "standalone"),
+                );
             }
 
             let cust_state = app.state::<CustomerState>();
@@ -172,9 +183,11 @@ pub fn run() {
 
             let sales_state = app.state::<SalesState>();
             tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
+            #[cfg(not(feature = "standalone"))]
             sales_store::start_auto_sync_task(app.handle().clone());
 
             // Initialize Table Store DB
+            #[cfg(not(feature = "standalone"))]
             if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
                 error!("Failed to initialize table database: {}", e);
             }
@@ -203,12 +216,14 @@ pub fn run() {
             }
 
             // Check for old pending sales and notify user
+            #[cfg(not(feature = "standalone"))]
             let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
                 app.handle().clone(),
                 &sales_state,
                 3,
             ));
 
+            #[cfg(not(feature = "standalone"))]
             if !old_sales.is_empty() {
                 let notification = notification_manager::AppNotification::new(
                     notification_manager::NotificationType::Warning,
@@ -227,14 +242,17 @@ pub fn run() {
             }
 
             // Check for failed sales and notify
-            let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
-                app.handle().clone(),
-                &sales_state,
-                5,
-            ));
+            #[cfg(not(feature = "standalone"))]
+            {
+                let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
+                    app.handle().clone(),
+                    &sales_state,
+                    5,
+                ));
 
-            if !failed_sales.is_empty() {
-                let _ = app.emit("failed-sales-detected", failed_sales);
+                if !failed_sales.is_empty() {
+                    let _ = app.emit("failed-sales-detected", failed_sales);
+                }
             }
 
             // Start network monitoring
@@ -389,21 +407,29 @@ pub fn run() {
             customer_screen_state::close_customer_screen,
             customer_screen_state::set_customer_screen_enabled,
             customer_screen_state::get_customer_screen_state,
+            #[cfg(not(feature = "standalone"))]
             product_manager::sync_products_command,
             product_manager::search_products_command,
             product_manager::search_global_command,
             product_manager::get_products_by_ids_command,
+            product_manager::create_local_product_command,
+            product_manager::update_local_product_command,
+            product_manager::delete_local_product_command,
+            #[cfg(not(feature = "standalone"))]
             product_store::switch_location,
             printer_manager::get_serial_ports,
             printer_manager::open_cash_drawer,
             printer_manager::print_test_page,
+            #[cfg(not(feature = "standalone"))]
             customer_manager::sync_customers_command,
             customer_manager::search_customers_command,
             customer_manager::get_customers_by_ids_command,
             customer_manager::create_customer_command,
             sale_manager::process_sale_command,
+            #[cfg(not(feature = "standalone"))]
             sale_manager::sync_sales_command,
             sale_manager::get_pending_sales_command,
+            #[cfg(not(feature = "standalone"))]
             pricing_manager::sync_pricing_command,
             pricing_manager::resolve_price_batch_command,
             pricing_manager::get_pos_pricing_command,
@@ -423,6 +449,7 @@ pub fn run() {
             shift_manager::add_cash_drop_command,
             shift_manager::record_shift_sale_command,
             shift_manager::close_shift_command,
+            #[cfg(not(feature = "standalone"))]
             shift_manager::sync_shifts_command,
             auth_store::set_device_config,
             auth_store::login_member,
@@ -431,6 +458,7 @@ pub fn run() {
             auth_store::restore_member_session,
             auth_store::reset_device_config,
             auth_store::authenticated_api_request,
+            #[cfg(not(feature = "standalone"))]
             auth_store::update_device_location,
             notification_manager::send_native_notification,
             notification_manager::get_notification_history,
@@ -457,8 +485,11 @@ pub fn run() {
             sales_store::invalidate_sale_command,
             sales_store::set_sync_interval_command,
             auth_store::set_negative_stock_command,
+            #[cfg(not(feature = "standalone"))]
             auth_store::get_locations_command,
+            #[cfg(not(feature = "standalone"))]
             auth_store::get_ably_auth_token_command,
+            #[cfg(not(feature = "standalone"))]
             auth_store::start_device_setup_command,
             stock_acceptance::save_document_locally,
             stock_acceptance::fetch_incoming_shipments,
@@ -470,10 +501,15 @@ pub fn run() {
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
+            #[cfg(not(feature = "standalone"))]
             kds_hub_server::start_kds_hub,
+            #[cfg(not(feature = "standalone"))]
             kds_hub_server::stop_kds_hub,
+            #[cfg(not(feature = "standalone"))]
             kds_hub_server::get_hub_status,
+            #[cfg(not(feature = "standalone"))]
             kds_hub_server::get_connected_devices,
+            #[cfg(not(feature = "standalone"))]
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
             table_store::get_tables_command,
@@ -481,6 +517,11 @@ pub fn run() {
             table_store::delete_table_command,
             table_store::update_table_status_command,
             table_store::get_table_history_command,
+            licensing::get_machine_id,
+            licensing::activate_license,
+            licensing::set_local_auth,
+            licensing::verify_local_auth,
+            migration::push_local_to_cloud,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

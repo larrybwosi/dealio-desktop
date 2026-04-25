@@ -418,7 +418,7 @@ export function POS() {
             <div className="w-px h-6 bg-border/60 mx-1" />
 
             {/* Table Selector */}
-            {businessConfig.features.tableManagement && (
+            {businessConfig.features.tableManagement && import.meta.env.MODE !== 'standalone' && (
               <Button
                 variant={currentOrder.tableNumber ? 'default' : 'outline'}
                 size="sm"

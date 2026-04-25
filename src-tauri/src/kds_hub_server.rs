@@ -81,7 +81,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
         r
     };
 
-    let current_session = {
+    let _current_session = {
         let mut is_running = registry.is_running.lock().unwrap();
         if *is_running {
             let ip = local_ip().map_err(|e| e.to_string())?;
@@ -101,7 +101,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     }
 
     let registry_clone = registry.clone();
-    let app_clone = app.clone();
+    let _app_clone = app.clone();
     let tx = registry.tx.clone();
     let ip = local_ip().map_err(|e| e.to_string())?;
     

@@ -27,6 +27,8 @@ import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
 import KDSPage from './pages/kitchen-display';
 import HubOverviewPage from './pages/hub-overview';
+import ProductManagementPage from './pages/product-management';
+import StandaloneSetup from './pages/standalone-setup';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -59,6 +61,9 @@ const AppRoutes = () => {
   }
 
   if (!isConfigured || !currentLocation?.id) {
+    if (import.meta.env.MODE === 'standalone') {
+      return <StandaloneSetup />;
+    }
     return <SetupPage />;
   }
 
@@ -98,6 +103,7 @@ const AppRoutes = () => {
         <Route path="/stock-transfer" element={<StockTransferCreate />} />
         <Route path="/kds" element={<KDSPage />} />
         <Route path="/hub-overview" element={<HubOverviewPage />} />
+        <Route path="/product-management" element={<ProductManagementPage />} />
       </Route>
 
       {/* Routes without AppLayout */}
