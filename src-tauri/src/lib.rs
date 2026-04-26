@@ -14,11 +14,11 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
-#[cfg(feature = "restaurant")]
+#[cfg(not(feature = "standalone"))]
 mod stock_acceptance;
-#[cfg(feature = "restaurant")]
+#[cfg(not(feature = "standalone"))]
 mod stock_acceptance_models;
-#[cfg(feature = "restaurant")]
+#[cfg(not(feature = "standalone"))]
 pub mod stock_transfer;
 
 use stores::audit_store;
@@ -495,17 +495,17 @@ pub fn run() {
             auth_store::get_ably_auth_token_command,
             #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             auth_store::start_device_setup_command,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::save_document_locally,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::fetch_incoming_shipments,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::receive_purchase_order,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::receive_stock_transfer,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::submit_stock_process,
-            #[cfg(feature = "restaurant")]
+            #[cfg(not(feature = "standalone"))]
             stock_transfer::submit_stock_transfer,
             http_server::start_file_server,
             audit_store::write_audit_log,

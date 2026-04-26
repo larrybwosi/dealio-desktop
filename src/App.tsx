@@ -98,12 +98,17 @@ const AppRoutes = () => {
         <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
         <Route path="/create-order" element={<CreateOrderPage />} />
 
-        {/* Restaurant/Hub and Spoke routes */}
-        {businessMode === 'restaurant' && (
+        {import.meta.env.MODE !== 'standalone' && (
           <>
             <Route path="/pricing" element={<PricingViewPage />} />
             <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
             <Route path="/stock-transfer" element={<StockTransferCreate />} />
+          </>
+        )}
+
+        {/* Restaurant/Hub and Spoke routes */}
+        {businessMode === 'restaurant' && (
+          <>
             <Route path="/kds" element={<KDSPage />} />
             <Route path="/hub-overview" element={<HubOverviewPage />} />
             <Route path="/manage-tables" element={<ManageTablesPage />} />
