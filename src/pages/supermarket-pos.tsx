@@ -177,7 +177,7 @@ export function SupermarketPOS() {
     return () => stopScanner();
   }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
-  const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
+  const subTotal = (currentOrder?.items || []).reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
@@ -229,12 +229,12 @@ export function SupermarketPOS() {
           <div className="p-4 border-b bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
             <h2 className="font-bold text-lg">Transaction</h2>
             <span className="text-sm font-medium text-muted-foreground bg-white dark:bg-zinc-800 px-2 py-1 rounded border">
-              {currentOrder.items.reduce((acc, i) => acc + i.quantity, 0)} Items
+              {(currentOrder?.items || []).reduce((acc, i) => acc + i.quantity, 0)} Items
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-            {currentOrder.items.length === 0 ? (
+            {(currentOrder?.items || []).length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-40">
                 <div className="p-8 border-2 border-dashed rounded-full mb-4">
                   <ShoppingCart className="w-16 h-16" />
@@ -242,7 +242,7 @@ export function SupermarketPOS() {
                 <p className="text-lg font-medium text-center">Ready to scan products...</p>
               </div>
             ) : (
-              currentOrder.items.map((item, idx) => (
+              (currentOrder?.items || []).map((item, idx) => (
                 <div key={idx} className="flex gap-4 p-4 rounded-xl border bg-white dark:bg-zinc-800 shadow-sm animate-in fade-in slide-in-from-left-2">
                   <div className="w-16 h-16 rounded-lg bg-zinc-100 dark:bg-zinc-700 overflow-hidden border shrink-0">
                     {item.imageUrl ? (
@@ -324,14 +324,14 @@ export function SupermarketPOS() {
                 size="lg"
                 className="h-16 text-lg font-bold border-2"
                 onClick={resetOrder}
-                disabled={currentOrder.items.length === 0}
+                disabled={(currentOrder?.items || []).length === 0}
               >
                 Clear Sale
               </Button>
               <Button
                 size="lg"
                 className="h-16 text-xl font-black uppercase tracking-wider shadow-lg shadow-primary/20"
-                disabled={currentOrder.items.length === 0}
+                disabled={(currentOrder?.items || []).length === 0}
                 onClick={() => setPaymentDialogOpen(true)}
               >
                 Pay Now
@@ -436,7 +436,7 @@ export function SupermarketPOS() {
       <PaymentModal
         isOpen={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
-        cartItems={currentOrder.items.map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
+        cartItems={(currentOrder?.items || []).map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
         subtotal={total}
         discount={0}
         customer={null}
