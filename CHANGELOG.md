@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.7](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.6...v3.3.0-nextgen.7) (2026-04-26)
+
+
+### Features
+
+* enable stock acceptance and movement modules in retail mode ([#31](https://github.com/larrybwosi/dealio-desktop/issues/31)) ([b669a96](https://github.com/larrybwosi/dealio-desktop/commit/b669a962b12fc8b1b5e29488cca8e108109da683))
+
 # [3.3.0-nextgen.6](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.5...v3.3.0-nextgen.6) (2026-04-10)
 
 
