@@ -473,17 +473,21 @@ pub async fn delete_local_product(app: &AppHandle, state: &ProductState, product
     Ok(product_id.to_string())
 }
 
-#[tauri::command]
-pub async fn get_product_by_barcode_command(
+pub async fn get_product_by_barcode(
     app: AppHandle,
-    state: tauri::State<'_, ProductState>,
+    _state: tauri::State<'_, ProductState>,
     auth_state: tauri::State<'_, AuthState>,
     barcode: String,
 ) -> Result<Option<PosProduct>, String> {
     let pool = get_db_pool(&app).await?;
     let location_id = {
-        let config_guard = auth_state.device_config.lock().map_err(|_| "Lock error".to_string())?;
-        let config = config_guard.as_ref().ok_or_else(|| "Device not configured".to_string())?;
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
+        let config = config_guard
+            .as_ref()
+            .ok_or_else(|| "Device not configured".to_string())?;
         config.location_id.clone()
     };
 
@@ -500,14 +504,9 @@ pub async fn get_product_by_barcode_command(
     for row in rows {
         let encrypted: Vec<u8> = row.get("payload");
         if let Ok(product) = decrypt_payload(&encrypted).await {
-            // Precise check within the decrypted product to avoid partial matches in search_text
-            if product.barcode == Some(barcode.clone()) {
-                return Ok(Some(product));
-            }
-            for variant in product.variants {
+            // Precise check within the decrypted product variants to avoid partial matches in search_text
+            for variant in &product.variants {
                 if variant.barcode == Some(barcode.clone()) {
-                    // Re-construct product with only the matched variant for convenience?
-                    // No, return the whole product as per existing patterns.
                     return Ok(Some(product));
                 }
             }

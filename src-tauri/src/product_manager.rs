@@ -158,5 +158,5 @@ pub async fn get_product_by_barcode_command(
     auth_state: tauri::State<'_, AuthState>,
     barcode: String,
 ) -> Result<Option<crate::models::PosProduct>, String> {
-    product_store::get_product_by_barcode_command(app, state, auth_state, barcode).await
+    product_store::get_product_by_barcode(app, state, auth_state, barcode).await
 }
