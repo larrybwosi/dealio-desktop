@@ -14,11 +14,11 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
-#[cfg(feature = "restaurant")]
+#[cfg(any(feature = "restaurant", feature = "pharmacy"))]
 mod stock_acceptance;
-#[cfg(feature = "restaurant")]
+#[cfg(any(feature = "restaurant", feature = "pharmacy"))]
 mod stock_acceptance_models;
-#[cfg(feature = "restaurant")]
+#[cfg(any(feature = "restaurant", feature = "pharmacy"))]
 pub mod stock_transfer;
 
 use stores::audit_store;
@@ -448,6 +448,7 @@ pub fn run() {
             printer_manager::print_receipt_native,
             printer_manager::print_kitchen_native,
             printer_manager::print_bar_native,
+            printer_manager::print_pharmacy_labels,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,
@@ -495,17 +496,17 @@ pub fn run() {
             auth_store::get_ably_auth_token_command,
             #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             auth_store::start_device_setup_command,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_acceptance::save_document_locally,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_acceptance::fetch_incoming_shipments,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_acceptance::receive_purchase_order,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_acceptance::receive_stock_transfer,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_acceptance::submit_stock_process,
-            #[cfg(feature = "restaurant")]
+            #[cfg(any(feature = "restaurant", feature = "pharmacy"))]
             stock_transfer::submit_stock_transfer,
             http_server::start_file_server,
             audit_store::write_audit_log,

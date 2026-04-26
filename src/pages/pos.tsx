@@ -152,6 +152,18 @@ export function POS() {
     posthog.capture('pricing_mode_changed', { mode: pricingMode });
   }, [pricingMode]);
 
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [selectedProductForAlternatives, setSelectedProductForAlternatives] = useState<any>(null);
+
+  const alternativeProducts = useMemo(() => {
+    if (!selectedProductForAlternatives?.activeIngredient) return [];
+    return products.filter(
+      p =>
+        p.activeIngredient === selectedProductForAlternatives.activeIngredient &&
+        p.productId !== selectedProductForAlternatives.productId
+    );
+  }, [selectedProductForAlternatives, products]);
+
   // 6. Global Keyboard Shortcuts
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
@@ -387,6 +399,48 @@ export function POS() {
 
           {/* Quick Actions (Mode & Sync) */}
           <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+            {/* Pharmacy Specific: Alternatives Button */}
+            {(import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'pharmacy' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showAlternatives ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn(
+                    'gap-2 h-9 rounded-full',
+                    showAlternatives
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  )}
+                  onClick={() => {
+                    if (showAlternatives) {
+                      setShowAlternatives(false);
+                      setSelectedProductForAlternatives(null);
+                    } else {
+                      setShowAlternatives(true);
+                    }
+                  }}
+                >
+                  <Store className="w-4 h-4" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider">
+                    {showAlternatives ? 'Viewing Alternatives' : 'Alternatives'}
+                  </span>
+                </Button>
+
+                {showAlternatives && selectedProductForAlternatives && (
+                  <Badge variant="secondary" className="h-9 px-3 gap-2 bg-emerald-100 text-emerald-800 border-emerald-200 animate-in fade-in slide-in-from-left-2">
+                    <span className="text-[10px] uppercase font-bold opacity-70">For:</span>
+                    <span className="font-bold truncate max-w-[150px]">{selectedProductForAlternatives.name}</span>
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-destructive"
+                      onClick={() => {
+                        setShowAlternatives(false);
+                        setSelectedProductForAlternatives(null);
+                      }}
+                    />
+                  </Badge>
+                )}
+              </div>
+            )}
             {/* View Mode Toggle */}
             <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
               <button
@@ -602,12 +656,22 @@ export function POS() {
                       : 'flex flex-col gap-1.5 w-full'
                   )}
                 >
-                  {products.map(product =>
+                  {(showAlternatives && (import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'pharmacy' && selectedProductForAlternatives
+                    ? alternativeProducts
+                    : products
+                  ).map(product =>
                     viewMode === 'grid' ? (
                       <ProductCard
                         key={product.productId}
                         product={product as any}
-                        onAddToCart={handleAddToCartWrapper}
+                        onAddToCart={item => {
+                          handleAddToCartWrapper(item);
+                          setShowAlternatives(false);
+                          setSelectedProductForAlternatives(null);
+                        }}
+                        onSelectProduct={p => {
+                          setSelectedProductForAlternatives(p);
+                        }}
                         pricingMode={pricingMode}
                         customPriceCalculator={handleGetPrice}
                       />
@@ -615,7 +679,14 @@ export function POS() {
                       <ProductListItem
                         key={product.productId}
                         product={product as any}
-                        onAddToCart={handleAddToCartWrapper}
+                        onAddToCart={item => {
+                          handleAddToCartWrapper(item);
+                          setShowAlternatives(false);
+                          setSelectedProductForAlternatives(null);
+                        }}
+                        onSelectProduct={p => {
+                          setSelectedProductForAlternatives(p);
+                        }}
                         pricingMode={pricingMode}
                         customPriceCalculator={handleGetPrice}
                       />

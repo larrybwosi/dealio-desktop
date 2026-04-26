@@ -522,7 +522,7 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: 'kitchen-display', label: 'Kitchen Display', icon: 'ChefHat', enabled: true });
   }
 
-  if (config.features.prescriptionManagement) {
+  if (config.features.prescriptionManagement || businessType === 'pharmacy') {
     items.push({ id: 'prescriptions', label: 'Prescriptions', icon: 'FileText', enabled: true });
   }
 

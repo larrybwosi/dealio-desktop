@@ -217,9 +217,21 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
 
 fn build_search_text(c: &PosCustomer) -> String {
     let mut terms = vec![c.name.to_lowercase()];
-    if let Some(p) = &c.phone { terms.push(p.to_lowercase()); }
-    if let Some(e) = &c.email { terms.push(e.to_lowercase()); }
-    if let Some(comp) = &c.company { terms.push(comp.to_lowercase()); }
+    if let Some(p) = &c.phone {
+        terms.push(p.to_lowercase());
+    }
+    if let Some(e) = &c.email {
+        terms.push(e.to_lowercase());
+    }
+    if let Some(comp) = &c.company {
+        terms.push(comp.to_lowercase());
+    }
+    if let Some(ip) = &c.insurance_provider {
+        terms.push(ip.to_lowercase());
+    }
+    if let Some(pn) = &c.policy_number {
+        terms.push(pn.to_lowercase());
+    }
     terms.join(" ")
 }
 

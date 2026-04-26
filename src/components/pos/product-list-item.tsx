@@ -32,16 +32,18 @@ interface Product {
   imageUrl?: string;
   totalStock: number;
   variants: Variant[];
+  activeIngredient?: string;
 }
 
 interface ProductProps {
   product: Product;
   onAddToCart: (item: any) => void;
+  onSelectProduct?: (product: any) => void;
   pricingMode: 'retail' | 'wholesale';
   customPriceCalculator?: (variantId: string, unitId: string, isBaseUnit?: boolean) => number | null;
 }
 
-export const ProductListItem = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
+export const ProductListItem = memo(({ product, onAddToCart, onSelectProduct, pricingMode, customPriceCalculator }: ProductProps) => {
   const selectedVariantId = product.variants[0]?.variantId;
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
@@ -143,9 +145,16 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
     setQty(val);
   };
 
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
+
   return (
     <div
-      onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
+      onClick={() => {
+        if (businessMode === 'pharmacy' && onSelectProduct) {
+          onSelectProduct(product);
+        }
+        if (hasMultipleUnits) setShowUnitSelection(true);
+      }}
       className={cn(
         'group relative flex items-center w-full overflow-hidden border rounded-xs bg-card transition-all duration-200',
         'hover:shadow-sm hover:border-primary/40 p-1.5 gap-2.5',
@@ -188,6 +197,11 @@ export const ProductListItem = memo(({ product, onAddToCart, pricingMode, custom
         <div className="flex items-start justify-between">
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
+              {product.activeIngredient && (
+                <Badge variant="outline" className="h-4 px-1 bg-emerald-50 text-emerald-700 border-emerald-200 text-[9px] font-bold uppercase">
+                  {product.activeIngredient}
+                </Badge>
+              )}
               <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-sm">
                 {product.category}
               </span>
