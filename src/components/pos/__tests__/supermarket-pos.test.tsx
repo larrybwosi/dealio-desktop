@@ -84,7 +84,7 @@ describe('SupermarketPOS', () => {
       clearLastScanned: mockClearLastScanned,
     });
 
-    (invoke as any).mockImplementation((cmd) => {
+    (invoke as any).mockImplementation((cmd: string) => {
       if (cmd === 'get_product_by_barcode_command') {
         return Promise.resolve({
           productId: 'p1',
