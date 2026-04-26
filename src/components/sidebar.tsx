@@ -158,7 +158,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const excludedInStandalone = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'pricing'];
             if (isStandalone && excludedInStandalone.includes(item.id)) return null;
 
-            const restaurantOnly = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'manage-table'];
+            const restaurantOnly = ['kitchen-display', 'hub-overview', 'manage-table'];
             if (businessMode !== 'restaurant' && restaurantOnly.includes(item.id)) return null;
 
             return (
