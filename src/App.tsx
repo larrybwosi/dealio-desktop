@@ -18,6 +18,7 @@ import ReceiptSettingsPage from '@/pages/receipt-settings-page';
 import PendingTransactionsPage from '@/pages/pending-transactions';
 import CreateOrderPage from '@/pages/create-order';
 import { POS } from '@/pages/pos';
+import { SupermarketPOS } from '@/pages/supermarket-pos';
 import SettingsPage from '@/pages/settings-page';
 import CustomerDisplay from '@/pages/customer-display';
 import PricingViewPage from '@/pages/pricing-view-page';
@@ -42,12 +43,12 @@ const LayoutWrapper = () => {
 const AppRoutes = () => {
   const isConfigured = useAuthStore(state => state.isConfigured);
   const currentLocation = useAuthStore(state => state.currentLocation);
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
   const initializeFromBackend = useAuthStore(state => state.initializeFromBackend);
   const isInitialized = useAuthStore(state => state.isInitialized);
   const deviceType = useAuthStore(state => state.deviceType);
 
   const { isAuthenticated } = useAuth();
-  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
 
   useEffect(() => {
     initializeFromBackend();
@@ -70,6 +71,16 @@ const AppRoutes = () => {
 
   if (!isAuthenticated) {
     return <CheckinPage />;
+  }
+
+  // Supermarket mode: bypass layout and show dedicated POS
+  if (businessMode === 'supermarket') {
+    return (
+      <Routes>
+        <Route index path="/" element={<SupermarketPOS />} />
+        <Route path="*" element={<SupermarketPOS />} />
+      </Routes>
+    );
   }
 
   // If KDS device, boot directly to KDS page
