@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePosStore } from '@/store/store';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
 import { Button } from '@/components/ui/button';
@@ -48,7 +48,6 @@ export function SupermarketPOS() {
   const [lastCompletedOrder, setLastCompletedOrder] = useState<any>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const lastProcessedBarcode = useRef<string | null>(null);
 
   const { checkOut } = useAuth();
   const {
@@ -57,7 +56,6 @@ export function SupermarketPOS() {
     isConnected,
     lastScanned,
     clearLastScanned,
-    error: scannerError
   } = useScanner();
 
   // Trigger pricing sync
@@ -65,6 +63,7 @@ export function SupermarketPOS() {
 
   const { products } = usePosProducts({
     search: inputValue,
+    category: 'all',
     page: 1,
     pageSize: 10,
   });
@@ -114,7 +113,7 @@ export function SupermarketPOS() {
         return;
       }
 
-      const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
+      const variant = product.variants?.find((v: any) => v.barcode === barcode) || product.variants?.[0];
       const defaultUnit = product.sellableUnits?.find((u: any) => u.isBaseUnit) || product.sellableUnits?.[0];
 
       if (!variant || !defaultUnit) return;
@@ -169,7 +168,7 @@ export function SupermarketPOS() {
     };
 
     processScan();
-  }, [lastScanned, products, addItemToOrder, currentOrder.customerId]);
+  }, [lastScanned, products, addItemToOrder, currentOrder.customerId, clearLastScanned]);
 
   useEffect(() => {
     if (settings.enableBarcodeScanner) {
