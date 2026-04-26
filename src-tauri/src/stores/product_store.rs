@@ -472,3 +472,46 @@ pub async fn delete_local_product(app: &AppHandle, state: &ProductState, product
 
     Ok(product_id.to_string())
 }
+
+pub async fn get_product_by_barcode(
+    app: AppHandle,
+    _state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
+    barcode: String,
+) -> Result<Option<PosProduct>, String> {
+    let pool = get_db_pool(&app).await?;
+    let location_id = {
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
+        let config = config_guard
+            .as_ref()
+            .ok_or_else(|| "Device not configured".to_string())?;
+        config.location_id.clone()
+    };
+
+    let query = "SELECT payload FROM products WHERE location_id = ?1 AND search_text LIKE ?2";
+    let like_barcode = format!("%{}%", barcode.to_lowercase());
+
+    let rows = sqlx::query(query)
+        .bind(&location_id)
+        .bind(&like_barcode)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for row in rows {
+        let encrypted: Vec<u8> = row.get("payload");
+        if let Ok(product) = decrypt_payload(&encrypted).await {
+            // Precise check within the decrypted product variants to avoid partial matches in search_text
+            for variant in &product.variants {
+                if variant.barcode == Some(barcode.clone()) {
+                    return Ok(Some(product));
+                }
+            }
+        }
+    }
+
+    Ok(None)
+}

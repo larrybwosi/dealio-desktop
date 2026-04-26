@@ -419,6 +419,7 @@ pub fn run() {
             product_manager::create_local_product_command,
             product_manager::update_local_product_command,
             product_manager::delete_local_product_command,
+            product_manager::get_product_by_barcode_command,
             #[cfg(not(feature = "standalone"))]
             product_store::switch_location,
             printer_manager::get_serial_ports,

@@ -150,3 +150,13 @@ pub async fn delete_local_product_command(
     product_store::delete_local_product(&app, &state, &product_id, &location_id).await
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn get_product_by_barcode_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
+    barcode: String,
+) -> Result<Option<crate::models::PosProduct>, String> {
+    product_store::get_product_by_barcode(app, state, auth_state, barcode).await
+}

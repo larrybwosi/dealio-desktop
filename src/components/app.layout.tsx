@@ -57,7 +57,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
 
   // Show sidebar for all routes except checkout/setup, and KDS mode
   const showSidebar = !['/checkin', '/setup'].includes(location.pathname) && deviceType !== 'KDS';
-  // Show cart only on order page
+  // Show cart only on order page, not in KDS mode
   const showCart = location.pathname === '/' && deviceType !== 'KDS';
   // Show header only if not in KDS mode
   const showHeader = deviceType !== 'KDS';
