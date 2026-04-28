@@ -7,6 +7,28 @@
 import { debug as tauriDebug, info as tauriInfo, warn as tauriWarn, error as tauriError } from '@tauri-apps/plugin-log';
 import { invoke } from '@tauri-apps/api/core';
 import * as Sentry from '@sentry/browser';
+import { type, version, arch, platform } from '@tauri-apps/plugin-os';
+
+// ============================================================
+// System Metadata Cache
+// ============================================================
+let systemMetadata: Record<string, unknown> | null = null;
+
+function getSystemMetadata() {
+  if (systemMetadata) return systemMetadata;
+  try {
+    // These functions from @tauri-apps/plugin-os are synchronous
+    systemMetadata = {
+      os: type(),
+      version: version(),
+      arch: arch(),
+      platform: platform(),
+    };
+  } catch (e) {
+    systemMetadata = { error: 'Failed to fetch system metadata' };
+  }
+  return systemMetadata;
+}
 
 // ============================================================
 // Public Logger API
@@ -14,12 +36,16 @@ import * as Sentry from '@sentry/browser';
 
 export const logger = {
   debug: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
+    const metadata = getSystemMetadata();
+    const fullContext = { ...metadata, ...context, timestamp: new Date().toISOString() };
+    const formatted = `${message} | ${JSON.stringify(fullContext)}`;
     tauriDebug(formatted).catch(() => {});
   },
 
   info: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
+    const metadata = getSystemMetadata();
+    const fullContext = { ...metadata, ...context, timestamp: new Date().toISOString() };
+    const formatted = `${message} | ${JSON.stringify(fullContext)}`;
     tauriInfo(formatted).catch(() => {});
 
     // Add breadcrumb to Sentry for better context on future errors
@@ -27,32 +53,34 @@ export const logger = {
       category: 'log',
       message: message,
       level: 'info',
-      data: context,
+      data: fullContext,
     });
   },
 
   warn: (message: string, context?: Record<string, unknown>) => {
-    const formatted = context ? `${message} | ${JSON.stringify(context)}` : message;
+    const metadata = getSystemMetadata();
+    const fullContext = { ...metadata, ...context, timestamp: new Date().toISOString() };
+    const formatted = `${message} | ${JSON.stringify(fullContext)}`;
     tauriWarn(formatted).catch(() => {});
 
     Sentry.addBreadcrumb({
       category: 'log',
       message: message,
       level: 'warning',
-      data: context,
+      data: fullContext,
     });
   },
 
   error: (message: string, error?: unknown, context?: Record<string, unknown>) => {
+    const metadata = getSystemMetadata();
     const errStr = error instanceof Error ? `${error.message}\n${error.stack ?? ''}` : String(error ?? '');
-    const formatted = context
-      ? `${message} | error: ${errStr} | ${JSON.stringify(context)}`
-      : `${message} | error: ${errStr}`;
+    const fullContext = { ...metadata, ...context, error: errStr, timestamp: new Date().toISOString() };
+    const formatted = `${message} | ${JSON.stringify(fullContext)}`;
     tauriError(formatted).catch(() => {});
 
     // Report to Sentry
     Sentry.captureException(error instanceof Error ? error : new Error(String(error ?? message)), {
-      extra: { context_msg: message, ...context },
+      extra: { context_msg: message, ...fullContext },
     });
   },
 };
