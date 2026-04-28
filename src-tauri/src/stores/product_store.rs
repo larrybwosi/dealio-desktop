@@ -206,13 +206,13 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 
     if file_path.exists() {
         if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
-        let _ = async_fs::remove_file(&file_path).await;
+        let _ = tokio::fs::remove_file(&file_path).await;
     }
 
     match reqwest::get(url).await {
         Ok(resp) if resp.status().is_success() => {
             if let Ok(bytes) = resp.bytes().await {
-                if async_fs::write(&file_path, &bytes).await.is_ok() {
+                if tokio::fs::write(&file_path, &bytes).await.is_ok() {
                     if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
                 }
             }
