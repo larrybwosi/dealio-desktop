@@ -1,4 +1,3 @@
-use tauri::{AppHandle, State};
 
 use crate::stores::auth_store::AuthState;
 use crate::stores::customer_store::CustomerState;

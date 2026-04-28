@@ -99,7 +99,10 @@ impl NotificationState {
 async fn get_db_pool(app: &AppHandle) -> Option<SqlitePool> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
-    guard.get(MAIN_DB_NAME).and_then(|p| match p { DbPool::Sqlite(pool) => Some(pool.clone()) })
+    guard.get(MAIN_DB_NAME).and_then(|p| match p {
+        DbPool::Sqlite(pool) => Some(pool.clone()),
+        _ => None,
+    })
 }
 
 pub async fn save_notification_to_db(app: &AppHandle, notification: &AppNotification) {

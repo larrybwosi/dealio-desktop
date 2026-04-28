@@ -1,4 +1,6 @@
-use crate::models::{PosProduct, ProductsSyncResponse, ProductSearchResponse};
+use crate::models::{PosProduct, ProductSearchResponse};
+#[cfg(not(feature = "standalone"))]
+use crate::models::ProductsSyncResponse;
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
@@ -6,9 +8,9 @@ use aes_gcm::{
 use anyhow::Result;
 use log::{error, info};
 use rand::RngCore;
-use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
+#[cfg(not(feature = "standalone"))]
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, Emitter};
@@ -17,6 +19,7 @@ use tokio::fs as async_fs;
 
 use crate::auth_store::AuthState;
 
+#[cfg(not(feature = "standalone"))]
 const TIMEOUT_SECONDS: u64 = 60;
 const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
@@ -183,6 +186,7 @@ pub(crate) fn build_search_text(product: &PosProduct) -> String {
 }
 
 // --- Helper: Cache Single Image ---
+#[cfg(not(feature = "standalone"))]
 async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir()?;
     let images_dir = app_dir.join("product_images");
@@ -190,6 +194,7 @@ async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     Ok(images_dir)
 }
 
+#[cfg(not(feature = "standalone"))]
 async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     if url.trim().is_empty() { return None; }
     let clean_name = url.replace("https://", "").replace("http://", "").replace('/', "_").replace(':', "").replace('?', "_");

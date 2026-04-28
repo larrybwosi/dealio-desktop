@@ -6,7 +6,7 @@ use log::error;
 pub mod escpos_builder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 pub mod stores;
 
@@ -209,7 +209,7 @@ pub fn run() {
                 notification_manager::init_notification_state(&app_handle, &state).await;
             });
 
-            let notification_state = app.state::<NotificationState>();
+            let _notification_state = app.state::<NotificationState>();
 
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
