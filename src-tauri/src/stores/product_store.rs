@@ -130,6 +130,12 @@ pub async fn init_state(app: &AppHandle) {
     let _ = sqlx::query(create_products_table).execute(&pool).await;
     let _ = sqlx::query(create_sync_table).execute(&pool).await;
 
+    // Add indexes for performance with tens of thousands of products
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_products_location_category ON products (location_id, category)")
+        .execute(&pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_products_location_name ON products (location_id, product_name)")
+        .execute(&pool).await;
+
     let _ = migrate_legacy_files_to_db(app, &pool).await;
 }
 
@@ -269,10 +275,33 @@ pub async fn run_sync(
     let v2_resp = response.json::<crate::models::V2Response<ProductsSyncResponse>>().await?;
     let mut res_body = v2_resp.data;
 
-    for product in &mut res_body.products {
+    // Parallelize image caching for better performance
+    let mut image_tasks = Vec::new();
+    for product in &res_body.products {
         if let Some(url) = &product.image_url {
             if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
-                product.image_url = cache_image(&app, url).await;
+                let app_handle = app.clone();
+                let url_clone = url.clone();
+                image_tasks.push(tokio::spawn(async move {
+                    (url_clone.clone(), cache_image(&app_handle, &url_clone).await)
+                }));
+            }
+        }
+    }
+
+    let image_results = futures_util::future::join_all(image_tasks).await;
+    let mut image_map = std::collections::HashMap::new();
+    for res in image_results {
+        if let Ok((original_url, cached_path)) = res {
+            image_map.insert(original_url, cached_path);
+        }
+    }
+
+    // Update product image URLs with cached paths
+    for product in &mut res_body.products {
+        if let Some(url) = &product.image_url {
+            if let Some(cached_path) = image_map.get(url) {
+                product.image_url = cached_path.clone();
             }
         }
     }

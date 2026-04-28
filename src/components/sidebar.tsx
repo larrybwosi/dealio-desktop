@@ -233,10 +233,12 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
         {/* Footer / Settings Section */}
         <div className="p-4 border-t space-y-2">
-          {['/receipt-settings', '/settings'].map(route => {
+          {[
+            { route: '/receipt-settings', label: 'Receipt Settings', icon: Receipt },
+            { route: '/logs', label: 'System Logs', icon: Activity },
+            { route: '/settings', label: 'Settings', icon: Settings },
+          ].map(({ route, label, icon: Icon }) => {
             const isActive = isRouteActive(route);
-            const label = route.includes('receipt') ? 'Receipt Settings' : 'Settings';
-            const Icon = route.includes('receipt') ? Receipt : Settings;
             return (
               <Button
                 key={route}
