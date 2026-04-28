@@ -4,9 +4,9 @@
   "version": "3.3.0-nextgen.6",
   "identifier": "com.dealio.pos.supermarket",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "cross-env VITE_BUSINESS_MODE=supermarket pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "cross-env VITE_BUSINESS_MODE=supermarket pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
