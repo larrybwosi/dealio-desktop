@@ -76,13 +76,16 @@ async fn get_db_pool(app: &AppHandle, db_name: &str) -> Result<sqlx::SqlitePool,
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
+    let target_db = if cfg!(feature = "standalone") && db_name == MAIN_DB_NAME {
+        "sqlite:pos_standalone.db"
+    } else {
+        db_name
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(target_db) {
         Ok(pool.clone())
     } else {
-        Err(format!(
-            "Database {} not found. Ensure it is preloaded via tauri.conf.json.",
-            db_name
-        ))
+        Err(format!("Database {} not found.", target_db))
     }
 }
 
@@ -349,12 +352,20 @@ pub async fn process_sale(
         .bind(&location_id)
         .bind(&sale_number)
         .bind(&encrypted_payload)
-        .bind(format!("{:?}", SaleStatus::Pending))
+        .bind(format!("{:?}", if cfg!(feature = "standalone") { SaleStatus::PendingCloudSync } else { SaleStatus::Pending }))
         .bind(0)
         .bind(None::<String>)
         .execute(&pool)
         .await
         .map_err(|e| SalesError::StorageError(e.to_string()))?;
+
+    if cfg!(feature = "standalone") {
+        return Ok(SaleResponse {
+            success: true,
+            message: "Sale completed successfully.".into(),
+            server_response: None,
+        });
+    }
 
     // Spawn Background Sync Task
     let app_handle = app.clone();
@@ -529,6 +540,7 @@ pub async fn get_queue_status(app: AppHandle, _state: &SalesState) -> Vec<Queued
             "Pending" => SaleStatus::Pending,
             "Failed" => SaleStatus::Failed,
             "Invalidated" => SaleStatus::Invalidated,
+            "PendingCloudSync" => SaleStatus::PendingCloudSync,
             _ => SaleStatus::Synced,
         };
 

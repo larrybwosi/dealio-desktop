@@ -112,6 +112,9 @@ export function Sidebar({ onCheckout }: SidebarProps) {
       >
         {/* Header Section */}
         <div className="p-6 border-b flex items-center gap-3 relative">
+          {import.meta.env.MODE === 'standalone' && (
+            <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" title="Standalone Mode" />
+          )}
           <Link
             to="/"
             className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity overflow-hidden"

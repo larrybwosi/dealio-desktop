@@ -21,6 +21,7 @@ import { Cart } from './cart';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useEffect } from 'react';
 import { usePosStore } from '@/store/store';
+import ConnectionStatusBanner from './connection-status-banner';
 import { sendTabletActivity } from '@/lib/kds';
 
 interface AppLayoutProviderProps {
@@ -67,6 +68,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
       {showSidebar && <Sidebar onCheckout={() => setShowCheckoutDialog(true)} />}
 
       <div className="flex-1 flex flex-col overflow-hidden">
+        {import.meta.env.MODE !== 'standalone' && <ConnectionStatusBanner />}
         {showHeader && (
           <header className="h-16 border-b border-border px-6 flex items-center justify-between bg-background">
             <div className="flex items-center gap-6 flex-1">
