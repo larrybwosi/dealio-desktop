@@ -767,7 +767,7 @@ const PaymentModal = ({
 
             {/* Payment method tabs */}
             <div className="flex gap-1 p-3 border-b bg-background">
-              {PAYMENT_METHODS.map(method => (
+              {PAYMENT_METHODS.filter(m => import.meta.env.MODE !== 'standalone' || m.id === 'CASH').map(method => (
                 <button
                   key={method.id}
                   onClick={() => {
@@ -1186,7 +1186,7 @@ const PaymentModal = ({
               )}
 
               <div className="flex gap-3 w-full">
-                {settings.allowSaveUnpaidOrders && (
+                {settings.allowSaveUnpaidOrders && import.meta.env.MODE !== 'standalone' && (
                   <Button
                     variant="outline"
                     size="lg"

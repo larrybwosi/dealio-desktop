@@ -74,12 +74,12 @@ export function Cart() {
 
   // --- Hold Sale Store Hooks ---
   const heldOrders = usePosStore(state => state.heldOrders);
-  const enableHoldSale = usePosStore(state => state.settings.enableHoldSale);
+  const enableHoldSale = usePosStore(state => state.settings.enableHoldSale) && import.meta.env.MODE !== 'standalone';
 
   // --- Config ---
   const businessConfig = getBusinessConfig();
   const availableOrderTypes = businessConfig.orderTypes;
-  const showTableField = businessConfig.features.tableManagement;
+  const showTableField = businessConfig.features.tableManagement && import.meta.env.MODE !== 'standalone';
   const requiresAgeVerification = businessConfig.features.ageVerification;
   const availableTables = tables.filter(t => t.status === 'available');
 
@@ -373,10 +373,12 @@ export function Cart() {
 
             {/* Customer & Type Selectors */}
             <div className="grid grid-cols-5 gap-2">
-              <div className="col-span-3">
-                <CustomerSelector />
-              </div>
-              <div className="col-span-2">
+              {import.meta.env.MODE !== 'standalone' && (
+                <div className="col-span-3">
+                  <CustomerSelector />
+                </div>
+              )}
+              <div className={cn(import.meta.env.MODE === 'standalone' ? 'col-span-5' : 'col-span-2')}>
                 <Select value={currentOrder.orderType} onValueChange={(value: any) => setOrderType(value)}>
                   <SelectTrigger className="h-10 text-xs bg-muted/40">
                     <SelectValue />

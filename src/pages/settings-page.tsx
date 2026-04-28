@@ -301,12 +301,14 @@ export default function SettingsPage() {
               >
                 <Palette className="h-4 w-4 mr-2" /> Theme
               </TabsTrigger>
-              <TabsTrigger
-                value="enterprise"
-                className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
-              >
-                <Building2 className="h-4 w-4 mr-2" /> Enterprise
-              </TabsTrigger>
+              {import.meta.env.MODE !== 'standalone' && (
+                <TabsTrigger
+                  value="enterprise"
+                  className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
+                >
+                  <Building2 className="h-4 w-4 mr-2" /> Enterprise
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="notifications"
                 className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
@@ -614,157 +616,169 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="enterprise" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Customer Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Customer Management</div>
-                    <p className="text-sm text-muted-foreground">
-                      Track customer information, purchase history, and loyalty points
-                    </p>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Customer Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Customer Management</div>
+                      <p className="text-sm text-muted-foreground">
+                        Track customer information, purchase history, and loyalty points
+                      </p>
+                    </div>
+                    <Switch checked={enableCustomerManagement} onCheckedChange={setEnableCustomerManagement} />
                   </div>
-                  <Switch checked={enableCustomerManagement} onCheckedChange={setEnableCustomerManagement} />
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Employee Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Employee Management</div>
-                    <p className="text-sm text-muted-foreground">
-                      Manage employee accounts, roles, and access permissions
-                    </p>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Employee Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Employee Management</div>
+                      <p className="text-sm text-muted-foreground">
+                        Manage employee accounts, roles, and access permissions
+                      </p>
+                    </div>
+                    <Switch checked={enableEmployeeManagement} onCheckedChange={setEnableEmployeeManagement} />
                   </div>
-                  <Switch checked={enableEmployeeManagement} onCheckedChange={setEnableEmployeeManagement} />
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Require Employee PIN</div>
-                    <p className="text-sm text-muted-foreground">Employees must enter PIN to process transactions</p>
-                  </div>
-                  <Switch
-                    checked={requireEmployeePin}
-                    onCheckedChange={setRequireEmployeePin}
-                    disabled={!enableEmployeeManagement}
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Inventory Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Low Stock Alerts</div>
-                    <p className="text-sm text-muted-foreground">Get notifications when products are running low</p>
-                  </div>
-                  <Switch checked={enableLowStockAlerts} onCheckedChange={setEnableLowStockAlerts} />
-                </div>
-
-                {enableLowStockAlerts && (
-                  <div className="grid gap-2 pl-6">
-                    <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
-                    <Input
-                      id="lowStockThreshold"
-                      type="number"
-                      min="0"
-                      value={lowStockThreshold}
-                      onChange={e => setLowStockThreshold(e.target.value)}
-                      placeholder="10"
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Require Employee PIN</div>
+                      <p className="text-sm text-muted-foreground">Employees must enter PIN to process transactions</p>
+                    </div>
+                    <Switch
+                      checked={requireEmployeePin}
+                      onCheckedChange={setRequireEmployeePin}
+                      disabled={!enableEmployeeManagement}
                     />
-                    <p className="text-xs text-muted-foreground">Alert when stock falls below this number</p>
                   </div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Cash Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Cash Drawer</div>
-                    <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
-                  </div>
-                  <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Kitchen Display System</div>
-                    <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
-                  </div>
-                  <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Hold Sale</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Hold Sale</div>
-                    <p className="text-sm text-muted-foreground">Allow cashiers to temporarily hold transactions</p>
-                  </div>
-                  <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
-                </div>
-
-                {enableHoldSale && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 pl-6">
-                      <div className="grid gap-2">
-                        <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
-                        <Input
-                          id="maxHeldOrders"
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={maxHeldOrders}
-                          onChange={e => setMaxHeldOrders(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
-                        <Input
-                          id="heldOrderExpiryHours"
-                          type="number"
-                          min="1"
-                          value={heldOrderExpiryHours}
-                          onChange={e => setHeldOrderExpiryHours(e.target.value)}
-                          placeholder="Never"
-                        />
-                        <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
-                      </div>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Inventory Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Low Stock Alerts</div>
+                      <p className="text-sm text-muted-foreground">Get notifications when products are running low</p>
                     </div>
+                    <Switch checked={enableLowStockAlerts} onCheckedChange={setEnableLowStockAlerts} />
+                  </div>
 
-                    <div className="flex items-center justify-between py-2 pl-6">
-                      <div className="flex-1">
-                        <div className="font-medium">Require Hold Reason</div>
-                        <p className="text-sm text-muted-foreground">
-                          Force cashiers to enter a reason when holding an order
-                        </p>
-                      </div>
-                      <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                  {enableLowStockAlerts && (
+                    <div className="grid gap-2 pl-6">
+                      <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
+                      <Input
+                        id="lowStockThreshold"
+                        type="number"
+                        min="0"
+                        value={lowStockThreshold}
+                        onChange={e => setLowStockThreshold(e.target.value)}
+                        placeholder="10"
+                      />
+                      <p className="text-xs text-muted-foreground">Alert when stock falls below this number</p>
                     </div>
-                  </>
-                )}
-              </div>
-            </Card>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Cash Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Cash Drawer</div>
+                      <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
+                    </div>
+                    <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Kitchen Display System</div>
+                      <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
+                    </div>
+                    <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-4">Hold Sale</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Hold Sale</div>
+                      <p className="text-sm text-muted-foreground">Allow cashiers to temporarily hold transactions</p>
+                    </div>
+                    <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
+                  </div>
+
+                  {enableHoldSale && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 pl-6">
+                        <div className="grid gap-2">
+                          <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
+                          <Input
+                            id="maxHeldOrders"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={maxHeldOrders}
+                            onChange={e => setMaxHeldOrders(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
+                          <Input
+                            id="heldOrderExpiryHours"
+                            type="number"
+                            min="1"
+                            value={heldOrderExpiryHours}
+                            onChange={e => setHeldOrderExpiryHours(e.target.value)}
+                            placeholder="Never"
+                          />
+                          <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between py-2 pl-6">
+                        <div className="flex-1">
+                          <div className="font-medium">Require Hold Reason</div>
+                          <p className="text-sm text-muted-foreground">
+                            Force cashiers to enter a reason when holding an order
+                          </p>
+                        </div>
+                        <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
@@ -1460,29 +1474,31 @@ export default function SettingsPage() {
               )}
             </div>
             
-            <Card className="border-muted/60 shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <LayoutGrid className="h-5 w-5 text-slate-700 dark:text-slate-400" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold">Sidebar Navigation</h2>
-                  <p className="text-sm text-muted-foreground">Customize which menu items are visible</p>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {settings.sidebarItems.map(item => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-4 border rounded-xl bg-card hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="font-medium">{item.label}</div>
-                    <Switch checked={item.enabled} onCheckedChange={() => toggleSidebarItem(item.id)} />
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="border-muted/60 shadow-sm p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <LayoutGrid className="h-5 w-5 text-slate-700 dark:text-slate-400" />
                   </div>
-                ))}
-              </div>
-            </Card>
+                  <div>
+                    <h2 className="text-xl font-semibold">Sidebar Navigation</h2>
+                    <p className="text-sm text-muted-foreground">Customize which menu items are visible</p>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {settings.sidebarItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-4 border rounded-xl bg-card hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="font-medium">{item.label}</div>
+                      <Switch checked={item.enabled} onCheckedChange={() => toggleSidebarItem(item.id)} />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
 

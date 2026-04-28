@@ -155,7 +155,17 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const isStandalone = import.meta.env.MODE === 'standalone';
             const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
 
-            const excludedInStandalone = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'pricing'];
+            const excludedInStandalone = [
+              'stock-acceptance',
+              'stock-transfer',
+              'kitchen-display',
+              'hub-overview',
+              'pricing',
+              'till-management',
+              'customers',
+              'manage-table',
+              'analytics',
+            ];
             if (isStandalone && excludedInStandalone.includes(item.id)) return null;
 
             const restaurantOnly = ['kitchen-display', 'hub-overview', 'manage-table'];
@@ -196,22 +206,28 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
           <div className="my-4 border-t pt-4">
             {/* Hardcoded Items with correct isActive check */}
-            <Button
-              variant={isScanOpen ? 'secondary' : 'ghost'}
-              className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
-              onClick={() => setIsScanOpen(true)}
-            >
-              <QrCode className="w-4 h-4 shrink-0" />
-              {!isCollapsed && <span className="truncate">Validate Order</span>}
-            </Button>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Button
+                variant={isScanOpen ? 'secondary' : 'ghost'}
+                className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
+                onClick={() => setIsScanOpen(true)}
+              >
+                <QrCode className="w-4 h-4 shrink-0" />
+                {!isCollapsed && <span className="truncate">Validate Order</span>}
+              </Button>
+            )}
 
             {[
-              { id: 'pending-transactions', label: 'Pending', icon: Clock, route: '/pending-transactions' },
-              { id: 'create-order', label: 'Create Order', icon: Plus, route: '/create-order' },
-              { id: 'cash-drawer', label: 'Cash Drawer', icon: Wallet, route: '/cash-drawer' },
+              ...(import.meta.env.MODE !== 'standalone'
+                ? [
+                    { id: 'pending-transactions', label: 'Pending', icon: Clock, route: '/pending-transactions' },
+                    { id: 'create-order', label: 'Create Order', icon: Plus, route: '/create-order' },
+                    { id: 'cash-drawer', label: 'Cash Drawer', icon: Wallet, route: '/cash-drawer' },
+                  ]
+                : []),
               ...(import.meta.env.MODE === 'standalone'
-                  ? [{ id: 'product-management', label: 'Products', icon: Box, route: '/product-management' }]
-                  : [])
+                ? [{ id: 'product-management', label: 'Products', icon: Box, route: '/product-management' }]
+                : []),
             ].map(item => {
               const isActive = isRouteActive(item.route);
               return (

@@ -102,13 +102,17 @@ const AppRoutes = () => {
         <Route index path="/" element={<POS />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/history" element={<HistoryPage />} />
-        <Route path="/analytics" element={<AnalyticsPage />} />
-        <Route path="/customers" element={<CustomersPage />} />
-        <Route path="/cash-drawer" element={<CashDrawerPage />} />
-        <Route path="/till-management" element={<TillManagementPage />} />
+        {import.meta.env.MODE !== 'standalone' && <Route path="/analytics" element={<AnalyticsPage />} />}
+        {import.meta.env.MODE !== 'standalone' && (
+          <>
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/cash-drawer" element={<CashDrawerPage />} />
+            <Route path="/till-management" element={<TillManagementPage />} />
+            <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
+            <Route path="/create-order" element={<CreateOrderPage />} />
+          </>
+        )}
         <Route path="/receipt-settings" element={<ReceiptSettingsPage />} />
-        <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
-        <Route path="/create-order" element={<CreateOrderPage />} />
 
         {import.meta.env.MODE !== 'standalone' && (
           <>
@@ -123,11 +127,11 @@ const AppRoutes = () => {
           <>
             <Route path="/kds" element={<KDSPage />} />
             <Route path="/hub-overview" element={<HubOverviewPage />} />
-            <Route path="/manage-tables" element={<ManageTablesPage />} />
+            {import.meta.env.MODE !== 'standalone' && <Route path="/manage-tables" element={<ManageTablesPage />} />}
           </>
         )}
 
-        <Route path="/shift-manager" element={<ShiftManager />} />
+        {import.meta.env.MODE !== 'standalone' && <Route path="/shift-manager" element={<ShiftManager />} />}
 
         <Route path="/product-management" element={<ProductManagementPage />} />
         <Route path="/logs" element={<LogsPage />} />
