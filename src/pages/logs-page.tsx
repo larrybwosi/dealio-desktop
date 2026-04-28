@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +8,6 @@ import {
   Terminal,
   RefreshCw,
   Download,
-  Trash2,
   AlertCircle,
   Clock,
   User,
@@ -35,7 +34,7 @@ export default function LogsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('audit');
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     try {
       if (activeTab === 'system') {
@@ -51,11 +50,11 @@ export default function LogsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [activeTab]);
 
   useEffect(() => {
     fetchLogs();
-  }, [activeTab]);
+  }, [activeTab, fetchLogs]);
 
   const downloadLogs = () => {
     const content = activeTab === 'system' ? systemLogs : JSON.stringify(auditLogs, null, 2);

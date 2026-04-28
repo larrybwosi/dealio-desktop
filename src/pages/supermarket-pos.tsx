@@ -197,6 +197,97 @@ export function SupermarketPOS() {
     return () => stopScanner();
   }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
+  const handleCheckout = () => {
+    checkOut();
+    setShowCheckoutDialog(false);
+  };
+
+  const handlePaymentComplete = useCallback((completedOrder: any) => {
+    setLastCompletedOrder(completedOrder);
+    setPaymentDialogOpen(false);
+    setReceiptDialogOpen(true);
+    resetOrder();
+  }, [resetOrder]);
+
+  const handleQuickPayExactCash = useCallback(async () => {
+    if (currentOrder.items.length === 0 || isProcessingSale) return;
+
+    const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
+    const taxAmount = subTotal * (taxRate / 100);
+    const total = subTotal + taxAmount;
+
+    const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
+    const accountRef = Date.now().toString().slice(-6);
+
+    const payload: any = {
+      cartItems: currentOrder.items.map(item => ({
+        productId: item.productId || '',
+        productName: item.productName || 'Unknown Product',
+        variantId: item.variantId || '',
+        variantName: item.variantName || '',
+        quantity: item.quantity,
+        sellingUnitId: item.selectedUnit?.unitId || '',
+        sellingUnitName: item.selectedUnit?.unitName || '',
+        unitPrice: item.price,
+      })),
+      locationId,
+      saleNumber,
+      accountRef,
+      isWholesale: false,
+      customerId: null,
+      enableStockTracking: true,
+      notes: 'Exact Cash Quick Pay',
+      discountAmount: 0,
+      paymentMethod: PaymentMethod.CASH,
+      paymentStatus: PaymentStatus.COMPLETED,
+      amountReceived: total,
+      change: 0,
+      payments: [
+        {
+          method: PaymentMethod.CASH,
+          amount: total,
+        },
+      ],
+    };
+
+    try {
+      logger.info('Starting Quick Pay', { total, itemCount: currentOrder.items.length });
+      const queuedSale: any = await createSale(payload);
+
+      const completedOrder: any = {
+        id: queuedSale?.id || Date.now().toString(),
+        orderNumber: queuedSale?.orderNumber || `ORD-${Date.now().toString().slice(-6)}`,
+        items: currentOrder.items,
+        customer: null,
+        subtotal: subTotal,
+        discount: 0,
+        tax: taxAmount,
+        total: total,
+        orderType: 'takeaway',
+        datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        notes: 'Exact Cash Quick Pay',
+        status: 'completed',
+        paymentMethod: PaymentMethod.CASH,
+        saleNumber,
+        amountPaid: total,
+        change: 0,
+      };
+
+      if (settings.autoPrintConfig.openCashDrawer) {
+        openPhysicalDrawer();
+      }
+
+      toast.success('Sale Completed (Exact Cash)');
+      logger.info('Quick Pay successful', { saleNumber });
+      handlePaymentComplete(completedOrder);
+    } catch (err: any) {
+      logger.error('Quick Pay failed', err, { payload });
+      toast.error('Failed to complete Quick Pay', {
+        description: err?.message || 'Unknown error',
+      });
+    }
+  }, [currentOrder.items, isProcessingSale, taxRate, locationId, createSale, settings.autoPrintConfig.openCashDrawer, openPhysicalDrawer, handlePaymentComplete]);
+
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // F1 or / to focus search
     if (e.key === 'F1' || (e.key === '/' && document.activeElement !== searchInputRef.current)) {
@@ -272,7 +363,7 @@ export function SupermarketPOS() {
       removeItemFromOrder(lastAddedItemId.productId, lastAddedItemId.variantId, lastAddedItemId.unitId);
       setLastAddedItemId(null);
     }
-  }, [currentOrder.items, lastAddedItemId, updateItemInOrder, removeItemFromOrder, resetOrder, holdCurrentOrder]);
+  }, [currentOrder.items, lastAddedItemId, updateItemInOrder, removeItemFromOrder, resetOrder, holdCurrentOrder, handleQuickPayExactCash]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -282,93 +373,6 @@ export function SupermarketPOS() {
   const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
-
-  const handleCheckout = () => {
-    checkOut();
-    setShowCheckoutDialog(false);
-  };
-
-  const handlePaymentComplete = (completedOrder: any) => {
-    setLastCompletedOrder(completedOrder);
-    setPaymentDialogOpen(false);
-    setReceiptDialogOpen(true);
-    resetOrder();
-  };
-
-  const handleQuickPayExactCash = async () => {
-    if (currentOrder.items.length === 0 || isProcessingSale) return;
-
-    const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
-    const accountRef = Date.now().toString().slice(-6);
-
-    const payload: any = {
-      cartItems: currentOrder.items.map(item => ({
-        productId: item.productId || '',
-        productName: item.productName || 'Unknown Product',
-        variantId: item.variantId || '',
-        variantName: item.variantName || '',
-        quantity: item.quantity,
-        sellingUnitId: item.selectedUnit?.unitId || '',
-        sellingUnitName: item.selectedUnit?.unitName || '',
-        unitPrice: item.price,
-      })),
-      locationId,
-      saleNumber,
-      accountRef,
-      isWholesale: false,
-      customerId: null,
-      enableStockTracking: true,
-      notes: 'Exact Cash Quick Pay',
-      discountAmount: 0,
-      paymentMethod: PaymentMethod.CASH,
-      paymentStatus: PaymentStatus.COMPLETED,
-      amountReceived: total,
-      change: 0,
-      payments: [
-        {
-          method: PaymentMethod.CASH,
-          amount: total,
-        },
-      ],
-    };
-
-    try {
-      logger.info('Starting Quick Pay', { total, itemCount: currentOrder.items.length });
-      const queuedSale: any = await createSale(payload);
-
-      const completedOrder: any = {
-        id: queuedSale?.id || Date.now().toString(),
-        orderNumber: queuedSale?.orderNumber || `ORD-${Date.now().toString().slice(-6)}`,
-        items: currentOrder.items,
-        customer: null,
-        subtotal: subTotal,
-        discount: 0,
-        tax: taxAmount,
-        total: total,
-        orderType: 'takeaway',
-        datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
-        notes: 'Exact Cash Quick Pay',
-        status: 'completed',
-        paymentMethod: PaymentMethod.CASH,
-        saleNumber,
-        amountPaid: total,
-        change: 0,
-      };
-
-      if (settings.autoPrintConfig.openCashDrawer) {
-        openPhysicalDrawer();
-      }
-
-      toast.success('Sale Completed (Exact Cash)');
-      logger.info('Quick Pay successful', { saleNumber });
-      handlePaymentComplete(completedOrder);
-    } catch (err: any) {
-      logger.error('Quick Pay failed', err, { payload });
-      toast.error('Failed to complete Quick Pay', {
-        description: err?.message || 'Unknown error',
-      });
-    }
-  };
 
   return (
     <div className="flex flex-col h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
@@ -605,7 +609,7 @@ export function SupermarketPOS() {
                   style={{ height: '100%' }}
                   data={products}
                   className="no-scrollbar"
-                  itemContent={(index, p: any) => (
+                  itemContent={(_, p: any) => (
                     <div className="pb-1.5">
                       <button
                         key={p.productId}

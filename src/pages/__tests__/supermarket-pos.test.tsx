@@ -1,7 +1,6 @@
-import { render, screen, fireEvent, waitFor } from '@/test/utils';
+import { render, screen, fireEvent } from '@/test/utils';
 import { SupermarketPOS } from '../supermarket-pos';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import * as tauriCore from '@tauri-apps/api/core';
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
