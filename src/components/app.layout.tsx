@@ -21,7 +21,7 @@ import { Cart } from './cart';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useEffect } from 'react';
 import { usePosStore } from '@/store/store';
-import ConnectionStatusBanner from './connection-status-banner';
+import { ConnectionStatusBanner } from './connection-status-banner';
 import { sendTabletActivity } from '@/lib/kds';
 
 interface AppLayoutProviderProps {
