@@ -14,8 +14,9 @@ use sqlx::{Row, SqlitePool};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, Emitter};
+#[cfg(not(feature = "standalone"))]
+use reqwest::header::{HeaderMap, HeaderValue};
 use tauri_plugin_sql::{DbInstances, DbPool};
-use tokio::fs as async_fs;
 
 use crate::auth_store::AuthState;
 

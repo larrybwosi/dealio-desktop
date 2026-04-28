@@ -7,9 +7,9 @@ use crate::stores::sales_store::SalesState;
 #[tauri::command]
 #[cfg(not(feature = "standalone"))]
 pub async fn sync_products_command(
-    app: AppHandle,
-    state: State<'_, ProductState>,
-    auth_state: State<'_, AuthState>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
     force_full_sync: Option<bool>,
 ) -> Result<String, String> {
     match product_store::run_sync(app, &state, &auth_state, force_full_sync.unwrap_or(false)).await {

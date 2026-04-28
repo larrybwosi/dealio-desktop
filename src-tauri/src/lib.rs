@@ -7,6 +7,8 @@ pub mod escpos_builder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
+#[cfg(not(feature = "standalone"))]
+use tauri::Emitter;
 
 pub mod stores;
 
@@ -209,7 +211,8 @@ pub fn run() {
                 notification_manager::init_notification_state(&app_handle, &state).await;
             });
 
-            let _notification_state = app.state::<NotificationState>();
+            #[cfg(not(feature = "standalone"))]
+            let notification_state = app.state::<NotificationState>();
 
             // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
