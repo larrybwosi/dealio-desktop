@@ -8,8 +8,8 @@ export type Station = "all" | "hot" | "cold" | "grill" | "dessert" | "bar";
 export interface OrderItem {
   id: string;
   name: string;
-  qty: number;
-  mod: string;
+  quantity: number;
+  modifiers: string;
   isAllergy: boolean;
   status: ItemStatus;
 }
@@ -29,18 +29,23 @@ export interface KdsOrder {
   covers: number | null;
 }
 
+export type ConnectionStatus = "connected" | "disconnected" | "connecting" | "error";
+
 interface KdsStore {
   orders: KdsOrder[];
+  connectionStatus: ConnectionStatus;
   addOrder: (order: KdsOrder) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   updateItemStatus: (orderId: string, itemId: string, status: ItemStatus) => void;
   bumpOrder: (orderId: string) => void;
   recallOrder: (orderId: string) => void;
   setOrders: (orders: KdsOrder[]) => void;
+  setConnectionStatus: (status: ConnectionStatus) => void;
 }
 
 export const useKdsStore = create<KdsStore>((set) => ({
   orders: [],
+  connectionStatus: 'disconnected',
   addOrder: (order) => set((state) => {
     // Prevent duplicates
     if (state.orders.find(o => o.id === order.id)) return state;
@@ -62,4 +67,5 @@ export const useKdsStore = create<KdsStore>((set) => ({
     orders: state.orders.map(o => o.id === orderId ? { ...o, status: 'in_progress', bumpedAt: undefined } : o)
   })),
   setOrders: (orders) => set({ orders }),
+  setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
 }));
