@@ -13,7 +13,8 @@ export default function AblyInitializer() {
 
   // ── Initialize Ably once auth is ready ─────────────────────────────────────
   useEffect(() => {
-    if (isAuthInitialized && currentMember) {
+    const isDisabled = localStorage.getItem('ably-disabled') === 'true';
+    if (isAuthInitialized && currentMember && !isDisabled) {
       initializeAbly();
     }
   }, [initializeAbly, isAuthInitialized, currentMember]);

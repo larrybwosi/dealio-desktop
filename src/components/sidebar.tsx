@@ -124,7 +124,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
                 <span className="font-semibold text-lg truncate text-foreground leading-tight">{businessName}</span>
-                {currentLocation && (
+                {currentLocation && import.meta.env.MODE !== 'standalone' && (
                   <div className="flex items-center gap-1 text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
                     <MapPin className="w-2.5 h-2.5" />
                     <span className="truncate">{currentLocation.name}</span>
@@ -277,8 +277,12 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             </Avatar>
             {!isCollapsed && (
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">{currentMember?.name || 'User'}</div>
-                <div className="text-xs text-muted-foreground truncate">{currentMember?.email}</div>
+                <div className="text-sm font-medium truncate">
+                  {import.meta.env.MODE === 'standalone' ? 'Admin' : currentMember?.name || 'User'}
+                </div>
+                {import.meta.env.MODE !== 'standalone' && (
+                  <div className="text-xs text-muted-foreground truncate">{currentMember?.email}</div>
+                )}
               </div>
             )}
             <Button

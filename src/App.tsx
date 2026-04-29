@@ -44,12 +44,13 @@ const LayoutWrapper = () => {
 const AppRoutes = () => {
   const isConfigured = useAuthStore(state => state.isConfigured);
   const currentLocation = useAuthStore(state => state.currentLocation);
-  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
+  const storeBusinessType = usePosStore(state => state.settings.businessType);
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || storeBusinessType || 'retail';
   const initializeFromBackend = useAuthStore(state => state.initializeFromBackend);
   const isInitialized = useAuthStore(state => state.isInitialized);
   const deviceType = useAuthStore(state => state.deviceType);
 
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, currentMember } = useAuth();
 
   useEffect(() => {
     initializeFromBackend();
@@ -76,6 +77,7 @@ const AppRoutes = () => {
 
   // Supermarket mode: bypass layout and show dedicated POS
   if (businessMode === 'supermarket') {
+    console.log('Rendering SupermarketPOS', { isAuthenticated, currentMember });
     return (
       <Routes>
         <Route index path="/" element={<SupermarketPOS />} />
