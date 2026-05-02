@@ -76,13 +76,16 @@ async fn get_db_pool(app: &AppHandle, db_name: &str) -> Result<sqlx::SqlitePool,
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
+    let target_db = if cfg!(feature = "standalone") && db_name == MAIN_DB_NAME {
+        "sqlite:pos_standalone.db"
+    } else {
+        db_name
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(target_db) {
         Ok(pool.clone())
     } else {
-        Err(format!(
-            "Database {} not found. Ensure it is preloaded via tauri.conf.json.",
-            db_name
-        ))
+        Err(format!("Database {} not found.", target_db))
     }
 }
 
@@ -349,12 +352,20 @@ pub async fn process_sale(
         .bind(&location_id)
         .bind(&sale_number)
         .bind(&encrypted_payload)
-        .bind(format!("{:?}", SaleStatus::Pending))
+        .bind(format!("{:?}", if cfg!(feature = "standalone") { SaleStatus::PendingCloudSync } else { SaleStatus::Pending }))
         .bind(0)
         .bind(None::<String>)
         .execute(&pool)
         .await
         .map_err(|e| SalesError::StorageError(e.to_string()))?;
+
+    if cfg!(feature = "standalone") {
+        return Ok(SaleResponse {
+            success: true,
+            message: "Sale completed successfully.".into(),
+            server_response: None,
+        });
+    }
 
     // Spawn Background Sync Task
     let app_handle = app.clone();
@@ -529,6 +540,7 @@ pub async fn get_queue_status(app: AppHandle, _state: &SalesState) -> Vec<Queued
             "Pending" => SaleStatus::Pending,
             "Failed" => SaleStatus::Failed,
             "Invalidated" => SaleStatus::Invalidated,
+            "PendingCloudSync" => SaleStatus::PendingCloudSync,
             _ => SaleStatus::Synced,
         };
 
@@ -839,7 +851,7 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
         }
     };
 
-    let query = "SELECT order_id, table_number, waiter_name, items, status, timestamp FROM kds_orders WHERE status != 'COMPLETED'";
+    let query = "SELECT order_id, num, order_type, station, table_name, status, created_at, bumped_at, items, note, server, covers FROM kds_orders WHERE status != 'COMPLETED'";
     let rows = match sqlx::query(query).fetch_all(&pool).await {
         Ok(r) => r,
         Err(e) => {
@@ -855,11 +867,17 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
 
         orders.push(KdsOrderPayload {
             id: row.get("order_id"),
-            table_number: row.get("table_number"),
-            waiter_name: row.get("waiter_name"),
-            items,
+            num: row.get("num"),
+            order_type: row.get("order_type"),
+            station: row.get("station"),
+            table: row.get("table_name"),
             status: row.get("status"),
-            timestamp: row.get("timestamp"),
+            created_at: row.get("created_at"),
+            bumped_at: row.get("bumped_at"),
+            items,
+            note: row.get("note"),
+            server: row.get("server"),
+            covers: row.get("covers"),
         });
     }
 
@@ -885,23 +903,35 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     };
 
     let query = r#"
-        INSERT INTO kds_orders (order_id, table_number, waiter_name, items, status, timestamp)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        INSERT INTO kds_orders (order_id, num, order_type, station, table_name, status, created_at, bumped_at, items, note, server, covers)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         ON CONFLICT(order_id) DO UPDATE SET
-            table_number = excluded.table_number,
-            waiter_name = excluded.waiter_name,
-            items = excluded.items,
+            num = excluded.num,
+            order_type = excluded.order_type,
+            station = excluded.station,
+            table_name = excluded.table_name,
             status = excluded.status,
-            timestamp = excluded.timestamp
+            created_at = excluded.created_at,
+            bumped_at = excluded.bumped_at,
+            items = excluded.items,
+            note = excluded.note,
+            server = excluded.server,
+            covers = excluded.covers
     "#;
 
     if let Err(e) = sqlx::query(query)
         .bind(&order.id)
-        .bind(&order.table_number)
-        .bind(&order.waiter_name)
-        .bind(&items_json)
+        .bind(&order.num)
+        .bind(&order.order_type)
+        .bind(&order.station)
+        .bind(&order.table)
         .bind(&order.status)
-        .bind(order.timestamp)
+        .bind(order.created_at)
+        .bind(order.bumped_at)
+        .bind(&items_json)
+        .bind(&order.note)
+        .bind(&order.server)
+        .bind(order.covers)
         .execute(&pool)
         .await
     {

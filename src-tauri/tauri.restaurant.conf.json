@@ -4,9 +4,9 @@
   "version": "3.3.0-nextgen.6",
   "identifier": "com.dealio.pos.restaurant",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "cross-env VITE_BUSINESS_MODE=restaurant pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "cross-env VITE_BUSINESS_MODE=restaurant pnpm build",
     "frontendDist": "../dist"
   },
   "app": {

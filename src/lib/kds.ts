@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 import { useKdsStore } from '@/store/kds-store';
 import { usePosStore } from '@/store/store';
 
@@ -11,9 +12,23 @@ export interface HubStatus {
 export async function initializeNetworkRole() {
   const role = localStorage.getItem('DEVICE_ROLE'); // 'MAIN_HUB', 'TABLET', or 'KDS'
   
+  // Listen for hub start/stop events if we are the hub
   if (role === 'MAIN_HUB') {
-    // For MAIN_HUB, we check if the hub was previously started
-    // But we don't auto-start it anymore as per the requirement: "initiated by the user instead of auto listening"
+    listen('kds-hub-started', (event) => {
+      const url = event.payload as string;
+      localStorage.setItem('HUB_WS_URL', url);
+      connectToHub(url);
+    });
+
+    listen('kds-hub-stopped', () => {
+      localStorage.removeItem('HUB_WS_URL');
+      if (socket) {
+        socket.close();
+        socket = null;
+      }
+    });
+
+    // Check if the hub is already running (e.g., after page refresh)
     try {
       const status = await invoke<HubStatus>('get_hub_status');
       if (status.is_running) {
@@ -67,6 +82,13 @@ export async function stopHub() {
 // --- 2. The WebSocket Client ---
 let socket: WebSocket | null = null;
 let reconnectTimeout: any = null;
+let reconnectAttempts = 0;
+let heartbeatInterval: any = null;
+
+const MAX_RECONNECT_ATTEMPTS = 50;
+const BASE_RECONNECT_DELAY = 1000; // 1s
+const MAX_RECONNECT_DELAY = 30000; // 30s
+const HEARTBEAT_INTERVAL = 10000; // 10s
 
 function getOfflineQueue(): string[] {
   const stored = localStorage.getItem('KDS_OFFLINE_QUEUE');
@@ -75,12 +97,42 @@ function getOfflineQueue(): string[] {
 
 function addToOfflineQueue(payload: string) {
   const queue = getOfflineQueue();
+  // Simple deduplication based on ID if it's a JSON with an id
+  try {
+    const newMsg = JSON.parse(payload);
+    if (newMsg.payload?.id) {
+       if (queue.some(m => {
+         try {
+           return JSON.parse(m).payload?.id === newMsg.payload.id;
+         } catch { return false; }
+       })) {
+         return; // Skip duplicate
+       }
+    }
+  } catch (e) {}
+
   queue.push(payload);
   localStorage.setItem('KDS_OFFLINE_QUEUE', JSON.stringify(queue));
 }
 
 function clearOfflineQueue() {
   localStorage.removeItem('KDS_OFFLINE_QUEUE');
+}
+
+function startHeartbeat() {
+  stopHeartbeat();
+  heartbeatInterval = setInterval(() => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'Ping' }));
+    }
+  }, HEARTBEAT_INTERVAL);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
 }
 
 export function connectToHub(url: string) {
@@ -94,11 +146,17 @@ export function connectToHub(url: string) {
     reconnectTimeout = null;
   }
 
-  console.log(`Attempting connection to ${url}...`);
+  console.log(`Attempting connection to ${url}... (Attempt ${reconnectAttempts + 1})`);
+  useKdsStore.getState().setConnectionStatus('connecting');
+
   socket = new WebSocket(url);
 
   socket.onopen = () => {
     console.log("Connected to Local POS Hub!");
+    reconnectAttempts = 0;
+    useKdsStore.getState().setConnectionStatus('connected');
+    startHeartbeat();
+
     // Send initial status/heartbeat
     const role = localStorage.getItem('DEVICE_ROLE');
     const user = JSON.parse(localStorage.getItem('pos-auth-storage-v3') || '{}').state?.currentMember;
@@ -122,7 +180,9 @@ export function connectToHub(url: string) {
     if (queue.length > 0) {
       console.log(`Processing ${queue.length} offline messages...`);
       queue.forEach(msg => {
-        socket?.send(msg);
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(msg);
+        }
       });
       clearOfflineQueue();
     }
@@ -135,27 +195,29 @@ export function connectToHub(url: string) {
       // Handle incoming broadcast messages
       if (message.type === 'NewOrder') {
           const order = message.payload;
-          // If this is the KDS device, add to the screen array
           useKdsStore.getState().addOrder(order);
           console.log("KDS: New Ticket Arrived!", order);
 
-          // Check for Auto-Print (Only on KDS role)
           const role = localStorage.getItem('DEVICE_ROLE');
           const kdsConfig = usePosStore.getState().settings.kitchenTicketConfig;
           if (role === 'KDS' && kdsConfig.autoPrintKds) {
-              console.log("KDS: Auto-printing ticket...");
               usePosStore.getState().printReceipt(order.id);
           }
+      }
+
+      if (message.type === 'SyncOrders') {
+          const orders = message.payload;
+          useKdsStore.getState().setOrders(orders);
+          console.log("KDS: Orders Synced", orders.length);
       }
 
       if (message.type === 'OrderStatusUpdated') {
           const { id, new_status } = message.payload;
           useKdsStore.getState().updateOrderStatus(id, new_status);
 
-          // Also update POS store if it's running on this device
           let posStatus = 'pending';
-          if (new_status === 'in_progress') posStatus = 'cooking';
-          if (new_status === 'done') posStatus = 'ready';
+          if (new_status === 'in_progress' || new_status === 'PREPARING') posStatus = 'cooking';
+          if (new_status === 'done' || new_status === 'READY' || new_status === 'COMPLETED') posStatus = 'ready';
           usePosStore.getState().updateOrderStatus(id, posStatus as any);
       }
 
@@ -164,11 +226,9 @@ export function connectToHub(url: string) {
         const myDeviceId = localStorage.getItem('DEVICE_ID');
 
         if (device_id === myDeviceId) {
-          console.log(`My assignment updated: ${user_name}`);
           localStorage.setItem('ASSIGNED_USER_ID', user_id || '');
           localStorage.setItem('ASSIGNED_USER_NAME', user_name || '');
 
-          // Optional: Trigger a custom event or store update if needed UI-wide
           window.dispatchEvent(new CustomEvent('assignment-updated', {
             detail: { userId: user_id, userName: user_name }
           }));
@@ -204,12 +264,25 @@ export function connectToHub(url: string) {
 
   socket.onerror = (error) => {
     console.error("WebSocket Error:", error);
+    useKdsStore.getState().setConnectionStatus('error');
   };
 
   socket.onclose = () => {
-    console.warn("Lost connection to Hub. Reconnecting in 5s...");
+    console.warn("Lost connection to Hub.");
+    useKdsStore.getState().setConnectionStatus('disconnected');
     socket = null;
-    reconnectTimeout = setTimeout(() => connectToHub(url), 5000); // Auto-reconnect
+    stopHeartbeat();
+
+    if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = Math.min(BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+      console.log(`Reconnecting in ${delay}ms...`);
+      reconnectTimeout = setTimeout(() => {
+        reconnectAttempts++;
+        connectToHub(url);
+      }, delay);
+    } else {
+      console.error("Max reconnect attempts reached.");
+    }
   };
 }
 
@@ -226,8 +299,8 @@ export function sendOrderToKitchen(fullOrder: any) {
     items: fullOrder.items?.map((item: any) => ({
       id: item.productId + '-' + Math.random(),
       name: item.productName || item.name,
-      qty: item.quantity,
-      mod: '',
+      quantity: item.quantity,
+      modifiers: '',
       isAllergy: false,
       status: 'pending'
     })) || [],

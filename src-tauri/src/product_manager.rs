@@ -1,4 +1,3 @@
-use tauri::{AppHandle, State};
 
 use crate::stores::auth_store::AuthState;
 use crate::stores::customer_store::CustomerState;
@@ -8,9 +7,9 @@ use crate::stores::sales_store::SalesState;
 #[tauri::command]
 #[cfg(not(feature = "standalone"))]
 pub async fn sync_products_command(
-    app: AppHandle,
-    state: State<'_, ProductState>,
-    auth_state: State<'_, AuthState>,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
     force_full_sync: Option<bool>,
 ) -> Result<String, String> {
     match product_store::run_sync(app, &state, &auth_state, force_full_sync.unwrap_or(false)).await {
@@ -149,4 +148,14 @@ pub async fn delete_local_product_command(
 ) -> Result<String, String> {
     product_store::delete_local_product(&app, &state, &product_id, &location_id).await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_product_by_barcode_command(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
+    barcode: String,
+) -> Result<Option<crate::models::PosProduct>, String> {
+    product_store::get_product_by_barcode(app, state, auth_state, barcode).await
 }

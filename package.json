@@ -1,7 +1,7 @@
 {
   "name": "dealio-desktop",
   "private": true,
-  "version": "3.3.0-nextgen.6",
+  "version": "3.3.0-nextgen.8",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +10,11 @@
     "tauri": "tauri",
     "dev:standalone": "tauri dev --config src-tauri/tauri.standalone.conf.json --features standalone",
     "dev:restaurant": "cross-env VITE_BUSINESS_MODE=restaurant tauri dev --config src-tauri/tauri.restaurant.conf.json --features restaurant",
+    "dev:supermarket": "cross-env VITE_BUSINESS_MODE=supermarket tauri dev --config src-tauri/tauri.supermarket.conf.json --features supermarket",
     "dev:pharmacy": "cross-env VITE_BUSINESS_MODE=pharmacy tauri dev --config src-tauri/tauri.pharmacy.conf.json --features pharmacy",
     "build:standalone": "tsc && vite build --mode standalone && tauri build --config src-tauri/tauri.standalone.conf.json --features standalone",
     "build:restaurant": "tsc && cross-env VITE_BUSINESS_MODE=restaurant vite build && tauri build --config src-tauri/tauri.restaurant.conf.json --features restaurant",
+    "build:supermarket": "tsc && cross-env VITE_BUSINESS_MODE=supermarket vite build && tauri build --config src-tauri/tauri.supermarket.conf.json --features supermarket",
     "build:pharmacy": "tsc && cross-env VITE_BUSINESS_MODE=pharmacy vite build && tauri build --config src-tauri/tauri.pharmacy.conf.json --features pharmacy",
     "exe": "npx tauri build",
     "lint:ox": "oxlint -c oxlint.json",
@@ -24,7 +26,7 @@
     "test:backend": "cd src-tauri && cargo test",
     "test:e2e": "playwright test",
     "test:all": "pnpm run test:frontend && pnpm run test:backend && pnpm run test:e2e",
-    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy",
+    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy --all-features",
     "format": "npx prettier --write .",
     "cz": "cz"
   },
@@ -109,6 +111,7 @@
     "react-pdf": "^10.3.0",
     "react-resizable-panels": "^3.0.6",
     "react-router": "^7.13.1",
+    "react-virtuoso": "^4.18.6",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",

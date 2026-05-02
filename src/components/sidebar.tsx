@@ -112,6 +112,9 @@ export function Sidebar({ onCheckout }: SidebarProps) {
       >
         {/* Header Section */}
         <div className="p-6 border-b flex items-center gap-3 relative">
+          {import.meta.env.MODE === 'standalone' && (
+            <div className="absolute top-0 left-0 w-full h-1 bg-amber-500" title="Standalone Mode" />
+          )}
           <Link
             to="/"
             className="flex items-center gap-3 no-underline hover:opacity-80 transition-opacity overflow-hidden"
@@ -158,7 +161,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
             const excludedInStandalone = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'pricing'];
             if (isStandalone && excludedInStandalone.includes(item.id)) return null;
 
-            const restaurantOnly = ['stock-acceptance', 'stock-transfer', 'kitchen-display', 'hub-overview', 'manage-table'];
+            const restaurantOnly = ['kitchen-display', 'hub-overview', 'manage-table'];
             if (businessMode !== 'restaurant' && restaurantOnly.includes(item.id)) return null;
 
             return (
@@ -233,10 +236,12 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
         {/* Footer / Settings Section */}
         <div className="p-4 border-t space-y-2">
-          {['/receipt-settings', '/settings'].map(route => {
+          {[
+            { route: '/receipt-settings', label: 'Receipt Settings', icon: Receipt },
+            { route: '/logs', label: 'System Logs', icon: Activity },
+            { route: '/settings', label: 'Settings', icon: Settings },
+          ].map(({ route, label, icon: Icon }) => {
             const isActive = isRouteActive(route);
-            const label = route.includes('receipt') ? 'Receipt Settings' : 'Settings';
-            const Icon = route.includes('receipt') ? Receipt : Settings;
             return (
               <Button
                 key={route}

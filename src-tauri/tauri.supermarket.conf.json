@@ -1,18 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Dealio",
-  "version": "3.3.0-nextgen.8",
-  "identifier": "com.dealio.pos",
+  "productName": "Dealio Supermarket",
+  "version": "3.3.0-nextgen.6",
+  "identifier": "com.dealio.pos.supermarket",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "cross-env VITE_BUSINESS_MODE=supermarket pnpm dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "cross-env VITE_BUSINESS_MODE=supermarket pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "Dealio",
+        "title": "Dealio Supermarket",
         "width": 1200,
         "height": 800,
         "resizable": true,
@@ -49,7 +49,6 @@
     },
     "sql": {
       "preload": [
-        "sqlite:kds_orders.db",
         "sqlite:pos_main.db"
       ]
     }

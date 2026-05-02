@@ -18,6 +18,7 @@ import ReceiptSettingsPage from '@/pages/receipt-settings-page';
 import PendingTransactionsPage from '@/pages/pending-transactions';
 import CreateOrderPage from '@/pages/create-order';
 import { POS } from '@/pages/pos';
+import { SupermarketPOS } from '@/pages/supermarket-pos';
 import SettingsPage from '@/pages/settings-page';
 import CustomerDisplay from '@/pages/customer-display';
 import PricingViewPage from '@/pages/pricing-view-page';
@@ -29,6 +30,7 @@ import KDSPage from './pages/kitchen-display';
 import HubOverviewPage from './pages/hub-overview';
 import ProductManagementPage from './pages/product-management';
 import StandaloneSetup from './pages/standalone-setup';
+import LogsPage from './pages/logs-page';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -42,12 +44,12 @@ const LayoutWrapper = () => {
 const AppRoutes = () => {
   const isConfigured = useAuthStore(state => state.isConfigured);
   const currentLocation = useAuthStore(state => state.currentLocation);
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
   const initializeFromBackend = useAuthStore(state => state.initializeFromBackend);
   const isInitialized = useAuthStore(state => state.isInitialized);
   const deviceType = useAuthStore(state => state.deviceType);
 
   const { isAuthenticated } = useAuth();
-  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
 
   useEffect(() => {
     initializeFromBackend();
@@ -70,6 +72,16 @@ const AppRoutes = () => {
 
   if (!isAuthenticated) {
     return <CheckinPage />;
+  }
+
+  // Supermarket mode: bypass layout and show dedicated POS
+  if (businessMode === 'supermarket') {
+    return (
+      <Routes>
+        <Route index path="/" element={<SupermarketPOS />} />
+        <Route path="*" element={<SupermarketPOS />} />
+      </Routes>
+    );
   }
 
   // If KDS device, boot directly to KDS page
@@ -98,12 +110,17 @@ const AppRoutes = () => {
         <Route path="/pending-transactions" element={<PendingTransactionsPage />} />
         <Route path="/create-order" element={<CreateOrderPage />} />
 
-        {/* Restaurant/Hub and Spoke routes */}
-        {businessMode === 'restaurant' && (
+        {import.meta.env.MODE !== 'standalone' && (
           <>
             <Route path="/pricing" element={<PricingViewPage />} />
             <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
             <Route path="/stock-transfer" element={<StockTransferCreate />} />
+          </>
+        )}
+
+        {/* Restaurant/Hub and Spoke routes */}
+        {businessMode === 'restaurant' && (
+          <>
             <Route path="/kds" element={<KDSPage />} />
             <Route path="/hub-overview" element={<HubOverviewPage />} />
             <Route path="/manage-tables" element={<ManageTablesPage />} />
@@ -113,6 +130,7 @@ const AppRoutes = () => {
         <Route path="/shift-manager" element={<ShiftManager />} />
 
         <Route path="/product-management" element={<ProductManagementPage />} />
+        <Route path="/logs" element={<LogsPage />} />
       </Route>
 
       {/* Routes without AppLayout */}

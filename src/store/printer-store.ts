@@ -179,6 +179,8 @@ export const usePrinterStore = create<PrinterState>()(
       loadConfig: async () => {
         try {
           const config = await invoke<any>('get_printer_config');
+          if (!config) return;
+
           set(() => ({
             assignments: {
               receipt: config.receipt_printer?.target || null,

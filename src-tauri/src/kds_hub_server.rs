@@ -68,7 +68,8 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     let registry = if let Some(r) = app.try_state::<Arc<DeviceRegistry>>() {
         r.inner().clone()
     } else {
-        let (tx, _rx) = broadcast::channel(100);
+        // Increased channel capacity for high traffic
+        let (tx, _rx) = broadcast::channel(1024);
         let r = Arc::new(DeviceRegistry {
             devices: Mutex::new(HashMap::new()),
             tx,
@@ -128,6 +129,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
 
     tauri::async_runtime::spawn(async move {
         info!("KDS Hub WebSocket running on ws://{}:8080/kds-ws", ip);
+        let _ = app.emit("kds-hub-started", format!("ws://{}:8080/kds-ws", ip));
         let serve = axum::serve(
             listener,
             router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -146,6 +148,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
         *is_running = false;
         let mut tx_guard = registry_clone.shutdown_tx.lock().unwrap();
         *tx_guard = None;
+        let _ = app.emit("kds-hub-stopped", ());
         info!("KDS Hub server stopped.");
     });
 
@@ -256,14 +259,23 @@ async fn handle_socket(socket: WebSocket, state: AppState, addr: SocketAddr) {
                 match ws_msg {
                     WsMessage::NewOrder(order) => {
                         info!("Received new order locally: {}", order.id);
-                        // Save to local SQLite database using Tauri app_handle
-                        crate::stores::sales_store::save_local_kds_order(&app_handle_for_recv, &order).await;
+                        // Save to local SQLite database using Tauri app_handle (Non-blocking spawn)
+                        let app_handle = app_handle_for_recv.clone();
+                        let order_clone = order.clone();
+                        tauri::async_runtime::spawn(async move {
+                            crate::stores::sales_store::save_local_kds_order(&app_handle, &order_clone).await;
+                        });
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::OrderStatusUpdated { id, new_status } => {
                         info!("Order {} status updated to: {}", id, new_status);
-                        // Update local SQLite database state
-                        crate::stores::sales_store::update_kds_order_status(&app_handle_for_recv, &id, &new_status).await;
+                        // Update local SQLite database state (Non-blocking spawn)
+                        let app_handle = app_handle_for_recv.clone();
+                        let id_clone = id.clone();
+                        let status_clone = new_status.clone();
+                        tauri::async_runtime::spawn(async move {
+                            crate::stores::sales_store::update_kds_order_status(&app_handle, &id_clone, &status_clone).await;
+                        });
                         let _ = tx.send(text.clone());
                     },
                     WsMessage::DeviceStatus(device) => {

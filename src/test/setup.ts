@@ -20,6 +20,8 @@ mockInvoke.mockImplementation(async (cmd, _args) => {
   switch (cmd) {
     case 'get_system_printers':
       return [];
+    case 'discover_network_printers':
+      return [];
     case 'get_printer_config':
       return null;
     case 'get_device_config':

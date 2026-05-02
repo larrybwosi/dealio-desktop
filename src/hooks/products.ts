@@ -61,9 +61,9 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
   const locationId = useAuthStore(state => state.currentLocation?.id);
 
-  // 2. Debounce the search input (500ms delay)
+  // 2. Debounce the search input (150ms delay for high-traffic supermarket)
   const safeSearch = search || '';
-  const [debouncedSearch] = useDebounce(safeSearch, 500);
+  const [debouncedSearch] = useDebounce(safeSearch, 150);
 
   // --- QUERY: Local Search ---
   const { data: searchResponse = { products: [], totalCount: 0 }, isLoading: isSearching } = useQuery({
