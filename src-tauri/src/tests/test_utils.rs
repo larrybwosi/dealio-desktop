@@ -95,6 +95,11 @@ pub fn create_mock_customer(id: &str, name: &str) -> PosCustomer {
         city: None,
         primary_address: None,
         updated_at: None,
+        medical_history: None,
+        allergies: None,
+        chronic_conditions: None,
+        insurance_provider: None,
+        policy_number: None,
     }
 }
 
@@ -113,7 +118,9 @@ pub fn create_mock_product(id: &str, name: &str) -> PosProduct {
                 barcode: None,
                 stock: 10,
                 sellable_units: vec![],
+                batches: None,
             }
         ],
+        active_ingredient: None,
     }
 }
