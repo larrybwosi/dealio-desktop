@@ -851,7 +851,7 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
         }
     };
 
-    let query = "SELECT order_id, table_number, waiter_name, items, status, timestamp FROM kds_orders WHERE status != 'COMPLETED'";
+    let query = "SELECT order_id, num, order_type, station, table_name, status, created_at, bumped_at, items, note, server, covers FROM kds_orders WHERE status != 'COMPLETED'";
     let rows = match sqlx::query(query).fetch_all(&pool).await {
         Ok(r) => r,
         Err(e) => {
@@ -867,11 +867,17 @@ pub async fn get_active_kds_orders(app: &AppHandle) -> Vec<KdsOrderPayload> {
 
         orders.push(KdsOrderPayload {
             id: row.get("order_id"),
-            table_number: row.get("table_number"),
-            waiter_name: row.get("waiter_name"),
-            items,
+            num: row.get("num"),
+            order_type: row.get("order_type"),
+            station: row.get("station"),
+            table: row.get("table_name"),
             status: row.get("status"),
-            timestamp: row.get("timestamp"),
+            created_at: row.get("created_at"),
+            bumped_at: row.get("bumped_at"),
+            items,
+            note: row.get("note"),
+            server: row.get("server"),
+            covers: row.get("covers"),
         });
     }
 
@@ -897,23 +903,35 @@ pub async fn save_local_kds_order(app: &AppHandle, order: &KdsOrderPayload) {
     };
 
     let query = r#"
-        INSERT INTO kds_orders (order_id, table_number, waiter_name, items, status, timestamp)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        INSERT INTO kds_orders (order_id, num, order_type, station, table_name, status, created_at, bumped_at, items, note, server, covers)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
         ON CONFLICT(order_id) DO UPDATE SET
-            table_number = excluded.table_number,
-            waiter_name = excluded.waiter_name,
-            items = excluded.items,
+            num = excluded.num,
+            order_type = excluded.order_type,
+            station = excluded.station,
+            table_name = excluded.table_name,
             status = excluded.status,
-            timestamp = excluded.timestamp
+            created_at = excluded.created_at,
+            bumped_at = excluded.bumped_at,
+            items = excluded.items,
+            note = excluded.note,
+            server = excluded.server,
+            covers = excluded.covers
     "#;
 
     if let Err(e) = sqlx::query(query)
         .bind(&order.id)
-        .bind(&order.table_number)
-        .bind(&order.waiter_name)
-        .bind(&items_json)
+        .bind(&order.num)
+        .bind(&order.order_type)
+        .bind(&order.station)
+        .bind(&order.table)
         .bind(&order.status)
-        .bind(order.timestamp)
+        .bind(order.created_at)
+        .bind(order.bumped_at)
+        .bind(&items_json)
+        .bind(&order.note)
+        .bind(&order.server)
+        .bind(order.covers)
         .execute(&pool)
         .await
     {

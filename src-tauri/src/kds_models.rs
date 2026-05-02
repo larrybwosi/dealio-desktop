@@ -1,21 +1,32 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OrderItem {
     pub id: String, // Client-generated UUID
-    pub product_name: String,
-    pub quantity: u32,
-    pub modifiers: Vec<String>, // e.g., ["No Onions", "Extra Cheese"]
+    pub name: String,
+    pub quantity: f64,
+    pub modifiers: String,
+    pub is_allergy: bool,
+    pub status: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct KdsOrderPayload {
     pub id: String, // Client-generated UUID (Idempotency key)
-    pub table_number: Option<String>,
-    pub waiter_name: String,
+    pub num: String,
+    #[serde(rename = "type")]
+    pub order_type: String,
+    pub station: String,
+    pub table: String,
+    pub status: String,
+    pub created_at: i64,
+    pub bumped_at: Option<i64>,
     pub items: Vec<OrderItem>,
-    pub status: String, // "NEW", "PREPARING", "READY"
-    pub timestamp: i64,
+    pub note: Option<String>,
+    pub server: String,
+    pub covers: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

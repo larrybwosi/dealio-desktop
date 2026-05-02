@@ -30,6 +30,7 @@ import { ReceiptDialog } from '@/components/receipt-dialog';
 import { useProcessSale, PaymentMethod, PaymentStatus } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
+import { logger } from '@/lib/logger';
 import { format } from 'date-fns';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import {
@@ -50,6 +51,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Virtuoso } from 'react-virtuoso';
 
 export function SupermarketPOS() {
   const [inputValue, setInputValue] = useState('');
@@ -117,6 +119,7 @@ export function SupermarketPOS() {
       });
 
       if (!product) {
+        logger.warn('Barcode not found', { barcode });
         toast.error('Product Not Found', {
           description: `No product found with barcode: ${barcode}.`,
           duration: 2000,
@@ -593,45 +596,52 @@ export function SupermarketPOS() {
                Manual Lookup
             </h3>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-1.5">
+            <div className="flex-1 overflow-hidden">
               {products.length > 0 ? (
-                products.map((p: any) => (
-                  <button
-                    key={p.productId}
-                    className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border bg-white dark:bg-zinc-900 hover:border-primary hover:ring-1 hover:ring-primary transition-all text-left group"
-                    onClick={() => {
-                      const variant = p.variants?.[0];
-                      const unit = p.sellableUnits?.find((u: any) => u.isBaseUnit) || p.sellableUnits?.[0];
-                      if (variant && unit) {
-                        addItemToOrder({
-                          ...p,
-                          variantId: variant.variantId,
-                          variantName: variant.variantName,
-                          name: p.productName,
-                          variants: p.variants?.map((v: any) => ({ ...v, name: v.variantName || v.name })),
-                        }, variant.variantId, { ...unit, originalRetailPrice: unit.price }, 1);
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={products}
+                  className="no-scrollbar"
+                  itemContent={(_, p: any) => (
+                    <div className="pb-1.5">
+                      <button
+                        key={p.productId}
+                        className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border bg-white dark:bg-zinc-900 hover:border-primary hover:ring-1 hover:ring-primary transition-all text-left group"
+                        onClick={() => {
+                          const variant = p.variants?.[0];
+                          const unit = p.sellableUnits?.find((u: any) => u.isBaseUnit) || p.sellableUnits?.[0];
+                          if (variant && unit) {
+                            addItemToOrder({
+                              ...p,
+                              variantId: variant.variantId,
+                              variantName: variant.variantName,
+                              name: p.productName,
+                              variants: p.variants?.map((v: any) => ({ ...v, name: v.variantName || v.name })),
+                            }, variant.variantId, { ...unit, originalRetailPrice: unit.price }, 1);
 
-                        setLastAddedItemId({
-                          productId: p.productId,
-                          variantId: variant.variantId,
-                          unitId: unit.unitId
-                        });
+                            setLastAddedItemId({
+                              productId: p.productId,
+                              variantId: variant.variantId,
+                              unitId: unit.unitId
+                            });
 
-                        setInputValue('');
-                        searchInputRef.current?.focus();
-                      }
-                    }}
-                  >
-                    <div className="w-9 h-9 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
-                      <Package className="w-4 h-4 text-zinc-400 group-hover:text-primary" />
+                            setInputValue('');
+                            searchInputRef.current?.focus();
+                          }
+                        }}
+                      >
+                        <div className="w-9 h-9 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                          <Package className="w-4 h-4 text-zinc-400 group-hover:text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-xs truncate">{p.productName}</p>
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-tight">{p.category || 'No Category'}</p>
+                        </div>
+                        <p className="font-black text-sm text-primary">{(p.sellableUnits?.[0]?.price || 0).toLocaleString()}</p>
+                      </button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-xs truncate">{p.productName}</p>
-                      <p className="text-[9px] text-muted-foreground uppercase tracking-tight">{p.category || 'No Category'}</p>
-                    </div>
-                    <p className="font-black text-sm text-primary">{(p.sellableUnits?.[0]?.price || 0).toLocaleString()}</p>
-                  </button>
-                ))
+                  )}
+                />
               ) : (
                  <div className="h-full flex flex-col items-center justify-center opacity-30 italic text-sm">
                    {inputValue ? "No products found matching your search" : "Start typing to search products"}
