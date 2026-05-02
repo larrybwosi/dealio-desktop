@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/sidebar';
 import { Calendar, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NotificationCenter } from '@/components/notification-center';
+import { NetworkStatusBadge } from './network-status-badge';
 import { NotificationSettingsDialog } from '@/components/notification-settings-dialog';
 import {
   AlertDialog,
@@ -76,6 +77,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
             </div>
 
             <div className="flex items-center gap-3">
+              <NetworkStatusBadge />
               <NotificationCenter />
               <Button variant="ghost" size="icon" onClick={() => setShowNotificationSettings(true)}>
                 <Settings className="h-5 w-5" />

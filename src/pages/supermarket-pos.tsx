@@ -197,24 +197,24 @@ export function SupermarketPOS() {
     return () => stopScanner();
   }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
+  const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
+  const taxAmount = subTotal * (taxRate / 100);
+  const total = subTotal + taxAmount;
+
   const handleCheckout = () => {
     checkOut();
     setShowCheckoutDialog(false);
   };
 
-  const handlePaymentComplete = useCallback((completedOrder: any) => {
+  const handlePaymentComplete = (completedOrder: any) => {
     setLastCompletedOrder(completedOrder);
     setPaymentDialogOpen(false);
     setReceiptDialogOpen(true);
     resetOrder();
-  }, [resetOrder]);
+  };
 
   const handleQuickPayExactCash = useCallback(async () => {
     if (currentOrder.items.length === 0 || isProcessingSale) return;
-
-    const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
-    const taxAmount = subTotal * (taxRate / 100);
-    const total = subTotal + taxAmount;
 
     const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
     const accountRef = Date.now().toString().slice(-6);
@@ -251,7 +251,6 @@ export function SupermarketPOS() {
     };
 
     try {
-      logger.info('Starting Quick Pay', { total, itemCount: currentOrder.items.length });
       const queuedSale: any = await createSale(payload);
 
       const completedOrder: any = {
@@ -278,15 +277,13 @@ export function SupermarketPOS() {
       }
 
       toast.success('Sale Completed (Exact Cash)');
-      logger.info('Quick Pay successful', { saleNumber });
       handlePaymentComplete(completedOrder);
     } catch (err: any) {
-      logger.error('Quick Pay failed', err, { payload });
       toast.error('Failed to complete Quick Pay', {
         description: err?.message || 'Unknown error',
       });
     }
-  }, [currentOrder.items, isProcessingSale, taxRate, locationId, createSale, settings.autoPrintConfig.openCashDrawer, openPhysicalDrawer, handlePaymentComplete]);
+  }, [currentOrder.items, isProcessingSale, locationId, total, createSale, subTotal, taxAmount, settings.autoPrintConfig.openCashDrawer, openPhysicalDrawer, handlePaymentComplete]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // F1 or / to focus search
@@ -369,10 +366,6 @@ export function SupermarketPOS() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
-
-  const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
-  const taxAmount = subTotal * (taxRate / 100);
-  const total = subTotal + taxAmount;
 
   return (
     <div className="flex flex-col h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">

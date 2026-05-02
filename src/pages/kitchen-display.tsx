@@ -395,13 +395,13 @@ function OrderCard({
             )}
           >
             <span className="font-mono text-[13px] font-bold text-[#e8a020] min-w-[20px] pt-px leading-tight">
-              ×{item.qty}
+              ×{item.quantity}
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-[13px] font-semibold text-[#f0f2f5] truncate leading-tight">
                 {item.name}
               </div>
-              {item.mod && (
+              {item.modifiers && (
                 <div
                   className={cn(
                     "text-[10px] truncate leading-tight mt-0.5",
@@ -413,7 +413,7 @@ function OrderCard({
                   {item.isAllergy && (
                     <AlertTriangle className="w-2.5 h-2.5 inline flex-shrink-0" />
                   )}
-                  {item.mod}
+                  {item.modifiers}
                 </div>
               )}
             </div>
