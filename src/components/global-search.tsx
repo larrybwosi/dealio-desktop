@@ -18,6 +18,11 @@ import {
   RefreshCw,
   FileText,
   Loader2,
+  Trash2,
+  Pause,
+  CreditCard,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 import {
@@ -35,6 +40,8 @@ import { useDebounce } from 'use-debounce';
 import { useAuth } from '@/hooks/use-auth';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { usePosStore } from '@/store/store';
+import { useTheme } from 'next-themes';
 
 interface GlobalSearchResult {
   products: any[];
@@ -125,6 +132,8 @@ export function GlobalSearch() {
 
   const navigate = useNavigate();
   const { checkOut } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const { currentOrder, resetOrder, holdCurrentOrder } = usePosStore();
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -399,6 +408,30 @@ export function GlobalSearch() {
               <CommandSeparator />
 
               <CommandGroup heading="Actions">
+                {currentOrder.items.length > 0 && (
+                  <>
+                    <CommandItem onSelect={() => runCommand(() => navigate('/'))}>
+                      <CreditCard className="mr-2 h-4 w-4 text-emerald-500" />
+                      <span>Checkout Current Order</span>
+                    </CommandItem>
+                    <CommandItem onSelect={() => runCommand(() => holdCurrentOrder())}>
+                      <Pause className="mr-2 h-4 w-4 text-amber-500" />
+                      <span>Hold Current Order</span>
+                    </CommandItem>
+                    <CommandItem onSelect={() => runCommand(() => resetOrder())}>
+                      <Trash2 className="mr-2 h-4 w-4 text-red-500" />
+                      <span>Clear Cart</span>
+                    </CommandItem>
+                  </>
+                )}
+                <CommandItem onSelect={() => runCommand(() => setTheme(theme === 'dark' ? 'light' : 'dark'))}>
+                  {theme === 'dark' ? (
+                    <Sun className="mr-2 h-4 w-4 text-yellow-500" />
+                  ) : (
+                    <Moon className="mr-2 h-4 w-4 text-slate-500" />
+                  )}
+                  <span>Toggle {theme === 'dark' ? 'Light' : 'Dark'} Mode</span>
+                </CommandItem>
                 <CommandItem onSelect={() => runCommand(() => checkOut())}>
                   <LogOut className="mr-2 h-4 w-4 text-red-500" />
                   <span>Check Out / Lock Session</span>

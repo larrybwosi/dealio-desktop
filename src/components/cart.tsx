@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { usePosStore } from '@/store/store';
+import { useUiStore } from '@/store/ui-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,6 +18,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package, Tag, ShieldCheck } from 'lucide-react';
+import { Kbd } from '@/components/ui/kbd';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -40,7 +42,12 @@ export function Cart() {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   // --- UI States ---
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const {
+    paymentDialogOpen, setPaymentDialogOpen,
+    holdOrderDialogOpen, setHoldOrderDialogOpen,
+    prescriptionDialogOpen, setPrescriptionDialogOpen
+  } = useUiStore();
+
   const [ageVerificationOpen, setAgeVerificationOpen] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
@@ -54,15 +61,16 @@ export function Cart() {
   const [editDosageInstructions, setEditDosageInstructions] = useState('');
   const [editUnitId, setEditUnitId] = useState('');
 
-  // --- Hold Sale States ---
-  const [showHoldDialog, setShowHoldDialog] = useState(false);
-  const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
+  // --- UI Control States ---
   const [showPharmacistVerification, setShowPharmacistVerification] = useState(false);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
   const [isPrintingBill, setIsPrintingBill] = useState(false);
 
   // --- Printer Hook ---
   const { printNative } = usePrinter();
+
+  const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const modifier = isMac ? '⌘' : 'Ctrl';
 
   // --- Store Hooks ---
   const currentOrder = usePosStore(state => state.currentOrder);
@@ -281,7 +289,7 @@ export function Cart() {
       setAgeVerified(false);
       resetOrder();
     },
-    [resetOrder]
+    [resetOrder, setPaymentDialogOpen]
   );
 
   const handleCloseReceipt = () => {
@@ -644,7 +652,7 @@ export function Cart() {
                 <Button
                   variant="outline"
                   className="col-span-1 h-12 flex-col gap-0.5 border-emerald-200 bg-emerald-50 text-emerald-700"
-                  onClick={() => setShowPrescriptionDialog(true)}
+                  onClick={() => setPrescriptionDialogOpen(true)}
                   disabled={currentOrder.items.length === 0}
                   title="Prescription"
                 >
@@ -656,13 +664,14 @@ export function Cart() {
               {enableHoldSale && (
                 <Button
                   variant="outline"
-                  className="col-span-1 h-12 flex-col gap-0.5 border-dashed"
-                  onClick={() => setShowHoldDialog(true)}
+                  className="col-span-1 h-12 flex-col gap-0.5 border-dashed relative group/btn"
+                  onClick={() => setHoldOrderDialogOpen(true)}
                   disabled={currentOrder.items.length === 0}
-                  title="Hold Order"
+                  title={`Hold Order (${modifier}+S)`}
                 >
                   <Pause className="w-4 h-4" />
                   <span className="text-[10px] font-medium">Hold</span>
+                  <Kbd className="absolute -top-2 -right-1 opacity-0 group-hover/btn:opacity-100 transition-opacity scale-75">S</Kbd>
                 </Button>
               )}
 
@@ -685,14 +694,16 @@ export function Cart() {
 
               <Button
                 className={cn(
-                  'h-12 shadow-md text-sm font-bold uppercase tracking-wide',
+                  'h-12 shadow-md text-sm font-bold uppercase tracking-wide relative group/btn',
                   (enableHoldSale && businessConfig.type === 'restaurant') ? 'col-span-3' :
                   (enableHoldSale || businessConfig.type === 'restaurant') ? 'col-span-4' : 'col-span-5'
                 )}
                 onClick={handleConfirmPayment}
                 disabled={currentOrder.items.length === 0}
+                title={`Checkout (${modifier}+Enter)`}
               >
                 Checkout
+                <Kbd className="absolute -top-2 -right-1 opacity-0 group-hover/btn:opacity-100 transition-opacity scale-75 text-primary-foreground bg-primary-foreground/20">↵</Kbd>
               </Button>
             </div>
 
@@ -852,10 +863,10 @@ export function Cart() {
       />
 
       {/* Hold Sale Dialogs (Enterprise) */}
-      <HoldOrderDialog open={showHoldDialog} onOpenChange={setShowHoldDialog} />
+      <HoldOrderDialog open={holdOrderDialogOpen} onOpenChange={setHoldOrderDialogOpen} />
 
       {/* Pharmacy Dialogs */}
-      <PrescriptionDialog open={showPrescriptionDialog} onOpenChange={setShowPrescriptionDialog} />
+      <PrescriptionDialog open={prescriptionDialogOpen} onOpenChange={setPrescriptionDialogOpen} />
 
       <Dialog open={showPharmacistVerification} onOpenChange={setShowPharmacistVerification}>
         <DialogContent className="sm:max-w-[400px]">

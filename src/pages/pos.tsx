@@ -32,6 +32,7 @@ import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
 import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
+import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Pagination,
@@ -59,12 +60,15 @@ export function POS() {
 
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+
   const [showTableSelector, setShowTableSelector] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
 
   // Initialize scanner hook
   const { startScanner, stopScanner, isConnected, lastScanned, error: scannerError } = useScanner();
+
+  // Shortcuts are now managed centrally in AppLayout
 
   // 2. Fetching Logic
   const { products, isSyncing, triggerSync, totalCount } = usePosProducts({
@@ -166,18 +170,28 @@ export function POS() {
   }, [selectedProductForAlternatives, products]);
 
   // 6. Global Keyboard Shortcuts
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === 'Escape') {
-        setInputValue('');
-        setPage(1);
-        searchInputRef.current?.blur();
+        if (inputValueRef.current) {
+          setInputValue('');
+          setPage(1);
+          searchInputRef.current?.focus();
+        } else {
+          searchInputRef.current?.blur();
+        }
       } else if (e.key.length === 1) {
         if (/[a-zA-Z0-9]/.test(e.key)) {
-          searchInputRef.current?.focus();
+          // If not focused, focus and let the event propagate
+          if (document.activeElement !== searchInputRef.current) {
+             searchInputRef.current?.focus();
+          }
         }
       }
     };
@@ -386,8 +400,13 @@ export function POS() {
               placeholder={businessConfig.type === 'supermarket' ? 'Search products manually...' : 'Search products...'}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
-              className="pl-9 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
+              className="pl-9 pr-12 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
             />
+            {!inputValue && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-focus-within:opacity-0 transition-opacity">
+                <Kbd>/</Kbd>
+              </div>
+            )}
             {inputValue && (
               <button
                 onClick={clearSearch}
