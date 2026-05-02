@@ -15,6 +15,8 @@ import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
+import { usePrinter } from '@/hooks/use-printer';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReceiptPreviewWrapper } from './pos/receipt-preview-wrapper';
 
@@ -96,6 +98,7 @@ interface ActionPanelProps {
   completedOrder: any;
   formattedOrder: Order;
   onPrint: () => void;
+  onPrintLabels: () => void;
   onDownload: () => void;
   onClose: () => void;
   isPrinting: boolean;

@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import posthog from 'posthog-js';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
 import { ProductListItem } from '@/components/pos/product-list-item';
