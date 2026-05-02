@@ -30,6 +30,7 @@ import KDSPage from './pages/kitchen-display';
 import HubOverviewPage from './pages/hub-overview';
 import ProductManagementPage from './pages/product-management';
 import StandaloneSetup from './pages/standalone-setup';
+import LogsPage from './pages/logs-page';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -129,6 +130,7 @@ const AppRoutes = () => {
         <Route path="/shift-manager" element={<ShiftManager />} />
 
         <Route path="/product-management" element={<ProductManagementPage />} />
+        <Route path="/logs" element={<LogsPage />} />
       </Route>
 
       {/* Routes without AppLayout */}
