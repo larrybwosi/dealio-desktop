@@ -1,4 +1,4 @@
-use tauri::{AppHandle, command, State, Manager};
+use tauri::{AppHandle, command, State};
 use crate::stores::product_store::{self, ProductState};
 use crate::stores::auth_store::AuthState;
 use crate::stores::customer_store::{self, CustomerState};
@@ -45,7 +45,7 @@ pub async fn push_local_to_cloud(
     let mut product_count = 0;
     for product in products_res.products {
         let path = crate::api_config::routes::PRODUCTS;
-        let mut product_to_push = product.clone();
+        let product_to_push = product.clone();
         // The API might expect product_id to be empty for new products or handle it
         let req = auth_state.build_request(reqwest::Method::POST, path).map_err(|e| e.to_string())?
             .json(&product_to_push);

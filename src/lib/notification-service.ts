@@ -86,10 +86,16 @@ class NotificationService {
     }
 
     // Monitor window visibility
-    const currentWindow = getCurrentWindow();
-    currentWindow.onFocusChanged(({ payload: focused }) => {
-      this.isWindowVisible = focused;
-    });
+    try {
+      const currentWindow = getCurrentWindow();
+      if (currentWindow) {
+        currentWindow.onFocusChanged(({ payload: focused }) => {
+          this.isWindowVisible = focused;
+        });
+      }
+    } catch (e) {
+      console.warn('[NotificationService] Failed to get current window, possibly not running in Tauri:', e);
+    }
 
     // Listen for notifications pushed from the backend
     await listen<AppNotification>('notification-received', event => {

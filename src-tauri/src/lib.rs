@@ -16,6 +16,7 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
+use scanner_manager::ScannerState;
 
 // Features enabled by default, but excluded in standalone mode
 #[cfg(not(feature = "standalone"))]
@@ -58,9 +59,9 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
-#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+#[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
 mod kds_hub_server;
-#[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+#[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
 mod kds_models;
 mod utils;
 
@@ -134,6 +135,7 @@ pub fn run() {
         .manage(NetworkState::new())
         .manage(CustomerScreenState::new())
         .manage(sales_store::SyncConfigState::new())
+        .manage(ScannerState::default())
         .setup(|app| {
             capture_event("app_started", None);
 
@@ -472,15 +474,15 @@ pub fn run() {
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
-            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::start_kds_hub,
-            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::stop_kds_hub,
-            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::get_hub_status,
-            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::get_connected_devices,
-            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
             #[cfg(feature = "restaurant")]
