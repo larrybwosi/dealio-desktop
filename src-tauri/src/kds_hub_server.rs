@@ -13,7 +13,7 @@ use std::net::SocketAddr;
 use tokio::sync::{broadcast, oneshot};
 use tokio::time::{sleep, Duration};
 use futures_util::{sink::SinkExt, stream::StreamExt};
-use tauri::{AppHandle, Manager, State as TauriState};
+use tauri::{AppHandle, Manager, Emitter, State as TauriState};
 use crate::kds_models::{WsMessage, AssignmentPayload};
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
