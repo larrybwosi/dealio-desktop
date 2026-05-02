@@ -178,9 +178,14 @@ async fn migrate_legacy_files_to_db(app: &AppHandle, pool: &SqlitePool) -> Resul
 
 pub(crate) fn build_search_text(product: &PosProduct) -> String {
     let mut terms = vec![product.product_name.to_lowercase()];
+    if let Some(ai) = &product.active_ingredient {
+        terms.push(ai.to_lowercase());
+    }
     for variant in &product.variants {
         terms.push(variant.sku.to_lowercase());
-        if let Some(barcode) = &variant.barcode { terms.push(barcode.to_lowercase()); }
+        if let Some(barcode) = &variant.barcode {
+            terms.push(barcode.to_lowercase());
+        }
         terms.push(variant.variant_name.to_lowercase());
     }
     terms.join(" ")
@@ -368,6 +373,27 @@ pub async fn deduct_stock(
                     if !allow_negative && variant.stock < deducted_qty {
                         return Err(anyhow::anyhow!("Insufficient stock for {}: requested {}, available {}", product.product_name, deducted_qty, variant.stock));
                     }
+
+                    // Pharmacy: Deduct from batches if they exist (FEFO)
+                    if let Some(batches) = variant.batches.as_mut() {
+                        let mut remaining_to_deduct = deducted_qty;
+                        // Sort by expiry date ascending
+                        batches.sort_by(|a, b| a.expiry_date.cmp(&b.expiry_date));
+
+                        for batch in batches.iter_mut() {
+                            if remaining_to_deduct <= 0 { break; }
+                            let deduct_from_batch = remaining_to_deduct.min(batch.stock);
+                            batch.stock -= deduct_from_batch;
+                            remaining_to_deduct -= deduct_from_batch;
+                        }
+
+                        if remaining_to_deduct > 0 && allow_negative {
+                            if let Some(last_batch) = batches.last_mut() {
+                                last_batch.stock -= remaining_to_deduct;
+                            }
+                        }
+                    }
+
                     variant.stock -= deducted_qty;
 
                     if let Some(total) = product.total_stock.as_mut() { *total -= deducted_qty; }

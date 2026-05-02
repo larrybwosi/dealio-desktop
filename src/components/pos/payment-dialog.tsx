@@ -8,6 +8,7 @@ import {
   CreditCard,
   Smartphone,
   ReceiptText,
+  ShieldCheck,
   Loader2,
   Crown,
   Star,
@@ -72,7 +73,7 @@ interface AddedPayment {
 
 type MpesaMode = 'STK' | 'PAYBILL' | 'BUY_GOODS' | 'QR';
 type MpesaStatus = 'IDLE' | 'WAITING' | 'SUCCESS' | 'FAILED';
-type PaymentTab = 'CASH' | 'MOBILE_PAYMENT' | 'CREDIT_CARD' | 'GIFT_CARD';
+type PaymentTab = 'CASH' | 'MOBILE_PAYMENT' | 'CREDIT_CARD' | 'GIFT_CARD' | 'INSURANCE';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +104,7 @@ const PAYMENT_METHODS: { id: PaymentTab; label: string; icon: React.ReactNode }[
   { id: 'MOBILE_PAYMENT', label: 'M-Pesa', icon: <Smartphone className="w-4 h-4" /> },
   { id: 'CREDIT_CARD', label: 'Card', icon: <CreditCard className="w-4 h-4" /> },
   { id: 'GIFT_CARD', label: 'Gift Card', icon: <Gift className="w-4 h-4" /> },
+  { id: 'INSURANCE', label: 'Insurance', icon: <ShieldCheck className="w-4 h-4" /> },
 ];
 
 const CASH_PRESETS = [50, 100, 200, 500, 1000];
@@ -148,6 +150,7 @@ const PaymentMethodIcon = ({ method }: { method: PaymentMethod }) => {
     [PaymentMethod.MPESA]: <Smartphone className="w-4 h-4" />,
     [PaymentMethod.CREDIT]: <CreditCard className="w-4 h-4" />,
     [PaymentMethod.GIFT_CARD]: <Gift className="w-4 h-4" />,
+    [PaymentMethod.INSURANCE]: <ShieldCheck className="w-4 h-4" />,
   };
   return <>{icons[method] ?? <Wallet className="w-4 h-4" />}</>;
 };
@@ -263,6 +266,10 @@ const PaymentModal = ({
   // Gift Card
   const [giftCardCode, setGiftCardCode] = useState('');
   const { validateGiftCard, isLoading: isValidatingGC } = useGiftCard();
+
+  // Insurance
+  const [insuranceProvider, setInsuranceProvider] = useState((customer as any)?.insuranceProvider || '');
+  const [policyNumber, setPolicyNumber] = useState((customer as any)?.policyNumber || '');
 
   // M-Pesa
   const [mpesaMode, setMpesaMode] = useState<MpesaMode>('STK');
@@ -469,6 +476,17 @@ const PaymentModal = ({
     addPayment({ method: PaymentMethod.CREDIT, amount, reference: 'Terminal' });
   };
 
+  const handleAddInsurance = () => {
+    const amount = parseFloat(amountInput);
+    if (!amount || amount <= 0) return;
+    addPayment({
+      method: PaymentMethod.INSURANCE,
+      amount,
+      reference: insuranceProvider,
+      meta: { insuranceProvider, policyNumber },
+    });
+  };
+
   const handleGiftCardScan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!giftCardCode) return;
@@ -564,6 +582,9 @@ const PaymentModal = ({
       enableStockTracking: true,
       notes: finalNotes,
       discountAmount: editableDiscount,
+      // Pharmacy fields
+      prescriptionId: (usePosStore.getState().currentOrder as any).prescriptionId,
+      doctorName: (usePosStore.getState().currentOrder as any).doctorName,
     };
   };
 
@@ -1017,6 +1038,54 @@ const PaymentModal = ({
                         disabled={!amountInput || parseFloat(amountInput) <= 0}
                       >
                         <Plus className="w-4 h-4" /> Record Card Payment
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* ─ INSURANCE ─ */}
+                  {selectedTab === 'INSURANCE' && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase text-muted-foreground">Provider</Label>
+                          <Input
+                            value={insuranceProvider}
+                            onChange={e => setInsuranceProvider(e.target.value)}
+                            placeholder="e.g. Aetna"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase text-muted-foreground">Policy #</Label>
+                          <Input
+                            value={policyNumber}
+                            onChange={e => setPolicyNumber(e.target.value)}
+                            placeholder="ID Number"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Co-pay Amount</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                            KSh
+                          </span>
+                          <Input
+                            type="number"
+                            value={amountInput}
+                            onChange={e => setAmountInput(e.target.value)}
+                            className="pl-12 text-xl font-bold h-14 no-spinners"
+                            placeholder={remainingBalance.toFixed(2)}
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        className="w-full h-12 font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={handleAddInsurance}
+                        disabled={!amountInput || parseFloat(amountInput) <= 0 || !insuranceProvider}
+                      >
+                        <ShieldCheck className="w-4 h-4" /> Record Insurance Claim
                       </Button>
                     </div>
                   )}

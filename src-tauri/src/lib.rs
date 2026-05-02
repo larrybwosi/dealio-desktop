@@ -16,6 +16,8 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
+
+// Features enabled by default, but excluded in standalone mode
 #[cfg(not(feature = "standalone"))]
 mod stock_acceptance;
 #[cfg(not(feature = "standalone"))]
@@ -79,7 +81,6 @@ pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
         }
     }
 
-    // Fire and forget. The background thread handles the rest.
     #[cfg(not(debug_assertions))]
     capture(builder.build());
 }
@@ -95,16 +96,12 @@ pub fn run() {
         .unwrap();
     let _guard = rt.enter();
 
-    // --- POSTHOG INITIALIZATION (NEW) ---
-    // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
     #[cfg(not(debug_assertions))]
     let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
         api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
         ..Default::default()
     });
-    // ------------------------------------
 
-    // --- SENTRY INITIALIZATION ---
     #[cfg(not(debug_assertions))]
     let client = sentry::init((
         dotenv!("SENTRY_DSN"),
@@ -115,10 +112,8 @@ pub fn run() {
         },
     ));
 
-    // Also combine the iOS check with the debug check
     #[cfg(all(not(debug_assertions), not(target_os = "ios")))]
     let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
-    // -----------------------------
 
     #[cfg(not(debug_assertions))]
     let builder = tauri::Builder::default()
@@ -142,18 +137,13 @@ pub fn run() {
         .setup(|app| {
             capture_event("app_started", None);
 
-            // Initialize the SQLite DBs and run migrations
             tauri::async_runtime::block_on(product_store::init_state(app.handle()));
             tauri::async_runtime::block_on(customer_store::init_state(app.handle()));
             tauri::async_runtime::block_on(pricing_store::init_state(app.handle()));
             tauri::async_runtime::block_on(shift_store::init_state(app.handle()));
             tauri::async_runtime::block_on(audit_store::init_state(app.handle()));
 
-            // Note: We can't load products at startup since we need location_id
-            // Products will be loaded when the device is configured/location is set
             let state = app.state::<ProductState>();
-
-            // Try to load products for the configured location if available
             let auth_state_init = app.state::<AuthState>();
             let location_id_opt = {
                 let config_guard = auth_state_init
@@ -173,14 +163,12 @@ pub fn run() {
                     );
                 }
             } else if cfg!(feature = "standalone") {
-                // For standalone, always try to load products even if not "configured" yet
                 let _ = tauri::async_runtime::block_on(
                     product_store::load_products_from_disk(app.handle(), &state, "standalone"),
                 );
             }
 
             let cust_state = app.state::<CustomerState>();
-
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_store::load_customers_from_disk(app.handle(), &cust_state),
             ) {
@@ -189,10 +177,10 @@ pub fn run() {
 
             let sales_state = app.state::<SalesState>();
             tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
+            
             #[cfg(not(feature = "standalone"))]
             sales_store::start_auto_sync_task(app.handle().clone());
 
-            // Initialize Table Store DB
             #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
                 error!("Failed to initialize table database: {}", e);
@@ -214,7 +202,6 @@ pub fn run() {
             #[cfg(not(feature = "standalone"))]
             let notification_state = app.state::<NotificationState>();
 
-            // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_screen_state.load_from_store(app.handle()),
@@ -222,47 +209,39 @@ pub fn run() {
                 error!("Failed to load customer screen state: {}", e);
             }
 
-            // Check for old pending sales and notify user
-            #[cfg(not(feature = "standalone"))]
-            let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
-                app.handle().clone(),
-                &sales_state,
-                3,
-            ));
-
-            #[cfg(not(feature = "standalone"))]
-            if !old_sales.is_empty() {
-                let notification = notification_manager::AppNotification::new(
-                    notification_manager::NotificationType::Warning,
-                    notification_manager::NotificationPriority::High,
-                    "Old Pending Sales Detected".to_string(),
-                    format!(
-                        "You have {} pending sales older than 3 days. Please connect to the internet to sync them and avoid data loss.",
-                        old_sales.len()
-                    ),
-                );
-                notification_state.add_notification(notification.clone());
-                let _ = tauri::async_runtime::block_on(notification_manager::save_notification_to_db(app.handle(), &notification));
-
-                // Send native notification
-                let _ = app.emit("old-sales-detected", old_sales.len());
-            }
-
-            // Check for failed sales and notify
             #[cfg(not(feature = "standalone"))]
             {
+                let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
+                    app.handle().clone(),
+                    &sales_state,
+                    3,
+                ));
+
+                if !old_sales.is_empty() {
+                    let notification = notification_manager::AppNotification::new(
+                        notification_manager::NotificationType::Warning,
+                        notification_manager::NotificationPriority::High,
+                        "Old Pending Sales Detected".to_string(),
+                        format!(
+                            "You have {} pending sales older than 3 days. Please sync them to avoid data loss.",
+                            old_sales.len()
+                        ),
+                    );
+                    notification_state.add_notification(notification.clone());
+                    let _ = tauri::async_runtime::block_on(notification_manager::save_notification_to_db(app.handle(), &notification));
+                    let _ = app.emit("old-sales-detected", old_sales.len());
+                }
+
                 let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
                     app.handle().clone(),
                     &sales_state,
                     5,
                 ));
-
                 if !failed_sales.is_empty() {
                     let _ = app.emit("failed-sales-detected", failed_sales);
                 }
             }
 
-            // Start network monitoring
             let auth_state_ref = app.state::<AuthState>();
             let initial_base_url = {
                 let config_guard = auth_state_ref
@@ -277,10 +256,6 @@ pub fn run() {
                 network_state.set_base_url(url);
             }
 
-            // --- Customer Screen Auto-Open ---
-            let customer_screen_state = app.state::<CustomerScreenState>();
-
-            // Auto-open customer screen if enabled
             if customer_screen_state.is_enabled() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -290,13 +265,7 @@ pub fn run() {
                 });
             }
 
-            // --- 2. Startup Visibility Logic (NEW) ---
-            // Get command line arguments
             let args: Vec<String> = std::env::args().collect();
-
-            // We check if the flag "--minimized" is present.
-            // If it is NOT present, we show the window.
-            // If it IS present, we do nothing (window remains hidden per tauri.conf.json).
             if !args.contains(&"--minimized".to_string()) {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
@@ -304,12 +273,10 @@ pub fn run() {
                 }
             }
 
-            // --- 3. System Tray (Existing Code) ---
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show Main Window", true, None::<&str>)?;
             let hide_i = MenuItem::with_id(app, "hide", "Hide Main Window", true, None::<&str>)?;
-            let customer_i =
-                MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
+            let customer_i = MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
 
             let menu = Menu::with_items(app, &[&show_i, &hide_i, &customer_i, &sep, &quit_i])?;
@@ -336,19 +303,14 @@ pub fn run() {
                         let state = app.state::<CustomerScreenState>();
                         if state.is_enabled() {
                             tauri::async_runtime::spawn(async move {
-                                let _ =
-                                    customer_screen_state::open_customer_screen(app_handle).await;
+                                let _ = customer_screen_state::open_customer_screen(app_handle).await;
                             });
                         }
                     }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        ..
-                    } = event
-                    {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
@@ -366,12 +328,9 @@ pub fn run() {
                     api.prevent_close();
                     let _ = window.hide();
                 } else if window.label() == "customer" {
-                    // Handle native customer window closing
                     let app_handle = window.app_handle().clone();
                     let state = app_handle.state::<CustomerScreenState>();
                     state.set_enabled(false);
-
-                    // Save asynchronously
                     tauri::async_runtime::spawn(async move {
                         let state = app_handle.state::<CustomerScreenState>();
                         let _ = state.save_to_store(&app_handle).await;
@@ -379,13 +338,7 @@ pub fn run() {
                 }
             }
         })
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
-                .max_file_size(5_000_000) // 5 MB per file
-                .build(),
-        )
+        .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -452,6 +405,7 @@ pub fn run() {
             printer_manager::print_receipt_native,
             printer_manager::print_kitchen_native,
             printer_manager::print_bar_native,
+            printer_manager::print_pharmacy_labels,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,
@@ -499,6 +453,8 @@ pub fn run() {
             auth_store::get_ably_auth_token_command,
             #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             auth_store::start_device_setup_command,
+            
+            // Stock Acceptance - Only disabled in standalone
             #[cfg(not(feature = "standalone"))]
             stock_acceptance::save_document_locally,
             #[cfg(not(feature = "standalone"))]
@@ -511,6 +467,7 @@ pub fn run() {
             stock_acceptance::submit_stock_process,
             #[cfg(not(feature = "standalone"))]
             stock_transfer::submit_stock_transfer,
+
             http_server::start_file_server,
             audit_store::write_audit_log,
             audit_store::get_audit_logs,

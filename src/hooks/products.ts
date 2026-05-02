@@ -21,6 +21,13 @@ export interface Variant {
   updatedAt?: string;
 }
 
+export interface Batch {
+  batchNumber: string;
+  expiryDate: string;
+  manufacturingDate?: string;
+  stock: number;
+}
+
 export interface PosProduct {
   productId: string;
   productName: string;
@@ -34,8 +41,9 @@ export interface PosProduct {
   stock: number;
   totalStock?: number;
   sellableUnits: SellableUnit[];
-  variants: Variant[];
+  variants: (Variant & { batches?: Batch[] })[];
   updatedAt?: string;
+  activeIngredient?: string;
 }
 
 interface UsePosProductsParams {

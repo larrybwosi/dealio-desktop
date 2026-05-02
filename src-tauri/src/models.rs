@@ -54,6 +54,9 @@ pub struct PosProduct {
     pub total_stock: Option<i32>,
 
     pub variants: Vec<Variant>,
+
+    // Pharmacy features
+    pub active_ingredient: Option<String>,
 }
 
 // --- 2. Variant ---
@@ -74,6 +77,18 @@ pub struct Variant {
     pub stock: i32,
 
     pub sellable_units: Vec<SellableUnit>,
+
+    // Pharmacy features
+    pub batches: Option<Vec<Batch>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Batch {
+    pub batch_number: String,
+    pub expiry_date: String, // ISO String
+    pub manufacturing_date: Option<String>,
+    pub stock: i32,
 }
 
 // --- Custom Deserializers ---
@@ -182,6 +197,13 @@ pub struct PosCustomer {
     pub primary_address: Option<String>,
 
     pub updated_at: Option<String>,
+
+    // Pharmacy features
+    pub medical_history: Option<String>,
+    pub allergies: Option<String>,
+    pub chronic_conditions: Option<String>,
+    pub insurance_provider: Option<String>,
+    pub policy_number: Option<String>,
 }
 
 // --- SALES ---

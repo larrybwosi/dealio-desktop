@@ -29,6 +29,7 @@ export enum PaymentMethod {
   ON_ACCOUNT = 'ON_ACCOUNT',
   MPESA = 'MPESA',
   SPLIT = 'SPLIT',
+  INSURANCE = 'INSURANCE',
   OTHER = 'OTHER',
 }
 
