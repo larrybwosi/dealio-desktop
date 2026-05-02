@@ -16,7 +16,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package } from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package, Tag, ShieldCheck } from 'lucide-react';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -26,6 +26,7 @@ import { ReceiptDialog } from '@/components/receipt-dialog';
 import { cn } from '@/lib/utils';
 import { emitTo } from '@tauri-apps/api/event';
 import { HeldOrdersDialog } from '@/components/held-orders-dialog';
+import { PrescriptionDialog } from '@/components/pos/prescription-dialog';
 import { HoldOrderDialog } from '@/components/hold-order-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { usePrinter } from '@/hooks/use-printer';
@@ -50,10 +51,13 @@ export function Cart() {
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [editQuantity, setEditQuantity] = useState(1);
   const [editNotes, setEditNotes] = useState('');
+  const [editDosageInstructions, setEditDosageInstructions] = useState('');
   const [editUnitId, setEditUnitId] = useState('');
 
   // --- Hold Sale States ---
   const [showHoldDialog, setShowHoldDialog] = useState(false);
+  const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
+  const [showPharmacistVerification, setShowPharmacistVerification] = useState(false);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
   const [isPrintingBill, setIsPrintingBill] = useState(false);
 
@@ -191,6 +195,7 @@ export function Cart() {
     setEditingItem(item);
     setEditQuantity(item.quantity);
     setEditNotes(item.notes || '');
+    setEditDosageInstructions(item.dosageInstructions || '');
     setEditUnitId(item.selectedUnit?.unitId || '');
     setIsEditDialogOpen(true);
   };
@@ -223,6 +228,7 @@ export function Cart() {
       ...editingItem,
       quantity: editQuantity,
       notes: editNotes,
+      dosageInstructions: editDosageInstructions,
       price: newPrice, // CRITICAL: Update the root price
       selectedUnit: newUnit,
       originalUnitId: editingItem.selectedUnit?.unitId,
@@ -231,7 +237,30 @@ export function Cart() {
     setEditingItem(null);
   };
 
+  const hasPrescriptionItems = useMemo(() => {
+    return currentOrder.items.some(item => item.requiresPrescription);
+  }, [currentOrder.items]);
+
   const handleConfirmPayment = () => {
+    if (businessConfig.type === 'pharmacy' && hasPrescriptionItems && !currentOrder.isPharmacistVerified) {
+      setShowPharmacistVerification(true);
+      return;
+    }
+
+    if (requiresAgeVerification && !ageVerified) {
+      setAgeVerificationOpen(true);
+    } else {
+      setPaymentDialogOpen(true);
+    }
+  };
+
+  const handlePharmacistVerify = () => {
+    usePosStore.setState(state => ({
+      currentOrder: { ...state.currentOrder, isPharmacistVerified: true }
+    }));
+    setShowPharmacistVerification(false);
+
+    // Proceed to next step
     if (requiresAgeVerification && !ageVerified) {
       setAgeVerificationOpen(true);
     } else {
@@ -611,6 +640,19 @@ export function Cart() {
 
             {/* Main Actions */}
             <div className="grid grid-cols-5 gap-2">
+              {businessConfig.type === 'pharmacy' && (
+                <Button
+                  variant="outline"
+                  className="col-span-1 h-12 flex-col gap-0.5 border-emerald-200 bg-emerald-50 text-emerald-700"
+                  onClick={() => setShowPrescriptionDialog(true)}
+                  disabled={currentOrder.items.length === 0}
+                  title="Prescription"
+                >
+                  <ReceiptText className="w-4 h-4" />
+                  <span className="text-[10px] font-medium">RX</span>
+                </Button>
+              )}
+
               {enableHoldSale && (
                 <Button
                   variant="outline"
@@ -755,9 +797,25 @@ export function Cart() {
                 onChange={e => setEditNotes(e.target.value)}
                 placeholder="e.g., No Sugar, Extra Spicy..."
                 className="resize-none"
-                rows={3}
+                rows={2}
               />
             </div>
+
+            {businessConfig.type === 'pharmacy' && (
+              <div className="grid gap-2">
+                <Label htmlFor="dosage" className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5" /> Dosage Instructions
+                </Label>
+                <Textarea
+                  id="dosage"
+                  value={editDosageInstructions}
+                  onChange={e => setEditDosageInstructions(e.target.value)}
+                  placeholder="e.g., Take 1 tablet twice daily after meals"
+                  className="resize-none border-emerald-200 focus-visible:ring-emerald-500"
+                  rows={2}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
@@ -795,6 +853,38 @@ export function Cart() {
 
       {/* Hold Sale Dialogs (Enterprise) */}
       <HoldOrderDialog open={showHoldDialog} onOpenChange={setShowHoldDialog} />
+
+      {/* Pharmacy Dialogs */}
+      <PrescriptionDialog open={showPrescriptionDialog} onOpenChange={setShowPrescriptionDialog} />
+
+      <Dialog open={showPharmacistVerification} onOpenChange={setShowPharmacistVerification}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600">
+              <ShieldCheck className="w-5 h-5" />
+              Pharmacist Verification Required
+            </DialogTitle>
+            <DialogDescription>
+              This order contains prescription-only items. A registered pharmacist must verify this order before proceeding.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 flex items-center gap-3">
+            <User className="w-10 h-10 text-emerald-600" />
+            <div>
+              <p className="text-sm font-bold text-emerald-900">Verification Step</p>
+              <p className="text-xs text-emerald-700">Please confirm that you have reviewed the prescription and the items.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowPharmacistVerification(false)}>
+              Cancel
+            </Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handlePharmacistVerify}>
+              Verify & Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <HeldOrdersDialog open={showHeldOrdersDialog} onOpenChange={setShowHeldOrdersDialog} />
     </>

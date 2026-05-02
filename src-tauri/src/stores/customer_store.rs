@@ -46,13 +46,16 @@ async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+    let db_name = if cfg!(feature = "standalone") {
+        "sqlite:pos_standalone.db"
+    } else {
+        MAIN_DB_NAME
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
         Ok(pool.clone())
     } else {
-        Err(format!(
-            "Database {} not found. Ensure it is preloaded via tauri.conf.json.",
-            MAIN_DB_NAME
-        ))
+        Err(format!("Database {} not found.", db_name))
     }
 }
 
@@ -217,9 +220,21 @@ async fn migrate_legacy_file_to_db(app: &AppHandle, pool: &SqlitePool) -> Result
 
 fn build_search_text(c: &PosCustomer) -> String {
     let mut terms = vec![c.name.to_lowercase()];
-    if let Some(p) = &c.phone { terms.push(p.to_lowercase()); }
-    if let Some(e) = &c.email { terms.push(e.to_lowercase()); }
-    if let Some(comp) = &c.company { terms.push(comp.to_lowercase()); }
+    if let Some(p) = &c.phone {
+        terms.push(p.to_lowercase());
+    }
+    if let Some(e) = &c.email {
+        terms.push(e.to_lowercase());
+    }
+    if let Some(comp) = &c.company {
+        terms.push(comp.to_lowercase());
+    }
+    if let Some(ip) = &c.insurance_provider {
+        terms.push(ip.to_lowercase());
+    }
+    if let Some(pn) = &c.policy_number {
+        terms.push(pn.to_lowercase());
+    }
     terms.join(" ")
 }
 
@@ -377,6 +392,38 @@ pub async fn get_customers_by_ids(app: &AppHandle, _state: &CustomerState, ids: 
 }
 
 pub async fn create_customer(
+    app: AppHandle,
+    _state: &CustomerState,
+    auth_state: &AuthState,
+    payload: serde_json::Value,
+) -> Result<PosCustomer> {
+    if cfg!(feature = "standalone") {
+        let mut new_customer: PosCustomer = serde_json::from_value(payload)?;
+        if new_customer.id.is_empty() {
+            new_customer.id = uuid::Uuid::now_v7().to_string();
+        }
+
+        let pool = get_db_pool(&app).await.map_err(|e| anyhow::anyhow!(e))?;
+        let search_text = build_search_text(&new_customer);
+        let encrypted_payload = encrypt_payload(&new_customer).await?;
+
+        sqlx::query("INSERT OR REPLACE INTO customers (id, name, phone, email, search_text, payload) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+            .bind(&new_customer.id)
+            .bind(&new_customer.name)
+            .bind(&new_customer.phone)
+            .bind(&new_customer.email)
+            .bind(search_text)
+            .bind(encrypted_payload)
+            .execute(&pool)
+            .await.map_err(|e| anyhow::anyhow!(e))?;
+
+        return Ok(new_customer);
+    }
+
+    create_customer_cloud(app, _state, auth_state, payload).await
+}
+
+pub async fn create_customer_cloud(
     app: AppHandle,
     _state: &CustomerState,
     auth_state: &AuthState,

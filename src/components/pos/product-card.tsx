@@ -33,16 +33,18 @@ interface Product {
   imageUrl?: string;
   totalStock: number;
   variants: Variant[];
+  activeIngredient?: string;
 }
 
 interface ProductProps {
   product: Product;
   onAddToCart: (item: any) => void;
+  onSelectProduct?: (product: any) => void;
   pricingMode: 'retail' | 'wholesale';
   customPriceCalculator?: (variantId: string, unitId: string, isBaseUnit?: boolean) => number | null;
 }
 
-export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPriceCalculator }: ProductProps) => {
+export const ProductCard = memo(({ product, onAddToCart, onSelectProduct, pricingMode, customPriceCalculator }: ProductProps) => {
   const selectedVariantId = product.variants[0]?.variantId;
 
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
@@ -145,10 +147,17 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
     setQty(val);
   };
 
+  const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
+
   return (
     <>
       <Card
-        onClick={() => hasMultipleUnits && setShowUnitSelection(true)}
+        onClick={() => {
+          if (businessMode === 'pharmacy' && onSelectProduct) {
+            onSelectProduct(product);
+          }
+          if (hasMultipleUnits) setShowUnitSelection(true);
+        }}
         className={cn(
           'group relative flex flex-col h-full overflow-hidden border-border transition-all duration-300',
           'hover:shadow-md hover:border-primary/40 bg-card rounded-sm',
@@ -177,6 +186,11 @@ export const ProductCard = memo(({ product, onAddToCart, pricingMode, customPric
 
           {/* Status Badges Overlay */}
           <div className="absolute top-2 left-2 flex flex-col gap-1 z-10">
+            {product.activeIngredient && (
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm text-[9px] font-bold uppercase truncate max-w-[120px]">
+                {product.activeIngredient}
+              </Badge>
+            )}
             {isOutOfStock && (
               <Badge variant="destructive" className="shadow-sm font-semibold uppercase text-[10px] tracking-wider">
                 Sold Out

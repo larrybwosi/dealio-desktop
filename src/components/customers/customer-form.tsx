@@ -15,6 +15,8 @@ import {
   Building2,
   Briefcase,
   CreditCard,
+  Stethoscope,
+  ShieldCheck,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -105,6 +107,13 @@ export default function CustomerForm({
     // Business Fields
     isBusiness: !!customer?.businessAccountId,
     taxId: customer?.businessAccount?.taxId || '',
+
+    // Pharmacy Fields
+    medicalHistory: (customer as any)?.medicalHistory || '',
+    allergies: (customer as any)?.allergies || '',
+    chronicConditions: (customer as any)?.chronicConditions || '',
+    insuranceProvider: (customer as any)?.insuranceProvider || '',
+    policyNumber: (customer as any)?.policyNumber || '',
 
     addresses:
       customer?.addresses?.map(addr => ({
@@ -239,7 +248,16 @@ export default function CustomerForm({
     try {
       const validatedData = CustomerFormSchema.parse(formData);
       // Pass raw formData to ensure isBusiness/taxId are included if the schema hasn't been fully updated in the imported file yet
-      onSubmit({ ...validatedData, isBusiness: formData.isBusiness, taxId: formData.taxId });
+      onSubmit({
+        ...validatedData,
+        isBusiness: formData.isBusiness,
+        taxId: formData.taxId,
+        medicalHistory: formData.medicalHistory,
+        allergies: formData.allergies,
+        chronicConditions: formData.chronicConditions,
+        insuranceProvider: formData.insuranceProvider,
+        policyNumber: formData.policyNumber,
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         const newErrors: Partial<Record<keyof CustomerFormData, string>> = {};
@@ -258,15 +276,25 @@ export default function CustomerForm({
     return formData.dateOfBirth ? new Date(formData.dateOfBirth) : undefined;
   };
 
+    const businessMode = import.meta.env.VITE_BUSINESS_MODE || 'retail';
+
   return (
     <form onSubmit={handleSubmit} className="flex flex-col h-full bg-background text-foreground mb-6">
       {/* Tabs Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 overflow-hidden">
         <div className="px-6 pt-4 border-b border-border bg-background/50 backdrop-blur-sm z-10">
-          <TabsList className="w-full grid grid-cols-2">
+          <TabsList className={cn('w-full grid', businessMode === 'pharmacy' ? 'grid-cols-3' : 'grid-cols-2')}>
             <TabsTrigger value="details" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               <User className="w-4 h-4 mr-2" /> Customer Details
             </TabsTrigger>
+            {businessMode === 'pharmacy' && (
+              <TabsTrigger
+                value="medical"
+                className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary"
+              >
+                <Stethoscope className="w-4 h-4 mr-2" /> Medical Profile
+              </TabsTrigger>
+            )}
             <TabsTrigger
               value="addresses"
               className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary"
@@ -403,7 +431,93 @@ export default function CustomerForm({
             </div>
           </section>
 
-          {/* Section 2: Additional Info */}
+          {/* Section 2: Pharmacy Profile (Medical Tab) */}
+          {businessMode === 'pharmacy' && (
+            <TabsContent value="medical" className="flex-1 overflow-y-auto p-6 space-y-8 mt-0">
+              <section className="space-y-4">
+                <div className="flex items-center space-x-2 border-b pb-2 border-border">
+                  <Stethoscope className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg tracking-tight">Patient Profile</h3>
+                </div>
+
+                <div className="grid grid-cols-1 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="allergies">Allergies</Label>
+                    <Textarea
+                      id="allergies"
+                      name="allergies"
+                      value={formData.allergies || ''}
+                      onChange={handleChange}
+                      placeholder="List any known drug or food allergies..."
+                      rows={2}
+                      className="resize-none bg-background border-destructive/20 focus-visible:ring-destructive"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="chronicConditions">Chronic Conditions</Label>
+                    <Textarea
+                      id="chronicConditions"
+                      name="chronicConditions"
+                      value={formData.chronicConditions || ''}
+                      onChange={handleChange}
+                      placeholder="Hypertension, Diabetes, etc."
+                      rows={2}
+                      className="resize-none bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="medicalHistory">General Medical History</Label>
+                    <Textarea
+                      id="medicalHistory"
+                      name="medicalHistory"
+                      value={formData.medicalHistory || ''}
+                      onChange={handleChange}
+                      placeholder="Previous surgeries, hospitalizations, etc."
+                      rows={3}
+                      className="resize-none bg-background"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="space-y-4">
+                <div className="flex items-center space-x-2 border-b pb-2 border-border">
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-lg tracking-tight">Insurance Information</h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="insuranceProvider">Insurance Provider</Label>
+                    <Input
+                      id="insuranceProvider"
+                      name="insuranceProvider"
+                      value={formData.insuranceProvider || ''}
+                      onChange={handleChange}
+                      placeholder="e.g. Aetna, Blue Cross"
+                      className="bg-background"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="policyNumber">Policy Number</Label>
+                    <Input
+                      id="policyNumber"
+                      name="policyNumber"
+                      value={formData.policyNumber || ''}
+                      onChange={handleChange}
+                      placeholder="ID / Policy #"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+              </section>
+            </TabsContent>
+          )}
+
+          {/* Section 3: Additional Info */}
           <section className="space-y-4">
             <div className="flex items-center space-x-2 border-b pb-2 border-border">
               <MessageSquare className="h-5 w-5 text-primary" />

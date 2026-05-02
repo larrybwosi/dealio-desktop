@@ -77,6 +77,11 @@ export interface OrderItem {
   sku?: string;
   price?: number;
   notes?: string;
+
+  // Pharmacy specific
+  requiresPrescription?: boolean;
+  dosageInstructions?: string;
+  pharmacistVerified?: boolean;
 }
 
 export interface Order {
@@ -478,6 +483,14 @@ interface PosStore {
     customerId?: string;
     customerPhone?: string;
     loyaltyPoints?: number;
+
+    // Pharmacy features
+    prescriptionId?: string;
+    doctorName?: string;
+    isPharmacistVerified?: boolean;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+    insuranceAmount?: number;
   };
 
   orders: Order[];
@@ -809,6 +822,12 @@ export const usePosStore = create<PosStore>()(
         customerId: '',
         customerPhone: '',
         loyaltyPoints: 0,
+        prescriptionId: '',
+        doctorName: '',
+        isPharmacistVerified: false,
+        insuranceProvider: '',
+        insurancePolicyNumber: '',
+        insuranceAmount: 0,
       },
       orders: [],
       products: [],
@@ -965,6 +984,8 @@ export const usePosStore = create<PosStore>()(
             quantity,
             imageUrl: product.imageUrl,
             isWholesale: options?.isWholesale || false,
+            // Pharmacy Check: if category is "Prescription" or "Medicine"
+            requiresPrescription: product.category.toLowerCase().includes('prescription') || product.category.toLowerCase().includes('medicine'),
           };
 
           return {

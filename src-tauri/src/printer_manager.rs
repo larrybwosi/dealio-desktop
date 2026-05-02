@@ -44,6 +44,7 @@ pub struct PrinterSettings {
     pub invoice_printer: Option<PrinterConfig>,
     pub bill_printer: Option<PrinterConfig>,
     pub waybill_printer: Option<PrinterConfig>,
+    pub label_printer: Option<PrinterConfig>,
     pub auto_print_invoice: Option<bool>,
 }
 
@@ -340,6 +341,7 @@ pub async fn print_job(
         "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
         "bar" => print_bar_native(app, order, settings, branch_name).await,
         "bill" => print_bill_native(app, order, settings, branch_name).await,
+        "label" => print_pharmacy_labels(app, order, settings).await,
         "invoice" | "waybill" => {
             // PDF Printing path for A4/Full documents
             let url = order.get("invoiceUrl")
@@ -1116,6 +1118,66 @@ pub async fn print_bill_native(
     let target_printer = printer_config.bill_printer.or(printer_config.receipt_printer);
 
     print_raw_to_printer(&app, target_printer, bytes_to_print).await
+}
+
+#[tauri::command]
+pub async fn print_pharmacy_labels(
+    app: tauri::AppHandle,
+    order: Value,
+    _settings: Value,
+) -> Result<String, String> {
+    let mut all_bytes = Vec::new();
+
+    if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
+        for item in items {
+            let mut esc = EscPosBuilder::new();
+
+            // Pharmacy Label (usually 50mm x 30mm)
+            esc.align(1); // Center
+
+            let product_name = item.get("productName").and_then(|v| v.as_str()).unwrap_or("Medicine");
+            let customer_name = order.get("customerName").and_then(|v| v.as_str()).unwrap_or("Walk-in Patient");
+            let instructions = item.get("dosageInstructions")
+                .or(order.get("instructions"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("Take as directed by doctor.");
+
+            esc.bold(true);
+            esc.text_line(product_name);
+            esc.bold(false);
+
+            esc.size(1, 1);
+            esc.text_line(&format!("PATIENT: {}", customer_name));
+
+            esc.feed(1);
+            esc.align(0); // Left for instructions
+            esc.text_line("DIRECTIONS:");
+            esc.text_line(instructions);
+
+            esc.feed(1);
+            esc.align(1);
+            let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+            esc.text_line(&format!("Dispensed: {}", date));
+
+            if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+                esc.barcode_1d(order_num);
+            }
+
+            esc.feed(2);
+            esc.cut();
+
+            all_bytes.extend(esc.bytes);
+        }
+    }
+
+    if all_bytes.is_empty() {
+        return Err("No items to print labels for".into());
+    }
+
+    let printer_config = get_printer_config(app.clone()).await?;
+    let target_printer = printer_config.label_printer.or(printer_config.bar_printer).or(printer_config.receipt_printer);
+
+    print_raw_to_printer(&app, target_printer, all_bytes).await
 }
 
 // --- LEGACY COMPATIBILITY WRAPPERS (To be removed after full migration) ---

@@ -1,4 +1,6 @@
-use crate::models::{PosProduct, ProductsSyncResponse, ProductSearchResponse};
+use crate::models::{PosProduct, ProductSearchResponse};
+#[cfg(not(feature = "standalone"))]
+use crate::models::ProductsSyncResponse;
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
@@ -6,17 +8,19 @@ use aes_gcm::{
 use anyhow::Result;
 use log::{error, info};
 use rand::RngCore;
-use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
+#[cfg(not(feature = "standalone"))]
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, Emitter};
+#[cfg(not(feature = "standalone"))]
+use reqwest::header::{HeaderMap, HeaderValue};
 use tauri_plugin_sql::{DbInstances, DbPool};
-use tokio::fs as async_fs;
 
 use crate::auth_store::AuthState;
 
+#[cfg(not(feature = "standalone"))]
 const TIMEOUT_SECONDS: u64 = 60;
 const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
@@ -174,15 +178,21 @@ async fn migrate_legacy_files_to_db(app: &AppHandle, pool: &SqlitePool) -> Resul
 
 pub(crate) fn build_search_text(product: &PosProduct) -> String {
     let mut terms = vec![product.product_name.to_lowercase()];
+    if let Some(ai) = &product.active_ingredient {
+        terms.push(ai.to_lowercase());
+    }
     for variant in &product.variants {
         terms.push(variant.sku.to_lowercase());
-        if let Some(barcode) = &variant.barcode { terms.push(barcode.to_lowercase()); }
+        if let Some(barcode) = &variant.barcode {
+            terms.push(barcode.to_lowercase());
+        }
         terms.push(variant.variant_name.to_lowercase());
     }
     terms.join(" ")
 }
 
 // --- Helper: Cache Single Image ---
+#[cfg(not(feature = "standalone"))]
 async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir()?;
     let images_dir = app_dir.join("product_images");
@@ -190,6 +200,7 @@ async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     Ok(images_dir)
 }
 
+#[cfg(not(feature = "standalone"))]
 async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     if url.trim().is_empty() { return None; }
     let clean_name = url.replace("https://", "").replace("http://", "").replace('/', "_").replace(':', "").replace('?', "_");
@@ -200,13 +211,13 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 
     if file_path.exists() {
         if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
-        let _ = async_fs::remove_file(&file_path).await;
+        let _ = tokio::fs::remove_file(&file_path).await;
     }
 
     match reqwest::get(url).await {
         Ok(resp) if resp.status().is_success() => {
             if let Ok(bytes) = resp.bytes().await {
-                if async_fs::write(&file_path, &bytes).await.is_ok() {
+                if tokio::fs::write(&file_path, &bytes).await.is_ok() {
                     if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
                 }
             }
@@ -362,7 +373,29 @@ pub async fn deduct_stock(
                     if !allow_negative && variant.stock < deducted_qty {
                         return Err(anyhow::anyhow!("Insufficient stock for {}: requested {}, available {}", product.product_name, deducted_qty, variant.stock));
                     }
+
+                    // Pharmacy: Deduct from batches if they exist (FEFO)
+                    if let Some(batches) = variant.batches.as_mut() {
+                        let mut remaining_to_deduct = deducted_qty;
+                        // Sort by expiry date ascending
+                        batches.sort_by(|a, b| a.expiry_date.cmp(&b.expiry_date));
+
+                        for batch in batches.iter_mut() {
+                            if remaining_to_deduct <= 0 { break; }
+                            let deduct_from_batch = remaining_to_deduct.min(batch.stock);
+                            batch.stock -= deduct_from_batch;
+                            remaining_to_deduct -= deduct_from_batch;
+                        }
+
+                        if remaining_to_deduct > 0 && allow_negative {
+                            if let Some(last_batch) = batches.last_mut() {
+                                last_batch.stock -= remaining_to_deduct;
+                            }
+                        }
+                    }
+
                     variant.stock -= deducted_qty;
+
                     if let Some(total) = product.total_stock.as_mut() { *total -= deducted_qty; }
                     updated = true;
                 }

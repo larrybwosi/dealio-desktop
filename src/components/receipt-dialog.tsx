@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Printer, Download, Check, Loader2, Receipt, ArrowRight, CreditCard, Wallet } from 'lucide-react';
+import { Printer, Download, Check, Loader2, Receipt, ArrowRight, CreditCard, Wallet, Tag } from 'lucide-react';
 import QRCode from 'qrcode';
 import bwipjs from '@bwip-js/browser';
 
@@ -107,12 +107,14 @@ const ActionPanel = ({
   completedOrder,
   formattedOrder,
   onPrint,
+  onPrintLabels,
   onDownload,
   onClose,
   isPrinting,
   isDownloading,
   currency,
 }: ActionPanelProps) => {
+  const [isPrintingLabels, setIsPrintingLabels] = useState(false);
   const changeDue = completedOrder.change ? parseFloat(completedOrder.change) : 0;
   const amountPaid = parseFloat(completedOrder.amountPaid || formattedOrder.total);
 
@@ -163,6 +165,14 @@ const ActionPanel = ({
           <div className="grid grid-cols-2 gap-3">
             <SummaryMetric label="Total Bill" value={formattedOrder.total} currency={currency} />
             <SummaryMetric label="Amount Paid" value={amountPaid} currency={currency} />
+            {completedOrder.payments?.some((p: any) => p.method === 'INSURANCE') && (
+              <SummaryMetric
+                label="Insurance Co-pay"
+                value={completedOrder.payments.filter((p: any) => p.method === 'INSURANCE').reduce((s: number, p: any) => s + p.amount, 0)}
+                currency={currency}
+                highlight
+              />
+            )}
           </div>
 
           <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
@@ -177,16 +187,37 @@ const ActionPanel = ({
 
       {/* Action Buttons */}
       <div className="space-y-3 mt-auto pt-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button
-            onClick={onPrint}
-            disabled={isPrinting}
-            className="h-12 shadow-sm transition-all active:scale-[0.98]"
-            variant="default"
-          >
-            {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-            {isPrinting ? 'Printing...' : 'Print Receipt'}
-          </Button>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="flex gap-2">
+            <Button
+              onClick={onPrint}
+              disabled={isPrinting}
+              className="flex-1 h-12 shadow-sm transition-all active:scale-[0.98]"
+              variant="default"
+            >
+              {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+              {isPrinting ? 'Printing...' : 'Print Receipt'}
+            </Button>
+
+            {import.meta.env.VITE_BUSINESS_MODE === 'pharmacy' && (
+              <Button
+                onClick={async () => {
+                  setIsPrintingLabels(true);
+                  try {
+                    await onPrintLabels?.();
+                  } finally {
+                    setIsPrintingLabels(false);
+                  }
+                }}
+                disabled={isPrintingLabels}
+                className="flex-1 h-12 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all active:scale-[0.98]"
+                variant="outline"
+              >
+                {isPrintingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tag className="mr-2 h-4 w-4" />}
+                Print Labels
+              </Button>
+            )}
+          </div>
 
           <Button
             variant="outline"
@@ -220,6 +251,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const currentMember = useAuthStore(state => state.currentMember);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
   const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
+  const { printNative } = usePrinter();
   const [qrCodePdfUrl, setQrCodePdfUrl] = useState<string>('');
   const [barcodeUrl, setBarcodeUrl] = useState<string>('');
 
@@ -294,6 +326,19 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
               completedOrder={completedOrder}
               formattedOrder={formattedOrder}
               onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder)}
+              onPrintLabels={async () => {
+                if (!completedOrder) return;
+                try {
+                  const result = await printNative('label', completedOrder as any, settings);
+                  if (result.success) {
+                    toast.success('Labels Sent to Printer');
+                  } else {
+                    throw new Error(result.error);
+                  }
+                } catch (error) {
+                  toast.error('Failed to print labels');
+                }
+              }}
               onDownload={() => DocumentInstance && handleDownload(DocumentInstance, `Receipt_${safeOrderNum}`)}
               onClose={onClose}
               isPrinting={isPrinting}

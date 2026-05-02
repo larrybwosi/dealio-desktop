@@ -419,7 +419,7 @@ export default function HubOverviewPage() {
                         <div className="space-y-1 mb-4">
                           {order.items.map(item => (
                             <div key={item.id} className="text-sm flex justify-between">
-                              <span>{item.qty}x {item.name}</span>
+                              <span>{item.quantity}x {item.name}</span>
                               <Badge className="text-[10px]">{item.status}</Badge>
                             </div>
                           ))}
