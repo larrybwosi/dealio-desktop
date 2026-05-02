@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { FileText, User, Stethoscope } from 'lucide-react';
+import { FileText, Stethoscope } from 'lucide-react';
 import { usePosStore } from '@/store/store';
 
 interface PrescriptionDialogProps {

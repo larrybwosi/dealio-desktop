@@ -197,7 +197,7 @@ export function SupermarketPOS() {
     return () => stopScanner();
   }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
-  const subTotal = (currentOrder?.items || []).reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
+  const subTotal = (currentOrder?.items ?? []).reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
@@ -420,12 +420,12 @@ export function SupermarketPOS() {
           <div className="p-4 border-b bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
             <h2 className="font-bold text-lg">Transaction</h2>
             <span className="text-sm font-medium text-muted-foreground bg-white dark:bg-zinc-800 px-2 py-1 rounded border">
-              {(currentOrder?.items || []).reduce((acc, i) => acc + i.quantity, 0)} Items
+              {(currentOrder?.items ?? []).reduce((acc, i) => acc + i.quantity, 0)} Items
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-            {(currentOrder?.items || []).length === 0 ? (
+            {(currentOrder?.items ?? []).length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-40">
                 <div className="p-8 border-2 border-dashed rounded-full mb-4">
                   <ShoppingCart className="w-16 h-16" />
@@ -433,7 +433,7 @@ export function SupermarketPOS() {
                 <p className="text-lg font-medium text-center">Ready to scan products...</p>
               </div>
             ) : (
-              currentOrder.items.map((item, idx) => {
+              (currentOrder?.items ?? []).map((item, idx) => {
                 const isLastAdded = lastAddedItemId?.productId === item.productId &&
                                     lastAddedItemId?.variantId === item.variantId &&
                                     lastAddedItemId?.unitId === item.selectedUnit?.unitId;
@@ -529,7 +529,7 @@ export function SupermarketPOS() {
                   size="lg"
                   className="h-16 text-sm font-bold border-2 leading-tight"
                   onClick={resetOrder}
-                  disabled={currentOrder.items.length === 0}
+                  disabled={(currentOrder?.items ?? []).length === 0}
                 >
                   Clear Sale<br/><span className="text-[10px] opacity-70">(F3)</span>
                 </Button>
@@ -542,7 +542,7 @@ export function SupermarketPOS() {
                       holdCurrentOrder('Quick Hold');
                       toast.info('Sale Held');
                     }}
-                    disabled={currentOrder.items.length === 0}
+                    disabled={(currentOrder?.items ?? []).length === 0}
                   >
                     Hold Sale<br/><span className="text-[10px] opacity-70">(F4)</span>
                   </Button>
@@ -554,7 +554,7 @@ export function SupermarketPOS() {
                     size="lg"
                     variant="secondary"
                     className="h-16 text-sm font-bold uppercase leading-tight shadow-md"
-                    disabled={currentOrder.items.length === 0 || isProcessingSale}
+                    disabled={(currentOrder?.items ?? []).length === 0 || isProcessingSale}
                     onClick={handleQuickPayExactCash}
                   >
                     Exact Cash<br/><span className="text-[10px] opacity-70">(F5)</span>
@@ -563,7 +563,7 @@ export function SupermarketPOS() {
                 <Button
                   size="lg"
                   className="h-16 text-xl font-black uppercase tracking-wider shadow-lg shadow-primary/20"
-                  disabled={currentOrder.items.length === 0}
+                  disabled={(currentOrder?.items ?? []).length === 0}
                   onClick={() => setPaymentDialogOpen(true)}
                 >
                   Pay Now
@@ -683,7 +683,7 @@ export function SupermarketPOS() {
       <PaymentModal
         isOpen={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
-        cartItems={(currentOrder?.items || []).map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
+        cartItems={(currentOrder?.items ?? []).map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
         subtotal={total}
         discount={0}
         customer={null}
@@ -727,13 +727,13 @@ export function SupermarketPOS() {
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
-            {heldOrders.length === 0 ? (
+            {(heldOrders ?? []).length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p>No held sales found</p>
               </div>
             ) : (
-              heldOrders.map((order) => (
+              (heldOrders ?? []).map((order) => (
                 <div key={order.id} className="p-4 border rounded-xl space-y-3 bg-zinc-50 dark:bg-zinc-900">
                   <div className="flex justify-between items-start">
                     <div>
