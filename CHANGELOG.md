@@ -1,3 +1,25 @@
+# [3.3.0-nextgen.9](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.8...v3.3.0-nextgen.9) (2026-05-02)
+
+
+### Bug Fixes
+
+* remove unused `holdCurrentOrder` from `AppLayoutProvider` ([fca5205](https://github.com/larrybwosi/dealio-desktop/commit/fca52053695c4c68efade4a043710d8fd9702cb6))
+* resolve backend compilation and e2e test failures ([a6d296f](https://github.com/larrybwosi/dealio-desktop/commit/a6d296fa0df048ae470eb32c30e9e55ef8995816))
+* resolve backend compilation errors in test_utils and lib.rs ([5372b6b](https://github.com/larrybwosi/dealio-desktop/commit/5372b6b8880d705f751a99ed4a0bca3f8ca6ca03))
+* resolve CI failures in backend and e2e tests ([589c8ca](https://github.com/larrybwosi/dealio-desktop/commit/589c8ca8781a950bb9cec0b163aef16accd3cf23))
+* resolve linting errors and frontend build failures ([#41](https://github.com/larrybwosi/dealio-desktop/issues/41)) ([563ddb7](https://github.com/larrybwosi/dealio-desktop/commit/563ddb7d1c6ed8bea2798c1e4a24b38b6917592c))
+
+
+### Features
+
+* implement comprehensive frontend and backend tests and fix printer store bug ([7925abd](https://github.com/larrybwosi/dealio-desktop/commit/7925abd41b59686c5124e378e0a80275967b8640))
+* implement comprehensive frontend and backend tests and fix printer store bug ([0faebed](https://github.com/larrybwosi/dealio-desktop/commit/0faebedc9764dd3462159910bf7ce13578cadfcb))
+* implement comprehensive frontend and backend tests and fix printer store bug ([7c6dcb0](https://github.com/larrybwosi/dealio-desktop/commit/7c6dcb04c3f16ceef36822469acc98756ca965cf))
+* implement comprehensive frontend and backend tests and fix supermarket-pos crash ([1c4a94c](https://github.com/larrybwosi/dealio-desktop/commit/1c4a94c06de3e76880081c13ebfe978d1872fd7c))
+* implement keyboard shortcuts and UI/UX improvements ([e82d1c6](https://github.com/larrybwosi/dealio-desktop/commit/e82d1c667858ee060aed3d9d6a4e3f005cce5084))
+* optimize POS for pharmacy use ([0354fbe](https://github.com/larrybwosi/dealio-desktop/commit/0354fbe6859097540aabca603a0c6b70caa69b84))
+* optimize system for pharmacy use ([8ea0481](https://github.com/larrybwosi/dealio-desktop/commit/8ea04816375e7890b7f39d7e964bd9e8bcdbc249))
+
 # [3.3.0-nextgen.8](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.7...v3.3.0-nextgen.8) (2026-04-26)
 
 
