@@ -16,6 +16,7 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
+use scanner_manager::ScannerState;
 
 // Features enabled by default, but excluded in standalone mode
 #[cfg(not(feature = "standalone"))]
@@ -134,6 +135,7 @@ pub fn run() {
         .manage(NetworkState::new())
         .manage(CustomerScreenState::new())
         .manage(sales_store::SyncConfigState::new())
+        .manage(ScannerState::default())
         .setup(|app| {
             capture_event("app_started", None);
 
