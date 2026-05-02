@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - img "Tech Background" [ref=e6]
+      - generic [ref=e7]:
+        - img [ref=e9]
+        - generic [ref=e11]: Skryme
+      - generic [ref=e12]:
+        - heading "System Access Data Enc" [level=1] [ref=e13]:
+          - text: System Access
+          - text: Data Enc
+        - paragraph [ref=e14]: Welcome to the secure employee portal. Scan your badge or enter your credentials to begin your session.
+        - generic [ref=e15]:
+          - generic [ref=e16]:
+            - img [ref=e17]
+            - generic [ref=e20]: Secure Connection
+          - generic [ref=e21]:
+            - img [ref=e22]
+            - generic [ref=e24]: Fast Check-in
+      - generic [ref=e25]: © 2026 Skryme LLC. All rights reserved.
+    - generic [ref=e27]:
+      - button "Settings" [ref=e28]:
+        - img
+        - generic [ref=e29]: Settings
+      - generic [ref=e30]:
+        - generic [ref=e31]: Check In
+        - generic [ref=e32]: Enter your details below to access the terminal
+      - generic [ref=e33]:
+        - button "Tap to Scan Badge Supports NFC & USB Scanners" [ref=e34]:
+          - generic [ref=e35]:
+            - generic [ref=e36]:
+              - img
+            - generic [ref=e37]:
+              - generic [ref=e38]: Tap to Scan Badge
+              - generic [ref=e39]: Supports NFC & USB Scanners
+        - generic [ref=e44]: Or continue with ID
+        - generic [ref=e45]:
+          - generic [ref=e46]:
+            - generic [ref=e47]: Card ID
+            - generic [ref=e48]:
+              - img [ref=e49]
+              - textbox "Card ID" [active] [ref=e51]:
+                - /placeholder: Enter ID or Scan...
+              - generic "Scanner Ready" [ref=e52]:
+                - img [ref=e53]
+          - generic [ref=e55]:
+            - generic [ref=e56]: Password
+            - generic [ref=e57]:
+              - img [ref=e58]
+              - textbox "Password" [ref=e61]:
+                - /placeholder: Enter password
+              - button [ref=e62]:
+                - img [ref=e63]
+        - button "Check In" [ref=e66]:
+          - text: Check In
+          - img
+      - paragraph [ref=e68]:
+        - text: "Terminal ID: Test Store•"
+        - generic [ref=e69]: v3.3.0
+        - text: "•Status: Online"
+  - region "Notifications alt+T"
+```

@@ -379,6 +379,7 @@ export function SupermarketPOS() {
         </div>
 
         <div className="flex items-center gap-3">
+          {import.meta.env.MODE !== 'standalone' && (
             <Button
               variant="outline"
               size="sm"
@@ -393,6 +394,7 @@ export function SupermarketPOS() {
                 </span>
               )}
             </Button>
+          )}
 
           <div className={cn(
             "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border",
@@ -531,29 +533,33 @@ export function SupermarketPOS() {
                 >
                   Clear Sale<br/><span className="text-[10px] opacity-70">(F3)</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  size="lg"
-                  className="h-16 text-sm font-bold border-2 leading-tight"
-                  onClick={() => {
-                    holdCurrentOrder('Quick Hold');
-                    toast.info('Sale Held');
-                  }}
-                  disabled={currentOrder.items.length === 0}
-                >
-                  Hold Sale<br/><span className="text-[10px] opacity-70">(F4)</span>
-                </Button>
+                {import.meta.env.MODE !== 'standalone' && (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    className="h-16 text-sm font-bold border-2 leading-tight"
+                    onClick={() => {
+                      holdCurrentOrder('Quick Hold');
+                      toast.info('Sale Held');
+                    }}
+                    disabled={currentOrder.items.length === 0}
+                  >
+                    Hold Sale<br/><span className="text-[10px] opacity-70">(F4)</span>
+                  </Button>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  size="lg"
-                  variant="secondary"
-                  className="h-16 text-sm font-bold uppercase leading-tight shadow-md"
-                  disabled={currentOrder.items.length === 0 || isProcessingSale}
-                  onClick={handleQuickPayExactCash}
-                >
-                  Exact Cash<br/><span className="text-[10px] opacity-70">(F5)</span>
-                </Button>
+                {import.meta.env.MODE !== 'standalone' && (
+                  <Button
+                    size="lg"
+                    variant="secondary"
+                    className="h-16 text-sm font-bold uppercase leading-tight shadow-md"
+                    disabled={currentOrder.items.length === 0 || isProcessingSale}
+                    onClick={handleQuickPayExactCash}
+                  >
+                    Exact Cash<br/><span className="text-[10px] opacity-70">(F5)</span>
+                  </Button>
+                )}
                 <Button
                   size="lg"
                   className="h-16 text-xl font-black uppercase tracking-wider shadow-lg shadow-primary/20"

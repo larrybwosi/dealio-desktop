@@ -15,7 +15,8 @@ export default function StandaloneSetup() {
   const [pin, setPin] = useState('');
   const [isActivating, setIsActivating] = useState(false);
 
-  const setConfigured = useAuthStore(state => state.setDeviceConfig);
+  const completeSetup = useAuthStore(state => state.completeSetup);
+  const setCurrentLocation = useAuthStore(state => state.setCurrentLocation);
 
   useEffect(() => {
     invoke<string>('get_machine_id').then(setMachineId).catch(console.error);
@@ -45,8 +46,19 @@ export default function StandaloneSetup() {
     }
     try {
       await invoke('set_local_auth', { pin });
-      // Mock device config for standalone
-      await setConfigured('MAIN_HUB', null);
+
+      // Mock device config and location for standalone
+      setCurrentLocation({
+        id: 'standalone-loc',
+        name: 'Local Store',
+        locationType: 'RETAIL_SHOP',
+        isActive: true,
+        isDefault: true,
+        organizationId: 'standalone-org',
+      } as any);
+
+      completeSetup('MAIN_HUB', null);
+
       toast.success('Setup complete!');
       window.location.reload();
     } catch (error) {

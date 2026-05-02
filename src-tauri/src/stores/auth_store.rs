@@ -382,20 +382,23 @@ pub async fn logout_member(
         user_guard.as_ref().map(|u| u.name.clone())
     };
 
-    // 1. Attempt to notify the server (Best effort)
-    if let Ok(request) =
-        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+    // 1. Attempt to notify the server (Best effort) - Skip in standalone
+    #[cfg(not(feature = "standalone"))]
     {
-        let device_key = {
-            let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
-            config_guard.as_ref().map(|c| c.device_key.clone())
-        };
+        if let Ok(request) =
+            state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+        {
+            let device_key = {
+                let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+                config_guard.as_ref().map(|c| c.device_key.clone())
+            };
 
-        let body = serde_json::json!({
-            "locationId": location_id,
-            "deviceKey": device_key
-        });
-        let _ = request.json(&body).send().await;
+            let body = serde_json::json!({
+                "locationId": location_id,
+                "deviceKey": device_key
+            });
+            let _ = request.json(&body).send().await;
+        }
     }
 
     // 2. Clear local session
