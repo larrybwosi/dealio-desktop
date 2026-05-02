@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { usePosStore } from '@/store/store';
 import { usePosPricingSync } from '@/hooks/use-pricing-sync';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   Settings as SettingsIcon,
   LogOut,
   Package,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePosProducts } from '@/hooks/products';
@@ -26,6 +27,11 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/use-auth';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { ReceiptDialog } from '@/components/receipt-dialog';
+import { useProcessSale, PaymentMethod, PaymentStatus } from '@/hooks/sales';
+import { useAuthStore } from '@/store/pos-auth-store';
+import { useCashDrawer } from '@/hooks/use-cash-drawer';
+import { logger } from '@/lib/logger';
+import { format } from 'date-fns';
 import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 import {
   AlertDialog,
@@ -38,18 +44,31 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SettingsDialog } from '@/components/settings-dialog';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Virtuoso } from 'react-virtuoso';
 
 export function SupermarketPOS() {
   const [inputValue, setInputValue] = useState('');
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+  const [showHeldOrders, setShowHeldOrders] = useState(false);
   const [showSettingsDialog, setShowSettingsDialog] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<any>(null);
+  const [lastAddedItemId, setLastAddedItemId] = useState<{ productId: string, variantId: string, unitId: string } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { checkOut } = useAuth();
+  const { mutateAsync: createSale, isPending: isProcessingSale } = useProcessSale();
+  const { openPhysicalDrawer } = useCashDrawer();
+  const locationId = useAuthStore(state => state.currentLocation?.id);
   const {
     startScanner,
     stopScanner,
@@ -68,23 +87,17 @@ export function SupermarketPOS() {
     pageSize: 10,
   });
 
-  const {
-    currentOrder,
-    addItemToOrder,
-    removeItemFromOrder,
-    updateItemInOrder,
-    resetOrder,
-    settings,
-    taxRate,
-  } = usePosStore(state => ({
-    currentOrder: state.currentOrder,
-    addItemToOrder: state.addItemToOrder,
-    removeItemFromOrder: state.removeItemFromOrder,
-    updateItemInOrder: state.updateItemInOrder,
-    resetOrder: state.resetOrder,
-    settings: state.settings,
-    taxRate: state.settings.taxRate || 0,
-  }));
+  const currentOrder = usePosStore(state => state.currentOrder);
+  const addItemToOrder = usePosStore(state => state.addItemToOrder);
+  const removeItemFromOrder = usePosStore(state => state.removeItemFromOrder);
+  const updateItemInOrder = usePosStore(state => state.updateItemInOrder);
+  const resetOrder = usePosStore(state => state.resetOrder);
+  const holdCurrentOrder = usePosStore(state => state.holdCurrentOrder);
+  const heldOrders = usePosStore(state => state.heldOrders);
+  const retrieveHeldOrder = usePosStore(state => state.retrieveHeldOrder);
+  const deleteHeldOrder = usePosStore(state => state.deleteHeldOrder);
+  const settings = usePosStore(state => state.settings);
+  const taxRate = useMemo(() => settings.taxRate || 0, [settings.taxRate]);
 
   // Auto-focus search input on mount and after actions
   useEffect(() => {
@@ -106,6 +119,7 @@ export function SupermarketPOS() {
       });
 
       if (!product) {
+        logger.warn('Barcode not found', { barcode });
         toast.error('Product Not Found', {
           description: `No product found with barcode: ${barcode}.`,
           duration: 2000,
@@ -160,6 +174,12 @@ export function SupermarketPOS() {
         1
       );
 
+      setLastAddedItemId({
+        productId: product.productId,
+        variantId: variant.variantId,
+        unitId: unitToAdd.unitId
+      });
+
       toast.success('Added to Cart', {
         description: `${product.productName}`,
         duration: 1000,
@@ -181,16 +201,170 @@ export function SupermarketPOS() {
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
-  const handleCheckout = () => {
-    checkOut();
-    setShowCheckoutDialog(false);
-  };
-
-  const handlePaymentComplete = (completedOrder: any) => {
+  const handlePaymentComplete = useCallback((completedOrder: any) => {
     setLastCompletedOrder(completedOrder);
     setPaymentDialogOpen(false);
     setReceiptDialogOpen(true);
     resetOrder();
+  }, [resetOrder]);
+
+  const handleQuickPayExactCash = useCallback(async () => {
+    if (currentOrder.items.length === 0 || isProcessingSale) return;
+
+    const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
+    const accountRef = Date.now().toString().slice(-6);
+
+    const payload: any = {
+      cartItems: currentOrder.items.map(item => ({
+        productId: item.productId || '',
+        productName: item.productName || 'Unknown Product',
+        variantId: item.variantId || '',
+        variantName: item.variantName || '',
+        quantity: item.quantity,
+        sellingUnitId: item.selectedUnit?.unitId || '',
+        sellingUnitName: item.selectedUnit?.unitName || '',
+        unitPrice: item.price,
+      })),
+      locationId,
+      saleNumber,
+      accountRef,
+      isWholesale: false,
+      customerId: null,
+      enableStockTracking: true,
+      notes: 'Exact Cash Quick Pay',
+      discountAmount: 0,
+      paymentMethod: PaymentMethod.CASH,
+      paymentStatus: PaymentStatus.COMPLETED,
+      amountReceived: total,
+      change: 0,
+      payments: [
+        {
+          method: PaymentMethod.CASH,
+          amount: total,
+        },
+      ],
+    };
+
+    try {
+      const queuedSale: any = await createSale(payload);
+
+      const completedOrder: any = {
+        id: queuedSale?.id || Date.now().toString(),
+        orderNumber: queuedSale?.orderNumber || `ORD-${Date.now().toString().slice(-6)}`,
+        items: currentOrder.items,
+        customer: null,
+        subtotal: subTotal,
+        discount: 0,
+        tax: taxAmount,
+        total: total,
+        orderType: 'takeaway',
+        datetime: format(new Date(), 'yyyy-MM-dd HH:mm:ss'),
+        notes: 'Exact Cash Quick Pay',
+        status: 'completed',
+        paymentMethod: PaymentMethod.CASH,
+        saleNumber,
+        amountPaid: total,
+        change: 0,
+      };
+
+      if (settings.autoPrintConfig.openCashDrawer) {
+        openPhysicalDrawer();
+      }
+
+      toast.success('Sale Completed (Exact Cash)');
+      handlePaymentComplete(completedOrder);
+    } catch (err: any) {
+      toast.error('Quick Pay Failed', {
+        description: err.message || 'Unknown error occurred',
+      });
+    }
+  }, [currentOrder, isProcessingSale, locationId, total, subTotal, taxAmount, createSale, settings, openPhysicalDrawer, handlePaymentComplete]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    // F1 or / to focus search
+    if (e.key === 'F1' || (e.key === '/' && document.activeElement !== searchInputRef.current)) {
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    }
+
+    // F2 to pay
+    if (e.key === 'F2') {
+      e.preventDefault();
+      if (currentOrder.items.length > 0) {
+        setPaymentDialogOpen(true);
+      }
+    }
+
+    // F3 to clear cart
+    if (e.key === 'F3') {
+      e.preventDefault();
+      resetOrder();
+    }
+
+    // F4 to hold sale
+    if (e.key === 'F4') {
+      e.preventDefault();
+      if (currentOrder.items.length > 0) {
+        holdCurrentOrder('Quick Hold');
+        toast.info('Sale Held');
+      }
+    }
+
+    // F5 to Quick Pay Exact Cash
+    if (e.key === 'F5') {
+      e.preventDefault();
+      handleQuickPayExactCash();
+    }
+
+    // F6 to show held orders
+    if (e.key === 'F6') {
+      e.preventDefault();
+      setShowHeldOrders(true);
+    }
+
+    // Esc to clear search or close dialogs
+    if (e.key === 'Escape') {
+      setInputValue('');
+    }
+
+    // + and - for quantity of last added item
+    if (lastAddedItemId) {
+      const lastItem = currentOrder.items.find(i =>
+        i.productId === lastAddedItemId.productId &&
+        i.variantId === lastAddedItemId.variantId &&
+        i.selectedUnit?.unitId === lastAddedItemId.unitId
+      );
+
+      if (lastItem) {
+        if (e.key === '+' || e.key === '=') {
+          e.preventDefault();
+          updateItemInOrder({ ...lastItem, quantity: lastItem.quantity + 1 });
+        }
+        if (e.key === '-' || e.key === '_') {
+          e.preventDefault();
+          if (lastItem.quantity > 1) {
+            updateItemInOrder({ ...lastItem, quantity: lastItem.quantity - 1 });
+          }
+        }
+      }
+    }
+
+    // Delete to remove last added item
+    if (e.key === 'Delete' && lastAddedItemId) {
+      e.preventDefault();
+      removeItemFromOrder(lastAddedItemId.productId, lastAddedItemId.variantId, lastAddedItemId.unitId);
+      setLastAddedItemId(null);
+    }
+  }, [currentOrder.items, lastAddedItemId, updateItemInOrder, removeItemFromOrder, resetOrder, holdCurrentOrder, handleQuickPayExactCash]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+
+  const handleCheckout = () => {
+    checkOut();
+    setShowCheckoutDialog(false);
   };
 
   return (
@@ -205,6 +379,21 @@ export function SupermarketPOS() {
         </div>
 
         <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 font-bold"
+              onClick={() => setShowHeldOrders(true)}
+            >
+              <Clock className="w-4 h-4" />
+              Held Sales
+              {heldOrders.length > 0 && (
+                <span className="bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full text-[10px]">
+                  {heldOrders.length}
+                </span>
+              )}
+            </Button>
+
           <div className={cn(
             "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border",
             isConnected ? "bg-green-50 text-green-700 border-green-200" : "bg-amber-50 text-amber-700 border-amber-200"
@@ -242,9 +431,20 @@ export function SupermarketPOS() {
                 <p className="text-lg font-medium text-center">Ready to scan products...</p>
               </div>
             ) : (
-              (currentOrder?.items || []).map((item, idx) => (
-                <div key={idx} className="flex gap-4 p-4 rounded-xl border bg-white dark:bg-zinc-800 shadow-sm animate-in fade-in slide-in-from-left-2">
-                  <div className="w-16 h-16 rounded-lg bg-zinc-100 dark:bg-zinc-700 overflow-hidden border shrink-0">
+              currentOrder.items.map((item, idx) => {
+                const isLastAdded = lastAddedItemId?.productId === item.productId &&
+                                    lastAddedItemId?.variantId === item.variantId &&
+                                    lastAddedItemId?.unitId === item.selectedUnit?.unitId;
+
+                return (
+                <div
+                  key={idx}
+                  className={cn(
+                    "flex gap-3 p-3 rounded-xl border bg-white dark:bg-zinc-800 shadow-sm transition-all animate-in fade-in slide-in-from-left-2",
+                    isLastAdded && "ring-2 ring-primary border-primary bg-primary/5"
+                  )}
+                >
+                  <div className="w-12 h-12 rounded-lg bg-zinc-100 dark:bg-zinc-700 overflow-hidden border shrink-0">
                     {item.imageUrl ? (
                       <img src={convertFileSrc(item.imageUrl)} className="w-full h-full object-cover" />
                     ) : (
@@ -255,16 +455,15 @@ export function SupermarketPOS() {
                   </div>
                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                     <div className="flex justify-between items-start gap-2">
-                      <div>
-                        <h4 className="font-bold text-base truncate">{item.productName}</h4>
-                        <p className="text-xs text-muted-foreground">{item.variantName}</p>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm truncate">{item.productName}</h4>
+                        <p className="text-[10px] text-muted-foreground truncate">{item.variantName}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">{(item.selectedUnit?.price || 0).toLocaleString()}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Per Unit</p>
+                      <div className="text-right shrink-0">
+                        <p className="font-bold text-base">{(item.selectedUnit?.price || 0).toLocaleString()}</p>
                       </div>
                     </div>
-                    <div className="flex justify-between items-center mt-2">
+                    <div className="flex justify-between items-center mt-1">
                       <div className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-700 p-1 rounded-lg">
                         <Button
                           variant="ghost"
@@ -295,7 +494,8 @@ export function SupermarketPOS() {
                     </div>
                   </div>
                 </div>
-              ))
+              );
+            })
             )}
           </div>
 
@@ -309,33 +509,60 @@ export function SupermarketPOS() {
                 <span>Tax ({taxRate}%)</span>
                 <span className="font-medium text-foreground">{taxAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
-              <div className="pt-2 border-t flex justify-between items-end">
-                <span className="font-bold text-xl">Total Amount</span>
+              <div className="pt-2 border-t flex justify-between items-end bg-primary/5 -mx-6 px-6 py-4">
+                <span className="font-black text-2xl uppercase tracking-tighter">Total</span>
                 <div className="text-right">
-                  <span className="text-sm text-muted-foreground mr-1">KSH</span>
-                  <span className="text-4xl font-black text-primary tracking-tighter">{total.toLocaleString()}</span>
+                  <span className="text-sm font-bold text-primary mr-1">KSH</span>
+                  <span className="text-6xl font-black text-primary tracking-tighter drop-shadow-sm">
+                    {total.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <Button
-                variant="outline"
-                size="lg"
-                className="h-16 text-lg font-bold border-2"
-                onClick={resetOrder}
-                disabled={(currentOrder?.items || []).length === 0}
-              >
-                Clear Sale
-              </Button>
-              <Button
-                size="lg"
-                className="h-16 text-xl font-black uppercase tracking-wider shadow-lg shadow-primary/20"
-                disabled={(currentOrder?.items || []).length === 0}
-                onClick={() => setPaymentDialogOpen(true)}
-              >
-                Pay Now
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-16 text-sm font-bold border-2 leading-tight"
+                  onClick={resetOrder}
+                  disabled={currentOrder.items.length === 0}
+                >
+                  Clear Sale<br/><span className="text-[10px] opacity-70">(F3)</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="h-16 text-sm font-bold border-2 leading-tight"
+                  onClick={() => {
+                    holdCurrentOrder('Quick Hold');
+                    toast.info('Sale Held');
+                  }}
+                  disabled={currentOrder.items.length === 0}
+                >
+                  Hold Sale<br/><span className="text-[10px] opacity-70">(F4)</span>
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="h-16 text-sm font-bold uppercase leading-tight shadow-md"
+                  disabled={currentOrder.items.length === 0 || isProcessingSale}
+                  onClick={handleQuickPayExactCash}
+                >
+                  Exact Cash<br/><span className="text-[10px] opacity-70">(F5)</span>
+                </Button>
+                <Button
+                  size="lg"
+                  className="h-16 text-xl font-black uppercase tracking-wider shadow-lg shadow-primary/20"
+                  disabled={currentOrder.items.length === 0}
+                  onClick={() => setPaymentDialogOpen(true)}
+                >
+                  Pay Now
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -369,38 +596,52 @@ export function SupermarketPOS() {
                Manual Lookup
             </h3>
 
-            <div className="flex-1 overflow-y-auto no-scrollbar space-y-2">
+            <div className="flex-1 overflow-hidden">
               {products.length > 0 ? (
-                products.map((p: any) => (
-                  <button
-                    key={p.productId}
-                    className="w-full flex items-center gap-3 p-3 rounded-xl border bg-white dark:bg-zinc-900 hover:border-primary hover:ring-1 hover:ring-primary transition-all text-left"
-                    onClick={() => {
-                      const variant = p.variants?.[0];
-                      const unit = p.sellableUnits?.find((u: any) => u.isBaseUnit) || p.sellableUnits?.[0];
-                      if (variant && unit) {
-                        addItemToOrder({
-                          ...p,
-                          variantId: variant.variantId,
-                          variantName: variant.variantName,
-                          name: p.productName,
-                          variants: p.variants?.map((v: any) => ({ ...v, name: v.variantName || v.name })),
-                        }, variant.variantId, { ...unit, originalRetailPrice: unit.price }, 1);
-                        setInputValue('');
-                        searchInputRef.current?.focus();
-                      }
-                    }}
-                  >
-                    <div className="w-10 h-10 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0">
-                      <Package className="w-5 h-5 text-zinc-400" />
+                <Virtuoso
+                  style={{ height: '100%' }}
+                  data={products}
+                  className="no-scrollbar"
+                  itemContent={(_, p: any) => (
+                    <div className="pb-1.5">
+                      <button
+                        key={p.productId}
+                        className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border bg-white dark:bg-zinc-900 hover:border-primary hover:ring-1 hover:ring-primary transition-all text-left group"
+                        onClick={() => {
+                          const variant = p.variants?.[0];
+                          const unit = p.sellableUnits?.find((u: any) => u.isBaseUnit) || p.sellableUnits?.[0];
+                          if (variant && unit) {
+                            addItemToOrder({
+                              ...p,
+                              variantId: variant.variantId,
+                              variantName: variant.variantName,
+                              name: p.productName,
+                              variants: p.variants?.map((v: any) => ({ ...v, name: v.variantName || v.name })),
+                            }, variant.variantId, { ...unit, originalRetailPrice: unit.price }, 1);
+
+                            setLastAddedItemId({
+                              productId: p.productId,
+                              variantId: variant.variantId,
+                              unitId: unit.unitId
+                            });
+
+                            setInputValue('');
+                            searchInputRef.current?.focus();
+                          }
+                        }}
+                      >
+                        <div className="w-9 h-9 rounded bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                          <Package className="w-4 h-4 text-zinc-400 group-hover:text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-xs truncate">{p.productName}</p>
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-tight">{p.category || 'No Category'}</p>
+                        </div>
+                        <p className="font-black text-sm text-primary">{(p.sellableUnits?.[0]?.price || 0).toLocaleString()}</p>
+                      </button>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm truncate">{p.productName}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase">{p.category || 'No Category'}</p>
-                    </div>
-                    <p className="font-black text-primary">{(p.sellableUnits?.[0]?.price || 0).toLocaleString()}</p>
-                  </button>
-                ))
+                  )}
+                />
               ) : (
                  <div className="h-full flex flex-col items-center justify-center opacity-30 italic text-sm">
                    {inputValue ? "No products found matching your search" : "Start typing to search products"}
@@ -470,6 +711,61 @@ export function SupermarketPOS() {
       </AlertDialog>
 
       <SettingsDialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog} />
+
+      <Sheet open={showHeldOrders} onOpenChange={setShowHeldOrders}>
+        <SheetContent side="right" className="w-[400px] sm:w-[540px]">
+          <SheetHeader>
+            <SheetTitle>Held Sales</SheetTitle>
+            <SheetDescription>
+              Retrieve or manage sales that were put on hold.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            {heldOrders.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <Clock className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <p>No held sales found</p>
+              </div>
+            ) : (
+              heldOrders.map((order) => (
+                <div key={order.id} className="p-4 border rounded-xl space-y-3 bg-zinc-50 dark:bg-zinc-900">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-bold text-lg">{order.orderNumber}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(order.heldAt).toLocaleTimeString()} • {order.items.length} items
+                      </p>
+                    </div>
+                    <p className="font-black text-xl text-primary">
+                      {order.estimatedTotal.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className="flex-1 font-bold"
+                      onClick={() => {
+                        retrieveHeldOrder(order.id);
+                        setShowHeldOrders(false);
+                        toast.success('Sale Retrieved');
+                      }}
+                    >
+                      Retrieve
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive hover:bg-destructive/10"
+                      onClick={() => deleteHeldOrder(order.id)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

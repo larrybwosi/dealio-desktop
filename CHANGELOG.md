@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.8](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.7...v3.3.0-nextgen.8) (2026-04-26)
+
+
+### Features
+
+* **supermarket:** optimize for high-traffic and fast processing ([#34](https://github.com/larrybwosi/dealio-desktop/issues/34)) ([c5a0233](https://github.com/larrybwosi/dealio-desktop/commit/c5a0233651c2b510077f8fc88fa5a12deb742f1b)), closes [hi#traffic](https://github.com/hi/issues/traffic)
+
 # [3.3.0-nextgen.7](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.6...v3.3.0-nextgen.7) (2026-04-26)
 
 

@@ -135,17 +135,23 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        target_group: [macos-arm, macos-x86, ubuntu, windows]
+        variant: [retail, standalone, restaurant, supermarket, pharmacy]
         include:
-          - platform: 'macos-latest'
+          - target_group: macos-arm
+            os: macos-latest
             args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'
+          - target_group: macos-x86
+            os: macos-latest
             args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-22.04'
+          - target_group: ubuntu
+            os: ubuntu-22.04
             args: ''
-          - platform: 'windows-latest'
+          - target_group: windows
+            os: windows-latest
             args: ''
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -163,7 +169,7 @@ jobs:
       - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       # Optimization: Added Rust caching to the release job to significantly speed up matrix builds
       - name: Rust Cache
@@ -172,7 +178,7 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: install dependencies (ubuntu only)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libudev-dev libusb-1.0-0-dev libgtk-3-dev libpcsclite-dev pkg-config
@@ -181,7 +187,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Create dummy binaries for macOS/Linux
-        if: matrix.platform != 'windows-latest'
+        if: matrix.os != 'windows-latest'
         run: |
           mkdir -p src-tauri/binaries
           touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
@@ -190,7 +196,7 @@ jobs:
           chmod +x src-tauri/binaries/*
 
       - name: Create dummy binaries for Windows
-        if: matrix.platform == 'windows-latest'
+        if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path src-tauri/binaries
@@ -207,27 +213,37 @@ jobs:
           FULL_VERSION="${{ needs.release-management.outputs.new_release_version }}"
           BRANCH="${{ github.ref_name }}"
           REPO="${{ github.repository }}"
+          VARIANT="${{ matrix.variant }}"
 
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
 
-          echo "Bumping Tauri config version to $FULL_VERSION"
-          jq --arg v "$FULL_VERSION" '.version = $v' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          # Determine config file
+          if [ "$VARIANT" = "retail" ]; then
+            CONFIG_FILE="src-tauri/tauri.conf.json"
+            UPDATER_NAME="latest"
+          else
+            CONFIG_FILE="src-tauri/tauri.$VARIANT.conf.json"
+            UPDATER_NAME="latest-$VARIANT"
+          fi
+
+          echo "Updating $CONFIG_FILE version to $FULL_VERSION"
+          jq --arg v "$FULL_VERSION" '.version = $v' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
 
           # Set branch-specific updater endpoint
           if [ "$BRANCH" = "main" ]; then
-            UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/latest.json"
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
           elif [ "$BRANCH" = "beta" ]; then
-            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/latest.json"
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/$UPDATER_NAME.json"
           elif [ "$BRANCH" = "nextgen" ]; then
-            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/latest.json"
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/$UPDATER_NAME.json"
           else
              # Default fallback
-             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/latest.json"
+             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
           fi
 
-          echo "Updating updater endpoint to $UPDATER_ENDPOINT"
-          jq --arg e "$UPDATER_ENDPOINT" '.plugins.updater.endpoints = [$e]' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          echo "Updating updater endpoint in $CONFIG_FILE to $UPDATER_ENDPOINT"
+          jq --arg e "$UPDATER_ENDPOINT" '.plugins.updater.endpoints = [$e]' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
 
       - name: Generate .env file for build
         shell: bash
@@ -236,7 +252,8 @@ jobs:
           echo "POSTHOG_API_KEY=${{ secrets.POSTHOG_API_KEY }}" >> src-tauri/.env
           echo "POSTHOG_HOST=${{ secrets.POSTHOG_HOST }}" >> src-tauri/.env
 
-      - uses: tauri-apps/tauri-action@v0
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -245,7 +262,7 @@ jobs:
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           releaseDraft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} ${{ matrix.variant == 'retail' && '' || format('--config src-tauri/tauri.{0}.conf.json --features {0}', matrix.variant) }}
 
       - name: Extract latest.json
         shell: bash
@@ -255,69 +272,85 @@ jobs:
             LATEST_JSON=$(find . -name "latest.json" | head -n 1)
           fi
           if [ -n "$LATEST_JSON" ]; then
-            cp "$LATEST_JSON" "latest-${{ strategy.job-index }}.json"
+            # Use target_group and variant in filename to avoid conflicts during merge
+            cp "$LATEST_JSON" "latest-${{ matrix.variant }}-${{ matrix.target_group }}.json"
           else
-            echo "latest.json not found for ${{ matrix.platform }}"
+            echo "latest.json not found for ${{ matrix.os }} ${{ matrix.variant }}"
             exit 1
           fi
 
       - name: Upload latest.json artifact
         uses: actions/upload-artifact@v4
         with:
-          name: latest-json-${{ strategy.job-index }}
-          path: latest-${{ strategy.job-index }}.json
+          name: latest-json-${{ matrix.variant }}-${{ matrix.target_group }}
+          path: latest-${{ matrix.variant }}-${{ matrix.target_group }}.json
 
   finalize-release:
     needs: [release-management, publish-tauri]
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        variant: [retail, standalone, restaurant, supermarket, pharmacy]
     steps:
-      - name: Download all latest.json artifacts
+      - name: Download all latest.json artifacts for ${{ matrix.variant }}
         uses: actions/download-artifact@v4
         with:
-          pattern: latest-json-*
+          pattern: latest-json-${{ matrix.variant }}-*
           merge-multiple: true
 
-      - name: Merge latest.json files
+      - name: Merge latest.json files for ${{ matrix.variant }}
         shell: bash
         run: |
           VERSION="${{ needs.release-management.outputs.new_release_version }}"
           REPO="${{ github.repository }}"
           TAG="v$VERSION"
           BRANCH="${{ github.ref_name }}"
+          VARIANT="${{ matrix.variant }}"
 
-          # Create a template latest.json
-          echo "{\"version\":\"$VERSION\",\"notes\":\"Release $VERSION\",\"pub_date\":\"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",\"platforms\":{}}" > combined.json
+          if [ "$VARIANT" = "retail" ]; then
+            FINAL_NAME="latest.json"
+          else
+            FINAL_NAME="latest-$VARIANT.json"
+          fi
 
-          # Merge all platforms from individual files
-          for f in latest-*.json; do
-            echo "Merging $f..."
-            jq -s '.[0].platforms * .[1].platforms | {version: .[0].version, notes: .[0].notes, pub_date: .[0].pub_date, platforms: .}' combined.json "$f" > tmp.json && mv tmp.json combined.json
-          done
+          # Merge all platforms from individual files, preserving metadata from the first file
+          FILES=(latest-${VARIANT}-*.json)
+          if [ ${#FILES[@]} -eq 0 ]; then
+             echo "No artifacts found for $VARIANT"
+             exit 1
+          fi
+
+          # Use jq to merge all objects in the array of files
+          jq -s 'reduce .[] as $item ({}; . * $item)' "${FILES[@]}" > "$FINAL_NAME"
 
           # Update URLs in combined.json to point to GitHub assets
-          # This assumes filenames follow Tauri default patterns.
-          # We search for local file paths and replace them with the GitHub release download URL.
           jq --arg repo "$REPO" --arg tag "$TAG" '
             .platforms |= with_entries(
               .value.url |= (
                 sub(".*/"; "https://github.com/\($repo)/releases/download/\($tag)/")
               )
             )
-          ' combined.json > latest.json
+          ' "$FINAL_NAME" > tmp.json && mv tmp.json "$FINAL_NAME"
 
-          echo "Final latest.json:"
-          cat latest.json
+          echo "Final $FINAL_NAME:"
+          cat "$FINAL_NAME"
 
-      - name: Upload final latest.json to release
+      - name: Upload final latest JSON to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           VERSION="${{ needs.release-management.outputs.new_release_version }}"
           TAG="v$VERSION"
-          gh release upload "$TAG" latest.json --clobber
+          VARIANT="${{ matrix.variant }}"
+          if [ "$VARIANT" = "retail" ]; then
+            FINAL_NAME="latest.json"
+          else
+            FINAL_NAME="latest-$VARIANT.json"
+          fi
+          gh release upload "$TAG" "$FINAL_NAME" --clobber
 
       - name: Update Rolling Latest Release (Prerelease only)
         if: github.ref != 'refs/heads/main'
@@ -327,6 +360,12 @@ jobs:
         run: |
           BRANCH="${{ github.ref_name }}"
           TAG="${BRANCH}-latest"
-          echo "Updating rolling release $TAG..."
+          VARIANT="${{ matrix.variant }}"
+          if [ "$VARIANT" = "retail" ]; then
+            FINAL_NAME="latest.json"
+          else
+            FINAL_NAME="latest-$VARIANT.json"
+          fi
+          echo "Updating rolling release $TAG with $FINAL_NAME..."
           gh release view "$TAG" || gh release create "$TAG" --prerelease --title "$TAG" --notes "Rolling release for $BRANCH branch"
-          gh release upload "$TAG" latest.json --clobber
+          gh release upload "$TAG" "$FINAL_NAME" --clobber
