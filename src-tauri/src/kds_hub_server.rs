@@ -102,7 +102,6 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
     }
 
     let registry_clone = registry.clone();
-    let _app_clone = app.clone();
     let tx = registry.tx.clone();
     let ip = local_ip().map_err(|e| e.to_string())?;
     
@@ -112,7 +111,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
 
     let state = AppState { 
         tx,
-        app_handle: app,
+        app_handle: app.clone(),
         registry: registry_clone.clone(),
     };
 
@@ -127,9 +126,10 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
         format!("Failed to bind to {}: {}", addr, e)
     })?;
 
+    let app_for_spawn = app.clone();
     tauri::async_runtime::spawn(async move {
         info!("KDS Hub WebSocket running on ws://{}:8080/kds-ws", ip);
-        let _ = app.emit("kds-hub-started", format!("ws://{}:8080/kds-ws", ip));
+        let _ = app_for_spawn.emit("kds-hub-started", format!("ws://{}:8080/kds-ws", ip));
         let serve = axum::serve(
             listener,
             router.into_make_service_with_connect_info::<SocketAddr>(),
@@ -148,7 +148,7 @@ pub async fn start_kds_hub(app: AppHandle) -> Result<String, String> {
         *is_running = false;
         let mut tx_guard = registry_clone.shutdown_tx.lock().unwrap();
         *tx_guard = None;
-        let _ = app.emit("kds-hub-stopped", ());
+        let _ = app_for_spawn.emit("kds-hub-stopped", ());
         info!("KDS Hub server stopped.");
     });
 

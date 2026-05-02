@@ -98,6 +98,17 @@ test.describe('Supermarket POS Flow', () => {
         }
       };
 
+      const mockWindow = {
+        label: 'main',
+        listen: () => Promise.resolve(() => {}),
+        onCloseRequested: () => Promise.resolve(() => {}),
+        onFocusChanged: () => Promise.resolve(() => {}),
+        show: () => Promise.resolve(),
+        hide: () => Promise.resolve(),
+        close: () => Promise.resolve(),
+        setFocus: () => Promise.resolve(),
+      };
+
       const mockTauri = {
         core: {
           invoke: mockInvoke,
@@ -108,16 +119,10 @@ test.describe('Supermarket POS Flow', () => {
           emit: () => Promise.resolve()
         },
         window: {
-            getCurrentWindow: () => ({
-                label: 'main',
-                listen: () => Promise.resolve(() => {}),
-                onCloseRequested: () => Promise.resolve(() => {}),
-                onFocusChanged: () => Promise.resolve(() => {})
-            }),
-            getCurrent: () => ({
-                label: 'main',
-                listen: () => Promise.resolve(() => {})
-            })
+            getCurrentWindow: () => mockWindow,
+            getCurrent: () => mockWindow,
+            getAll: () => [mockWindow],
+            WebviewWindow: function() { return mockWindow; }
         }
       };
 
@@ -177,7 +182,7 @@ test.describe('Supermarket POS Flow', () => {
           allowNegativeStock: false,
           hubIp: null
         },
-        version: 3
+        version: 0
       };
 
       const posState = {
@@ -286,7 +291,7 @@ test.describe('Supermarket POS Flow', () => {
           currentEmployeeId: null,
           activeCashDrawerId: null
         },
-        version: 1
+        version: 0
       };
 
       localStorage.setItem('pos-auth-storage-v3', JSON.stringify(authState));
