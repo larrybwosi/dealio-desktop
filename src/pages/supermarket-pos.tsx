@@ -197,7 +197,7 @@ export function SupermarketPOS() {
     return () => stopScanner();
   }, [settings.enableBarcodeScanner, startScanner, stopScanner]);
 
-  const subTotal = currentOrder.items.reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
+  const subTotal = (currentOrder?.items || []).reduce((sum, item) => sum + (item.selectedUnit?.price || 0) * item.quantity, 0);
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
@@ -418,12 +418,12 @@ export function SupermarketPOS() {
           <div className="p-4 border-b bg-zinc-50/50 dark:bg-zinc-800/50 flex justify-between items-center">
             <h2 className="font-bold text-lg">Transaction</h2>
             <span className="text-sm font-medium text-muted-foreground bg-white dark:bg-zinc-800 px-2 py-1 rounded border">
-              {currentOrder.items.reduce((acc, i) => acc + i.quantity, 0)} Items
+              {(currentOrder?.items || []).reduce((acc, i) => acc + i.quantity, 0)} Items
             </span>
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
-            {currentOrder.items.length === 0 ? (
+            {(currentOrder?.items || []).length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-40">
                 <div className="p-8 border-2 border-dashed rounded-full mb-4">
                   <ShoppingCart className="w-16 h-16" />
@@ -677,7 +677,7 @@ export function SupermarketPOS() {
       <PaymentModal
         isOpen={paymentDialogOpen}
         onClose={() => setPaymentDialogOpen(false)}
-        cartItems={currentOrder.items.map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
+        cartItems={(currentOrder?.items || []).map(i => ({ ...i, price: i.selectedUnit?.price || 0 })) as any}
         subtotal={total}
         discount={0}
         customer={null}

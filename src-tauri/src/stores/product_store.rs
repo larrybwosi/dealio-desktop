@@ -369,6 +369,7 @@ pub async fn deduct_stock(
                         return Err(anyhow::anyhow!("Insufficient stock for {}: requested {}, available {}", product.product_name, deducted_qty, variant.stock));
                     }
                     variant.stock -= deducted_qty;
+
                     if let Some(total) = product.total_stock.as_mut() { *total -= deducted_qty; }
                     updated = true;
                 }
