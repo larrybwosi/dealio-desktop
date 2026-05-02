@@ -38,7 +38,7 @@ export default function AppLayoutProvider({ children }: AppLayoutProviderProps) 
   const deviceType = useAuthStore(state => state.deviceType);
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentOrder, holdCurrentOrder, resetOrder } = usePosStore();
+  const { currentOrder, resetOrder } = usePosStore();
   const { setPaymentDialogOpen, setShortcutsHelpDialogOpen, setHoldOrderDialogOpen } = useUiStore();
 
   const handleProceedToCheckout = useCallback(() => {
