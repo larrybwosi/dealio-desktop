@@ -205,6 +205,7 @@ pub enum SaleStatus {
     Synced,
     Failed,
     Invalidated,
+    PendingCloudSync,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

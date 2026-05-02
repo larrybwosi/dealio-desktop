@@ -201,17 +201,12 @@ export function SupermarketPOS() {
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
-  const handleCheckout = () => {
-    checkOut();
-    setShowCheckoutDialog(false);
-  };
-
-  const handlePaymentComplete = (completedOrder: any) => {
+  const handlePaymentComplete = useCallback((completedOrder: any) => {
     setLastCompletedOrder(completedOrder);
     setPaymentDialogOpen(false);
     setReceiptDialogOpen(true);
     resetOrder();
-  };
+  }, [resetOrder]);
 
   const handleQuickPayExactCash = useCallback(async () => {
     if (currentOrder.items.length === 0 || isProcessingSale) return;
@@ -279,11 +274,11 @@ export function SupermarketPOS() {
       toast.success('Sale Completed (Exact Cash)');
       handlePaymentComplete(completedOrder);
     } catch (err: any) {
-      toast.error('Failed to complete Quick Pay', {
-        description: err?.message || 'Unknown error',
+      toast.error('Quick Pay Failed', {
+        description: err.message || 'Unknown error occurred',
       });
     }
-  }, [currentOrder.items, isProcessingSale, locationId, total, createSale, subTotal, taxAmount, settings.autoPrintConfig.openCashDrawer, openPhysicalDrawer, handlePaymentComplete]);
+  }, [currentOrder, isProcessingSale, locationId, total, subTotal, taxAmount, createSale, settings, openPhysicalDrawer, handlePaymentComplete]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // F1 or / to focus search
@@ -366,6 +361,11 @@ export function SupermarketPOS() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  const handleCheckout = () => {
+    checkOut();
+    setShowCheckoutDialog(false);
+  };
 
   return (
     <div className="flex flex-col h-screen bg-zinc-50 dark:bg-zinc-950 overflow-hidden">
