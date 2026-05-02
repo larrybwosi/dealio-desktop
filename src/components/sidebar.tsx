@@ -26,6 +26,7 @@ import {
   MapPin,
   Activity,
   Box,
+  Keyboard,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -35,6 +36,8 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { ScanOrderDialog } from './scan-order-dialog';
+import { ShortcutsHelpDialog } from './shortcuts-help-dialog';
+import { useUiStore } from '@/store/ui-store';
 
 const routeMap: Record<string, string> = {
   order: '/',
@@ -84,6 +87,8 @@ interface SidebarProps {
 export function Sidebar({ onCheckout }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
+
+  const { shortcutsHelpDialogOpen: isShortcutsOpen, setShortcutsHelpDialogOpen: setIsShortcutsOpen } = useUiStore();
 
   const sidebarItems = usePosStore(state => state.settings.sidebarItems.filter(item => item.enabled));
   const businessName = usePosStore(state => state.settings.businessName);
@@ -252,6 +257,15 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
         {/* Footer / Settings Section */}
         <div className="p-4 border-t space-y-2">
+          <Button
+            variant="ghost"
+            className={cn('w-full justify-start gap-3 mb-1', isCollapsed && 'justify-center px-0')}
+            onClick={() => setIsShortcutsOpen(true)}
+          >
+            <Keyboard className="w-4 h-4 shrink-0" />
+            {!isCollapsed && <span className="truncate">Shortcuts Help</span>}
+          </Button>
+
           {[
             { route: '/receipt-settings', label: 'Receipt Settings', icon: Receipt },
             { route: '/logs', label: 'System Logs', icon: Activity },
@@ -301,6 +315,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
       </div>
 
       <ScanOrderDialog open={isScanOpen} onOpenChange={setIsScanOpen} />
+      <ShortcutsHelpDialog open={isShortcutsOpen} onOpenChange={setIsShortcutsOpen} />
     </>
   );
 }
