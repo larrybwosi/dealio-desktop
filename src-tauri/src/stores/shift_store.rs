@@ -64,6 +64,7 @@ pub async fn init_state(app: &AppHandle) {
             opened_at TEXT,
             closed_at TEXT,
             operator_id TEXT,
+            closing_operator_id TEXT,
             operator_card_id TEXT,
             operator_pin TEXT,
             starting_float REAL,
@@ -73,6 +74,8 @@ pub async fn init_state(app: &AppHandle) {
             expected_cash REAL,
             actual_cash REAL,
             variance REAL,
+            opening_cash_details TEXT,
+            closing_cash_details TEXT,
             device_id TEXT,
             is_synced BOOLEAN DEFAULT 0
         )
@@ -92,14 +95,20 @@ pub async fn init_state(app: &AppHandle) {
     let _ = sqlx::query(create_shifts_table).execute(&pool).await;
     let _ = sqlx::query(create_movements_table).execute(&pool).await;
 
+    // Migrations for existing tables
+    let _ = sqlx::query("ALTER TABLE shifts ADD COLUMN closing_operator_id TEXT").execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE shifts ADD COLUMN opening_cash_details TEXT").execute(&pool).await;
+    let _ = sqlx::query("ALTER TABLE shifts ADD COLUMN closing_cash_details TEXT").execute(&pool).await;
+
     // Load active shift into memory
     let shift_state = app.state::<ShiftState>();
     if let Ok(Some(row)) = sqlx::query("SELECT * FROM shifts WHERE closed_at IS NULL LIMIT 1").fetch_optional(&pool).await {
         let shift = Shift {
             id: row.get("id"),
             opened_at: row.get::<String, _>("opened_at").parse().unwrap_or(Utc::now()),
-            closed_at: None,
+            closed_at: row.get::<Option<String>, _>("closed_at").and_then(|s| s.parse().ok()),
             operator_id: row.get("operator_id"),
+            closing_operator_id: row.get("closing_operator_id"),
             operator_card_id: row.get("operator_card_id"),
             operator_pin: row.get("operator_pin"),
             starting_float: row.get("starting_float"),
@@ -110,6 +119,8 @@ pub async fn init_state(app: &AppHandle) {
             actual_cash: row.get("actual_cash"),
             variance: row.get("variance"),
             device_id: row.get("device_id"),
+            opening_cash_details: row.get::<Option<String>, _>("opening_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
+            closing_cash_details: row.get::<Option<String>, _>("closing_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
         };
         *shift_state.current_shift.lock().unwrap() = Some(shift);
     }
@@ -123,6 +134,7 @@ pub async fn open_new_shift(
     card_id: String,
     pin: String,
     float_amount: f64,
+    opening_cash_details: Option<serde_json::Value>,
     device_id: Option<String>,
 ) -> Result<Shift, String> {
     {
@@ -136,6 +148,7 @@ pub async fn open_new_shift(
         opened_at: Utc::now(),
         closed_at: None,
         operator_id: Some(card_id.clone()),
+        closing_operator_id: None,
         operator_card_id: Some(card_id),
         operator_pin: Some(pin),
         starting_float: float_amount,
@@ -145,11 +158,15 @@ pub async fn open_new_shift(
         expected_cash: float_amount,
         actual_cash: None,
         variance: None,
+        opening_cash_details: opening_cash_details.clone(),
+        closing_cash_details: None,
         device_id,
     };
 
-    sqlx::query("INSERT INTO shifts (id, opened_at, operator_id, operator_card_id, operator_pin, starting_float, total_cash_sales, total_cash_drops, total_cash_refunds, expected_cash, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)")
-        .bind(&new_shift.id).bind(new_shift.opened_at.to_rfc3339()).bind(&new_shift.operator_id).bind(&new_shift.operator_card_id).bind(&new_shift.operator_pin).bind(new_shift.starting_float).bind(0.0).bind(0.0).bind(0.0).bind(new_shift.expected_cash).bind(&new_shift.device_id)
+    let opening_cash_json = opening_cash_details.map(|v| v.to_string());
+
+    sqlx::query("INSERT INTO shifts (id, opened_at, operator_id, operator_card_id, operator_pin, starting_float, total_cash_sales, total_cash_drops, total_cash_refunds, expected_cash, opening_cash_details, device_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)")
+        .bind(&new_shift.id).bind(new_shift.opened_at.to_rfc3339()).bind(&new_shift.operator_id).bind(&new_shift.operator_card_id).bind(&new_shift.operator_pin).bind(new_shift.starting_float).bind(0.0).bind(0.0).bind(0.0).bind(new_shift.expected_cash).bind(opening_cash_json).bind(&new_shift.device_id)
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
     *state.current_shift.lock().unwrap() = Some(new_shift.clone());
@@ -205,7 +222,13 @@ pub async fn record_cash_drop(app: &AppHandle, state: &ShiftState, amount: f64, 
     Ok(())
 }
 
-pub async fn close_current_shift(app: &AppHandle, state: &ShiftState, actual_count: f64) -> Result<Shift, String> {
+pub async fn close_current_shift(
+    app: &AppHandle,
+    state: &ShiftState,
+    actual_count: f64,
+    closing_operator_id: Option<String>,
+    closing_cash_details: Option<serde_json::Value>,
+) -> Result<Shift, String> {
     let mut shift = {
         let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
         lock.as_ref().ok_or("No active shift to close")?.clone()
@@ -215,9 +238,13 @@ pub async fn close_current_shift(app: &AppHandle, state: &ShiftState, actual_cou
     shift.closed_at = Some(Utc::now());
     shift.actual_cash = Some(actual_count);
     shift.variance = Some(actual_count - shift.expected_cash);
+    shift.closing_operator_id = closing_operator_id;
+    shift.closing_cash_details = closing_cash_details.clone();
 
-    sqlx::query("UPDATE shifts SET closed_at = ?1, actual_cash = ?2, variance = ?3 WHERE id = ?4")
-        .bind(shift.closed_at.unwrap().to_rfc3339()).bind(shift.actual_cash).bind(shift.variance).bind(&shift.id)
+    let closing_cash_json = closing_cash_details.map(|v| v.to_string());
+
+    sqlx::query("UPDATE shifts SET closed_at = ?1, actual_cash = ?2, variance = ?3, closing_operator_id = ?4, closing_cash_details = ?5 WHERE id = ?6")
+        .bind(shift.closed_at.unwrap().to_rfc3339()).bind(shift.actual_cash).bind(shift.variance).bind(&shift.closing_operator_id).bind(closing_cash_json).bind(&shift.id)
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
     let closed_shift = shift.clone();
@@ -303,6 +330,9 @@ pub async fn sync_pending_shifts_cloud(
             total_cash_drops: row.get("total_cash_drops"),
             actual_cash_count: row.get("actual_cash"),
             variance: row.get("variance"),
+            opening_cash_details: row.get::<Option<String>, _>("opening_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
+            closing_cash_details: row.get::<Option<String>, _>("closing_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
+            closing_operator_id: row.get("closing_operator_id"),
         };
 
         let mut headers = HeaderMap::new();

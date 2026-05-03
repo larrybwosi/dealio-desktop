@@ -383,12 +383,17 @@ pub struct Shift {
     pub opened_at: DateTime<Utc>,
     pub closed_at: Option<DateTime<Utc>>,
     pub operator_id: Option<String>,
+    pub closing_operator_id: Option<String>,
 
     // Money tracking
     pub starting_float: f64,
     pub total_cash_sales: f64,   // Sales made in cash
     pub total_cash_drops: f64,   // Cash removed (e.g., paying vendor)
     pub total_cash_refunds: f64, // Cash given back
+
+    // Detailed cash breakdowns (JSON)
+    pub opening_cash_details: Option<serde_json::Value>,
+    pub closing_cash_details: Option<serde_json::Value>,
 
     // Reconciliation
     pub expected_cash: f64,               // Float + Sales - Drops - Refunds
@@ -416,6 +421,11 @@ pub struct ShiftSyncPayload {
     pub total_cash_drops: f64,
     pub actual_cash_count: Option<f64>,
     pub variance: Option<f64>,
+
+    // Detailed cash breakdowns
+    pub opening_cash_details: Option<serde_json::Value>,
+    pub closing_cash_details: Option<serde_json::Value>,
+    pub closing_operator_id: Option<String>,
 }
 
 // --- GLOBAL SEARCH ---
