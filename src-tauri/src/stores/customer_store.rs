@@ -259,10 +259,7 @@ pub async fn run_sync(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let member_token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
-    };
+    let member_token = auth_state.get_active_token().map_err(|e| anyhow::anyhow!(e))?;
 
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
 
@@ -435,10 +432,7 @@ pub async fn create_customer_cloud(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let member_token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
-    };
+    let member_token = auth_state.get_active_token().map_err(|e| anyhow::anyhow!(e))?;
 
     let target_url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::CUSTOMERS);
 

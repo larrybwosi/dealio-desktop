@@ -40,13 +40,9 @@ fn build_client(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| {
-            CommandError::new(ErrorKind::Authentication, "Failed to lock token store")
-        })?;
-
-        token_guard.clone()
-    };
+    let token = auth_state.get_active_token().map_err(|e| {
+        CommandError::new(ErrorKind::Authentication, format!("Failed to get token: {}", e))
+    })?;
 
     let clean_base = base_url.trim_end_matches('/').to_string();
     let mut headers = HeaderMap::new();

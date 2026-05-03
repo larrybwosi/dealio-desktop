@@ -14,7 +14,8 @@ const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
 // The State container
 pub struct ShiftState {
-    pub current_shift: Mutex<Option<Shift>>,
+    pub shifts: Mutex<std::collections::HashMap<String, Shift>>, // operator_id -> Shift
+    pub shared_shift: Mutex<Option<Shift>>,
 }
 
 impl Default for ShiftState {
@@ -26,7 +27,8 @@ impl Default for ShiftState {
 impl ShiftState {
     pub fn new() -> Self {
         Self {
-            current_shift: Mutex::new(None),
+            shifts: Mutex::new(std::collections::HashMap::new()),
+            shared_shift: Mutex::new(None),
         }
     }
 }
@@ -100,29 +102,41 @@ pub async fn init_state(app: &AppHandle) {
     let _ = sqlx::query("ALTER TABLE shifts ADD COLUMN opening_cash_details TEXT").execute(&pool).await;
     let _ = sqlx::query("ALTER TABLE shifts ADD COLUMN closing_cash_details TEXT").execute(&pool).await;
 
-    // Load active shift into memory
+    // Load active shifts into memory
     let shift_state = app.state::<ShiftState>();
-    if let Ok(Some(row)) = sqlx::query("SELECT * FROM shifts WHERE closed_at IS NULL LIMIT 1").fetch_optional(&pool).await {
-        let shift = Shift {
-            id: row.get("id"),
-            opened_at: row.get::<String, _>("opened_at").parse().unwrap_or(Utc::now()),
-            closed_at: row.get::<Option<String>, _>("closed_at").and_then(|s| s.parse().ok()),
-            operator_id: row.get("operator_id"),
-            closing_operator_id: row.get("closing_operator_id"),
-            operator_card_id: row.get("operator_card_id"),
-            operator_pin: row.get("operator_pin"),
-            starting_float: row.get("starting_float"),
-            total_cash_sales: row.get("total_cash_sales"),
-            total_cash_drops: row.get("total_cash_drops"),
-            total_cash_refunds: row.get("total_cash_refunds"),
-            expected_cash: row.get("expected_cash"),
-            actual_cash: row.get("actual_cash"),
-            variance: row.get("variance"),
-            device_id: row.get("device_id"),
-            opening_cash_details: row.get::<Option<String>, _>("opening_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
-            closing_cash_details: row.get::<Option<String>, _>("closing_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
-        };
-        *shift_state.current_shift.lock().unwrap() = Some(shift);
+    if let Ok(rows) = sqlx::query("SELECT * FROM shifts WHERE closed_at IS NULL").fetch_all(&pool).await {
+        for row in rows {
+            let shift = Shift {
+                id: row.get("id"),
+                opened_at: row.get::<String, _>("opened_at").parse().unwrap_or(Utc::now()),
+                closed_at: row.get::<Option<String>, _>("closed_at").and_then(|s| s.parse().ok()),
+                operator_id: row.get("operator_id"),
+                closing_operator_id: row.get("closing_operator_id"),
+                operator_card_id: row.get("operator_card_id"),
+                operator_pin: row.get("operator_pin"),
+                starting_float: row.get("starting_float"),
+                total_cash_sales: row.get("total_cash_sales"),
+                total_cash_drops: row.get("total_cash_drops"),
+                total_cash_refunds: row.get("total_cash_refunds"),
+                expected_cash: row.get("expected_cash"),
+                actual_cash: row.get("actual_cash"),
+                variance: row.get("variance"),
+                device_id: row.get("device_id"),
+                opening_cash_details: row.get::<Option<String>, _>("opening_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
+                closing_cash_details: row.get::<Option<String>, _>("closing_cash_details").and_then(|s| serde_json::from_str(&s).ok()),
+            };
+
+            // For now, let's treat the first one found as shared if we don't have better logic
+            // or put them in per-operator map if operator_id is set
+            if let Some(op_id) = shift.operator_id.as_ref() {
+                shift_state.shifts.lock().unwrap().insert(op_id.clone(), shift.clone());
+            }
+
+            let mut shared = shift_state.shared_shift.lock().unwrap();
+            if shared.is_none() {
+                *shared = Some(shift);
+            }
+        }
     }
 }
 
@@ -138,8 +152,8 @@ pub async fn open_new_shift(
     device_id: Option<String>,
 ) -> Result<Shift, String> {
     {
-        let shift_lock = state.current_shift.lock().map_err(|_| "Failed to lock shift state")?;
-        if shift_lock.is_some() { return Err("A shift is already open.".to_string()); }
+        let shifts = state.shifts.lock().map_err(|_| "Failed to lock shift state")?;
+        if shifts.contains_key(&card_id) { return Err("A shift is already open for this operator.".to_string()); }
     }
 
     let pool = get_db_pool(&app).await?;
@@ -169,14 +183,29 @@ pub async fn open_new_shift(
         .bind(&new_shift.id).bind(new_shift.opened_at.to_rfc3339()).bind(&new_shift.operator_id).bind(&new_shift.operator_card_id).bind(&new_shift.operator_pin).bind(new_shift.starting_float).bind(0.0).bind(0.0).bind(0.0).bind(new_shift.expected_cash).bind(opening_cash_json).bind(&new_shift.device_id)
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
-    *state.current_shift.lock().unwrap() = Some(new_shift.clone());
+    state.shifts.lock().unwrap().insert(card_id, new_shift.clone());
+
+    let mut shared = state.shared_shift.lock().unwrap();
+    if shared.is_none() {
+        *shared = Some(new_shift.clone());
+    }
+
     Ok(new_shift)
 }
 
 pub async fn record_cash_sale(app: &AppHandle, state: &ShiftState, amount: f64) -> Result<(), String> {
-    let mut shift = {
-        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-        lock.as_ref().ok_or("No active shift found")?.clone()
+    let (mut shift, op_id_opt) = {
+        let auth_state = app.state::<AuthState>();
+        let active_user = auth_state.get_active_user()?;
+
+        let shifts = state.shifts.lock().map_err(|_| "Lock error")?;
+        let shared = state.shared_shift.lock().map_err(|_| "Lock error")?;
+
+        let op_id = active_user.as_ref().map(|u| u.id.clone());
+        let s = op_id.as_ref().and_then(|id| shifts.get(id))
+            .or(shared.as_ref())
+            .ok_or("No active shift found")?.clone();
+        (s, op_id)
     };
 
     let pool = get_db_pool(app).await?;
@@ -187,17 +216,35 @@ pub async fn record_cash_sale(app: &AppHandle, state: &ShiftState, amount: f64) 
         .bind(shift.total_cash_sales).bind(shift.expected_cash).bind(&shift.id)
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
-    if let Some(ref mut s) = *state.current_shift.lock().unwrap() {
-        s.total_cash_sales = shift.total_cash_sales;
-        s.expected_cash = shift.expected_cash;
+    if let Some(op_id) = op_id_opt {
+        if let Some(s) = state.shifts.lock().unwrap().get_mut(&op_id) {
+            s.total_cash_sales = shift.total_cash_sales;
+            s.expected_cash = shift.expected_cash;
+        }
+    }
+
+    if let Some(ref mut s) = *state.shared_shift.lock().unwrap() {
+        if s.id == shift.id {
+            s.total_cash_sales = shift.total_cash_sales;
+            s.expected_cash = shift.expected_cash;
+        }
     }
     Ok(())
 }
 
 pub async fn record_cash_drop(app: &AppHandle, state: &ShiftState, amount: f64, reason: String) -> Result<(), String> {
-    let mut shift = {
-        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-        lock.as_ref().ok_or("No active shift found")?.clone()
+    let (mut shift, op_id_opt) = {
+        let auth_state = app.state::<AuthState>();
+        let active_user = auth_state.get_active_user()?;
+
+        let shifts = state.shifts.lock().map_err(|_| "Lock error")?;
+        let shared = state.shared_shift.lock().map_err(|_| "Lock error")?;
+
+        let op_id = active_user.as_ref().map(|u| u.id.clone());
+        let s = op_id.as_ref().and_then(|id| shifts.get(id))
+            .or(shared.as_ref())
+            .ok_or("No active shift found")?.clone();
+        (s, op_id)
     };
 
     let pool = get_db_pool(app).await?;
@@ -215,9 +262,18 @@ pub async fn record_cash_drop(app: &AppHandle, state: &ShiftState, amount: f64, 
 
     tx.commit().await.map_err(|e| e.to_string())?;
 
-    if let Some(ref mut s) = *state.current_shift.lock().unwrap() {
-        s.total_cash_drops = shift.total_cash_drops;
-        s.expected_cash = shift.expected_cash;
+    if let Some(op_id) = op_id_opt {
+        if let Some(s) = state.shifts.lock().unwrap().get_mut(&op_id) {
+            s.total_cash_drops = shift.total_cash_drops;
+            s.expected_cash = shift.expected_cash;
+        }
+    }
+
+    if let Some(ref mut s) = *state.shared_shift.lock().unwrap() {
+        if s.id == shift.id {
+            s.total_cash_drops = shift.total_cash_drops;
+            s.expected_cash = shift.expected_cash;
+        }
     }
     Ok(())
 }
@@ -229,9 +285,18 @@ pub async fn close_current_shift(
     closing_operator_id: Option<String>,
     closing_cash_details: Option<serde_json::Value>,
 ) -> Result<Shift, String> {
-    let mut shift = {
-        let lock = state.current_shift.lock().map_err(|_| "Lock error")?;
-        lock.as_ref().ok_or("No active shift to close")?.clone()
+    let (mut shift, op_id_opt) = {
+        let auth_state = app.state::<AuthState>();
+        let active_user = auth_state.get_active_user()?;
+
+        let shifts = state.shifts.lock().map_err(|_| "Lock error")?;
+        let shared = state.shared_shift.lock().map_err(|_| "Lock error")?;
+
+        let op_id = active_user.as_ref().map(|u| u.id.clone());
+        let s = op_id.as_ref().and_then(|id| shifts.get(id))
+            .or(shared.as_ref())
+            .ok_or("No active shift to close")?.clone();
+        (s, op_id)
     };
 
     let pool = get_db_pool(app).await?;
@@ -248,13 +313,30 @@ pub async fn close_current_shift(
         .execute(&pool).await.map_err(|e| e.to_string())?;
 
     let closed_shift = shift.clone();
-    *state.current_shift.lock().unwrap() = None;
+    if let Some(op_id) = op_id_opt {
+        state.shifts.lock().unwrap().remove(&op_id);
+    }
+
+    let mut shared = state.shared_shift.lock().unwrap();
+    if let Some(s) = shared.as_ref() {
+        if s.id == shift.id {
+            *shared = None;
+        }
+    }
+
     Ok(closed_shift)
 }
 
-pub fn get_shift_status(state: &ShiftState) -> Option<Shift> {
-    let lock = state.current_shift.lock().unwrap_or_else(|e| e.into_inner());
-    lock.clone()
+pub fn get_shift_status(app: &AppHandle, state: &ShiftState) -> Option<Shift> {
+    let auth_state = app.state::<AuthState>();
+    let active_user = auth_state.get_active_user().unwrap_or(None);
+
+    let shifts = state.shifts.lock().unwrap();
+    let shared = state.shared_shift.lock().unwrap();
+
+    active_user.as_ref().and_then(|u| shifts.get(&u.id))
+        .or(shared.as_ref())
+        .cloned()
 }
 
 // --- RECEIPT GENERATION ---
@@ -309,7 +391,7 @@ pub async fn sync_pending_shifts_cloud(
         let config = config_guard.as_ref().ok_or("Device not configured".to_string())?;
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
-    let member_token = auth_state.member_token.lock().map_err(|_| "Lock error".to_string())?.clone();
+    let member_token = auth_state.get_active_token()?;
 
     for row in rows {
         let shift_id: String = row.get("id");
