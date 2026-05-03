@@ -168,6 +168,10 @@ export default function SettingsPage() {
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
 
+  // Multi-user / Shift Settings
+  const [shareCartBetweenUsers, setShareCartBetweenUsers] = useState(settings?.shareCartBetweenUsers ?? true);
+  const [shareShiftBetweenUsers, setShareShiftBetweenUsers] = useState(settings?.shareShiftBetweenUsers ?? true);
+
   // KDS Settings
   const [enableKdsSystem, setEnableKdsSystem] = useState(settings?.enableKdsSystem ?? false);
 
@@ -226,6 +230,8 @@ export default function SettingsPage() {
       enableAutoStart,
       enableBarcodeScanner,
       enableKdsSystem,
+      shareCartBetweenUsers,
+      shareShiftBetweenUsers,
       enableHoldSale,
       maxHeldOrders: newMaxHeldOrders,
       heldOrderExpiryHours: newHeldOrderExpiryHours,
@@ -658,6 +664,32 @@ export default function SettingsPage() {
                       checked={requireEmployeePin}
                       onCheckedChange={setRequireEmployeePin}
                       disabled={!enableEmployeeManagement}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Share Cart Between Users</div>
+                      <p className="text-sm text-muted-foreground">If disabled, each user will have their own independent shopping cart</p>
+                    </div>
+                    <Switch
+                      checked={shareCartBetweenUsers}
+                      onCheckedChange={setShareCartBetweenUsers}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Share Shift Between Users</div>
+                      <p className="text-sm text-muted-foreground">If disabled, each user must open and manage their own shift session</p>
+                    </div>
+                    <Switch
+                      checked={shareShiftBetweenUsers}
+                      onCheckedChange={setShareShiftBetweenUsers}
                     />
                   </div>
                 </div>

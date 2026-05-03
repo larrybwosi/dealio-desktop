@@ -418,6 +418,7 @@ pub fn run() {
             auth_store::set_device_config,
             auth_store::login_member,
             auth_store::logout_member,
+            auth_store::switch_active_member,
             auth_store::get_device_config,
             auth_store::restore_member_session,
             auth_store::reset_device_config,

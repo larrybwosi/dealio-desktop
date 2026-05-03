@@ -152,6 +152,20 @@ const DynamicRenderer = () => {
   useSessionActivityListener();
 
   const fetchTables = usePosStore(state => state.fetchTables);
+  const swapUserCart = usePosStore(state => state.swapUserCart);
+
+  useEffect(() => {
+    const handleMemberSwitched = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { memberId, previousMemberId } = customEvent.detail;
+      if (previousMemberId && memberId) {
+        swapUserCart(previousMemberId, memberId);
+      }
+    };
+
+    window.addEventListener('member-switched', handleMemberSwitched);
+    return () => window.removeEventListener('member-switched', handleMemberSwitched);
+  }, [swapUserCart]);
 
   useEffect(() => {
     initializeNetworkRole();
