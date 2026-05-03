@@ -217,10 +217,7 @@ pub async fn run_sync(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let member_token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
-    };
+    let member_token = auth_state.get_active_token().map_err(|e| anyhow::anyhow!(e))?;
 
     let last_sync: Option<String> = sqlx::query("SELECT last_sync FROM pricing_sync_meta WHERE id = 1")
         .fetch_optional(&pool).await.map_err(|e| anyhow::anyhow!(e))?.map(|r| r.get("last_sync"));

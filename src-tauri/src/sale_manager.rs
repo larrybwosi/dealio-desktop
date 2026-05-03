@@ -35,12 +35,9 @@ pub async fn process_sale_command(
             .device_config
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let user_guard = auth_state
-            .current_user
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let user = auth_state.get_active_user().unwrap_or(None);
         (
-            user_guard.as_ref().map(|u| u.name.clone()),
+            user.map(|u| u.name.clone()),
             config_guard.as_ref().map(|c| c.location_id.clone()),
         )
     };
@@ -172,11 +169,11 @@ pub async fn get_invoice_blob_command(
         let config_guard = auth_state.device_config.lock().map_err(|e| e.to_string())?;
         let config = config_guard.as_ref().ok_or("Device not initialized")?;
 
-        let token_guard = auth_state.member_token.lock().map_err(|e| e.to_string())?;
+        let token = auth_state.get_active_token()?;
 
         (
             config.device_key.clone(),
-            token_guard.clone(),
+            token,
             config.base_url.clone(),
         )
     };

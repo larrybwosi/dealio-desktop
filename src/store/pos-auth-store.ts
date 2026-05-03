@@ -58,6 +58,7 @@ export type Member = {
 interface PosAuthState {
   isConfigured: boolean;
   currentMember: Member | null;
+  checkedInMembers: Member[];
   currentLocation: InventoryLocation | null;
   isRestoredSession: boolean;
   sessionUpdatedAt: number | null;
@@ -70,6 +71,7 @@ interface PosAuthState {
 interface PosAuthActions {
   setMemberSession: (member: Member, isRestored?: boolean) => void;
   clearMemberSession: () => void;
+  switchMember: (memberId: string) => Promise<void>;
   setCurrentLocation: (location: InventoryLocation) => void;
   clearCurrentLocation: () => void;
   refreshSession: () => void;
@@ -92,6 +94,7 @@ const STORAGE_KEY = 'pos-auth-storage-v3';
 const initialState: PosAuthState = {
   isConfigured: false,
   currentMember: null,
+  checkedInMembers: [],
   currentLocation: null,
   isRestoredSession: false,
   sessionUpdatedAt: null,
@@ -117,19 +120,54 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
       },
 
       setMemberSession: (member: Member, isRestored = false) => {
-        set({
-          currentMember: member,
-          isRestoredSession: isRestored,
-          sessionUpdatedAt: Date.now(),
+        set(state => {
+          const alreadyCheckedIn = state.checkedInMembers.find(m => m.id === member.id);
+          const newCheckedInMembers = alreadyCheckedIn
+            ? state.checkedInMembers
+            : [...state.checkedInMembers, member];
+
+          return {
+            currentMember: member,
+            checkedInMembers: newCheckedInMembers,
+            isRestoredSession: isRestored,
+            sessionUpdatedAt: Date.now(),
+          };
         });
       },
 
       clearMemberSession: () => {
-        set({
-          currentMember: null,
-          isRestoredSession: false,
-          sessionUpdatedAt: null,
+        set(state => {
+          const newCheckedInMembers = state.currentMember
+            ? state.checkedInMembers.filter(m => m.id !== state.currentMember?.id)
+            : state.checkedInMembers;
+
+          return {
+            currentMember: newCheckedInMembers.length > 0 ? newCheckedInMembers[0] : null,
+            checkedInMembers: newCheckedInMembers,
+            isRestoredSession: false,
+            sessionUpdatedAt: newCheckedInMembers.length > 0 ? Date.now() : null,
+          };
         });
+      },
+
+      switchMember: async (memberId: string) => {
+        const { checkedInMembers, currentMember } = get();
+        const member = checkedInMembers.find(m => m.id === memberId);
+        if (member && member.id !== currentMember?.id) {
+          const previousMemberId = currentMember?.id;
+          await invoke('switch_active_member', { memberId });
+          set({
+            currentMember: member,
+            sessionUpdatedAt: Date.now(),
+          });
+
+          // Trigger cart swap if configured (handled by usePosStore or a listener)
+          window.dispatchEvent(
+            new CustomEvent('member-switched', {
+              detail: { memberId, previousMemberId },
+            })
+          );
+        }
       },
 
       refreshSession: () => {
@@ -306,6 +344,7 @@ export const useAuthStore = create<PosAuthState & PosAuthActions>()(
         isConfigured: state.isConfigured,
         currentLocation: state.currentLocation,
         currentMember: state.currentMember,
+        checkedInMembers: state.checkedInMembers,
         isRestoredSession: state.isRestoredSession,
         sessionUpdatedAt: state.sessionUpdatedAt,
         allowNegativeStock: state.allowNegativeStock,

@@ -280,6 +280,7 @@ const PaymentModal = ({
 
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
+  const currentMember = useAuthStore(state => state.currentMember);
   const settings = usePosStore(state => state.settings);
   const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
   const deductStockForOrderItems = usePosStore(state => state.deductStockForOrderItems);
@@ -582,6 +583,7 @@ const PaymentModal = ({
       enableStockTracking: true,
       notes: finalNotes,
       discountAmount: editableDiscount,
+      cashierName: currentMember?.name || 'Staff',
       // Pharmacy fields
       prescriptionId: (usePosStore.getState().currentOrder as any).prescriptionId,
       doctorName: (usePosStore.getState().currentOrder as any).doctorName,

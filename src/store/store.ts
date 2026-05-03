@@ -389,6 +389,10 @@ export interface BusinessSettings {
   // KDS System
   enableKdsSystem: boolean;
 
+  // Multi-user / Shift Settings
+  shareCartBetweenUsers: boolean;
+  shareShiftBetweenUsers: boolean;
+
   // Hold Sale Settings (Enterprise)
   enableHoldSale: boolean;
   maxHeldOrders: number;
@@ -473,6 +477,23 @@ export interface Table {
 }
 
 interface PosStore {
+  userCarts: Record<string, {
+    customerName: string;
+    orderType: OrderType;
+    items: OrderItem[];
+    tableNumber?: string;
+    instructions?: string;
+    metadata?: Record<string, any>;
+    customerId?: string;
+    customerPhone?: string;
+    loyaltyPoints?: number;
+    prescriptionId?: string;
+    doctorName?: string;
+    isPharmacistVerified?: boolean;
+    insuranceProvider?: string;
+    insurancePolicyNumber?: string;
+    insuranceAmount?: number;
+  }>;
   currentOrder: {
     customerName: string;
     orderType: OrderType;
@@ -580,6 +601,8 @@ interface PosStore {
   addNotification: (notification: Omit<Notification, 'id' | 'timestamp' | 'read'>) => void;
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
+
+  swapUserCart: (fromMemberId: string, toMemberId: string) => void;
   deleteNotification: (id: string) => void;
   clearAllNotifications: () => void;
   updateNotificationSettings: (settings: Partial<NotificationSettings>) => void;
@@ -812,6 +835,7 @@ export const usePosStore = create<PosStore>()(
       currentLocationId: null,
       setCurrentLocationId: id => set({ currentLocationId: id }),
 
+      userCarts: {},
       currentOrder: {
         customerName: '',
         orderType: 'takeaway',
@@ -902,6 +926,9 @@ export const usePosStore = create<PosStore>()(
         enableAutoStart: false,
         enableBarcodeScanner: true,
         enableKdsSystem: false,
+        // Multi-user / Shift Settings
+        shareCartBetweenUsers: true,
+        shareShiftBetweenUsers: true,
         // Hold Sale Settings (Enterprise)
         enableHoldSale: true,
         maxHeldOrders: 20,
@@ -1185,6 +1212,8 @@ export const usePosStore = create<PosStore>()(
             enableHoldSale: true,
             maxHeldOrders: 20,
             heldOrderExpiryHours: 24,
+            shareCartBetweenUsers: true,
+            shareShiftBetweenUsers: true,
           },
           employees: [],
           notifications: [],
@@ -2134,12 +2163,40 @@ export const usePosStore = create<PosStore>()(
         set(state => ({
           heldOrders: state.heldOrders.map(o => (o.id === id ? { ...o, priority } : o)),
         })),
+
+      swapUserCart: (fromMemberId, toMemberId) =>
+        set(state => {
+          if (state.settings.shareCartBetweenUsers) return state;
+
+          const updatedUserCarts = {
+            ...state.userCarts,
+            [fromMemberId]: { ...state.currentOrder },
+          };
+
+          const nextOrder = updatedUserCarts[toMemberId] || {
+            customerName: '',
+            orderType: 'takeaway',
+            items: [],
+            tableNumber: '',
+            instructions: '',
+            metadata: {},
+            customerId: '',
+            customerPhone: '',
+            loyaltyPoints: 0,
+          };
+
+          return {
+            userCarts: updatedUserCarts,
+            currentOrder: nextOrder,
+          };
+        }),
     }),
     {
       name: 'dealio-pos-storage-v1',
       storage: createJSONStorage(() => localStorage),
       skipHydration: false,
       partialize: state => ({
+        userCarts: state.userCarts,
         currentOrder: state.currentOrder,
         orders: state.orders,
         products: state.products,
