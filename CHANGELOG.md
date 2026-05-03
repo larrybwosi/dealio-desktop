@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.11](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.10...v3.3.0-nextgen.11) (2026-05-03)
+
+
+### Bug Fixes
+
+* **build:** yaml file ([7a99455](https://github.com/larrybwosi/dealio-desktop/commit/7a99455a7f14fd227a7f4f29f72ed0006a812daf))
+
 # [3.3.0-nextgen.10](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.9...v3.3.0-nextgen.10) (2026-05-03)
 
 
