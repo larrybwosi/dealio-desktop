@@ -163,7 +163,7 @@ pub async fn open_new_shift(
         closed_at: None,
         operator_id: Some(card_id.clone()),
         closing_operator_id: None,
-        operator_card_id: Some(card_id),
+        operator_card_id: Some(card_id.clone()),
         operator_pin: Some(pin),
         starting_float: float_amount,
         total_cash_sales: 0.0,

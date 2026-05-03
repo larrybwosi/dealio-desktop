@@ -10,7 +10,7 @@ use crate::stores::auth_store::AuthState as AuthStateStore;
 // --- SHIFT COMMANDS ---
 
 #[tauri::command]
-pub async fn get_shift_command(app: AppHandle, state: State<'_, ShiftState>) -> Result<Option<models::Shift>, String> {
+pub async fn get_shift_command(app: AppHandle, state: State<'_, ShiftState>) -> Result<Option<Shift>, String> {
     Ok(shift_store::get_shift_status(&app, &state))
 }
 

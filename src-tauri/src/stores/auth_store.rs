@@ -531,7 +531,7 @@ pub async fn restore_member_session(
     // NOTE: This was previously used to restore a single session from frontend.
     // In multi-session, we might need a token too, but let's see.
     // For now, if it's called, we ensure it's in sessions (though it might lack a token if not careful)
-    let mut sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+    let sessions = state.sessions.lock().map_err(|_| "Lock error")?;
     if !sessions.contains_key(&member.id) {
         // We don't have the token here, which is a problem for build_request.
         // Usually, restore_member_session is called when frontend already has the session.
