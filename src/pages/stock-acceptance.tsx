@@ -1,21 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Check, RefreshCw, Package, ArrowRight, FileText, X as XIcon, Truck, Calendar } from 'lucide-react';
+import { Check, RefreshCw, Package, ArrowRight, FileText, X as XIcon, Truck, Calendar, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
@@ -91,9 +83,9 @@ export default function StockAcceptancePage() {
   const [shipments, setShipments] = useState<IncomingShipment[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Selection & Dialog State
+  // Selection & View State
   const [selectedShipment, setSelectedShipment] = useState<IncomingShipment | null>(null);
-  const [isReceiveDialogOpen, setIsReceiveDialogOpen] = useState(false);
+  const [view, setView] = useState<'list' | 'receive'>('list');
 
   // Form State
   const [itemInputs, setItemInputs] = useState<Record<string, ItemInputState>>({});
@@ -124,7 +116,7 @@ export default function StockAcceptancePage() {
     }
   }, [locationId, fetchShipments]);
 
-  // Reset form when opening dialog
+  // Reset form when selecting shipment
   useEffect(() => {
     if (selectedShipment) {
       const initialInputs: Record<string, ItemInputState> = {};
@@ -147,7 +139,12 @@ export default function StockAcceptancePage() {
 
   const handleOpenReceive = (shipment: IncomingShipment) => {
     setSelectedShipment(shipment);
-    setIsReceiveDialogOpen(true);
+    setView('receive');
+  };
+
+  const handleBackToList = () => {
+    setView('list');
+    setSelectedShipment(null);
   };
 
   const handleInputChange = (itemId: string, field: keyof ItemInputState, value: string | Date | undefined) => {
@@ -226,7 +223,7 @@ export default function StockAcceptancePage() {
             notes: input.notes || undefined,
           };
         })
-        .filter(i => i.receivedQuantity > 0); // Filter based on received, not just expected
+        .filter(i => (i.receivedQuantity ?? 0) > 0); // Filter based on received, not just expected
 
       if (itemsPayload.length === 0) {
         toast.error('No items marked as received');
@@ -261,7 +258,7 @@ export default function StockAcceptancePage() {
         reference_number: selectedShipment.referenceNumber,
       });
       toast.success('Shipment received successfully');
-      setIsReceiveDialogOpen(false);
+      handleBackToList();
       fetchShipments(); // Refresh list
     } catch (error: any) {
       console.error('Receipt error:', error);
@@ -271,8 +268,208 @@ export default function StockAcceptancePage() {
     }
   };
 
+  if (view === 'receive' && selectedShipment) {
+    return (
+      <div className="p-6 space-y-6 max-w-full mx-auto">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" onClick={handleBackToList}>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Receive Shipment: {selectedShipment.referenceNumber}</h1>
+              <p className="text-muted-foreground mt-1">
+                From {selectedShipment.source} • {new Date(selectedShipment.date).toLocaleDateString()}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-3">
+             <Button variant="outline" onClick={handleBackToList} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmitReceipt}
+              disabled={isSubmitting}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isSubmitting ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Confirm Receipt
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Items ({selectedShipment.items.length})</h3>
+            <div className="grid gap-4">
+              {selectedShipment.items.map(item => {
+                const input = itemInputs[item.id] || {};
+                const { accepted, valid } = calculateStats(item.id);
+
+                return (
+                  <Card key={item.id} className="p-4 border-l-4 border-l-primary/20">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                      {/* Item Info */}
+                      <div className="md:col-span-4 space-y-1">
+                        <div className="font-medium">{item.variant.displayName}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{item.variant.sku}</div>
+                        <Badge variant="outline" className="mt-1">
+                          Expected: {item.quantity}
+                        </Badge>
+                      </div>
+
+                      {/* Inputs */}
+                      <div className="md:col-span-8 space-y-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-1">
+                            <Label className="text-xs">Received Qty</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={input.receivedQty}
+                              onChange={e => handleInputChange(item.id, 'receivedQty', e.target.value)}
+                              className="h-8"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Rejected Qty</Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              value={input.rejectedQty}
+                              onChange={e => handleInputChange(item.id, 'rejectedQty', e.target.value)}
+                              className={`h-8 ${parseFloat(input.rejectedQty) > 0 ? 'border-red-300 bg-red-50' : ''}`}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-green-600">Accepted</Label>
+                            <div
+                              className={`h-8 px-3 flex items-center border rounded-md bg-muted ${!valid ? 'text-red-500 font-bold' : ''}`}
+                            >
+                              {valid ? accepted : 'Error'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Optional Details */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <Input
+                            placeholder="Batch Number (Optional)"
+                            className="h-8 text-xs"
+                            value={input.batchNumber}
+                            onChange={e => handleInputChange(item.id, 'batchNumber', e.target.value)}
+                          />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  'h-8 justify-start text-left font-normal',
+                                  !input.expiryDate && 'text-muted-foreground'
+                                )}
+                              >
+                                <Calendar className="mr-2 h-3 w-3" />
+                                {input.expiryDate ? format(input.expiryDate, 'PPP') : <span>Expiry Date</span>}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <CalendarComponent
+                                mode="single"
+                                selected={input.expiryDate}
+                                onSelect={date => handleInputChange(item.id, 'expiryDate', date)}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                        </div>
+
+                        {/* Rejection Reason - Conditional */}
+                        {parseFloat(input.rejectedQty) > 0 && (
+                          <Input
+                            placeholder="Reason for rejection (Required)"
+                            className="h-8 text-xs border-red-200"
+                            value={input.rejectionReason}
+                            onChange={e => handleInputChange(item.id, 'rejectionReason', e.target.value)}
+                          />
+                        )}
+
+                        <Input
+                          placeholder="Notes for this item..."
+                          className="h-8 text-xs"
+                          value={input.notes}
+                          onChange={e => handleInputChange(item.id, 'notes', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <Card>
+               <CardHeader>
+                <CardTitle className="text-sm font-semibold uppercase tracking-wider">Receipt Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Files */}
+                <div className="space-y-3">
+                  <Label className="flex justify-between">
+                    <span>Documents (Invoice, Delivery Note)</span>
+                    <span className="text-xs text-muted-foreground">{attachedFiles.length} attached</span>
+                  </Label>
+
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {attachedFiles.map((file, i) => (
+                      <div key={i} className="flex justify-between items-center bg-muted p-2 rounded text-xs">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                          <span className="truncate">{file.split(/[\\/]/).pop()}</span>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-5 w-5 flex-shrink-0"
+                          onClick={() => removeFile(file)}
+                        >
+                          <XIcon className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <FileReceiveDialog onFileReceived={handleFileReceived} />
+                </div>
+
+                {/* Global Notes */}
+                <div className="space-y-3">
+                  <Label>Receipt Notes</Label>
+                  <Textarea
+                    placeholder="General notes about this delivery..."
+                    value={globalNotes}
+                    onChange={e => setGlobalNotes(e.target.value)}
+                    className="resize-none h-32"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-6 space-y-6 max-w-full mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Incoming Shipments</h1>
@@ -346,196 +543,6 @@ export default function StockAcceptancePage() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Receive Dialog */}
-      <Dialog open={isReceiveDialogOpen} onOpenChange={setIsReceiveDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto flex flex-col">
-          <DialogHeader>
-            <DialogTitle>Receive Shipment: {selectedShipment?.referenceNumber}</DialogTitle>
-            <DialogDescription>
-              From {selectedShipment?.source} • {new Date(selectedShipment?.date || '').toLocaleDateString()}
-            </DialogDescription>
-          </DialogHeader>
-
-          {selectedShipment && (
-            <div className="flex-1 space-y-6 py-4">
-              {/* Items List */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold text-muted-foreground">Items ({selectedShipment.items.length})</h3>
-                <div className="grid gap-4">
-                  {selectedShipment.items.map(item => {
-                    const input = itemInputs[item.id] || {};
-                    const { accepted, valid } = calculateStats(item.id);
-
-                    return (
-                      <Card key={item.id} className="p-4 border-l-4 border-l-primary/20">
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                          {/* Item Info */}
-                          <div className="md:col-span-4 space-y-1">
-                            <div className="font-medium">{item.variant.displayName}</div>
-                            <div className="text-xs text-muted-foreground font-mono">{item.variant.sku}</div>
-                            <Badge variant="outline" className="mt-1">
-                              Expected: {item.quantity}
-                            </Badge>
-                          </div>
-
-                          {/* Inputs */}
-                          <div className="md:col-span-8 space-y-3">
-                            <div className="grid grid-cols-3 gap-3">
-                              <div className="space-y-1">
-                                <Label className="text-xs">Received Qty</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={input.receivedQty}
-                                  onChange={e => handleInputChange(item.id, 'receivedQty', e.target.value)}
-                                  className="h-8"
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Rejected Qty</Label>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={input.rejectedQty}
-                                  onChange={e => handleInputChange(item.id, 'rejectedQty', e.target.value)}
-                                  className={`h-8 ${parseFloat(input.rejectedQty) > 0 ? 'border-red-300 bg-red-50' : ''}`}
-                                />
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-green-600">Accepted</Label>
-                                <div
-                                  className={`h-8 px-3 flex items-center border rounded-md bg-muted ${!valid ? 'text-red-500 font-bold' : ''}`}
-                                >
-                                  {valid ? accepted : 'Error'}
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Optional Details Collapsible or Inline */}
-                            <div className="grid grid-cols-2 gap-3">
-                              <Input
-                                placeholder="Batch Number (Optional)"
-                                className="h-8 text-xs"
-                                value={input.batchNumber}
-                                onChange={e => handleInputChange(item.id, 'batchNumber', e.target.value)}
-                              />
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    className={cn(
-                                      'h-8 justify-start text-left font-normal',
-                                      !input.expiryDate && 'text-muted-foreground'
-                                    )}
-                                  >
-                                    <Calendar className="mr-2 h-3 w-3" />
-                                    {input.expiryDate ? format(input.expiryDate, 'PPP') : <span>Expiry Date</span>}
-                                  </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-auto p-0" align="start">
-                                  <CalendarComponent
-                                    mode="single"
-                                    selected={input.expiryDate}
-                                    onSelect={date => handleInputChange(item.id, 'expiryDate', date)}
-                                    initialFocus
-                                  />
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-
-                            {/* Rejection Reason - Conditional */}
-                            {parseFloat(input.rejectedQty) > 0 && (
-                              <Input
-                                placeholder="Reason for rejection (Required)"
-                                className="h-8 text-xs border-red-200"
-                                value={input.rejectionReason}
-                                onChange={e => handleInputChange(item.id, 'rejectionReason', e.target.value)}
-                              />
-                            )}
-
-                            <Input
-                              placeholder="Notes..."
-                              className="h-8 text-xs"
-                              value={input.notes}
-                              onChange={e => handleInputChange(item.id, 'notes', e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </Card>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Footer Section: Files & Global Notes */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t">
-                {/* Files */}
-                <div className="space-y-3">
-                  <Label className="flex justify-between">
-                    <span>Documents (Invoice, Delivery Note)</span>
-                    <span className="text-xs text-muted-foreground">{attachedFiles.length} attached</span>
-                  </Label>
-
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {attachedFiles.map((file, i) => (
-                      <div key={i} className="flex justify-between items-center bg-muted p-2 rounded text-xs">
-                        <div className="flex items-center gap-2 overflow-hidden">
-                          <FileText className="h-3 w-3 flex-shrink-0" />
-                          <span className="truncate">{file.split(/[\\/]/).pop()}</span>
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-5 w-5 flex-shrink-0"
-                          onClick={() => removeFile(file)}
-                        >
-                          <XIcon className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <FileReceiveDialog onFileReceived={handleFileReceived} />
-                </div>
-
-                {/* Global Notes */}
-                <div className="space-y-3">
-                  <Label>Receipt Notes</Label>
-                  <Textarea
-                    placeholder="General notes about this delivery..."
-                    value={globalNotes}
-                    onChange={e => setGlobalNotes(e.target.value)}
-                    className="resize-none h-32"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter className="mt-6 border-t pt-4">
-            <Button variant="outline" onClick={() => setIsReceiveDialogOpen(false)} disabled={isSubmitting}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmitReceipt}
-              disabled={isSubmitting}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isSubmitting ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                <>
-                  <Check className="mr-2 h-4 w-4" />
-                  Confirm Receipt
-                </>
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
