@@ -1,7 +1,7 @@
 {
   "name": "dealio-desktop",
   "private": true,
-  "version": "3.3.0-nextgen.13",
+  "version": "3.3.0-nextgen.14",
   "type": "module",
   "scripts": {
     "dev": "vite",

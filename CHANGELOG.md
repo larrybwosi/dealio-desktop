@@ -1,3 +1,13 @@
+# [3.3.0-nextgen.14](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.13...v3.3.0-nextgen.14) (2026-05-05)
+
+
+### Bug Fixes
+
+* **build:** nothing ([6684264](https://github.com/larrybwosi/dealio-desktop/commit/668426412268b10fae486efa3273695527096fde))
+* **ci:** address tauri build failures on windows and standalone variant ([b3d1efe](https://github.com/larrybwosi/dealio-desktop/commit/b3d1efe0c10bc75a2d4ec4fec63c576d704d8817))
+* resolve retail build failure and skip updater for standalone ([4540436](https://github.com/larrybwosi/dealio-desktop/commit/4540436b79d6b9c755b9ac89ba823513cd487887))
+* **workflow error:** nothing ([ffce7d8](https://github.com/larrybwosi/dealio-desktop/commit/ffce7d8a484f597fab15bd5d77c8f1c356086437))
+
 # [3.3.0-nextgen.13](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.12...v3.3.0-nextgen.13) (2026-05-05)
 
 
