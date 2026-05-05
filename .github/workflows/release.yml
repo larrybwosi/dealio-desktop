@@ -171,7 +171,6 @@ jobs:
         with:
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # Optimization: Added Rust caching to the release job to significantly speed up matrix builds
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
         with:
@@ -219,7 +218,7 @@ jobs:
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
 
-          # Determine config file
+          # Determine config file and updater name
           if [ "$VARIANT" = "retail" ]; then
             CONFIG_FILE="src-tauri/tauri.retail.conf.json"
             UPDATER_NAME="latest"
@@ -228,30 +227,6 @@ jobs:
             UPDATER_NAME="latest-$VARIANT"
           fi
 
-<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
-          echo "Updating $CONFIG_FILE version to $FULL_VERSION"
-          jq --arg v "$FULL_VERSION" '.version = $v' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
-
-          # Set branch-specific updater endpoint (Skip for standalone)
-          if [ "$VARIANT" != "standalone" ]; then
-            if [ "$BRANCH" = "main" ]; then
-              UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
-            elif [ "$BRANCH" = "beta" ]; then
-              UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/$UPDATER_NAME.json"
-            elif [ "$BRANCH" = "nextgen" ]; then
-              UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/$UPDATER_NAME.json"
-            else
-               # Default fallback
-               UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
-            fi
-
-            echo "Updating updater endpoint in $CONFIG_FILE to $UPDATER_ENDPOINT"
-            jq --arg e "$UPDATER_ENDPOINT" '.plugins.updater.endpoints = [$e]' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
-          else
-            echo "Skipping updater endpoint update for standalone variant"
-          fi
-
-=======
           # Determine branch-specific updater endpoint
           if [ "$BRANCH" = "main" ]; then
             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
@@ -265,25 +240,18 @@ jobs:
 
           echo "Configuring $CONFIG_FILE..."
 
-          # Sanitize version for Windows if it contains non-numeric pre-release identifiers
-          # 3.3.0-nextgen.12 -> 3.3.0-12
+          # Sanitize version for Windows (3.3.0-nextgen.12 -> 3.3.0-12)
           if [[ "$OS" == "windows-latest" && "$FULL_VERSION" == *"-"* ]]; then
-            # Extract version part and numeric part of pre-release
             VERSION_BASE=$(echo "$FULL_VERSION" | cut -d'-' -f1)
             PRE_RELEASE=$(echo "$FULL_VERSION" | cut -d'-' -f2-)
             NUMERIC_PRE=$(echo "$PRE_RELEASE" | grep -oE '[0-9]+(\.[0-9]+)*' | tr '\n' '.' | sed 's/\.$//')
-            if [ -n "$NUMERIC_PRE" ]; then
-              TARGET_VERSION="$VERSION_BASE-$NUMERIC_PRE"
-            else
-              TARGET_VERSION="$VERSION_BASE"
-            fi
-            echo "Sanitized version for Windows: $TARGET_VERSION (was $FULL_VERSION)"
+            TARGET_VERSION="${VERSION_BASE}-${NUMERIC_PRE:-0}"
+            echo "Sanitized version for Windows: $TARGET_VERSION"
           else
             TARGET_VERSION="$FULL_VERSION"
           fi
 
-          # Use jq to update version, and conditionally updater and bundle targets
-          # For Windows, we force NSIS to get .exe and avoid MSI versioning issues
+          # Unified jq update: Version, Updater (if not standalone), and Windows NSIS target
           jq --arg v "$TARGET_VERSION" \
              --arg e "$UPDATER_ENDPOINT" \
              --arg var "$VARIANT" \
@@ -297,7 +265,6 @@ jobs:
           echo "=== Updated $CONFIG_FILE ==="
           cat "$CONFIG_FILE"
 
->>>>>>> nextgen
       - name: Generate .env file for build
         shell: bash
         run: |
@@ -315,11 +282,7 @@ jobs:
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           releaseDraft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
-<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
-          args: ${{ matrix.args }} --config src-tauri/tauri.${{ matrix.variant }}.conf.json --features ${{ matrix.variant }}
-=======
           args: ${{ matrix.args }} ${{ matrix.variant == 'retail' && '' || format('--config ./src-tauri/tauri.{0}.conf.json --features {0}', matrix.variant) }}
->>>>>>> nextgen
 
       - name: Extract latest.json
         if: matrix.variant != 'standalone'
@@ -330,7 +293,6 @@ jobs:
             LATEST_JSON=$(find . -name "latest.json" | head -n 1)
           fi
           if [ -n "$LATEST_JSON" ]; then
-            # Use target_group and variant in filename to avoid conflicts during merge
             cp "$LATEST_JSON" "latest-${{ matrix.variant }}-${{ matrix.target_group }}.json"
           else
             echo "latest.json not found for ${{ matrix.os }} ${{ matrix.variant }}"
@@ -367,7 +329,6 @@ jobs:
           VERSION="${{ needs.release-management.outputs.new_release_version }}"
           REPO="${{ github.repository }}"
           TAG="v$VERSION"
-          BRANCH="${{ github.ref_name }}"
           VARIANT="${{ matrix.variant }}"
 
           if [ "$VARIANT" = "retail" ]; then
@@ -376,17 +337,14 @@ jobs:
             FINAL_NAME="latest-$VARIANT.json"
           fi
 
-          # Merge all platforms from individual files, preserving metadata from the first file
           FILES=(latest-${VARIANT}-*.json)
           if [ ${#FILES[@]} -eq 0 ]; then
              echo "No artifacts found for $VARIANT"
              exit 1
           fi
 
-          # Use jq to merge all objects in the array of files
           jq -s 'reduce .[] as $item ({}; . * $item)' "${FILES[@]}" > "$FINAL_NAME"
 
-          # Update URLs in combined.json to point to GitHub assets
           jq --arg repo "$REPO" --arg tag "$TAG" '
             .platforms |= with_entries(
               .value.url |= (
@@ -394,9 +352,6 @@ jobs:
               )
             )
           ' "$FINAL_NAME" > tmp.json && mv tmp.json "$FINAL_NAME"
-
-          echo "Final $FINAL_NAME:"
-          cat "$FINAL_NAME"
 
       - name: Upload final latest JSON to release
         if: matrix.variant != 'standalone'
@@ -407,11 +362,7 @@ jobs:
           VERSION="${{ needs.release-management.outputs.new_release_version }}"
           TAG="v$VERSION"
           VARIANT="${{ matrix.variant }}"
-          if [ "$VARIANT" = "retail" ]; then
-            FINAL_NAME="latest.json"
-          else
-            FINAL_NAME="latest-$VARIANT.json"
-          fi
+          FINAL_NAME=$([ "$VARIANT" = "retail" ] && echo "latest.json" || echo "latest-$VARIANT.json")
           gh release upload "$TAG" "$FINAL_NAME" --clobber
 
       - name: Update Rolling Latest Release (Prerelease only)
@@ -423,11 +374,6 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           TAG="${BRANCH}-latest"
           VARIANT="${{ matrix.variant }}"
-          if [ "$VARIANT" = "retail" ]; then
-            FINAL_NAME="latest.json"
-          else
-            FINAL_NAME="latest-$VARIANT.json"
-          fi
-          echo "Updating rolling release $TAG with $FINAL_NAME..."
+          FINAL_NAME=$([ "$VARIANT" = "retail" ] && echo "latest.json" || echo "latest-$VARIANT.json")
           gh release view "$TAG" || gh release create "$TAG" --prerelease --title "$TAG" --notes "Rolling release for $BRANCH branch"
           gh release upload "$TAG" "$FINAL_NAME" --clobber
