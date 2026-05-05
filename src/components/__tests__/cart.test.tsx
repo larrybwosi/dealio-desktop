@@ -32,7 +32,7 @@ describe('Cart Component', () => {
       },
     };
 
-    usePosStore.setState((state) => ({
+    usePosStore.setState(state => ({
       currentOrder: {
         ...state.currentOrder,
         items: [mockItem as any],
@@ -61,7 +61,7 @@ describe('Cart Component', () => {
       },
     };
 
-    usePosStore.setState((state) => ({
+    usePosStore.setState(state => ({
       settings: { ...state.settings, taxRate: 16 },
       currentOrder: {
         ...state.currentOrder,
@@ -75,6 +75,6 @@ describe('Cart Component', () => {
     expect(screen.getAllByText('116')).toHaveLength(2);
     // Tax calculation: 116 - (116 / 1.16) = 16
     expect(screen.getByText('16.00')).toBeInTheDocument(); // Tax amount
-    expect(screen.getByText('100.00')).toBeInTheDocument(); // Subtotal
+    expect(screen.getByText('100.00')).toBeInTheDocument(); // Subtotal amount
   });
 });
