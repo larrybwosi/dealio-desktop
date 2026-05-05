@@ -221,13 +221,37 @@ jobs:
 
           # Determine config file
           if [ "$VARIANT" = "retail" ]; then
-            CONFIG_FILE="src-tauri/tauri.conf.json"
+            CONFIG_FILE="src-tauri/tauri.retail.conf.json"
             UPDATER_NAME="latest"
           else
             CONFIG_FILE="src-tauri/tauri.$VARIANT.conf.json"
             UPDATER_NAME="latest-$VARIANT"
           fi
 
+<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
+          echo "Updating $CONFIG_FILE version to $FULL_VERSION"
+          jq --arg v "$FULL_VERSION" '.version = $v' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
+
+          # Set branch-specific updater endpoint (Skip for standalone)
+          if [ "$VARIANT" != "standalone" ]; then
+            if [ "$BRANCH" = "main" ]; then
+              UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
+            elif [ "$BRANCH" = "beta" ]; then
+              UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/$UPDATER_NAME.json"
+            elif [ "$BRANCH" = "nextgen" ]; then
+              UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/$UPDATER_NAME.json"
+            else
+               # Default fallback
+               UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
+            fi
+
+            echo "Updating updater endpoint in $CONFIG_FILE to $UPDATER_ENDPOINT"
+            jq --arg e "$UPDATER_ENDPOINT" '.plugins.updater.endpoints = [$e]' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
+          else
+            echo "Skipping updater endpoint update for standalone variant"
+          fi
+
+=======
           # Determine branch-specific updater endpoint
           if [ "$BRANCH" = "main" ]; then
             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
@@ -273,6 +297,7 @@ jobs:
           echo "=== Updated $CONFIG_FILE ==="
           cat "$CONFIG_FILE"
 
+>>>>>>> nextgen
       - name: Generate .env file for build
         shell: bash
         run: |
@@ -290,7 +315,11 @@ jobs:
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           releaseDraft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
+<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
+          args: ${{ matrix.args }} --config src-tauri/tauri.${{ matrix.variant }}.conf.json --features ${{ matrix.variant }}
+=======
           args: ${{ matrix.args }} ${{ matrix.variant == 'retail' && '' || format('--config ./src-tauri/tauri.{0}.conf.json --features {0}', matrix.variant) }}
+>>>>>>> nextgen
 
       - name: Extract latest.json
         if: matrix.variant != 'standalone'
@@ -325,12 +354,14 @@ jobs:
         variant: [retail, restaurant, supermarket, pharmacy]
     steps:
       - name: Download all latest.json artifacts for ${{ matrix.variant }}
+        if: matrix.variant != 'standalone'
         uses: actions/download-artifact@v4
         with:
           pattern: latest-json-${{ matrix.variant }}-*
           merge-multiple: true
 
       - name: Merge latest.json files for ${{ matrix.variant }}
+        if: matrix.variant != 'standalone'
         shell: bash
         run: |
           VERSION="${{ needs.release-management.outputs.new_release_version }}"
@@ -368,6 +399,7 @@ jobs:
           cat "$FINAL_NAME"
 
       - name: Upload final latest JSON to release
+        if: matrix.variant != 'standalone'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
@@ -383,7 +415,7 @@ jobs:
           gh release upload "$TAG" "$FINAL_NAME" --clobber
 
       - name: Update Rolling Latest Release (Prerelease only)
-        if: github.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main' && matrix.variant != 'standalone'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash

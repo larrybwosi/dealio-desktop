@@ -195,7 +195,7 @@ jobs:
       - name: Build Tauri App (Smoke Test)
         run: |
           if [ "${{ matrix.variant }}" = "retail" ]; then
-            pnpm run tauri build --no-bundle
+            pnpm build:retail --no-bundle
           elif [ "${{ matrix.variant }}" = "standalone" ]; then
             pnpm build:standalone --no-bundle
           elif [ "${{ matrix.variant }}" = "restaurant" ]; then
