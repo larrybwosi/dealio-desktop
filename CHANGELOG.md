@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.12](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.11...v3.3.0-nextgen.12) (2026-05-05)
+
+
+### Bug Fixes
+
+* build failures across all platforms and variants ([#47](https://github.com/larrybwosi/dealio-desktop/issues/47)) ([42bb537](https://github.com/larrybwosi/dealio-desktop/commit/42bb537145afa7bfbbdb2c442543188b91e23f4d))
+
 # [3.3.0-nextgen.11](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.10...v3.3.0-nextgen.11) (2026-05-03)
 
 
