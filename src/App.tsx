@@ -26,6 +26,7 @@ import NotFound from '@/pages/not-found';
 import ShiftManager from './components/shift-manager';
 import StockDeliveryPage from './pages/stock-acceptance';
 import StockTransferCreate from './pages/stock-transfers';
+import StockRequestCreate from './pages/stock-requests';
 import KDSPage from './pages/kitchen-display';
 import HubOverviewPage from './pages/hub-overview';
 import ProductManagementPage from './pages/product-management';
@@ -121,6 +122,7 @@ const AppRoutes = () => {
             <Route path="/pricing" element={<PricingViewPage />} />
             <Route path="/stock-acceptance" element={<StockDeliveryPage />} />
             <Route path="/stock-transfer" element={<StockTransferCreate />} />
+            <Route path="/stock-request" element={<StockRequestCreate />} />
           </>
         )}
 

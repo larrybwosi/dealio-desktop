@@ -18,7 +18,6 @@ import {
   X,
   Search,
   PackageSearch,
-  ArrowRightLeft,
   Store,
   Layers,
   Upload,
@@ -26,6 +25,7 @@ import {
   AlertCircle,
   ChevronRight,
   ClipboardList,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { invoke } from '@tauri-apps/api/core';
@@ -47,7 +47,7 @@ interface ProductVariant {
   price?: number;
 }
 
-interface TransferItem {
+interface RequestItem {
   id: string;
   variantId: string;
   productId: string;
@@ -244,7 +244,7 @@ function DocumentUploadZone({
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function StockTransferCreate() {
+export default function StockRequestCreate() {
   const { currentLocation } = useAuthStore();
   const { locations, isLoading: isLoadingLocations } = usePosLocations();
 
@@ -256,19 +256,19 @@ export default function StockTransferCreate() {
     enabled: searchTerm.length >= 2,
   });
 
-  const [toBranch, setToBranch] = useState('');
+  const [fromBranch, setFromBranch] = useState('');
   const [notes, setNotes] = useState('');
-  const [items, setItems] = useState<TransferItem[]>([]);
+  const [items, setItems] = useState<RequestItem[]>([]);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const availableDestinations = locations.filter(loc => loc.id !== currentLocation?.id);
-  const selectedToBranch = locations.find(b => b.id === toBranch);
+  const availableSources = locations.filter(loc => loc.id !== currentLocation?.id);
+  const selectedFromBranch = locations.find(b => b.id === fromBranch);
   const getTotalItems = () => items.reduce((sum, i) => sum + i.quantity, 0);
-  const isFormReady = toBranch && items.length > 0 && !isSubmitting;
+  const isFormReady = fromBranch && items.length > 0 && !isSubmitting;
 
   // Determine wizard step progress
-  const currentStep = !toBranch ? 1 : items.length === 0 ? 2 : 3;
+  const currentStep = !fromBranch ? 1 : items.length === 0 ? 2 : 3;
 
   // ── Variant helpers ─────────────────────────────────────────────────────────
 
@@ -333,7 +333,7 @@ export default function StockTransferCreate() {
     ]);
     setSearchTerm('');
     setShowResults(false);
-    toast.success('Item added to transfer list');
+    toast.success('Item added to request list');
   };
 
   const updateQuantity = (id: string, quantity: number) =>
@@ -370,26 +370,26 @@ export default function StockTransferCreate() {
   // ── Submit ───────────────────────────────────────────────────────────────────
 
   const handleSubmit = async () => {
-    if (!toBranch || items.length === 0) return;
+    if (!fromBranch || items.length === 0) return;
     try {
       setIsSubmitting(true);
       const payload = {
-        toLocationId: toBranch,
+        toLocationId: fromBranch, // toLocationId is the source in the API context for requests
         items: items.map(({ variantId, quantity }) => ({ variantId, quantity })),
         notes: notes || undefined,
         documents: attachedFiles.map(f => f.path || f.name),
       };
-      await invoke('submit_stock_transfer', { payload });
-      posthog.capture("stock_transfer_initiated");
-      toast.success('Stock transfer submitted successfully');
+      await invoke('submit_stock_request', { payload });
+      posthog.capture("stock_request_initiated");
+      toast.success('Stock request submitted successfully');
       setItems([]);
       setNotes('');
-      setToBranch('');
+      setFromBranch('');
       setAttachedFiles([]);
       setSearchTerm('');
       setShowResults(false);
     } catch (error: any) {
-      toast.error('Transfer failed', { description: error.message || 'Unknown error' });
+      toast.error('Request failed', { description: error.message || 'Unknown error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -406,9 +406,9 @@ export default function StockTransferCreate() {
           <div className="flex items-center gap-2 text-sm select-none">
             <span className="text-slate-400 dark:text-slate-500">Inventory</span>
             <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
-            <span className="text-slate-400 dark:text-slate-500">Stock Transfers</span>
+            <span className="text-slate-400 dark:text-slate-500">Stock Requests</span>
             <ChevronRight className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />
-            <span className="font-semibold text-slate-800 dark:text-slate-200">New Transfer</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">New Request</span>
           </div>
 
           {/* Route indicator */}
@@ -416,20 +416,20 @@ export default function StockTransferCreate() {
             <div className="flex items-center gap-1.5">
               <Store className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {currentLocation?.name || 'Origin'}
+                {currentLocation?.name || 'Destination'}
               </span>
             </div>
             <div className="flex items-center gap-1 text-slate-300 dark:text-slate-600">
               <div className="h-px w-4 bg-slate-300 dark:bg-slate-600" />
-              <ArrowRightLeft className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+              <ArrowDownToLine className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
               <div className="h-px w-4 bg-slate-300 dark:bg-slate-600" />
             </div>
             <div className="flex items-center gap-1.5">
               <Building2 className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
               <span
-                className={`text-sm font-medium ${selectedToBranch ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}
+                className={`text-sm font-medium ${selectedFromBranch ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}
               >
-                {selectedToBranch?.name || 'Destination'}
+                {selectedFromBranch?.name || 'Source Branch'}
               </span>
             </div>
           </div>
@@ -442,10 +442,10 @@ export default function StockTransferCreate() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
-                Create Stock Transfer
+                Create Stock Request
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-                Transfer inventory between your business locations. All transfers are logged and traceable.
+                Request inventory from other business locations. Requests will be reviewed by the source branch.
               </p>
             </div>
             {items.length > 0 && (
@@ -458,7 +458,7 @@ export default function StockTransferCreate() {
           {/* Step progress */}
           <div className="mt-6 flex items-center gap-0 select-none">
             {[
-              { n: 1, label: 'Set Destination' },
+              { n: 1, label: 'Select Source' },
               { n: 2, label: 'Add Products' },
               { n: 3, label: 'Review & Submit' },
             ].map((s, i, arr) => (
@@ -485,16 +485,16 @@ export default function StockTransferCreate() {
         <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
           {/* ── LEFT COLUMN ────────────────────────────────────────────────── */}
           <div className="space-y-5">
-            {/* Step 1 — Destination */}
+            {/* Step 1 — Source */}
             <div className="bg-white dark:bg-background rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden transition-colors">
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-800 select-none">
                 <div className="w-7 h-7 rounded-lg bg-slate-900 dark:bg-slate-50 flex items-center justify-center flex-shrink-0">
                   <Building2 className="h-3.5 w-3.5 text-white dark:text-slate-900" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Destination Location</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Source Location</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">
-                    Select the branch that will receive this stock
+                    Select the branch you are requesting stock from
                   </p>
                 </div>
               </div>
@@ -502,33 +502,27 @@ export default function StockTransferCreate() {
                 <div className="grid sm:grid-cols-2 gap-4 items-end">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider select-none">
-                      From (Origin)
+                      Requesting Branch
                     </Label>
                     <div className="flex items-center gap-2.5 h-10 px-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
                       <div className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
                       <span className="text-sm font-medium text-slate-700 dark:text-slate-300 truncate">
                         {currentLocation?.name || 'Current Location'}
                       </span>
-                      <Badge
-                        variant="secondary"
-                        className="ml-auto text-[10px] dark:bg-slate-800 dark:text-slate-300 select-none"
-                      >
-                        Origin
-                      </Badge>
                     </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider select-none">
-                      To (Destination) <span className="text-red-400 dark:text-red-500 ml-0.5">*</span>
+                      From (Source) <span className="text-red-400 dark:text-red-500 ml-0.5">*</span>
                     </Label>
-                    <Select value={toBranch} onValueChange={setToBranch} disabled={isSubmitting}>
+                    <Select value={fromBranch} onValueChange={setFromBranch} disabled={isSubmitting}>
                       <SelectTrigger className="h-10 text-sm border-slate-200 dark:border-slate-700 focus:ring-slate-900 dark:focus:ring-slate-50 dark:bg-background">
                         <SelectValue
-                          placeholder={isLoadingLocations ? 'Loading locations…' : 'Select destination branch'}
+                          placeholder={isLoadingLocations ? 'Loading locations…' : 'Select source branch'}
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableDestinations.map(loc => (
+                        {availableSources.map(loc => (
                           <SelectItem key={loc.id} value={loc.id}>
                             <div className="flex items-center gap-2">
                               <div className="h-2 w-2 rounded-full bg-sky-500" />
@@ -550,7 +544,7 @@ export default function StockTransferCreate() {
                   <Package className="h-3.5 w-3.5 text-white dark:text-slate-900" />
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Transfer Items</p>
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Requested Items</p>
                   <p className="text-xs text-slate-400 dark:text-slate-500">Search by name, SKU or barcode</p>
                 </div>
                 {items.length > 0 && (
@@ -611,25 +605,10 @@ export default function StockTransferCreate() {
                           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
                             {searchResults.map(product => {
                               const variants = getProductVariants(product);
-                              const available = variants.filter(v => v.stock > 0);
                               const safeProductName =
                                 product.productName || (product as any).product_name || product.name || 'Unknown';
 
-                              if (available.length === 0) {
-                                return (
-                                  <div
-                                    key={product.productId}
-                                    className="flex items-center justify-between px-4 py-3 opacity-50 select-none"
-                                  >
-                                    <span className="text-sm dark:text-slate-300">{safeProductName}</span>
-                                    <Badge variant="destructive" className="text-[10px]">
-                                      Out of Stock
-                                    </Badge>
-                                  </div>
-                                );
-                              }
-
-                              if (available.length > 1) {
+                              if (variants.length > 1) {
                                 return (
                                   <div key={product.productId}>
                                     <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 dark:bg-slate-800/50 select-none">
@@ -638,7 +617,7 @@ export default function StockTransferCreate() {
                                         {safeProductName}
                                       </span>
                                     </div>
-                                    {available.map(variant => (
+                                    {variants.map(variant => (
                                       <div
                                         key={variant.variantId}
                                         onClick={() => addItem(product, variant.variantId)}
@@ -649,7 +628,7 @@ export default function StockTransferCreate() {
                                             {variant.variantName}
                                           </p>
                                           <p className="text-xs text-slate-400 dark:text-slate-500">
-                                            Stock: {variant.stock}
+                                            Local Stock: {variant.stock}
                                           </p>
                                         </div>
                                         <Button
@@ -665,7 +644,7 @@ export default function StockTransferCreate() {
                                 );
                               }
 
-                              const v = available[0];
+                              const v = variants[0];
                               return (
                                 <div
                                   key={product.productId}
@@ -678,7 +657,7 @@ export default function StockTransferCreate() {
                                     </p>
                                     <div className="flex gap-3 text-xs text-slate-400 dark:text-slate-500 mt-0.5">
                                       <span>
-                                        Stock: <b className="text-slate-600 dark:text-slate-400">{v.stock}</b>
+                                        Local Stock: <b className="text-slate-600 dark:text-slate-400">{v.stock}</b>
                                       </span>
                                       {v.sku && <span>SKU: {v.sku}</span>}
                                     </div>
@@ -722,7 +701,7 @@ export default function StockTransferCreate() {
                         Product
                       </span>
                       <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-400 dark:text-slate-500 text-center w-28">
-                        Qty
+                        Requested Qty
                       </span>
                       <span className="w-8" />
                     </div>
@@ -742,10 +721,8 @@ export default function StockTransferCreate() {
                                   {item.sku}
                                 </span>
                                 <span className="text-[10px] text-slate-300 dark:text-slate-600">·</span>
-                                <span
-                                  className={`text-[10px] font-medium ${item.currentStock <= 5 ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'}`}
-                                >
-                                  {item.currentStock} available
+                                <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500">
+                                  {item.currentStock} in stock (Local)
                                 </span>
                               </div>
                             </div>
@@ -763,9 +740,8 @@ export default function StockTransferCreate() {
                                 {item.quantity}
                               </div>
                               <button
-                                className="w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-30"
+                                className="w-8 h-8 flex items-center justify-center text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                disabled={item.quantity >= item.currentStock}
                               >
                                 +
                               </button>
@@ -795,7 +771,7 @@ export default function StockTransferCreate() {
                 <div className="w-7 h-7 rounded-lg bg-slate-900 dark:bg-slate-50 flex items-center justify-center flex-shrink-0">
                   <ClipboardList className="h-3.5 w-3.5 text-white dark:text-slate-900" />
                 </div>
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Transfer Summary</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Request Summary</p>
               </div>
 
               <div className="p-5 space-y-5">
@@ -816,26 +792,24 @@ export default function StockTransferCreate() {
                 </div>
 
                 {/* Route summary */}
-                {(currentLocation || selectedToBranch) && (
+                {(currentLocation || selectedFromBranch) && (
                   <div className="rounded-lg border border-slate-100 dark:border-slate-800 p-3 space-y-2 select-none">
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                      Transfer Route
+                      Request Flow
                     </p>
                     <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-1.5 rounded-lg bg-emerald-500 flex-shrink-0" />
-                      <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">
-                        {currentLocation?.name || 'Origin'}
+                      <div className="h-1.5 w-1.5 rounded-lg bg-sky-500 flex-shrink-0" />
+                      <span
+                        className={`text-xs font-medium truncate ${selectedFromBranch ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}
+                      >
+                        Source: {selectedFromBranch?.name || 'Not selected'}
                       </span>
                     </div>
                     <div className="ml-[3px] h-3 w-px bg-slate-200 dark:bg-slate-700" />
                     <div className="flex items-center gap-2">
-                      <div
-                        className={`h-1.5 w-1.5 rounded-lg flex-shrink-0 ${selectedToBranch ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                      />
-                      <span
-                        className={`text-xs font-medium truncate ${selectedToBranch ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400 dark:text-slate-500'}`}
-                      >
-                        {selectedToBranch?.name || 'Not selected'}
+                      <div className="h-1.5 w-1.5 rounded-lg bg-emerald-500 flex-shrink-0" />
+                      <span className="text-xs text-slate-700 dark:text-slate-300 font-medium truncate">
+                        Dest: {currentLocation?.name || 'Destination'}
                       </span>
                     </div>
                   </div>
@@ -844,10 +818,10 @@ export default function StockTransferCreate() {
                 {/* Notes */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider select-none">
-                    Notes
+                    Request Notes
                   </Label>
                   <Textarea
-                    placeholder="Internal notes or instructions…"
+                    placeholder="Reason for request or instructions…"
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     className="resize-none text-sm h-20 bg-white dark:bg-background border-slate-200 dark:border-slate-700 focus-visible:ring-slate-900 dark:focus-visible:ring-slate-50 placeholder:text-slate-400 dark:placeholder:text-slate-600"
@@ -860,7 +834,7 @@ export default function StockTransferCreate() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between select-none">
                     <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
-                      Documents
+                      Attachments
                     </Label>
                     {attachedFiles.length > 0 && (
                       <Badge variant="secondary" className="text-[10px] dark:bg-slate-800 dark:text-slate-300">
@@ -883,7 +857,7 @@ export default function StockTransferCreate() {
                   <div className="flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 rounded-lg px-3 py-2.5 border border-amber-100 dark:border-amber-900/50 select-none">
                     <AlertCircle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
                     <span>
-                      {!toBranch ? 'Select a destination to continue.' : 'Add at least one product to submit.'}
+                      {!fromBranch ? 'Select a source to continue.' : 'Add at least one product to submit.'}
                     </span>
                   </div>
                 )}
@@ -903,13 +877,13 @@ export default function StockTransferCreate() {
                   ) : (
                     <>
                       <Send className="h-4 w-4 mr-2" />
-                      Confirm Transfer
+                      Submit Request
                     </>
                   )}
                 </Button>
 
                 <p className="text-center text-[10px] text-slate-400 dark:text-slate-500 select-none">
-                  This transfer will be logged and sent to the destination for review.
+                  Your request will be sent to the source branch for fulfillment.
                 </p>
               </div>
             </div>

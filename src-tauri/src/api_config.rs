@@ -11,6 +11,7 @@ pub mod routes {
 
     // --- Inventory / Stock ---
     pub const INVENTORY_TRANSFERS: &str = "api/v2/pos/inventory/transfers";
+    pub const INVENTORY_REQUESTS: &str = "api/v2/pos/inventory/requests";
     pub const INVENTORY_PROCESS: &str = "api/v2/pos/inventory/process";
     pub const INCOMING_SHIPMENTS: &str = "api/v2/pos/incoming";
 

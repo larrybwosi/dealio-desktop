@@ -469,6 +469,8 @@ pub fn run() {
             stock_acceptance::submit_stock_process,
             #[cfg(not(feature = "standalone"))]
             stock_transfer::submit_stock_transfer,
+            #[cfg(not(feature = "standalone"))]
+            stock_transfer::submit_stock_request,
 
             http_server::start_file_server,
             audit_store::write_audit_log,

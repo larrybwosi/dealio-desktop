@@ -243,3 +243,46 @@ pub async fn submit_stock_transfer(
 
     handle_response(resp, "SubmitStockTransfer").await
 }
+
+#[tauri::command]
+pub async fn submit_stock_request(
+    auth_state: State<'_, AuthState>,
+    payload: TransferRequest,
+) -> Result<serde_json::Value, CommandError> {
+    // 1. Build Client & Fetch Current Location from State
+    let (client, base_url, current_location_id) = build_client_with_context(&auth_state)?;
+
+    // 2. Prepare API URL
+    let url = format!(
+        "{}/{}",
+        base_url,
+        crate::api_config::routes::INVENTORY_REQUESTS
+    );
+
+    // 3. Construct Full Payload
+    let api_payload = TransferApiPayload {
+        from_location_id: current_location_id.clone(),
+        to_location_id: payload.to_location_id,
+        items: payload.items,
+        notes: payload.notes,
+        documents: payload.documents,
+    };
+
+    info!(
+        "[StockRequest] Submitting request from {} to {}",
+        current_location_id, api_payload.to_location_id
+    );
+
+    // 4. Send Request
+    let resp = client
+        .post(&url)
+        .json(&api_payload)
+        .send()
+        .await
+        .map_err(|e| {
+            CommandError::new(ErrorKind::Network, "Failed to submit stock request")
+                .with_details(e.to_string())
+        })?;
+
+    handle_response(resp, "SubmitStockRequest").await
+}
