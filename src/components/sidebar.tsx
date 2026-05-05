@@ -28,6 +28,7 @@ import {
   Activity,
   Box,
   Keyboard,
+  Barcode,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { usePosStore } from '@/store/store';
@@ -58,6 +59,7 @@ const routeMap: Record<string, string> = {
   'hub-overview': '/hub-overview',
   settings: '/settings',
   pricing: '/pricing',
+  barcodes: '/barcodes',
 };
 
 const iconMap: Record<string, any> = {
@@ -81,6 +83,7 @@ const iconMap: Record<string, any> = {
   Wallet,
   Banknote,
   Activity,
+  Barcode,
 };
 
 interface SidebarProps {

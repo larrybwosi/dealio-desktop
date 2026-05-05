@@ -341,7 +341,7 @@ pub async fn print_job(
         "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
         "bar" => print_bar_native(app, order, settings, branch_name).await,
         "bill" => print_bill_native(app, order, settings, branch_name).await,
-        "label" => print_pharmacy_labels(app, order, settings).await,
+        "label" => print_generic_labels(app, order, settings).await,
         "invoice" | "waybill" => {
             // PDF Printing path for A4/Full documents
             let url = order.get("invoiceUrl")
@@ -1121,52 +1121,88 @@ pub async fn print_bill_native(
 }
 
 #[tauri::command]
-pub async fn print_pharmacy_labels(
+pub async fn print_labels_command(
+    app: tauri::AppHandle,
+    items: Vec<Value>,
+    config: Value,
+) -> Result<String, String> {
+    let mut order = serde_json::Map::new();
+    order.insert("items".to_string(), Value::Array(items));
+
+    let mut settings = serde_json::Map::new();
+    settings.insert("labelConfig".to_string(), config);
+
+    print_generic_labels(app, Value::Object(order), Value::Object(settings)).await
+}
+
+pub async fn print_generic_labels(
     app: tauri::AppHandle,
     order: Value,
-    _settings: Value,
+    settings: Value,
 ) -> Result<String, String> {
     let mut all_bytes = Vec::new();
+    let label_config = settings.get("labelConfig").or(settings.get("receiptConfig")).unwrap_or(&Value::Null);
+
+    // Layout configuration
+    let show_price = label_config.get("showPrice").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_sku = label_config.get("showSku").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_name = label_config.get("showName").and_then(|v| v.as_bool()).unwrap_or(true);
+    let barcode_type = label_config.get("barcodeType").and_then(|v| v.as_str()).unwrap_or("code128");
 
     if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
         for item in items {
             let mut esc = EscPosBuilder::new();
 
-            // Pharmacy Label (usually 50mm x 30mm)
-            esc.align(1); // Center
-
-            let product_name = item.get("productName").and_then(|v| v.as_str()).unwrap_or("Medicine");
-            let customer_name = order.get("customerName").and_then(|v| v.as_str()).unwrap_or("Walk-in Patient");
-            let instructions = item.get("dosageInstructions")
-                .or(order.get("instructions"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("Take as directed by doctor.");
-
-            esc.bold(true);
-            esc.text_line(product_name);
-            esc.bold(false);
-
-            esc.size(1, 1);
-            esc.text_line(&format!("PATIENT: {}", customer_name));
-
-            esc.feed(1);
-            esc.align(0); // Left for instructions
-            esc.text_line("DIRECTIONS:");
-            esc.text_line(instructions);
-
-            esc.feed(1);
+            // For labels, we usually center align
             esc.align(1);
-            let date = chrono::Local::now().format("%Y-%m-%d").to_string();
-            esc.text_line(&format!("Dispensed: {}", date));
 
-            if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
-                esc.barcode_1d(order_num);
+            if show_name {
+                let name = item.get("productName").or(item.get("name")).and_then(|v| v.as_str()).unwrap_or("Product");
+                esc.bold(true);
+                esc.text_line(name);
+                esc.bold(false);
             }
 
-            esc.feed(2);
+            if show_sku {
+                if let Some(sku) = item.get("sku").and_then(|v| v.as_str()) {
+                    esc.text_line(&format!("SKU: {}", sku));
+                }
+            }
+
+            if show_price {
+                if let Some(price) = item.get("price").and_then(|v| v.as_f64()) {
+                    let currency = item.get("currency").and_then(|v| v.as_str()).unwrap_or("");
+                    esc.size(2, 1);
+                    esc.text_line(&format!("{} {:.2}", currency, price));
+                    esc.size(1, 1);
+                }
+            }
+
+            if let Some(barcode) = item.get("barcode").and_then(|v| v.as_str()) {
+                if barcode_type == "qr" {
+                    esc.qr_code(barcode);
+                } else {
+                    esc.barcode_1d(barcode);
+                }
+            }
+
+            // Dosage instructions for pharmacy labels
+            if let Some(dosage) = item.get("dosageInstructions").and_then(|v| v.as_str()) {
+                esc.feed(1);
+                esc.align(0);
+                esc.text_line("DIRECTIONS:");
+                esc.text_line(dosage);
+                esc.align(1);
+            }
+
+            esc.feed(1);
             esc.cut();
 
-            all_bytes.extend(esc.bytes);
+            // Handle multi-copy printing
+            let quantity = item.get("quantity").and_then(|v| v.as_u64()).unwrap_or(1);
+            for _ in 0..quantity {
+                all_bytes.extend(esc.bytes.clone());
+            }
         }
     }
 
@@ -1175,7 +1211,23 @@ pub async fn print_pharmacy_labels(
     }
 
     let printer_config = get_printer_config(app.clone()).await?;
-    let target_printer = printer_config.label_printer.or(printer_config.bar_printer).or(printer_config.receipt_printer);
+
+    // Explicitly check for config-provided printer first
+    let config_printer_name = label_config.get("printerName").and_then(|v| v.as_str());
+
+    let target_printer = if let Some(name) = config_printer_name {
+        if name == "default" {
+            printer_config.label_printer.or(printer_config.bar_printer).or(printer_config.receipt_printer)
+        } else {
+            Some(PrinterConfig {
+                method: "system".into(),
+                target: name.to_string(),
+                port: None,
+            })
+        }
+    } else {
+        printer_config.label_printer.or(printer_config.bar_printer).or(printer_config.receipt_printer)
+    };
 
     print_raw_to_printer(&app, target_printer, all_bytes).await
 }

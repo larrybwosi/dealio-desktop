@@ -406,7 +406,7 @@ pub fn run() {
             printer_manager::print_receipt_native,
             printer_manager::print_kitchen_native,
             printer_manager::print_bar_native,
-            printer_manager::print_pharmacy_labels,
+            printer_manager::print_labels_command,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,

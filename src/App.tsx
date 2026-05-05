@@ -31,6 +31,7 @@ import KDSPage from './pages/kitchen-display';
 import HubOverviewPage from './pages/hub-overview';
 import ProductManagementPage from './pages/product-management';
 import StandaloneSetup from './pages/standalone-setup';
+import BarcodePrintingPage from './pages/barcode-printing-page';
 import LogsPage from './pages/logs-page';
 
 // Layout wrapper component that uses AppLayout
@@ -138,6 +139,7 @@ const AppRoutes = () => {
         {import.meta.env.MODE !== 'standalone' && <Route path="/shift-manager" element={<ShiftManager />} />}
 
         <Route path="/product-management" element={<ProductManagementPage />} />
+        <Route path="/barcodes" element={<BarcodePrintingPage />} />
         <Route path="/logs" element={<LogsPage />} />
       </Route>
 
