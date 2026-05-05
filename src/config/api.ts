@@ -6,5 +6,5 @@ export const API_ROUTES = {
     // Example of future route
     // FULFILLMENT_WAYBILL: (fulfillmentId: string) => `api/v2/fulfillment/${fulfillmentId}/waybill`,
   },
-  // Add other frontend routes here as they are discovered
+  // Add other frontend routes here as they are discovered.
 };
