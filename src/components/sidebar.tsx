@@ -64,6 +64,7 @@ const iconMap: Record<string, any> = {
   ShoppingBag,
   Package,
   History,
+  ClipboardList,
   BarChart3,
   CreditCard,
   DollarSign,
