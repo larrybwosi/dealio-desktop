@@ -7,7 +7,6 @@ pub mod escpos_builder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Manager;
-#[cfg(not(feature = "standalone"))]
 use tauri::Emitter;
 
 pub mod stores;
