@@ -209,7 +209,7 @@ export function HistoryPage() {
     <div className="flex h-full">
       {/* Main Content */}
       <div className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-7xl mx-auto space-y-6">
+        <div className="mx-auto space-y-6">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
@@ -243,21 +243,21 @@ export function HistoryPage() {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="p-4">
+            <Card className="p-4 rounded-lg">
               <div className="text-sm text-muted-foreground">Total Transactions</div>
               <div className="text-2xl font-bold mt-1">{totalOrders}</div>
             </Card>
-            <Card className="p-4">
+            <Card className="p-4 rounded-lg">
               <div className="text-sm text-muted-foreground">Synced Successfully</div>
               <div className="text-2xl font-bold mt-1 text-emerald-600">{completedOrders}</div>
             </Card>
-            <Card className="p-4">
+            <Card className="p-4 rounded-lg">
               <div className="text-sm text-muted-foreground">Total Revenue (Synced)</div>
               <div className="text-2xl font-bold mt-1">
                 {settings.currency} {totalSales.toLocaleString()}
               </div>
             </Card>
-            <Card className="p-4">
+            <Card className="p-4 rounded-lg">
               <div className="text-sm text-muted-foreground">Avg. Value</div>
               <div className="text-2xl font-bold mt-1">
                 {settings.currency} {totalOrders > 0 ? Math.round(avgOrderValue).toLocaleString() : 0}
@@ -266,7 +266,7 @@ export function HistoryPage() {
           </div>
 
           {/* Filters */}
-          <Card className="p-4">
+          <Card className="p-4 rounded-lg">
             <div className="flex flex-wrap gap-4">
               <div className="relative flex-1 min-w-[200px]">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -312,7 +312,7 @@ export function HistoryPage() {
 
           {/* Empty state when no orders exist */}
           {queue.length === 0 ? (
-            <Card className="p-12">
+            <Card className="p-12 rounded-lg">
               <div className="text-center space-y-4">
                 <div className="flex justify-center">
                   <Cloud className="w-12 h-12 text-muted-foreground" />
@@ -330,7 +330,7 @@ export function HistoryPage() {
             </Card>
           ) : (
             /* Orders List */
-            <Card>
+            <Card className="rounded-lg">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="border-b border-border">

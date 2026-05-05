@@ -68,7 +68,7 @@ function StatCard({ label, value, icon, accent, sublabel }: StatCardProps) {
   return (
     <div
       className={cn(
-        'relative overflow-hidden rounded-2xl border bg-white dark:bg-zinc-900',
+        'relative overflow-hidden rounded-lg border bg-white dark:bg-zinc-900',
         'border-zinc-200/80 dark:border-zinc-800 shadow-sm',
         'transition-all duration-300 hover:shadow-md hover:-translate-y-0.5'
       )}
@@ -84,7 +84,7 @@ function StatCard({ label, value, icon, accent, sublabel }: StatCardProps) {
           </div>
           <div
             className={cn(
-              'flex h-10 w-10 items-center justify-center rounded-xl',
+              'flex h-10 w-10 items-center justify-center rounded-lg',
               'bg-zinc-100 dark:bg-zinc-800 text-zinc-500 dark:text-zinc-400'
             )}
           >
@@ -111,7 +111,7 @@ function PriceListCard({ list, items, lookups, formatCurrency }: PriceListCardPr
   return (
     <div
       className={cn(
-        'rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900',
+        'rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900',
         'shadow-sm overflow-hidden transition-all duration-300'
       )}
     >
@@ -367,7 +367,7 @@ export default function PricingViewPage() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
+      <div className="mx-auto px-6 py-8 space-y-8">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
@@ -403,24 +403,18 @@ export default function PricingViewPage() {
         {/* Tabs */}
         <Tabs defaultValue="lists" className="w-full">
           <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
-            <TabsList className="h-9 bg-zinc-100 dark:bg-zinc-800/60 rounded-xl p-1">
+            <TabsList className="h-9 bg-zinc-100 dark:bg-zinc-800/60 rounded-lg p-1">
               <TabsTrigger
                 value="lists"
-                className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm"
+                className="rounded-md text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm"
               >
                 Price Lists
               </TabsTrigger>
               <TabsTrigger
                 value="allocations"
-                className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm"
+                className="rounded-md text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm"
               >
                 Allocations
-              </TabsTrigger>
-              <TabsTrigger
-                value="debug"
-                className="rounded-lg text-xs px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-zinc-700 data-[state=active]:shadow-sm"
-              >
-                Raw Data
               </TabsTrigger>
             </TabsList>
 
@@ -431,7 +425,7 @@ export default function PricingViewPage() {
                 placeholder="Filter lists…"
                 value={filter}
                 onChange={e => setFilter(e.target.value)}
-                className="pl-8 h-9 text-xs w-52 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 rounded-xl focus-visible:ring-1 focus-visible:ring-zinc-400"
+                className="pl-8 h-9 text-xs w-52 bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-700 rounded-lg focus-visible:ring-1 focus-visible:ring-zinc-400"
               />
             </div>
           </div>
@@ -439,7 +433,7 @@ export default function PricingViewPage() {
           {/* Price Lists Tab */}
           <TabsContent value="lists" className="mt-0 space-y-3">
             {filteredLists.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800 py-16 flex flex-col items-center justify-center text-zinc-400 gap-2">
+              <div className="rounded-lg border border-dashed border-zinc-200 dark:border-zinc-800 py-16 flex flex-col items-center justify-center text-zinc-400 gap-2">
                 <List className="h-7 w-7 opacity-40" />
                 <p className="text-sm">No price lists match your filter</p>
               </div>
@@ -458,7 +452,7 @@ export default function PricingViewPage() {
 
           {/* Allocations Tab */}
           <TabsContent value="allocations" className="mt-0">
-            <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
+            <div className="rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
                 <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Customer Rules</h2>
                 <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Price lists assigned per customer</p>
@@ -523,38 +517,6 @@ export default function PricingViewPage() {
             </div>
           </TabsContent>
 
-          {/* Debug Tab */}
-          <TabsContent value="debug" className="mt-0">
-            <div className="rounded-2xl border border-zinc-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">Raw JSON Data</h2>
-                <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
-                  Inspect resolved lookups and raw records
-                </p>
-              </div>
-              <div className="p-5 space-y-4">
-                <div className="flex items-start gap-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50 p-3.5 text-xs text-amber-800 dark:text-amber-300">
-                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
-                  <p>
-                    Verify that <code className="font-mono font-semibold">get_products_by_ids_command</code> returns
-                    products when passed Variant IDs. If names are missing, the backend query may require Product IDs
-                    instead.
-                  </p>
-                </div>
-                <pre className="bg-zinc-50 dark:bg-zinc-950 border border-zinc-100 dark:border-zinc-800 rounded-xl p-4 text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-300 overflow-auto max-h-[480px] font-mono">
-                  {JSON.stringify(
-                    {
-                      lookups,
-                      products: products.slice(0, 3),
-                      customers: customers.slice(0, 3),
-                    },
-                    null,
-                    2
-                  )}
-                </pre>
-              </div>
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
     </div>
