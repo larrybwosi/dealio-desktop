@@ -531,6 +531,7 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
   }
 
   items.push({ id: 'pricing', label: 'Pricing', icon: 'Banknote', enabled: false });
+  items.push({ id: 'barcodes', label: 'Barcodes', icon: 'Barcode', enabled: true });
   items.push({ id: 'stock-acceptance', label: 'Stock Acceptance', icon: 'Package', enabled: false });
   items.push({ id: 'stock-transfer', label: 'Stock Transfer', icon: 'Package', enabled: false });
 
