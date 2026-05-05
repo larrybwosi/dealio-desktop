@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.13](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.12...v3.3.0-nextgen.13) (2026-05-05)
+
+
+### Features
+
+* **test build:** nothing ([a531ba0](https://github.com/larrybwosi/dealio-desktop/commit/a531ba0d96af83bc8358eb37db9834b2e37788d8))
+
 # [3.3.0-nextgen.12](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.11...v3.3.0-nextgen.12) (2026-05-05)
 
 
