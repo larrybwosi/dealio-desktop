@@ -26,7 +26,9 @@
     "test:backend": "cd src-tauri && cargo test",
     "test:e2e": "playwright test",
     "test:all": "pnpm run test:frontend && pnpm run test:backend && pnpm run test:e2e",
-    "lint:all": "pnpm run lint:ox && pnpm exec tsc --noEmit && cd src-tauri && cargo clippy --all-features",
+    "lint:frontend": "pnpm run lint:ox && pnpm exec tsc --noEmit",
+    "lint:backend": "cd src-tauri && cargo clippy --all-features",
+    "lint:all": "pnpm run lint:frontend && pnpm run lint:backend",
     "format": "npx prettier --write .",
     "cz": "cz"
   },
