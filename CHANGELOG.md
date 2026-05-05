@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.15](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.14...v3.3.0-nextgen.15) (2026-05-05)
+
+
+### Bug Fixes
+
+* remove unused AlertCircle import in Pricing page ([520a53b](https://github.com/larrybwosi/dealio-desktop/commit/520a53b4006bf88ac4982eea9ea12e236c2b350b))
+
 # [3.3.0-nextgen.14](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.13...v3.3.0-nextgen.14) (2026-05-05)
 
 
