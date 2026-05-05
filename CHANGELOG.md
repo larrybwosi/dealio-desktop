@@ -1,3 +1,16 @@
+# [3.3.0-nextgen.16](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.15...v3.3.0-nextgen.16) (2026-05-05)
+
+
+### Bug Fixes
+
+* resolve backend test compilation errors and TS lint issues ([345e5c6](https://github.com/larrybwosi/dealio-desktop/commit/345e5c6585cfa5c9a082f0cc3c4a65ee7e397132))
+
+
+### Features
+
+* enhance stock management and add stock request functionality ([b7fdff9](https://github.com/larrybwosi/dealio-desktop/commit/b7fdff9602032f097bf20b043666b12215570fa0))
+* enhance stock management pages and add stock request functionality ([11f265a](https://github.com/larrybwosi/dealio-desktop/commit/11f265a7a08e16be3dce708b15614f3e6077340a))
+
 # [3.3.0-nextgen.15](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.14...v3.3.0-nextgen.15) (2026-05-05)
 
 
