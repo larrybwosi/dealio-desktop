@@ -1,3 +1,15 @@
+# [3.3.0-nextgen.17](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.16...v3.3.0-nextgen.17) (2026-05-05)
+
+
+### Bug Fixes
+
+* resolve lint and type errors in Barcode Printing UI ([ba47c9b](https://github.com/larrybwosi/dealio-desktop/commit/ba47c9b99d2c2a4957f0f82f66ef814c1940b9be))
+
+
+### Features
+
+* implement enterprise barcode generation and label printing ([c3bcbb4](https://github.com/larrybwosi/dealio-desktop/commit/c3bcbb4aa086b67fdebc68c769d687d4945438e2))
+
 # [3.3.0-nextgen.16](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.15...v3.3.0-nextgen.16) (2026-05-05)
 
 
