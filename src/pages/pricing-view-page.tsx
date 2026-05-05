@@ -12,7 +12,6 @@ import {
   Tag,
   Users,
   List,
-  AlertCircle,
   TrendingUp,
   ChevronRight,
   Activity,
