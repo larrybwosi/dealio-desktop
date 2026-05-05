@@ -8,7 +8,6 @@ import {
   Settings2,
   Package,
   Layers,
-  ChevronRight,
   Info
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,7 +28,7 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { BarcodeService } from '@/lib/barcode-service';
-import { LabelService, type PrintLabelItem, type LabelPrintConfig } from '@/lib/label-service';
+import { LabelService, type PrintLabelItem, type LabelPrintConfig, type LabelSize } from '@/lib/label-service';
 import { usePosStore } from '@/store/store';
 
 export default function BarcodePrintingPage() {
