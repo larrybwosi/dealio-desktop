@@ -214,6 +214,7 @@ jobs:
           BRANCH="${{ github.ref_name }}"
           REPO="${{ github.repository }}"
           VARIANT="${{ matrix.variant }}"
+          OS="${{ matrix.os }}"
 
           echo "Bumping npm version to $FULL_VERSION"
           npm version $FULL_VERSION --no-git-tag-version --allow-same-version
@@ -227,6 +228,7 @@ jobs:
             UPDATER_NAME="latest-$VARIANT"
           fi
 
+<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
           echo "Updating $CONFIG_FILE version to $FULL_VERSION"
           jq --arg v "$FULL_VERSION" '.version = $v' $CONFIG_FILE > tmp.json && mv tmp.json $CONFIG_FILE
 
@@ -249,6 +251,53 @@ jobs:
             echo "Skipping updater endpoint update for standalone variant"
           fi
 
+=======
+          # Determine branch-specific updater endpoint
+          if [ "$BRANCH" = "main" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
+          elif [ "$BRANCH" = "beta" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/beta-latest/$UPDATER_NAME.json"
+          elif [ "$BRANCH" = "nextgen" ]; then
+            UPDATER_ENDPOINT="https://github.com/$REPO/releases/download/nextgen-latest/$UPDATER_NAME.json"
+          else
+             UPDATER_ENDPOINT="https://github.com/$REPO/releases/latest/download/$UPDATER_NAME.json"
+          fi
+
+          echo "Configuring $CONFIG_FILE..."
+
+          # Sanitize version for Windows if it contains non-numeric pre-release identifiers
+          # 3.3.0-nextgen.12 -> 3.3.0-12
+          if [[ "$OS" == "windows-latest" && "$FULL_VERSION" == *"-"* ]]; then
+            # Extract version part and numeric part of pre-release
+            VERSION_BASE=$(echo "$FULL_VERSION" | cut -d'-' -f1)
+            PRE_RELEASE=$(echo "$FULL_VERSION" | cut -d'-' -f2-)
+            NUMERIC_PRE=$(echo "$PRE_RELEASE" | grep -oE '[0-9]+(\.[0-9]+)*' | tr '\n' '.' | sed 's/\.$//')
+            if [ -n "$NUMERIC_PRE" ]; then
+              TARGET_VERSION="$VERSION_BASE-$NUMERIC_PRE"
+            else
+              TARGET_VERSION="$VERSION_BASE"
+            fi
+            echo "Sanitized version for Windows: $TARGET_VERSION (was $FULL_VERSION)"
+          else
+            TARGET_VERSION="$FULL_VERSION"
+          fi
+
+          # Use jq to update version, and conditionally updater and bundle targets
+          # For Windows, we force NSIS to get .exe and avoid MSI versioning issues
+          jq --arg v "$TARGET_VERSION" \
+             --arg e "$UPDATER_ENDPOINT" \
+             --arg var "$VARIANT" \
+             --arg os "$OS" \
+             '
+             .version = $v |
+             (if $var != "standalone" then .plugins.updater.endpoints = [$e] else . end) |
+             (if $os == "windows-latest" then .bundle.targets = ["nsis"] else . end)
+             ' "$CONFIG_FILE" > tmp.json && mv tmp.json "$CONFIG_FILE"
+
+          echo "=== Updated $CONFIG_FILE ==="
+          cat "$CONFIG_FILE"
+
+>>>>>>> nextgen
       - name: Generate .env file for build
         shell: bash
         run: |
@@ -266,7 +315,11 @@ jobs:
           tagName: v${{ needs.release-management.outputs.new_release_version }}
           releaseDraft: false
           prerelease: ${{ github.ref != 'refs/heads/main' }}
+<<<<<<< fix-retail-build-and-skip-standalone-updater-4430299334549359038
           args: ${{ matrix.args }} --config src-tauri/tauri.${{ matrix.variant }}.conf.json --features ${{ matrix.variant }}
+=======
+          args: ${{ matrix.args }} ${{ matrix.variant == 'retail' && '' || format('--config ./src-tauri/tauri.{0}.conf.json --features {0}', matrix.variant) }}
+>>>>>>> nextgen
 
       - name: Extract latest.json
         if: matrix.variant != 'standalone'
@@ -298,7 +351,7 @@ jobs:
       contents: write
     strategy:
       matrix:
-        variant: [retail, standalone, restaurant, supermarket, pharmacy]
+        variant: [retail, restaurant, supermarket, pharmacy]
     steps:
       - name: Download all latest.json artifacts for ${{ matrix.variant }}
         if: matrix.variant != 'standalone'
