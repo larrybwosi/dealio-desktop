@@ -207,6 +207,11 @@ export const UpdaterProvider = ({
   // ── Core check ─────────────────────────────────────────────────────────────
 
   const checkForUpdates = useCallback(async () => {
+    if (import.meta.env.MODE === 'standalone') {
+      setStatus('IDLE');
+      return;
+    }
+
     setStatus('CHECKING');
     setError(null);
 

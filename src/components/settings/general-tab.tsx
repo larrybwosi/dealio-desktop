@@ -514,7 +514,7 @@ export default function GeneralSettings({
         </Card>
 
         {/* Software Updates */}
-        <SoftwareUpdatesCard />
+        {import.meta.env.MODE !== 'standalone' && <SoftwareUpdatesCard />}
       </div>
     </TabsContent>
   );
