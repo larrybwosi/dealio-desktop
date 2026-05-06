@@ -21,6 +21,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+ import { shiftService } from '@/lib/shift-service';
 import { usePosProducts } from '@/hooks/products';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
@@ -201,12 +202,6 @@ export function SupermarketPOS() {
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
-  const [activeShift, setActiveShift] = useState<any>(null);
-
-  useEffect(() => {
-    invoke('get_shift_command').then(setActiveShift).catch(console.error);
-  }, [paymentDialogOpen]);
-
   const handlePaymentComplete = useCallback((completedOrder: any) => {
     setLastCompletedOrder(completedOrder);
     setPaymentDialogOpen(false);
@@ -218,7 +213,7 @@ export function SupermarketPOS() {
     if (currentOrder.items.length === 0 || isProcessingSale) return;
 
     if (settings.enforceShiftForCashPayments && import.meta.env.MODE !== 'standalone') {
-        const shift = await invoke('get_shift_command');
+        const shift = await shiftService.getShiftStatus();
         if (!shift) {
             toast.error('No Active Shift', {
                 description: 'You must open a shift before processing cash payments.',

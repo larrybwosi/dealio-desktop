@@ -42,6 +42,7 @@ import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { MpesaFlowType, ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
+import { shiftService } from '@/lib/shift-service';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
@@ -284,7 +285,7 @@ const PaymentModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      invoke('get_shift_command').then(setActiveShift).catch(console.error);
+      shiftService.getShiftStatus().then(setActiveShift).catch(console.error);
     }
   }, [isOpen]);
 
