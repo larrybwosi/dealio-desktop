@@ -82,10 +82,6 @@ export function useShortcuts(options: ShortcutOptions = {}) {
             e.preventDefault();
             navigate('/settings');
             break;
-          case 'l': // Logs
-            e.preventDefault();
-            navigate('/logs');
-            break;
         }
       }
     };
