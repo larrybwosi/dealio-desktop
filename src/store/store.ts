@@ -392,6 +392,8 @@ export interface BusinessSettings {
   // Multi-user / Shift Settings
   shareCartBetweenUsers: boolean;
   shareShiftBetweenUsers: boolean;
+  enableAutoShiftPrompt: boolean;
+  enforceShiftForCashPayments: boolean;
 
   // Hold Sale Settings (Enterprise)
   enableHoldSale: boolean;
@@ -929,6 +931,8 @@ export const usePosStore = create<PosStore>()(
         // Multi-user / Shift Settings
         shareCartBetweenUsers: true,
         shareShiftBetweenUsers: true,
+        enableAutoShiftPrompt: false,
+        enforceShiftForCashPayments: false,
         // Hold Sale Settings (Enterprise)
         enableHoldSale: true,
         maxHeldOrders: 20,
@@ -1214,6 +1218,8 @@ export const usePosStore = create<PosStore>()(
             heldOrderExpiryHours: 24,
             shareCartBetweenUsers: true,
             shareShiftBetweenUsers: true,
+            enableAutoShiftPrompt: false,
+            enforceShiftForCashPayments: false,
           },
           employees: [],
           notifications: [],

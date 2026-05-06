@@ -201,6 +201,12 @@ export function SupermarketPOS() {
   const taxAmount = subTotal * (taxRate / 100);
   const total = subTotal + taxAmount;
 
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  useEffect(() => {
+    invoke('get_shift_command').then(setActiveShift).catch(console.error);
+  }, [paymentDialogOpen]);
+
   const handlePaymentComplete = useCallback((completedOrder: any) => {
     setLastCompletedOrder(completedOrder);
     setPaymentDialogOpen(false);
@@ -210,6 +216,16 @@ export function SupermarketPOS() {
 
   const handleQuickPayExactCash = useCallback(async () => {
     if (currentOrder.items.length === 0 || isProcessingSale) return;
+
+    if (settings.enforceShiftForCashPayments && import.meta.env.MODE !== 'standalone') {
+        const shift = await invoke('get_shift_command');
+        if (!shift) {
+            toast.error('No Active Shift', {
+                description: 'You must open a shift before processing cash payments.',
+            });
+            return;
+        }
+    }
 
     const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
     const accountRef = Date.now().toString().slice(-6);

@@ -280,6 +280,14 @@ const PaymentModal = ({
 
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      invoke('get_shift_command').then(setActiveShift).catch(console.error);
+    }
+  }, [isOpen]);
+
   const currentMember = useAuthStore(state => state.currentMember);
   const settings = usePosStore(state => state.settings);
   const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
@@ -466,6 +474,13 @@ const PaymentModal = ({
 
   // ── Handlers ──
   const handleAddCash = () => {
+    if (settings.enforceShiftForCashPayments && !activeShift && import.meta.env.MODE !== 'standalone') {
+        toast.error('No Active Shift', {
+            description: 'You must open a shift before processing cash payments.',
+        });
+        return;
+    }
+
     const amount = parseFloat(amountInput);
     if (!amount || amount <= 0) return;
     addPayment({ method: PaymentMethod.CASH, amount });

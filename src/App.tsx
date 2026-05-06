@@ -33,6 +33,7 @@ import ProductManagementPage from './pages/product-management';
 import StandaloneSetup from './pages/standalone-setup';
 import BarcodePrintingPage from './pages/barcode-printing-page';
 import LogsPage from './pages/logs-page';
+import { AutoShiftModal } from './components/shift/auto-shift-modal';
 
 // Layout wrapper component that uses AppLayout
 const LayoutWrapper = () => {
@@ -81,10 +82,13 @@ const AppRoutes = () => {
   if (businessMode === 'supermarket') {
     console.log('Rendering SupermarketPOS', { isAuthenticated, currentMember });
     return (
-      <Routes>
-        <Route index path="/" element={<SupermarketPOS />} />
-        <Route path="*" element={<SupermarketPOS />} />
-      </Routes>
+      <>
+        <AutoShiftModal />
+        <Routes>
+          <Route index path="/" element={<SupermarketPOS />} />
+          <Route path="*" element={<SupermarketPOS />} />
+        </Routes>
+      </>
     );
   }
 
@@ -100,6 +104,8 @@ const AppRoutes = () => {
   }
 
   return (
+    <>
+    <AutoShiftModal />
     <Routes>
       {/* Routes with AppLayout wrapper */}
       <Route element={<LayoutWrapper />}>
@@ -149,6 +155,7 @@ const AppRoutes = () => {
       <Route path="/customer" element={<CustomerDisplay />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   );
 };
 
