@@ -22,6 +22,7 @@ import { cn } from '@/lib/utils';
 import posthog from 'posthog-js';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
+import { useNavigate } from 'react-router';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
@@ -43,6 +44,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
@@ -60,7 +71,9 @@ export function POS() {
 
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
 
+  const navigate = useNavigate();
   const [showTableSelector, setShowTableSelector] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
@@ -268,10 +281,7 @@ export function POS() {
       });
 
       if (!product) {
-        toast.error('Product Not Found', {
-          description: `No product found with barcode: ${barcode}.`,
-          duration: 2000,
-        });
+        setUnknownBarcode(barcode);
         return;
       }
 
@@ -806,6 +816,31 @@ export function POS() {
       />
 
       <BarcodeScannerDialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner} />
+
+      <AlertDialog open={!!unknownBarcode} onOpenChange={(open) => !open && setUnknownBarcode(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unknown Barcode</AlertDialogTitle>
+            <AlertDialogDescription>
+              Barcode <span className="font-mono font-bold">{unknownBarcode}</span> was not found in the system. Would you like to register a new product for it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const barcode = unknownBarcode;
+              setUnknownBarcode(null);
+              navigate('/product-management');
+              // Give it some time to navigate and mount
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('barcode-scanned-for-registration', { detail: { barcode } }));
+              }, 500);
+            }}>
+              Register Product
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

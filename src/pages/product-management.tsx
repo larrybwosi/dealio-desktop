@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePosProducts } from '@/hooks/products';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,18 @@ export default function ProductManagementPage() {
   const { products, triggerSync } = usePosProducts({ search: searchTerm, category: 'all', pageSize: 1000 });
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [scannedBarcode, setScannedBarcode] = useState('');
+
+  useEffect(() => {
+    const handleBarcodeScanned = (e: any) => {
+      const barcode = e.detail.barcode;
+      setScannedBarcode(barcode);
+      setEditingProduct(null);
+      setIsDialogOpen(true);
+    };
+    window.addEventListener('barcode-scanned-for-registration', handleBarcodeScanned as any);
+    return () => window.removeEventListener('barcode-scanned-for-registration', handleBarcodeScanned as any);
+  }, []);
 
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -25,7 +37,7 @@ export default function ProductManagementPage() {
     const productData = {
       productId: editingProduct?.productId || uuidv4(),
       productName: formData.get('productName'),
-      category: formData.get('category') || 'General',
+      category: 'General',
       barcode: barcode,
       price: parseFloat(formData.get('price') as string),
       stock: parseInt(formData.get('stock') as string) || 0,
@@ -79,9 +91,15 @@ export default function ProductManagementPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Product Management</h1>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          setIsDialogOpen(open);
+          if (!open) {
+            setEditingProduct(null);
+            setScannedBarcode('');
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button onClick={() => setEditingProduct(null)}>
+            <Button onClick={() => { setEditingProduct(null); setScannedBarcode(''); }}>
               <Plus className="mr-2 h-4 w-4" /> Add Product
             </Button>
           </DialogTrigger>
@@ -96,11 +114,7 @@ export default function ProductManagementPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="barcode">Barcode</Label>
-                <Input id="barcode" name="barcode" defaultValue={editingProduct?.barcode || editingProduct?.variants?.[0]?.barcode} placeholder="Scan or enter barcode" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="category">Category</Label>
-                <Input id="category" name="category" defaultValue={editingProduct?.category} />
+                <Input id="barcode" name="barcode" defaultValue={scannedBarcode || editingProduct?.barcode || editingProduct?.variants?.[0]?.barcode} placeholder="Scan or enter barcode" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
