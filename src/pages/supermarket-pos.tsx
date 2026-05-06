@@ -64,6 +64,8 @@ export function SupermarketPOS() {
   const [lastAddedItemId, setLastAddedItemId] = useState<{ productId: string, variantId: string, unitId: string } | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const lastProcessedBarcode = useRef<string | null>(null);
+  const lastScanTime = useRef<number>(0);
 
   const { checkOut } = useAuth();
   const { mutateAsync: createSale, isPending: isProcessingSale } = useProcessSale();
@@ -110,8 +112,17 @@ export function SupermarketPOS() {
       return;
     }
 
+    const now = Date.now();
+    // Debounce duplicate scans within 500ms
+    if (lastScanned === lastProcessedBarcode.current && now - lastScanTime.current < 500) {
+      clearLastScanned();
+      return;
+    }
+
     const processScan = async () => {
       const barcode = lastScanned;
+      lastProcessedBarcode.current = barcode;
+      lastScanTime.current = now;
       clearLastScanned(); // Clear immediately so the same barcode can be scanned again
 
       const product = await invoke<any>('get_product_by_barcode_command', {
@@ -188,7 +199,7 @@ export function SupermarketPOS() {
     };
 
     processScan();
-  }, [lastScanned, products, addItemToOrder, currentOrder.customerId, clearLastScanned]);
+  }, [lastScanned, addItemToOrder, currentOrder.customerId, clearLastScanned]);
 
   useEffect(() => {
     if (settings.enableBarcodeScanner) {

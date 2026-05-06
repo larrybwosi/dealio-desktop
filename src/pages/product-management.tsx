@@ -5,10 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Barcode, Printer } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
+import { LabelService } from '@/lib/label-service';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { usePosStore } from '@/store/store';
 
 export default function ProductManagementPage() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -19,16 +21,19 @@ export default function ProductManagementPage() {
   const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const barcode = formData.get('barcode') as string;
     const productData = {
       productId: editingProduct?.productId || uuidv4(),
       productName: formData.get('productName'),
       category: formData.get('category') || 'General',
+      barcode: barcode,
       price: parseFloat(formData.get('price') as string),
       stock: parseInt(formData.get('stock') as string) || 0,
-      variants: editingProduct?.variants || [{
+      variants: editingProduct?.variants?.map((v: any, idx: number) => idx === 0 ? { ...v, barcode } : v) || [{
           variantId: uuidv4(),
           variantName: 'Default',
           sku: '',
+          barcode: barcode,
           price: parseFloat(formData.get('price') as string),
           stock: parseInt(formData.get('stock') as string) || 0,
           sellableUnits: [{
@@ -90,6 +95,10 @@ export default function ProductManagementPage() {
                 <Input id="productName" name="productName" defaultValue={editingProduct?.productName} required />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="barcode">Barcode</Label>
+                <Input id="barcode" name="barcode" defaultValue={editingProduct?.barcode || editingProduct?.variants?.[0]?.barcode} placeholder="Scan or enter barcode" />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
                 <Input id="category" name="category" defaultValue={editingProduct?.category} />
               </div>
@@ -140,6 +149,36 @@ export default function ProductManagementPage() {
                 <TableCell>{product.price || product.variants?.[0]?.price}</TableCell>
                 <TableCell>{product.stock || product.variants?.[0]?.stock}</TableCell>
                 <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Print Barcode"
+                    onClick={async () => {
+                      try {
+                        const currency = usePosStore.getState().settings.receiptConfig.currency || 'USD';
+                        await LabelService.printLabels([{
+                          id: product.productId,
+                          name: product.productName,
+                          barcode: product.barcode || product.sku || product.productId,
+                          price: product.price || product.variants?.[0]?.price || 0,
+                          currency,
+                          quantity: 1
+                        }], {
+                          size: '50x30',
+                          showPrice: true,
+                          showSku: true,
+                          showName: true,
+                          barcodeType: 'code128',
+                          printerName: 'default'
+                        });
+                        toast.success('Label sent to printer');
+                      } catch (err) {
+                        toast.error('Printing failed');
+                      }
+                    }}
+                  >
+                    <Printer className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => { setEditingProduct(product); setIsDialogOpen(true); }}>
                     <Pencil className="h-4 w-4" />
                   </Button>
