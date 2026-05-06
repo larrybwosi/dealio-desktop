@@ -21,6 +21,7 @@ import {
   Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+ import { shiftService } from '@/lib/shift-service';
 import { usePosProducts } from '@/hooks/products';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
@@ -210,6 +211,16 @@ export function SupermarketPOS() {
 
   const handleQuickPayExactCash = useCallback(async () => {
     if (currentOrder.items.length === 0 || isProcessingSale) return;
+
+    if (settings.enforceShiftForCashPayments && import.meta.env.MODE !== 'standalone') {
+        const shift = await shiftService.getShiftStatus();
+        if (!shift) {
+            toast.error('No Active Shift', {
+                description: 'You must open a shift before processing cash payments.',
+            });
+            return;
+        }
+    }
 
     const saleNumber = `SALE-${Date.now().toString().slice(-6)}`;
     const accountRef = Date.now().toString().slice(-6);

@@ -42,6 +42,7 @@ import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { MpesaFlowType, ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
+import { shiftService } from '@/lib/shift-service';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
@@ -280,6 +281,14 @@ const PaymentModal = ({
 
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      shiftService.getShiftStatus().then(setActiveShift).catch(console.error);
+    }
+  }, [isOpen]);
+
   const currentMember = useAuthStore(state => state.currentMember);
   const settings = usePosStore(state => state.settings);
   const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
@@ -466,6 +475,13 @@ const PaymentModal = ({
 
   // ── Handlers ──
   const handleAddCash = () => {
+    if (settings.enforceShiftForCashPayments && !activeShift && import.meta.env.MODE !== 'standalone') {
+        toast.error('No Active Shift', {
+            description: 'You must open a shift before processing cash payments.',
+        });
+        return;
+    }
+
     const amount = parseFloat(amountInput);
     if (!amount || amount <= 0) return;
     addPayment({ method: PaymentMethod.CASH, amount });

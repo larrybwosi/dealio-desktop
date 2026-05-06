@@ -171,6 +171,8 @@ export default function SettingsPage() {
   // Multi-user / Shift Settings
   const [shareCartBetweenUsers, setShareCartBetweenUsers] = useState(settings?.shareCartBetweenUsers ?? true);
   const [shareShiftBetweenUsers, setShareShiftBetweenUsers] = useState(settings?.shareShiftBetweenUsers ?? true);
+  const [enableAutoShiftPrompt, setEnableAutoShiftPrompt] = useState(settings?.enableAutoShiftPrompt ?? false);
+  const [enforceShiftForCashPayments, setEnforceShiftForCashPayments] = useState(settings?.enforceShiftForCashPayments ?? false);
 
   // KDS Settings
   const [enableKdsSystem, setEnableKdsSystem] = useState(settings?.enableKdsSystem ?? false);
@@ -232,6 +234,8 @@ export default function SettingsPage() {
       enableKdsSystem,
       shareCartBetweenUsers,
       shareShiftBetweenUsers,
+      enableAutoShiftPrompt,
+      enforceShiftForCashPayments,
       enableHoldSale,
       maxHeldOrders: newMaxHeldOrders,
       heldOrderExpiryHours: newHeldOrderExpiryHours,
@@ -690,6 +694,32 @@ export default function SettingsPage() {
                     <Switch
                       checked={shareShiftBetweenUsers}
                       onCheckedChange={setShareShiftBetweenUsers}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Auto-Prompt for Shift</div>
+                      <p className="text-sm text-muted-foreground">Automatically prompt for a new shift opening after login if none is active</p>
+                    </div>
+                    <Switch
+                      checked={enableAutoShiftPrompt}
+                      onCheckedChange={setEnableAutoShiftPrompt}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enforce Shift for Cash</div>
+                      <p className="text-sm text-muted-foreground">Block cash payments if no active shift is found</p>
+                    </div>
+                    <Switch
+                      checked={enforceShiftForCashPayments}
+                      onCheckedChange={setEnforceShiftForCashPayments}
                     />
                   </div>
                 </div>
