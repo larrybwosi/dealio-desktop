@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
-import { Plus, Pencil, Trash2, Search, Barcode, Printer } from 'lucide-react';
+import { Plus, Pencil, Trash2, Search, Printer } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { LabelService } from '@/lib/label-service';
 import { toast } from 'sonner';

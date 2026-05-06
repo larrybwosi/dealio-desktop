@@ -42,12 +42,13 @@ export const BarcodeService = {
 
     try {
       // Map simplified formats to bwip-js BCIDs
-      const bcidMap: Record<BarcodeFormat, string> = {
+      const bcidMap: Record<string, string> = {
         code128: 'code128',
         code39: 'code39',
         ean13: 'ean13',
         ean8: 'ean8',
         upca: 'upca',
+        upc: 'upca',
         qr: 'qrcode',
         pdf417: 'pdf417',
         datamatrix: 'datamatrix'
