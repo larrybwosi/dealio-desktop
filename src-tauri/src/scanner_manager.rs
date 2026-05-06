@@ -97,8 +97,8 @@ pub async fn start_scan(
                     let data_chunk = String::from_utf8_lossy(&buf[..bytes_read]);
                     string_buffer.push_str(&data_chunk);
 
-                    if string_buffer.contains('\n') {
-                        let parts: Vec<&str> = string_buffer.split('\n').collect();
+                    if string_buffer.contains('\n') || string_buffer.contains('\r') {
+                        let parts: Vec<&str> = string_buffer.split(&['\n', '\r'][..]).collect();
                         for part in parts.iter().take(parts.len() - 1) {
                             let code = part.trim();
                             if !code.is_empty() {

@@ -585,7 +585,7 @@ pub async fn print_receipt_native(
     // Render 1D Barcode if enabled
     if config.get("showBarcode").and_then(|v| v.as_bool()).unwrap_or(false) {
         if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
-            esc.barcode_1d(order_num);
+            esc.barcode_1d(order_num, None);
         }
     }
 
@@ -1148,6 +1148,8 @@ pub async fn print_generic_labels(
     let show_sku = label_config.get("showSku").and_then(|v| v.as_bool()).unwrap_or(true);
     let show_name = label_config.get("showName").and_then(|v| v.as_bool()).unwrap_or(true);
     let barcode_type = label_config.get("barcodeType").and_then(|v| v.as_str()).unwrap_or("code128");
+    let name_font_size = label_config.get("nameFontSize").and_then(|v| v.as_u64()).unwrap_or(1);
+    let price_font_size = label_config.get("priceFontSize").and_then(|v| v.as_u64()).unwrap_or(2);
 
     if let Some(items) = order.get("items").and_then(|v| v.as_array()) {
         for item in items {
@@ -1159,7 +1161,13 @@ pub async fn print_generic_labels(
             if show_name {
                 let name = item.get("productName").or(item.get("name")).and_then(|v| v.as_str()).unwrap_or("Product");
                 esc.bold(true);
+                if name_font_size > 1 {
+                    esc.size(name_font_size as u8, name_font_size as u8);
+                }
                 esc.text_line(name);
+                if name_font_size > 1 {
+                    esc.size(1, 1);
+                }
                 esc.bold(false);
             }
 
@@ -1172,9 +1180,13 @@ pub async fn print_generic_labels(
             if show_price {
                 if let Some(price) = item.get("price").and_then(|v| v.as_f64()) {
                     let currency = item.get("currency").and_then(|v| v.as_str()).unwrap_or("");
-                    esc.size(2, 1);
+                    if price_font_size > 1 {
+                        esc.size(price_font_size as u8, (price_font_size as u8).min(2));
+                    }
                     esc.text_line(&format!("{} {:.2}", currency, price));
-                    esc.size(1, 1);
+                    if price_font_size > 1 {
+                        esc.size(1, 1);
+                    }
                 }
             }
 
@@ -1182,7 +1194,7 @@ pub async fn print_generic_labels(
                 if barcode_type == "qr" {
                     esc.qr_code(barcode);
                 } else {
-                    esc.barcode_1d(barcode);
+                    esc.barcode_1d(barcode, Some(barcode_type));
                 }
             }
 

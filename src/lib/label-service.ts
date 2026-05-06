@@ -18,8 +18,10 @@ export interface LabelPrintConfig {
   showPrice: boolean;
   showSku: boolean;
   showName: boolean;
-  barcodeType: 'code128' | 'qr';
+  barcodeType: 'code128' | 'ean13' | 'ean8' | 'upca' | 'qr';
   printerName?: string;
+  nameFontSize?: number;
+  priceFontSize?: number;
 }
 
 /**

@@ -38,13 +38,15 @@ export default function BarcodePrintingPage() {
   const [previewBarcode, setPreviewBarcode] = useState<string | null>(null);
   const [printQueue, setPrintQueue] = useState<PrintLabelItem[]>([]);
   const [printers, setPrinters] = useState<string[]>([]);
-  const [config, setConfig] = useState<LabelPrintConfig>({
+  const [config, setConfig] = useState<LabelPrintConfig & { nameFontSize?: number; priceFontSize?: number }>({
     size: '50x30',
     showPrice: true,
     showSku: true,
     showName: true,
     barcodeType: 'code128',
-    printerName: 'default'
+    printerName: 'default',
+    nameFontSize: 1,
+    priceFontSize: 2
   });
 
   const currency = usePosStore(state => state.settings.receiptConfig.currency || 'USD');
@@ -90,7 +92,7 @@ export default function BarcodePrintingPage() {
   const generatePreview = async (product: any) => {
     try {
       const barcode = product.barcode || product.sku || product.productId;
-      const dataUrl = await BarcodeService.generate(barcode, config.barcodeType, {
+      const dataUrl = await BarcodeService.generate(barcode, config.barcodeType as any, {
         height: 15,
         scale: 2
       });
@@ -414,16 +416,49 @@ export default function BarcodePrintingPage() {
                 <Label>Barcode Type</Label>
                 <Select
                   value={config.barcodeType}
-                  onValueChange={(v: 'code128' | 'qr') => setConfig(prev => ({ ...prev, barcodeType: v }))}
+                  onValueChange={(v: string) => setConfig(prev => ({ ...prev, barcodeType: v as any }))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="code128">Standard Barcode (Code128)</SelectItem>
+                    <SelectItem value="ean13">EAN-13</SelectItem>
+                    <SelectItem value="ean8">EAN-8</SelectItem>
+                    <SelectItem value="upca">UPC-A</SelectItem>
                     <SelectItem value="qr">QR Code</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Name Size</Label>
+                  <Select
+                    value={String(config.nameFontSize)}
+                    onValueChange={(v) => setConfig(prev => ({ ...prev, nameFontSize: parseInt(v) }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Normal</SelectItem>
+                      <SelectItem value="2">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Price Size</Label>
+                  <Select
+                    value={String(config.priceFontSize)}
+                    onValueChange={(v) => setConfig(prev => ({ ...prev, priceFontSize: parseInt(v) }))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">Normal</SelectItem>
+                      <SelectItem value="2">Large</SelectItem>
+                      <SelectItem value="3">Extra Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
             <CardFooter className="bg-zinc-50 dark:bg-zinc-900/50 p-4 border-t">

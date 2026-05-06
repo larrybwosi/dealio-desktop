@@ -131,7 +131,7 @@ impl EscPosBuilder {
 
     // --- NEW: NATIVE 1D BARCODE (CODE128) ---
     /// Prints a standard 1D Barcode with text below it. Perfect for order numbers.
-    pub fn barcode_1d(&mut self, data: &str) {
+    pub fn barcode_1d(&mut self, data: &str, symbology: Option<&str>) {
         // HRI characters print position: 2 = Below the barcode
         self.bytes.extend_from_slice(&[0x1D, 0x48, 0x02]);
         
@@ -140,18 +140,49 @@ impl EscPosBuilder {
         
         // Set barcode width module (2 to 6, 2 is standard for receipts)
         self.bytes.extend_from_slice(&[0x1D, 0x77, 0x02]);
+
+        let symbology = symbology.unwrap_or("code128");
         
-        // Print barcode using CODE128 (System 73 / 0x49)
-        // ESC/POS CODE128 requires a subset character prepended to the data. 
-        // We use Subset B '{B' (0x7B, 0x42) for standard alphanumerics.
-        let mut barcode_data = vec![0x7B, 0x42]; 
-        barcode_data.extend_from_slice(data.as_bytes());
-        
-        let len = barcode_data.len() as u8;
-        
-        // GS k <m> <n> <data>
-        self.bytes.extend_from_slice(&[0x1D, 0x6B, 0x49, len]);
-        self.bytes.extend_from_slice(&barcode_data);
+        match symbology.to_lowercase().as_str() {
+            "upc-a" | "upca" => {
+                // GS k 65 n d1...dn
+                let bytes = data.as_bytes();
+                if bytes.len() >= 11 {
+                    self.bytes.extend_from_slice(&[0x1D, 0x6B, 65, bytes.len() as u8]);
+                    self.bytes.extend_from_slice(bytes);
+                }
+            }
+            "ean13" => {
+                // GS k 67 n d1...dn
+                let bytes = data.as_bytes();
+                if bytes.len() >= 12 {
+                    self.bytes.extend_from_slice(&[0x1D, 0x6B, 67, bytes.len() as u8]);
+                    self.bytes.extend_from_slice(bytes);
+                }
+            }
+            "ean8" => {
+                // GS k 68 n d1...dn
+                let bytes = data.as_bytes();
+                if bytes.len() >= 7 {
+                    self.bytes.extend_from_slice(&[0x1D, 0x6B, 68, bytes.len() as u8]);
+                    self.bytes.extend_from_slice(bytes);
+                }
+            }
+            _ => {
+                // Default to CODE128
+                // Print barcode using CODE128 (System 73 / 0x49)
+                // ESC/POS CODE128 requires a subset character prepended to the data.
+                // We use Subset B '{B' (0x7B, 0x42) for standard alphanumerics.
+                let mut barcode_data = vec![0x7B, 0x42];
+                barcode_data.extend_from_slice(data.as_bytes());
+
+                let len = barcode_data.len() as u8;
+
+                // GS k <m> <n> <data>
+                self.bytes.extend_from_slice(&[0x1D, 0x6B, 0x49, len]);
+                self.bytes.extend_from_slice(&barcode_data);
+            }
+        }
         
         self.feed(2); // Padding below the barcode
     }

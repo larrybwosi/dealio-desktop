@@ -22,7 +22,7 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
   const products = usePosStore(state => state.products);
   const addItemToOrder = usePosStore(state => state.addItemToOrder);
 
-  const handleBarcodeSubmit = useCallback((scannedCode: string) => {
+  const handleBarcodeSubmit = useCallback(async (scannedCode: string) => {
     setError('');
 
     if (!scannedCode.trim()) {
@@ -30,7 +30,20 @@ export function BarcodeScannerDialog({ open, onOpenChange }: BarcodeScannerDialo
       return;
     }
 
-    const product = products.find(p => p.barcode === scannedCode.trim());
+    // Check local store first
+    let product = products.find(p => p.barcode === scannedCode.trim() || p.variants?.some((v: any) => v.barcode === scannedCode.trim()));
+
+    if (!product) {
+      // Try backend lookup
+      try {
+        const invoke = (await import('@tauri-apps/api/core')).invoke;
+        product = await invoke<any>('get_product_by_barcode_command', {
+          barcode: scannedCode.trim(),
+        });
+      } catch (err) {
+        console.error('Backend barcode lookup failed:', err);
+      }
+    }
 
     if (!product) {
       setError(`Product not found for barcode: ${scannedCode}`);

@@ -64,9 +64,10 @@ export function POS() {
   const [showTableSelector, setShowTableSelector] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
+  const lastScanTime = useRef<number>(0);
 
   // Initialize scanner hook
-  const { startScanner, stopScanner, isConnected, lastScanned, error: scannerError } = useScanner();
+  const { startScanner, stopScanner, isConnected, lastScanned, clearLastScanned, error: scannerError } = useScanner();
 
   // Shortcuts are now managed centrally in AppLayout
 
@@ -245,40 +246,41 @@ export function POS() {
 
   // Handle barcode scans
   useEffect(() => {
-    if (!lastScanned || lastScanned === lastProcessedBarcode.current) {
+    if (!lastScanned) return;
+
+    const now = Date.now();
+    // Debounce duplicate scans within 500ms
+    if (lastScanned === lastProcessedBarcode.current && now - lastScanTime.current < 500) {
+      clearLastScanned();
       return;
     }
 
     const processScan = async () => {
-      lastProcessedBarcode.current = lastScanned;
+      const barcode = lastScanned;
+      lastProcessedBarcode.current = barcode;
+      lastScanTime.current = now;
+      clearLastScanned();
 
-      const product = products.find((p: any) => {
-        if (p.barcode === lastScanned) return true;
-        return p.variants?.some((v: any) => v.barcode === lastScanned);
+      // Search across all products, not just the visible ones
+      // Using the backend command for efficiency and correctness
+      const product = await invoke<any>('get_product_by_barcode_command', {
+        barcode,
       });
 
       if (!product) {
         toast.error('Product Not Found', {
-          description: `No product found with barcode: ${lastScanned}. Try clearing filters if applied.`,
-          duration: 3000,
+          description: `No product found with barcode: ${barcode}.`,
+          duration: 2000,
         });
         return;
       }
 
-      const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
+      const variant = product.variants?.find((v: any) => v.barcode === barcode) || product.variants?.[0];
 
       if (!variant) {
         toast.error('Invalid Product', {
           description: `Product ${product.productName} has no valid variants`,
-          duration: 3000,
-        });
-        return;
-      }
-
-      if (product.stock <= 0) {
-        toast.warning('Out of Stock', {
-          description: `${product.productName} is currently out of stock`,
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -288,7 +290,7 @@ export function POS() {
       if (!defaultUnit) {
         toast.error('Invalid Product', {
           description: `Product ${product.productName} has no sellable units`,
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -304,8 +306,7 @@ export function POS() {
         })),
       };
 
-      // Calculate dynamic price for scanner adding
-      // Note: We use the Rust Command directly here for instantaneous resolution
+      // Calculate dynamic price
       let customPrice: number | null = null;
       try {
         const prices = await invoke<Array<number | null>>('resolve_price_batch_command', {
@@ -325,9 +326,6 @@ export function POS() {
         console.error('Failed to resolve price for scanned item:', err);
       }
 
-      // If custom price, update unit price logic or pass it.
-      // Ideally, addItemToOrder should handle this, but currently it takes unit.price.
-      // We override the price if customPrice found.
       const unitToAdd = {
         ...defaultUnit,
         price: customPrice !== null ? customPrice : defaultUnit.price,
@@ -348,13 +346,13 @@ export function POS() {
 
       toast.success('Added to Cart', {
         description: `${product.productName} (${variant.variantName || 'Default'})`,
-        duration: 2000,
+        duration: 1500,
         icon: <CheckCircle2 className="w-5 h-5" />,
       });
     };
 
     processScan();
-  }, [lastScanned, products, addItemToOrder, pricingMode, currentOrder.customerId]);
+  }, [lastScanned, clearLastScanned, addItemToOrder, pricingMode, currentOrder.customerId]);
 
   useEffect(() => {
     if (scannerError) {
