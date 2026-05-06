@@ -116,12 +116,17 @@ pub fn run() {
     let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
 
     #[cfg(not(debug_assertions))]
-    let builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
-    let builder = tauri::Builder::default().plugin(tauri_plugin_sql::Builder::new().build());
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_sql::Builder::new().build());
+
+    #[cfg(not(feature = "standalone"))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
 
     builder
         .manage(ProductState::new())
@@ -353,8 +358,6 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        #[cfg(not(feature = "standalone"))]
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_better_posthog::init())
