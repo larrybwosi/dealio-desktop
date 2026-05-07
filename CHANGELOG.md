@@ -1,3 +1,11 @@
+# [3.3.0-nextgen.18](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.17...v3.3.0-nextgen.18) (2026-05-07)
+
+
+### Features
+
+* enhance standalone mode functionalities ([ca23849](https://github.com/larrybwosi/dealio-desktop/commit/ca2384984dec84abb48121cd5092d1bd6ccb3dfc))
+* enhance standalone product management and barcode registration ([8365ff5](https://github.com/larrybwosi/dealio-desktop/commit/8365ff5f41fc16a2119421a8560def90faa43de4))
+
 # [3.3.0-nextgen.17](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.16...v3.3.0-nextgen.17) (2026-05-05)
 
 
