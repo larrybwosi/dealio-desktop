@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.21](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.20...v3.3.0-nextgen.21) (2026-05-07)
+
+
+### Bug Fixes
+
+* ensure receipt prices and totals are correctly mapped for native printing ([#64](https://github.com/larrybwosi/dealio-desktop/issues/64)) ([d5b09b2](https://github.com/larrybwosi/dealio-desktop/commit/d5b09b2b718bbb52acf25a5d5f0c126d5c24a358))
+
 # [3.3.0-nextgen.20](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.19...v3.3.0-nextgen.20) (2026-05-07)
 
 
