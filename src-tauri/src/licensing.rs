@@ -19,23 +19,13 @@ pub fn get_machine_id() -> Result<String, String> {
 }
 
 #[command]
-pub async fn activate_license(license_key: String) -> Result<ActivationResponse, String> {
-    let _machine_id = machine_uid::get().map_err(|e| e.to_string())?;
-
-    // For now, client-side logic only.
-    // In a real scenario, this would call a remote licensing server.
-    // We'll simulate a successful activation if the key is "PRO-123"
-    if license_key == "PRO-123" {
-        Ok(ActivationResponse {
-            success: true,
-            message: "License activated successfully".to_string(),
-        })
-    } else {
-        Ok(ActivationResponse {
-            success: false,
-            message: "Invalid license key".to_string(),
-        })
-    }
+pub async fn activate_license(_license_key: String) -> Result<ActivationResponse, String> {
+    // For now, return success automatically.
+    // We can add actual license checking logic later.
+    Ok(ActivationResponse {
+        success: true,
+        message: "License activated successfully".to_string(),
+    })
 }
 
 #[command]

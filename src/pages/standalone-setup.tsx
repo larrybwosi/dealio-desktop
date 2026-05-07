@@ -9,7 +9,7 @@ import { Key, ShieldCheck } from 'lucide-react';
 import { useAuthStore } from '@/store/pos-auth-store';
 
 export default function StandaloneSetup() {
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(2);
   const [machineId, setMachineId] = useState('');
   const [licenseKey, setLicenseKey] = useState('');
   const [pin, setPin] = useState('');

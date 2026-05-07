@@ -180,6 +180,7 @@ export function Sidebar({ onCheckout }: SidebarProps) {
               'customers',
               'manage-table',
               'analytics',
+              'create-order',
             ];
             if (isStandalone && excludedInStandalone.includes(item.id)) return null;
 
@@ -275,7 +276,6 @@ export function Sidebar({ onCheckout }: SidebarProps) {
 
           {[
             { route: '/receipt-settings', label: 'Receipt Settings', icon: Receipt },
-            { route: '/logs', label: 'System Logs', icon: Activity },
             { route: '/settings', label: 'Settings', icon: Settings },
           ].map(({ route, label, icon: Icon }) => {
             const isActive = isRouteActive(route);

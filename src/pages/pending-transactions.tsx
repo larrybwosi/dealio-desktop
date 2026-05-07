@@ -301,13 +301,15 @@ export default function PendingTransactionsPage() {
             <RefreshCw className={`mr-2 h-4 w-4 ${isRefetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button
-            onClick={() => {
-              navigate('/create-order');
-            }}
-          >
-            <Plus className="mr-2 h-4 w-4" /> Create Invoice
-          </Button>
+          {import.meta.env.MODE !== 'standalone' && (
+            <Button
+              onClick={() => {
+                navigate('/create-order');
+              }}
+            >
+              <Plus className="mr-2 h-4 w-4" /> Create Invoice
+            </Button>
+          )}
         </div>
       </div>
 
