@@ -77,11 +77,16 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
         pageSize: pageSize,
       });
 
-      // Map backend totalStock to frontend stock
+      // Map backend totalStock to frontend stock and ensure names are present
       return {
         products: response.products.map(p => ({
           ...p,
+          productName: p.productName || p.name || '',
           stock: p.stock ?? p.totalStock ?? 0,
+          variants: p.variants?.map(v => ({
+            ...v,
+            variantName: v.variantName || v.name || '',
+          })) || [],
         })),
         totalCount: response.totalCount,
       };
