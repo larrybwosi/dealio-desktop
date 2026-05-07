@@ -7,7 +7,42 @@ on:
     branches: [main, develop, beta, nextgen]
 
 jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      backend: ${{ steps.changes.outputs.backend }}
+      e2e: ${{ steps.changes.outputs.e2e }}
+      workflow: ${{ steps.changes.outputs.workflow }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.json'
+              - 'vite.config.ts'
+              - 'vitest.config.ts'
+              - 'components.json'
+              - 'oxlint.json'
+            backend:
+              - 'src-tauri/**'
+              - 'srctauri/**'
+              - 'packages/**'
+            e2e:
+              - 'e2e/**'
+              - 'playwright.config.ts'
+            workflow:
+              - '.github/workflows/test.yml'
+
   lint-frontend:
+    needs: filter
+    if: needs.filter.outputs.frontend == 'true' || needs.filter.outputs.workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +62,11 @@ jobs:
         run: pnpm run lint:frontend
 
   test-frontend:
-    needs: lint-frontend
+    needs: [filter, lint-frontend]
+    if: |
+      always() &&
+      (needs.filter.outputs.frontend == 'true' || needs.filter.outputs.workflow == 'true') &&
+      needs.lint-frontend.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -47,6 +86,8 @@ jobs:
         run: pnpm test:frontend
 
   test-backend:
+    needs: filter
+    if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,15 +127,12 @@ jobs:
             pkg-config \
             patchelf
 
-      # Fix: Removed the matrix check since this job strictly runs on ubuntu-latest
       - name: Create dummy binaries for macOS/Linux
         run: |
           mkdir -p src-tauri/binaries
-
           touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-aarch64-apple-darwin
           touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
-
           chmod +x src-tauri/binaries/*
 
       - name: Generate .env file for tests
@@ -114,7 +152,12 @@ jobs:
           cargo tarpaulin --ignore-tests --manifest-path src-tauri/Cargo.toml --out Xml
 
   test-e2e:
-    needs: [test-frontend, test-backend]
+    needs: [filter, test-frontend, test-backend]
+    if: |
+      always() &&
+      (needs.filter.outputs.frontend == 'true' || needs.filter.outputs.backend == 'true' || needs.filter.outputs.e2e == 'true' || needs.filter.outputs.workflow == 'true') &&
+      (needs.test-frontend.result == 'success' || (needs.filter.outputs.frontend != 'true' && needs.filter.outputs.workflow != 'true')) &&
+      (needs.test-backend.result == 'success' || (needs.filter.outputs.backend != 'true' && needs.filter.outputs.workflow != 'true'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -129,7 +172,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # Optimization: Added caching for Playwright browsers
       - name: Cache Playwright Browsers
         id: playwright-cache
         uses: actions/cache@v4
@@ -146,7 +188,11 @@ jobs:
         run: pnpm test:e2e
 
   test-build:
-    needs: [test-frontend, test-backend]
+    needs: [filter, test-e2e]
+    if: |
+      always() &&
+      (needs.filter.outputs.frontend == 'true' || needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true') &&
+      needs.test-e2e.result == 'success'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

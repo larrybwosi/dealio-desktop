@@ -7,8 +7,42 @@ on:
       - nextgen
 
 jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.changes.outputs.frontend }}
+      backend: ${{ steps.changes.outputs.backend }}
+      e2e: ${{ steps.changes.outputs.e2e }}
+      workflow: ${{ steps.changes.outputs.workflow }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            frontend:
+              - 'src/**'
+              - 'public/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'tsconfig.json'
+              - 'vite.config.ts'
+              - 'vitest.config.ts'
+              - 'components.json'
+              - 'oxlint.json'
+            backend:
+              - 'src-tauri/**'
+              - 'srctauri/**'
+              - 'packages/**'
+            e2e:
+              - 'e2e/**'
+              - 'playwright.config.ts'
+            workflow:
+              - '.github/workflows/release.yml'
+
   # STEP 0: Pre-flight checks (Robustness)
   pre-flight:
+    needs: filter
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,16 +59,19 @@ jobs:
         run: pnpm install
 
       - name: Install Rust
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
 
       - name: Rust Cache
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './src-tauri -> target'
 
       - name: Install dependencies (Linux)
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -49,6 +86,7 @@ jobs:
             patchelf
 
       - name: Create dummy binaries
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
         run: |
           mkdir -p src-tauri/binaries
           touch src-tauri/binaries/sumatrapdf-x86_64-apple-darwin
@@ -56,16 +94,24 @@ jobs:
           touch src-tauri/binaries/sumatrapdf-x86_64-unknown-linux-gnu
           chmod +x src-tauri/binaries/*
 
-      - name: Run Linting (Frontend & Backend)
-        run: pnpm run lint:all
-
-      - name: Run Frontend Tests
-        run: pnpm test:frontend
+      - name: Run Backend Linting
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
+        run: pnpm run lint:backend
 
       - name: Run Backend Tests
+        if: needs.filter.outputs.backend == 'true' || needs.filter.outputs.workflow == 'true'
         run: pnpm test:backend
 
+      - name: Run Frontend Linting
+        if: needs.filter.outputs.frontend == 'true' || needs.filter.outputs.workflow == 'true'
+        run: pnpm run lint:frontend
+
+      - name: Run Frontend Tests
+        if: needs.filter.outputs.frontend == 'true' || needs.filter.outputs.workflow == 'true'
+        run: pnpm test:frontend
+
       - name: Cache Playwright Browsers
+        if: needs.filter.outputs.frontend == 'true' || needs.filter.outputs.backend == 'true' || needs.filter.outputs.e2e == 'true' || needs.filter.outputs.workflow == 'true'
         id: playwright-cache
         uses: actions/cache@v4
         with:
@@ -75,10 +121,11 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install Playwright Browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        if: (needs.filter.outputs.frontend == 'true' || needs.filter.outputs.backend == 'true' || needs.filter.outputs.e2e == 'true' || needs.filter.outputs.workflow == 'true') && steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm exec playwright install --with-deps
 
       - name: Run E2E tests
+        if: needs.filter.outputs.frontend == 'true' || needs.filter.outputs.backend == 'true' || needs.filter.outputs.e2e == 'true' || needs.filter.outputs.workflow == 'true'
         run: pnpm test:e2e
 
   # STEP 1: Determine version and create GitHub Release
@@ -128,7 +175,7 @@ jobs:
 
   # STEP 2: Build the binaries for the version created above
   publish-tauri:
-    needs: release-management
+    needs: [filter, release-management]
     if: needs.release-management.outputs.new_release_published == 'true'
     permissions:
       contents: write
