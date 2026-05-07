@@ -1,11 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
-import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight, Copy, Check } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Loader2, Plus, Printer, ArrowRight, Copy, Check, Download } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { processFileDownload } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { usePrinter } from '@/hooks/use-printer';
+import { usePosStore } from '@/store/store';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 function OrderSuccessView({
   orderId,
@@ -17,7 +20,9 @@ function OrderSuccessView({
   onReset: () => void;
 }) {
   const navigate = useNavigate();
+  const { printDocument } = usePrinter();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
 
   const handleDownloadInvoice = async () => {
@@ -42,6 +47,31 @@ function OrderSuccessView({
       });
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handlePrintInvoice = async () => {
+    if (!invoiceUrl || isPrinting) return;
+
+    setIsPrinting(true);
+    const loadingToastId = toast.loading('Sending to printer...', {
+      description: `Order: ${orderId}`,
+    });
+
+    try {
+      const settings = usePosStore.getState().settings;
+      const branchName = useAuthStore.getState().currentLocation?.name;
+
+      await printDocument('invoice', { invoiceUrl, number: orderId }, settings, branchName);
+      toast.success('Invoice sent to printer', { id: loadingToastId });
+    } catch (error) {
+      console.error('Print failed:', error);
+      toast.error('Print failed', {
+        description: error instanceof Error ? error.message : 'Please check your printer configuration.',
+        id: loadingToastId,
+      });
+    } finally {
+      setIsPrinting(false);
     }
   };
 
@@ -82,14 +112,24 @@ function OrderSuccessView({
           </div>
 
           {/* Action Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full mb-8">
+            <Button
+              variant="outline"
+              className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
+              onClick={handlePrintInvoice}
+              disabled={!invoiceUrl || isPrinting}
+            >
+              {isPrinting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              Print Invoice
+            </Button>
+
             <Button
               variant="outline"
               className="h-12 gap-2 border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-all"
               onClick={handleDownloadInvoice}
               disabled={!invoiceUrl || isDownloading}
             >
-              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Save Invoice
             </Button>
 

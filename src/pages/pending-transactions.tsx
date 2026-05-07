@@ -6,6 +6,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { Plus, Search, AlertCircle, Banknote, Truck, RefreshCw, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { processFileDownload } from '@/lib/utils';
+import { usePrinter } from '@/hooks/use-printer';
+import { usePosStore } from '@/store/store';
+import { useAuthStore } from '@/store/pos-auth-store';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -45,6 +48,7 @@ export default function PendingTransactionsPage() {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const navigate = useNavigate();
+  const { printDocument } = usePrinter();
 
   // Get the ID from URL if it exists (e.g., /transactions?id=123)
   const [highlightId] = searchParams;
@@ -195,11 +199,15 @@ export default function PendingTransactionsPage() {
     if (!tx.invoiceLink) return;
     try {
       toast.info('Sending invoice to printer...');
-      await invoke('print_job', {
-        jobType: 'invoice',
-        order: { invoiceUrl: tx.invoiceLink, number: tx.number || tx.id },
-        settings: {},
-      });
+      const settings = usePosStore.getState().settings;
+      const branchName = useAuthStore.getState().currentLocation?.name;
+
+      await printDocument(
+        'invoice',
+        { invoiceUrl: tx.invoiceLink, number: tx.number || tx.id },
+        settings,
+        branchName
+      );
       toast.success('Print job sent');
     } catch (err: any) {
       toast.error('Print failed', { description: err.message || 'Check printer settings' });
@@ -211,11 +219,15 @@ export default function PendingTransactionsPage() {
     try {
       toast.info('Sending waybill to printer...');
       const url = API_ROUTES.FULFILLMENT.WAYBILL(tx.id);
-      await invoke('print_job', {
-        jobType: 'waybill',
-        order: { waybillUrl: url, number: tx.number || tx.id },
-        settings: {},
-      });
+      const settings = usePosStore.getState().settings;
+      const branchName = useAuthStore.getState().currentLocation?.name;
+
+      await printDocument(
+        'waybill',
+        { waybillUrl: url, number: tx.number || tx.id },
+        settings,
+        branchName
+      );
       toast.success('Print job sent');
     } catch (err: any) {
       toast.error('Print failed', { description: err.message || 'Check printer settings' });
