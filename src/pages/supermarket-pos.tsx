@@ -45,6 +45,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { SettingsDialog } from '@/components/settings-dialog';
+import { useNavigate } from 'react-router';
 import {
   Sheet,
   SheetContent,
@@ -63,7 +64,9 @@ export function SupermarketPOS() {
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [lastCompletedOrder, setLastCompletedOrder] = useState<any>(null);
   const [lastAddedItemId, setLastAddedItemId] = useState<{ productId: string, variantId: string, unitId: string } | null>(null);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
 
+  const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
   const lastScanTime = useRef<number>(0);
@@ -132,10 +135,7 @@ export function SupermarketPOS() {
 
       if (!product) {
         logger.warn('Barcode not found', { barcode });
-        toast.error('Product Not Found', {
-          description: `No product found with barcode: ${barcode}.`,
-          duration: 2000,
-        });
+        setUnknownBarcode(barcode);
         return;
       }
 
@@ -739,6 +739,31 @@ export function SupermarketPOS() {
       </AlertDialog>
 
       <SettingsDialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog} />
+
+      <AlertDialog open={!!unknownBarcode} onOpenChange={(open) => !open && setUnknownBarcode(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unknown Barcode</AlertDialogTitle>
+            <AlertDialogDescription>
+              Barcode <span className="font-mono font-bold">{unknownBarcode}</span> was not found in the system. Would you like to register a new product for it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const barcode = unknownBarcode;
+              setUnknownBarcode(null);
+              navigate('/product-management');
+              // Give it some time to navigate and mount
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('barcode-scanned-for-registration', { detail: { barcode } }));
+              }, 500);
+            }}>
+              Register Product
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={showHeldOrders} onOpenChange={setShowHeldOrders}>
         <SheetContent side="right" className="w-[400px] sm:w-[540px]">

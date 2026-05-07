@@ -47,9 +47,16 @@ export default function StandaloneSetup() {
     try {
       await invoke('set_local_auth', { pin });
 
+      // Ensure backend device config is also set for standalone mode
+      await invoke('set_device_config', {
+        baseUrl: 'http://localhost',
+        locationId: 'standalone',
+        deviceKey: 'standalone-key'
+      });
+
       // Mock device config and location for standalone
       setCurrentLocation({
-        id: 'standalone-loc',
+        id: 'standalone',
         name: 'Local Store',
         locationType: 'RETAIL_SHOP',
         isActive: true,
