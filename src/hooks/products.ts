@@ -17,6 +17,7 @@ export interface SellableUnit {
 export interface Variant {
   variantId: string;
   variantName: string;
+  name?: string;
   barcode: string;
   updatedAt?: string;
 }

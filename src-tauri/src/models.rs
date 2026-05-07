@@ -38,7 +38,6 @@ pub struct ProductSearchResponse {
 pub struct PosProduct {
     pub product_id: String,
 
-    // MAP JSON "name" -> Rust "product_name"
     #[serde(rename = "name", alias = "productName")]
     pub product_name: String,
 
@@ -65,8 +64,6 @@ pub struct PosProduct {
 pub struct Variant {
     pub variant_id: String,
 
-    // MAP JSON "name" -> Rust "variant_name"
-    // THIS FIXES YOUR ERROR (missing field `variantName`)
     #[serde(rename = "name", alias = "variantName")]
     pub variant_name: String,
 
