@@ -1,3 +1,11 @@
+# [3.3.0-nextgen.19](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.18...v3.3.0-nextgen.19) (2026-05-07)
+
+
+### Bug Fixes
+
+* resolve product saving and display issues in standalone app ([dcb6fc3](https://github.com/larrybwosi/dealio-desktop/commit/dcb6fc387bbc76ce99a91b46585b5516e48c9d52))
+* resolve product saving and display issues in standalone app ([7cccbe4](https://github.com/larrybwosi/dealio-desktop/commit/7cccbe423ec0dfd67e8596a8b8ac94e76ab82e22))
+
 # [3.3.0-nextgen.18](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.17...v3.3.0-nextgen.18) (2026-05-07)
 
 
