@@ -36,17 +36,16 @@ export default function ProductManagementPage() {
     const barcode = formData.get('barcode') as string;
     const productData = {
       productId: editingProduct?.productId || uuidv4(),
-      productName: formData.get('productName'),
+      name: formData.get('productName'),
       category: 'General',
       barcode: barcode,
       price: parseFloat(formData.get('price') as string),
       stock: parseInt(formData.get('stock') as string) || 0,
       variants: editingProduct?.variants?.map((v: any, idx: number) => idx === 0 ? { ...v, barcode } : v) || [{
           variantId: uuidv4(),
-          variantName: 'Default',
+          name: 'Default',
           sku: '',
           barcode: barcode,
-          price: parseFloat(formData.get('price') as string),
           stock: parseInt(formData.get('stock') as string) || 0,
           sellableUnits: [{
               unitId: uuidv4(),
@@ -158,9 +157,9 @@ export default function ProductManagementPage() {
           <TableBody>
             {products.map((product: any) => (
               <TableRow key={product.productId}>
-                <TableCell className="font-medium">{product.productName}</TableCell>
+                <TableCell className="font-medium">{product.productName || product.name}</TableCell>
                 <TableCell>{product.category}</TableCell>
-                <TableCell>{product.price || product.variants?.[0]?.price}</TableCell>
+                <TableCell>{product.price || product.variants?.[0]?.price || product.variants?.[0]?.sellableUnits?.[0]?.price}</TableCell>
                 <TableCell>{product.stock || product.variants?.[0]?.stock}</TableCell>
                 <TableCell className="text-right">
                   <Button

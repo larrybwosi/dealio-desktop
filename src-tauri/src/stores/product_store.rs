@@ -557,10 +557,10 @@ pub async fn get_product_by_barcode(
             .device_config
             .lock()
             .map_err(|_| "Lock error".to_string())?;
-        let config = config_guard
+        config_guard
             .as_ref()
-            .ok_or_else(|| "Device not configured".to_string())?;
-        config.location_id.clone()
+            .map(|c| c.location_id.clone())
+            .unwrap_or_else(|| "standalone".to_string())
     };
 
     let query = "SELECT payload FROM products WHERE location_id = ?1 AND search_text LIKE ?2";
