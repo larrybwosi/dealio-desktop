@@ -6,13 +6,19 @@ import { usePrinter } from '@/hooks/use-printer';
 import { processFileDownload } from '@/lib/utils';
 import { usePosStore } from '@/store/store';
 import { useAuthStore } from '@/store/pos-auth-store';
+import { PrinterJobType } from '@/store/printer-store';
 
 export function usePdfActions() {
   const { printNative } = usePrinter();
   const [isPrinting, setIsPrinting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const handlePrint = async (docInstance: React.ReactElement<any>, _fileNamePrefix: string, orderData?: any) => {
+  const handlePrint = async (
+    docInstance: React.ReactElement<any>,
+    _fileNamePrefix: string,
+    orderData?: any,
+    jobType: PrinterJobType = 'receipt'
+  ) => {
     if (!docInstance) return;
 
     if (isPrinting) return;
@@ -25,7 +31,7 @@ export function usePdfActions() {
         const settings = usePosStore.getState().settings;
         const branchName = useAuthStore.getState().currentLocation?.name;
 
-        const result = await printNative('receipt', orderData, settings, branchName);
+        const result = await printNative(jobType, orderData, settings, branchName);
 
         if (result.success) {
           toast.success('Sent to printer!', { id: toastId });
@@ -36,14 +42,20 @@ export function usePdfActions() {
       }
 
       // Web Fallback: Open PDF in new tab to print
+      // We open the window immediately to avoid popup blockers
+      const printWindow = window.open('', '_blank');
+
+      if (!printWindow) {
+        toast.error('Pop-up blocked. Please allow pop-ups to print.', { id: toastId });
+        setIsPrinting(false);
+        return;
+      }
+
       const blob = await pdf(docInstance).toBlob();
       const url = URL.createObjectURL(blob);
-      const printWindow = window.open(url);
-      if (printWindow) {
-        toast.success('Print preview opened', { id: toastId });
-      } else {
-        toast.error('Pop-up blocked. Please allow pop-ups to print.', { id: toastId });
-      }
+
+      printWindow.location.href = url;
+      toast.success('Print preview opened', { id: toastId });
     } catch (error) {
       console.error('Print failed:', error);
       toast.error(`Print failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { id: toastId });

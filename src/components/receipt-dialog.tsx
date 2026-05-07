@@ -328,7 +328,10 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             <ActionPanel
               completedOrder={completedOrder}
               formattedOrder={formattedOrder}
-              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder)}
+              onPrint={() =>
+                DocumentInstance &&
+                handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder, 'receipt')
+              }
               onPrintLabels={async () => {
                 if (!completedOrder) return;
                 try {
