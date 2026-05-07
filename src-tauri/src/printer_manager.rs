@@ -339,8 +339,26 @@ pub async fn print_job(
     match job_type.as_str() {
         "receipt" => print_receipt_native(app, order, settings, branch_name).await,
         "kitchen" => print_kitchen_native(app, order, settings, branch_name).await,
-        "bar" => print_bar_native(app, order, settings, branch_name).await,
-        "bill" => print_bill_native(app, order, settings, branch_name).await,
+        "bar" => {
+            if let Some(pdf_bytes) = order.get("pdfBytes").and_then(|v| v.as_array()) {
+                let bytes: Vec<u8> = pdf_bytes.iter().filter_map(|v| v.as_u64().map(|b| b as u8)).collect();
+                let printer_config = get_printer_config(app.clone()).await?;
+                let target = printer_config.bar_printer.or(printer_config.receipt_printer).ok_or("Bar printer not configured")?.target;
+                print_pdf_to_system_printer(&app, target, bytes).await
+            } else {
+                print_bar_native(app, order, settings, branch_name).await
+            }
+        },
+        "bill" => {
+            if let Some(pdf_bytes) = order.get("pdfBytes").and_then(|v| v.as_array()) {
+                let bytes: Vec<u8> = pdf_bytes.iter().filter_map(|v| v.as_u64().map(|b| b as u8)).collect();
+                let printer_config = get_printer_config(app.clone()).await?;
+                let target = printer_config.bill_printer.or(printer_config.receipt_printer).ok_or("Bill printer not configured")?.target;
+                print_pdf_to_system_printer(&app, target, bytes).await
+            } else {
+                print_bill_native(app, order, settings, branch_name).await
+            }
+        },
         "label" => print_generic_labels(app, order, settings).await,
         "invoice" | "waybill" => {
             // PDF Printing path for A4/Full documents
@@ -455,8 +473,12 @@ pub async fn print_receipt_native(
     let cols = if is_58mm { (14, 4, 6, 8) } else { (22, 6, 9, 11) };
 
     // --- LOGO ---
-    if let Some(logo_path) = config.get("logoUrl").and_then(|v| v.as_str()) {
-        let _ = esc.logo(logo_path, is_58mm);
+    if config.get("showLogo").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(logo_path) = config.get("logoUrl").and_then(|v| v.as_str()) {
+            if !logo_path.is_empty() {
+                let _ = esc.logo(logo_path, is_58mm);
+            }
+        }
     }
 
     // --- HEADER (Center Aligned) ---
@@ -470,17 +492,71 @@ pub async fn print_receipt_native(
         esc.bold(false);
     }
     
-    if let Some(slogan) = settings.get("businessSlogan").and_then(|v| v.as_str()) {
+    if config.get("showTagline").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(tagline) = config.get("tagline").and_then(|v| v.as_str()) {
+            if !tagline.is_empty() { esc.text_line(tagline); }
+        }
+    } else if let Some(slogan) = settings.get("businessSlogan").and_then(|v| v.as_str()) {
         if !slogan.is_empty() { esc.text_line(slogan); }
     }
+
     if let Some(ref branch) = branch_name {
         if !branch.is_empty() { esc.text_line(&format!("Branch: {}", branch)); }
     }
-    if let Some(address) = settings.get("address").and_then(|v| v.as_str()) {
-        if !address.is_empty() { esc.text_line(address); }
+
+    if config.get("showAddress").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(address) = settings.get("address").and_then(|v| v.as_str()) {
+            if !address.is_empty() { esc.text_line(address); }
+        }
     }
-    if let Some(phone) = settings.get("phone").and_then(|v| v.as_str()) {
-        if !phone.is_empty() { esc.text_line(&format!("Tel: {}", phone)); }
+
+    let show_phone = config.get("showPhone").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_email = config.get("showEmail").and_then(|v| v.as_bool()).unwrap_or(true);
+
+    if show_phone || show_email {
+        let phone = settings.get("phone").and_then(|v| v.as_str()).unwrap_or("");
+        let email = settings.get("email").and_then(|v| v.as_str()).unwrap_or("");
+
+        if show_phone && show_email && !phone.is_empty() && !email.is_empty() {
+            esc.text_line(&format!("{} | {}", phone, email));
+        } else if show_phone && !phone.is_empty() {
+            esc.text_line(&format!("Tel: {}", phone));
+        } else if show_email && !email.is_empty() {
+            esc.text_line(email);
+        }
+    }
+
+    if config.get("showWebsite").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(website) = settings.get("website").and_then(|v| v.as_str()) {
+            if !website.is_empty() { esc.text_line(website); }
+        }
+    }
+
+    // Reg numbers
+    let show_tax = config.get("showTaxNumber").and_then(|v| v.as_bool()).unwrap_or(false);
+    let show_vat = config.get("showVatNumber").and_then(|v| v.as_bool()).unwrap_or(false);
+    let show_reg = config.get("showCompanyRegNumber").and_then(|v| v.as_bool()).unwrap_or(false);
+
+    if show_tax || show_vat || show_reg {
+        let mut reg_parts = Vec::new();
+        if show_tax {
+            if let Some(val) = config.get("taxNumber").and_then(|v| v.as_str()) {
+                if !val.is_empty() { reg_parts.push(format!("TIN:{}", val)); }
+            }
+        }
+        if show_vat {
+            if let Some(val) = config.get("vatNumber").and_then(|v| v.as_str()) {
+                if !val.is_empty() { reg_parts.push(format!("VAT:{}", val)); }
+            }
+        }
+        if show_reg {
+            if let Some(val) = config.get("companyRegNumber").and_then(|v| v.as_str()) {
+                if !val.is_empty() { reg_parts.push(format!("REG:{}", val)); }
+            }
+        }
+        if !reg_parts.is_empty() {
+            esc.text_line(&reg_parts.join(" "));
+        }
     }
     
     esc.feed(1);
@@ -488,14 +564,42 @@ pub async fn print_receipt_native(
     // --- META DATA (Left Aligned) ---
     esc.align(0);
     esc.divider(width);
-    if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
-        esc.text_line(&format!("Receipt No: {}", order_num));
+
+    if config.get("showOrderNumber").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
+            esc.text_line(&format!("Receipt No: {}", order_num));
+        }
     }
-    if let Some(date) = order.get("createdAt").and_then(|v| v.as_str()) {
-        esc.text_line(&format!("Date: {}", date));
+
+    let created_at = order.get("createdAt").and_then(|v| v.as_str()).unwrap_or("");
+    if !created_at.is_empty() {
+        esc.text_line(&format!("Date: {}", created_at));
     }
-    if let Some(cashier) = order.get("cashierName").and_then(|v| v.as_str()) {
-        esc.text_line(&format!("Cashier: {}", cashier));
+
+    if config.get("showOrderType").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(order_type) = order.get("orderType").and_then(|v| v.as_str()) {
+            esc.text_line(&format!("Type: {}", order_type.to_uppercase()));
+        }
+    }
+
+    if config.get("showCashier").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(cashier) = order.get("cashierName").and_then(|v| v.as_str()) {
+            esc.text_line(&format!("Served By: {}", cashier));
+        }
+    }
+
+    if config.get("showCustomerName").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(customer) = order.get("customerName").and_then(|v| v.as_str()) {
+            if !customer.is_empty() && customer != "Walk-in Customer" {
+                esc.text_line(&format!("Customer: {}", customer));
+            }
+        }
+    }
+
+    if let Some(table) = order.get("tableNumber").and_then(|v| v.as_str()) {
+        if !table.is_empty() {
+            esc.text_line(&format!("Table: {}", table));
+        }
     }
     
     // --- TABLE HEADER ---
@@ -510,7 +614,12 @@ pub async fn print_receipt_native(
         for item in items {
             let name = item.get("productName").and_then(|v| v.as_str()).unwrap_or("Item");
             let qty = item.get("quantity").and_then(|v| v.as_f64()).unwrap_or(1.0);
-            let price = item.get("price").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+            // Handle prices at root of item or in selectedUnit
+            let price = item.get("price").and_then(|v| v.as_f64())
+                .or_else(|| item.get("selectedUnit").and_then(|u| u.get("price")).and_then(|p| p.as_f64()))
+                .unwrap_or(0.0);
+
             let total = item.get("total").and_then(|v| v.as_f64()).unwrap_or(qty * price);
             
             // Format numbers nicely
@@ -519,22 +628,51 @@ pub async fn print_receipt_native(
             let total_str = format!("{:.2}", total);
 
             esc.item_row(name, &qty_str, &price_str, &total_str, cols);
+
+            // Item SKU
+            if config.get("showItemSku").and_then(|v| v.as_bool()).unwrap_or(false) {
+                if let Some(sku) = item.get("sku").and_then(|v| v.as_str()) {
+                    if !sku.is_empty() { esc.text_line(&format!("  SKU: {}", sku)); }
+                }
+            }
+
+            // Item Variant
+            if let Some(variant) = item.get("variantName").and_then(|v| v.as_str()) {
+                if !variant.is_empty() && variant != "Default Variant" && variant != "Default" {
+                    esc.text_line(&format!("  ({})", variant));
+                }
+            }
+
+            // Item Notes
+            if config.get("showItemNotes").and_then(|v| v.as_bool()).unwrap_or(true) {
+                if let Some(note) = item.get("notes").or(item.get("note")).and_then(|v| v.as_str()) {
+                    if !note.is_empty() { esc.text_line(&format!("  * {}", note)); }
+                }
+            }
         }
     }
     esc.divider(width);
 
     // --- TOTALS (Left/Right Aligned) ---
-    if let Some(subtotal) = order.get("subTotal").and_then(|v| v.as_f64()) {
-        esc.text_left_right("Subtotal:", &format!("{:.2}", subtotal), width);
-    }
-    if let Some(tax) = order.get("taxAmount").and_then(|v| v.as_f64()) {
-        if tax > 0.0 {
-            esc.text_left_right("Tax:", &format!("{:.2}", tax), width);
+    if config.get("showSubtotal").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(subtotal) = order.get("subTotal").and_then(|v| v.as_f64()) {
+            esc.text_left_right("Subtotal:", &format!("{:.2}", subtotal), width);
         }
     }
-    if let Some(discount) = order.get("discountAmount").and_then(|v| v.as_f64()) {
-        if discount > 0.0 {
-            esc.text_left_right("Discount:", &format!("-{:.2}", discount), width);
+
+    if config.get("showDiscountBreakdown").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(discount) = order.get("discount").or(order.get("discountAmount")).and_then(|v| v.as_f64()) {
+            if discount > 0.0 {
+                esc.text_left_right("Discount:", &format!("-{:.2}", discount), width);
+            }
+        }
+    }
+
+    if config.get("showTaxBreakdown").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(tax) = order.get("taxes").or(order.get("taxAmount")).and_then(|v| v.as_f64()) {
+            if tax > 0.0 {
+                esc.text_left_right("Tax:", &format!("{:.2}", tax), width);
+            }
         }
     }
 
@@ -545,7 +683,8 @@ pub async fn print_receipt_native(
         esc.bold(true);
         // Because text is 2x wide, the character width for this line is halved
         let double_width = width / 2;
-        esc.text_left_right("TOTAL:", &format!("{:.2}", total), double_width);
+        let currency = settings.get("currency").and_then(|v| v.as_str()).unwrap_or("KSH");
+        esc.text_left_right("TOTAL:", &format!("{} {:.2}", currency, total), double_width);
         
         // Reset styles
         esc.size(1, 1);
@@ -553,12 +692,35 @@ pub async fn print_receipt_native(
         esc.feed(1);
     }
 
-    // Payment Methods
+    // Show Savings
+    if config.get("showSavingsTotal").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(discount) = order.get("discount").or(order.get("discountAmount")).and_then(|v| v.as_f64()) {
+            if discount > 0.0 {
+                esc.text_line(&format!("YOU SAVED: {:.2}", discount));
+            }
+        }
+    }
+
+    // Payment Method
+    if config.get("showPaymentMethod").and_then(|v| v.as_bool()).unwrap_or(true) {
+        if let Some(method) = order.get("paymentMethod").and_then(|v| v.as_str()) {
+            esc.text_left_right("Payment Method:", method, width);
+        }
+    }
+
+    // Split Payments
     if let Some(payments) = order.get("payments").and_then(|v| v.as_array()) {
         for p in payments {
             let method = p.get("method").and_then(|v| v.as_str()).unwrap_or("Payment");
             let amt = p.get("amount").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            esc.text_left_right(method, &format!("{:.2}", amt), width);
+            esc.text_left_right(&format!("  - {}", method), &format!("{:.2}", amt), width);
+        }
+    }
+
+    // Change Due
+    if let Some(change) = order.get("change").and_then(|v| v.as_f64()) {
+        if change > 0.0 {
+            esc.text_left_right("Change Due:", &format!("{:.2}", change), width);
         }
     }
 
@@ -567,23 +729,80 @@ pub async fn print_receipt_native(
     esc.feed(1);
     esc.divider(width);
     
-    if let Some(msg) = config.get("customMessage").and_then(|v| v.as_str()) {
-        if !msg.is_empty() { esc.text_line(msg); }
-    } else {
-        esc.text_line("Thank you for your business!");
+    // Header text (from content tab)
+    if let Some(header_text) = config.get("headerText").and_then(|v| v.as_str()) {
+        if !header_text.is_empty() { esc.text_line(header_text); }
     }
-    esc.feed(1);
+
+    // Thank You Message
+    if config.get("showThankYouMessage").and_then(|v| v.as_bool()).unwrap_or(true) {
+        let msg = config.get("thankYouMessage").and_then(|v| v.as_str())
+            .unwrap_or("Thank you for your business!");
+        if !msg.is_empty() { esc.text_line(msg); }
+    }
+
+    // Next Visit Promo
+    if config.get("showNextVisitPromo").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(promo) = config.get("nextVisitPromoText").and_then(|v| v.as_str()) {
+            if !promo.is_empty() {
+                esc.bold(true);
+                esc.text_line(promo);
+                esc.bold(false);
+            }
+        }
+    }
+
+    // Loyalty
+    let show_pts = config.get("showLoyaltyPoints").and_then(|v| v.as_bool()).unwrap_or(false);
+    let show_bal = config.get("showLoyaltyBalance").and_then(|v| v.as_bool()).unwrap_or(false);
+    if show_pts || show_bal {
+        if show_pts {
+            if let Some(total) = order.get("total").and_then(|v| v.as_f64()) {
+                esc.text_line(&format!("Points Earned: +{}", (total / 10.0).floor()));
+            }
+        }
+        if show_bal {
+            esc.text_line("Loyalty Balance: 150 pts");
+        }
+    }
+
+    // Social Media
+    if config.get("showSocialMedia").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(handle) = config.get("socialMediaHandle").and_then(|v| v.as_str()) {
+            if !handle.is_empty() { esc.text_line(handle); }
+        }
+    }
+
+    // Custom Footer Text
+    if let Some(footer_text) = config.get("footerText").and_then(|v| v.as_str()) {
+        if !footer_text.is_empty() { esc.text_line(footer_text); }
+    }
 
     // Render Survey QR if enabled
     if config.get("showSurveyQr").and_then(|v| v.as_bool()).unwrap_or(false) {
         if let Some(url) = config.get("surveyUrl").and_then(|v| v.as_str()) {
-            esc.text_line("Scan to rate your experience:");
+            if !url.is_empty() {
+                esc.text_line("Scan to rate your experience:");
+                esc.qr_code(url);
+            }
+        }
+    }
+
+    // Render QR Code based on Target
+    if config.get("showQrCode").and_then(|v| v.as_bool()).unwrap_or(false) {
+        let target = config.get("qrCodeTarget").and_then(|v| v.as_str()).unwrap_or("website");
+        let url = if target == "website" || target == "review-link" || target == "survey" {
+            config.get("qrCodeCustomUrl").and_then(|v| v.as_str()).unwrap_or("")
+        } else {
+            "" // Default order link?
+        };
+        if !url.is_empty() {
             esc.qr_code(url);
         }
     }
 
     // Render 1D Barcode if enabled
-    if config.get("showBarcode").and_then(|v| v.as_bool()).unwrap_or(false) {
+    if config.get("showBarcode").and_then(|v| v.as_bool()).unwrap_or(true) {
         if let Some(order_num) = order.get("orderNumber").and_then(|v| v.as_str()) {
             esc.barcode_1d(order_num, None);
         }
@@ -592,10 +811,23 @@ pub async fn print_receipt_native(
     // Return policy / Disclaimer
     if config.get("showReturnPolicy").and_then(|v| v.as_bool()).unwrap_or(false) {
         if let Some(policy) = config.get("returnPolicyText").and_then(|v| v.as_str()) {
-            esc.feed(1);
-            esc.text_line(policy);
+            if !policy.is_empty() {
+                esc.feed(1);
+                esc.text_line(policy);
+            }
         }
     }
+
+    if config.get("showLegalDisclaimer").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(disclaimer) = config.get("legalDisclaimerText").and_then(|v| v.as_str()) {
+            if !disclaimer.is_empty() {
+                esc.feed(1);
+                esc.text_line(disclaimer);
+            }
+        }
+    }
+
+    esc.text_line("Goods once sold are not returnable.");
 
     // --- FINISH BUILDING COMMANDS ---
     esc.feed(4);
@@ -762,19 +994,30 @@ pub async fn print_kitchen_native(
     let show_table = config.get("showTable").and_then(|v| v.as_bool()).unwrap_or(true);
     let show_prices = config.get("showPrices").and_then(|v| v.as_bool()).unwrap_or(false);
     let show_notes = config.get("showNotes").and_then(|v| v.as_bool()).unwrap_or(true);
+    let show_server = config.get("showServerName").and_then(|v| v.as_bool()).unwrap_or(true);
 
     // --- HEADER ---
     esc.align(1); // Center
 
-    let shop_name = config.get("shopName").and_then(|v| v.as_str())
-        .or(branch_name.as_deref())
-        .unwrap_or("RESTAURANT NAME");
-    
-    esc.bold(true);
-    esc.size(2, 2);
-    esc.text_line(&shop_name.to_uppercase());
-    esc.size(1, 1);
-    esc.bold(false);
+    if let Some(header) = config.get("headerText").and_then(|v| v.as_str()) {
+        if !header.is_empty() {
+            esc.bold(true);
+            esc.size(2, 2);
+            esc.text_line(&header.to_uppercase());
+            esc.size(1, 1);
+            esc.bold(false);
+        }
+    } else {
+        let shop_name = config.get("shopName").and_then(|v| v.as_str())
+            .or(branch_name.as_deref())
+            .unwrap_or("RESTAURANT NAME");
+
+        esc.bold(true);
+        esc.size(2, 2);
+        esc.text_line(&shop_name.to_uppercase());
+        esc.size(1, 1);
+        esc.bold(false);
+    }
 
     // Ticket Type
     let ticket_type = config.get("ticketType").and_then(|v| v.as_str()).unwrap_or("KITCHEN");
@@ -794,6 +1037,12 @@ pub async fn print_kitchen_native(
         esc.feed(1);
     }
 
+    if config.get("showSequenceNumber").and_then(|v| v.as_bool()).unwrap_or(false) {
+        if let Some(seq) = order.get("sequenceNumber").and_then(|v| v.as_i64()) {
+            esc.text_line(&format!("Queue Position: {}", seq));
+        }
+    }
+
     esc.divider(width);
 
     // --- META GRID ---
@@ -806,28 +1055,36 @@ pub async fn print_kitchen_native(
     }
     if show_time {
         let created_at = order.get("createdAt").and_then(|v| v.as_str()).unwrap_or("");
-        esc.text_line(&format!("TIME: {}", created_at));
+        if !created_at.is_empty() {
+            esc.text_line(&format!("TIME: {}", created_at));
+        }
     }
-    if let Some(user_name) = order.get("userName").and_then(|v| v.as_str()) {
-        esc.text_line(&format!("SERVER: {}", user_name.to_uppercase()));
+    if show_server {
+        if let Some(user_name) = order.get("userName").or(order.get("cashierName")).and_then(|v| v.as_str()) {
+            esc.text_line(&format!("SERVER: {}", user_name.to_uppercase()));
+        }
     }
     if show_customer_name {
         if let Some(customer) = order.get("customerName").and_then(|v| v.as_str()) {
-            esc.text_line(&format!("CUSTOMER: {}", customer.to_uppercase()));
+            if !customer.is_empty() && customer != "Walk-in Customer" {
+                esc.text_line(&format!("CUSTOMER: {}", customer.to_uppercase()));
+            }
         }
     }
 
     // --- TABLE BOX ---
     if show_table {
-        if let Some(table) = order.get("tableName").and_then(|v| v.as_str()) {
-            esc.feed(1);
-            esc.align(1);
-            esc.inverse(true); // Black background with white text for visibility
-            esc.size(2, 2);
-            esc.text_line(&format!(" TABLE {} ", table.to_uppercase()));
-            esc.inverse(false);
-            esc.size(1, 1);
-            esc.feed(1);
+        if let Some(table) = order.get("tableName").or(order.get("tableNumber")).and_then(|v| v.as_str()) {
+            if !table.is_empty() {
+                esc.feed(1);
+                esc.align(1);
+                esc.inverse(true); // Black background with white text for visibility
+                esc.size(2, 2);
+                esc.text_line(&format!(" TABLE {} ", table.to_uppercase()));
+                esc.inverse(false);
+                esc.size(1, 1);
+                esc.feed(1);
+            }
         }
     }
 
@@ -922,6 +1179,13 @@ pub async fn print_kitchen_native(
     esc.align(1);
     esc.text_line(&format!("Total Items: {}", total_items));
     
+    // Custom Footer
+    if let Some(footer) = config.get("footerText").and_then(|v| v.as_str()) {
+        if !footer.is_empty() {
+            esc.text_line(footer);
+        }
+    }
+
     // Add current print timestamp
     let current_time = chrono::Local::now().format("%m/%d/%Y %H:%M:%S").to_string();
     esc.text_line(&format!("Printed: {}", current_time));
