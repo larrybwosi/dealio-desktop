@@ -1,3 +1,10 @@
+# [3.3.0-nextgen.20](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.19...v3.3.0-nextgen.20) (2026-05-07)
+
+
+### Features
+
+* implement professional A4 invoice printing ([63f0708](https://github.com/larrybwosi/dealio-desktop/commit/63f07083314b89686f89b26896229f01dadd7cc7))
+
 # [3.3.0-nextgen.19](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.18...v3.3.0-nextgen.19) (2026-05-07)
 
 
