@@ -32,32 +32,53 @@ interface ReceiptDialogProps {
 const formatOrderForReceipt = (order: any): Order | null => {
   if (!order) return null;
 
+  const subTotal = parseFloat(order.subtotal || order.subTotal || '0');
+  const discount = parseFloat(order.discount || '0');
+  const taxes = parseFloat(order.tax || order.taxes || '0');
+  const total = parseFloat(order.total || '0');
+
   return {
     id: order.id || 'temp-id',
     orderNumber: order.orderNumber || `#${Math.floor(Math.random() * 10000)}`,
     customerName: order.customer?.name || order.customerName || 'Guest',
     orderType: order.orderType || 'Walk-in',
     cashierName: order.cashierName || 'Staff',
+    userName: order.cashierName || 'Staff', // For backend
     paymentMethod: order.paymentMethod || 'Cash',
     status: 'completed',
-    items: (order.items || []).map((item: any) => ({
-      productId: item.productId || item.id,
-      productName: item.productName || item.name || 'Unknown Product',
-      variantName: item.variantName || item.variant || '',
-      sku: item.sku || '',
-      quantity: item.quantity || 1,
-      selectedUnit: {
-        unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
-        price: parseFloat(item.price || item.selectedUnit?.price || '0'),
-      },
-      note: item.note || item.notes || '',
-    })),
-    subTotal: parseFloat(order.subtotal || order.subTotal || '0'),
-    discount: parseFloat(order.discount || '0'),
-    taxes: parseFloat(order.tax || order.taxes || '0'),
-    total: parseFloat(order.total || '0'),
+    tableNumber: order.tableNumber,
+    tableName: order.tableNumber, // For backend
+    items: (order.items || []).map((item: any) => {
+      const price = parseFloat(item.price || item.selectedUnit?.price || '0');
+      const quantity = item.quantity || 1;
+      const name = item.productName || item.name || 'Unknown Product';
+      return {
+        productId: item.productId || item.id,
+        productName: name,
+        name: name, // For backend
+        variantName: item.variantName || item.variant || '',
+        sku: item.sku || '',
+        quantity: quantity,
+        selectedUnit: {
+          unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
+          price: price,
+        },
+        price: price, // For backend
+        total: price * quantity, // For backend
+        note: item.note || item.notes || '',
+      };
+    }),
+    subTotal,
+    discount,
+    discountAmount: discount, // For backend
+    taxes,
+    taxAmount: taxes, // For backend
+    total,
     createdAt: order.datetime ? new Date(order.datetime) : new Date(),
-  };
+    payments: order.payments || [
+      { method: order.paymentMethod || 'Cash', amount: total }
+    ], // For backend
+  } as any;
 };
 
 // --- Sub-component: Summary Card ---
@@ -328,7 +349,13 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             <ActionPanel
               completedOrder={completedOrder}
               formattedOrder={formattedOrder}
-              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder)}
+              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, {
+                ...formattedOrder,
+                // Ensure backend-specific fields are present even if TypeScript complained
+                subTotal: (formattedOrder as any).subTotal,
+                taxAmount: (formattedOrder as any).taxAmount,
+                discountAmount: (formattedOrder as any).discountAmount,
+              })}
               onPrintLabels={async () => {
                 if (!completedOrder) return;
                 try {
