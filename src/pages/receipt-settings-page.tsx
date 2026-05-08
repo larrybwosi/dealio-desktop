@@ -1254,6 +1254,7 @@ export default function ReceiptSettingsPage() {
     orderNumber: 'ORD-847',
     customerName: 'Table 12 Guest',
     cashierName: 'Sarah M.',
+    status: 'completed' as const,
     items: [
       { productName: 'Grilled Salmon', variantName: 'Large', quantity: 2, selectedUnit: { price: 24.99 } },
       { productName: 'Caesar Salad', variantName: 'Default Variant', quantity: 1, selectedUnit: { price: 12.5 } },
@@ -1439,7 +1440,9 @@ export default function ReceiptSettingsPage() {
                       barcodeUrl={barcodeUrl}
                       branchName="Main Branch"
                     />,
-                    'receipt-test'
+                    'receipt-test',
+                    sampleOrder,
+                    'receipt'
                   )
                 : handlePrint(
                     <PDFKitchenTicket
@@ -1447,7 +1450,9 @@ export default function ReceiptSettingsPage() {
                       businessName={settings.businessName}
                       kitchenTicketConfig={kConfig}
                     />,
-                    'kitchen-ticket-test'
+                    'kitchen-ticket-test',
+                    sampleOrder,
+                    'kitchen'
                   )
             }
             className="h-8 text-[11.5px] font-medium gap-1.5 bg-white text-zinc-900 hover:bg-zinc-100 border-0 shadow-lg rounded-lg"
