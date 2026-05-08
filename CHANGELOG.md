@@ -1,3 +1,11 @@
+# [3.3.0-nextgen.22](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.21...v3.3.0-nextgen.22) (2026-05-08)
+
+
+### Bug Fixes
+
+* implement silent backend-driven printing and full customization ([25577ca](https://github.com/larrybwosi/dealio-desktop/commit/25577ca35103e07b4320fc28b21d2b23b88d37dd))
+* prevent browser popup blocker from interrupting print preview ([f9cff7d](https://github.com/larrybwosi/dealio-desktop/commit/f9cff7dc39d36bdf433b62eab39fac2aa0ea69e5))
+
 # [3.3.0-nextgen.21](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.20...v3.3.0-nextgen.21) (2026-05-07)
 
 
