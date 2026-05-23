@@ -61,9 +61,9 @@ export const usePrinter = () => {
     // because the backend 'print_job' does that lookup based on the 'type' (job_type).
 
     // However, we should check if the store has a config for it to fail fast UI side
-    const printerId = store.assignments[type] || store.assignments['receipt']; // Fallback to receipt for bill
+    const printerId = store.assignments[type];
     if (!printerId) {
-      throw new Error(`No printer assigned for ${type}s.`);
+      throw new Error(`No printer assigned for ${type}s. Please check your printer settings.`);
     }
 
     try {
@@ -129,6 +129,7 @@ export const usePrinter = () => {
 
   useEffect(() => {
     refreshPrinters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

@@ -17,8 +17,16 @@ export interface SellableUnit {
 export interface Variant {
   variantId: string;
   variantName: string;
+  name?: string;
   barcode: string;
   updatedAt?: string;
+}
+
+export interface Batch {
+  batchNumber: string;
+  expiryDate: string;
+  manufacturingDate?: string;
+  stock: number;
 }
 
 export interface PosProduct {
@@ -34,8 +42,9 @@ export interface PosProduct {
   stock: number;
   totalStock?: number;
   sellableUnits: SellableUnit[];
-  variants: Variant[];
+  variants: (Variant & { batches?: Batch[] })[];
   updatedAt?: string;
+  activeIngredient?: string;
 }
 
 interface UsePosProductsParams {
@@ -53,9 +62,9 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
   // 1. Selectors prevent unnecessary re-renders when other auth parts change
   const locationId = useAuthStore(state => state.currentLocation?.id);
 
-  // 2. Debounce the search input (500ms delay)
+  // 2. Debounce the search input (150ms delay for high-traffic supermarket)
   const safeSearch = search || '';
-  const [debouncedSearch] = useDebounce(safeSearch, 500);
+  const [debouncedSearch] = useDebounce(safeSearch, 150);
 
   // --- QUERY: Local Search ---
   const { data: searchResponse = { products: [], totalCount: 0 }, isLoading: isSearching } = useQuery({
@@ -69,11 +78,16 @@ export function usePosProducts({ search, category, page = 1, pageSize = 50, enab
         pageSize: pageSize,
       });
 
-      // Map backend totalStock to frontend stock
+      // Map backend totalStock to frontend stock and ensure names are present
       return {
         products: response.products.map(p => ({
           ...p,
+          productName: p.productName || p.name || '',
           stock: p.stock ?? p.totalStock ?? 0,
+          variants: p.variants?.map(v => ({
+            ...v,
+            variantName: v.variantName || v.name || '',
+          })) || [],
         })),
         totalCount: response.totalCount,
       };

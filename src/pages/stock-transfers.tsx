@@ -401,7 +401,7 @@ export default function StockTransferCreate() {
     <div className="min-h-screen dark:bg-slate-950 font-sans transition-colors duration-200">
       {/* ── Top Bar ──────────────────────────────────────────────────────────── */}
       <div className="bg-white dark:bg-background border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-full mx-auto px-6 h-16 flex items-center justify-between">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm select-none">
             <span className="text-slate-400 dark:text-slate-500">Inventory</span>
@@ -436,7 +436,7 @@ export default function StockTransferCreate() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className="max-w-full mx-auto px-6 py-8">
         {/* ── Page Header ────────────────────────────────────────────────────── */}
         <div className="mb-8">
           <div className="flex items-start justify-between">

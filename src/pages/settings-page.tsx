@@ -35,6 +35,7 @@ import {
   Bell,
   HardDrive,
   FileText,
+  CloudUpload,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -167,6 +168,12 @@ export default function SettingsPage() {
   const [enableAutoStart, setEnableAutoStart] = useState(settings?.enableAutoStart ?? false);
   const [enableBarcodeScanner, setEnableBarcodeScanner] = useState(settings?.enableBarcodeScanner ?? true);
 
+  // Multi-user / Shift Settings
+  const [shareCartBetweenUsers, setShareCartBetweenUsers] = useState(settings?.shareCartBetweenUsers ?? true);
+  const [shareShiftBetweenUsers, setShareShiftBetweenUsers] = useState(settings?.shareShiftBetweenUsers ?? true);
+  const [enableAutoShiftPrompt, setEnableAutoShiftPrompt] = useState(settings?.enableAutoShiftPrompt ?? false);
+  const [enforceShiftForCashPayments, setEnforceShiftForCashPayments] = useState(settings?.enforceShiftForCashPayments ?? false);
+
   // KDS Settings
   const [enableKdsSystem, setEnableKdsSystem] = useState(settings?.enableKdsSystem ?? false);
 
@@ -225,6 +232,10 @@ export default function SettingsPage() {
       enableAutoStart,
       enableBarcodeScanner,
       enableKdsSystem,
+      shareCartBetweenUsers,
+      shareShiftBetweenUsers,
+      enableAutoShiftPrompt,
+      enforceShiftForCashPayments,
       enableHoldSale,
       maxHeldOrders: newMaxHeldOrders,
       heldOrderExpiryHours: newHeldOrderExpiryHours,
@@ -267,7 +278,7 @@ export default function SettingsPage() {
       transition={{ duration: 0.3 }}
       className="flex-1 overflow-y-auto p-6 lg:p-10 bg-muted/5 dark:bg-background"
     >
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="mx-auto space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
@@ -286,7 +297,7 @@ export default function SettingsPage() {
         </div>
 
         <Tabs defaultValue="general" className="space-y-8">
-          <div className="rounded-xl border bg-card/50 backdrop-blur-sm p-1 shadow-sm">
+          <div className="rounded-lg border bg-card/50 backdrop-blur-sm p-1 shadow-sm">
             <TabsList className="flex h-auto w-full flex-wrap gap-2 justify-start bg-transparent p-0">
               <TabsTrigger
                 value="general"
@@ -300,12 +311,14 @@ export default function SettingsPage() {
               >
                 <Palette className="h-4 w-4 mr-2" /> Theme
               </TabsTrigger>
-              <TabsTrigger
-                value="enterprise"
-                className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
-              >
-                <Building2 className="h-4 w-4 mr-2" /> Enterprise
-              </TabsTrigger>
+              {import.meta.env.MODE !== 'standalone' && (
+                <TabsTrigger
+                  value="enterprise"
+                  className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
+                >
+                  <Building2 className="h-4 w-4 mr-2" /> Enterprise
+                </TabsTrigger>
+              )}
               <TabsTrigger
                 value="notifications"
                 className="flex-1 min-w-[100px] h-10 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-none transition-all"
@@ -345,8 +358,9 @@ export default function SettingsPage() {
             </TabsList>
           </div>
 
-          <GeneralSettings
-            businessName={businessName}
+          <TabsContent value="general">
+            <GeneralSettings
+              businessName={businessName}
             setBusinessName={setBusinessName}
             businessType={businessType}
             handleBusinessTypeChange={handleBusinessTypeChange}
@@ -359,8 +373,37 @@ export default function SettingsPage() {
             allowSaveUnpaidOrders={allowSaveUnpaidOrders}
             setAllowSaveUnpaidOrders={setAllowSaveUnpaidOrders}
             enableAutoStart={enableAutoStart}
-            setEnableAutoStart={setEnableAutoStart}
-          />
+              setEnableAutoStart={setEnableAutoStart}
+            />
+
+            {import.meta.env.MODE === 'standalone' && (
+              <Card className="mt-6 border-blue-100 bg-blue-50/50 p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                    <CloudUpload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold">Cloud Migration</h2>
+                    <p className="text-sm text-muted-foreground">Push local data to your Dealio Cloud account</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                  onClick={async () => {
+                    try {
+                      const res = await invoke<string>('push_local_to_cloud');
+                      toast.success(res);
+                    } catch (err: any) {
+                      toast.error(err);
+                    }
+                  }}
+                >
+                  Sync to Cloud
+                </Button>
+              </Card>
+            )}
+          </TabsContent>
 
           <LogsTab />
 
@@ -369,7 +412,7 @@ export default function SettingsPage() {
             className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95"
           >
             <div className="grid gap-6 md:grid-cols-2">
-              <Card className="p-6 border-muted/60 shadow-sm relative overflow-hidden">
+              <Card className="p-6 border-muted/60 shadow-sm relative overflow-hidden rounded-lg">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <Palette className="w-24 h-24" />
                 </div>
@@ -424,7 +467,7 @@ export default function SettingsPage() {
                         {settings.themeConfig?.zoomLevel ?? 100}%
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-xl border border-muted/50">
+                    <div className="flex items-center gap-4 bg-muted/30 p-4 rounded-lg border border-muted/50">
                       <Button
                         variant="outline"
                         size="icon"
@@ -487,7 +530,7 @@ export default function SettingsPage() {
                 </div>
               </Card>
 
-              <Card className="p-6 border-muted/60 shadow-sm">
+              <Card className="p-6 border-muted/60 shadow-sm rounded-lg">
                 <h2 className="text-xl font-semibold mb-1">Color Scheme</h2>
                 <p className="text-sm text-muted-foreground mb-6">Define your brand colors</p>
 
@@ -583,161 +626,225 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="enterprise" className="space-y-6">
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Customer Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Customer Management</div>
-                    <p className="text-sm text-muted-foreground">
-                      Track customer information, purchase history, and loyalty points
-                    </p>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Customer Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Customer Management</div>
+                      <p className="text-sm text-muted-foreground">
+                        Track customer information, purchase history, and loyalty points
+                      </p>
+                    </div>
+                    <Switch checked={enableCustomerManagement} onCheckedChange={setEnableCustomerManagement} />
                   </div>
-                  <Switch checked={enableCustomerManagement} onCheckedChange={setEnableCustomerManagement} />
                 </div>
-              </div>
-            </Card>
+              </Card>
+            )}
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Employee Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Employee Management</div>
-                    <p className="text-sm text-muted-foreground">
-                      Manage employee accounts, roles, and access permissions
-                    </p>
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Employee Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Employee Management</div>
+                      <p className="text-sm text-muted-foreground">
+                        Manage employee accounts, roles, and access permissions
+                      </p>
+                    </div>
+                    <Switch checked={enableEmployeeManagement} onCheckedChange={setEnableEmployeeManagement} />
                   </div>
-                  <Switch checked={enableEmployeeManagement} onCheckedChange={setEnableEmployeeManagement} />
-                </div>
 
-                <Separator />
+                  <Separator />
 
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Require Employee PIN</div>
-                    <p className="text-sm text-muted-foreground">Employees must enter PIN to process transactions</p>
-                  </div>
-                  <Switch
-                    checked={requireEmployeePin}
-                    onCheckedChange={setRequireEmployeePin}
-                    disabled={!enableEmployeeManagement}
-                  />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Inventory Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Low Stock Alerts</div>
-                    <p className="text-sm text-muted-foreground">Get notifications when products are running low</p>
-                  </div>
-                  <Switch checked={enableLowStockAlerts} onCheckedChange={setEnableLowStockAlerts} />
-                </div>
-
-                {enableLowStockAlerts && (
-                  <div className="grid gap-2 pl-6">
-                    <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
-                    <Input
-                      id="lowStockThreshold"
-                      type="number"
-                      min="0"
-                      value={lowStockThreshold}
-                      onChange={e => setLowStockThreshold(e.target.value)}
-                      placeholder="10"
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Require Employee PIN</div>
+                      <p className="text-sm text-muted-foreground">Employees must enter PIN to process transactions</p>
+                    </div>
+                    <Switch
+                      checked={requireEmployeePin}
+                      onCheckedChange={setRequireEmployeePin}
+                      disabled={!enableEmployeeManagement}
                     />
-                    <p className="text-xs text-muted-foreground">Alert when stock falls below this number</p>
                   </div>
-                )}
-              </div>
-            </Card>
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Cash Management</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Cash Drawer</div>
-                    <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
-                  </div>
-                  <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
-                </div>
-              </div>
-            </Card>
+                  <Separator />
 
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Kitchen Display System</div>
-                    <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
-                  </div>
-                  <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h2 className="text-xl font-semibold mb-4">Hold Sale</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex-1">
-                    <div className="font-medium">Enable Hold Sale</div>
-                    <p className="text-sm text-muted-foreground">Allow cashiers to temporarily hold transactions</p>
-                  </div>
-                  <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
-                </div>
-
-                {enableHoldSale && (
-                  <>
-                    <div className="grid grid-cols-2 gap-4 pl-6">
-                      <div className="grid gap-2">
-                        <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
-                        <Input
-                          id="maxHeldOrders"
-                          type="number"
-                          min="1"
-                          max="100"
-                          value={maxHeldOrders}
-                          onChange={e => setMaxHeldOrders(e.target.value)}
-                        />
-                        <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
-                        <Input
-                          id="heldOrderExpiryHours"
-                          type="number"
-                          min="1"
-                          value={heldOrderExpiryHours}
-                          onChange={e => setHeldOrderExpiryHours(e.target.value)}
-                          placeholder="Never"
-                        />
-                        <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
-                      </div>
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Share Cart Between Users</div>
+                      <p className="text-sm text-muted-foreground">If disabled, each user will have their own independent shopping cart</p>
                     </div>
+                    <Switch
+                      checked={shareCartBetweenUsers}
+                      onCheckedChange={setShareCartBetweenUsers}
+                    />
+                  </div>
 
-                    <div className="flex items-center justify-between py-2 pl-6">
-                      <div className="flex-1">
-                        <div className="font-medium">Require Hold Reason</div>
-                        <p className="text-sm text-muted-foreground">
-                          Force cashiers to enter a reason when holding an order
-                        </p>
-                      </div>
-                      <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Share Shift Between Users</div>
+                      <p className="text-sm text-muted-foreground">If disabled, each user must open and manage their own shift session</p>
                     </div>
-                  </>
-                )}
-              </div>
-            </Card>
+                    <Switch
+                      checked={shareShiftBetweenUsers}
+                      onCheckedChange={setShareShiftBetweenUsers}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Auto-Prompt for Shift</div>
+                      <p className="text-sm text-muted-foreground">Automatically prompt for a new shift opening after login if none is active</p>
+                    </div>
+                    <Switch
+                      checked={enableAutoShiftPrompt}
+                      onCheckedChange={setEnableAutoShiftPrompt}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enforce Shift for Cash</div>
+                      <p className="text-sm text-muted-foreground">Block cash payments if no active shift is found</p>
+                    </div>
+                    <Switch
+                      checked={enforceShiftForCashPayments}
+                      onCheckedChange={setEnforceShiftForCashPayments}
+                    />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Inventory Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Low Stock Alerts</div>
+                      <p className="text-sm text-muted-foreground">Get notifications when products are running low</p>
+                    </div>
+                    <Switch checked={enableLowStockAlerts} onCheckedChange={setEnableLowStockAlerts} />
+                  </div>
+
+                  {enableLowStockAlerts && (
+                    <div className="grid gap-2 pl-6">
+                      <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
+                      <Input
+                        id="lowStockThreshold"
+                        type="number"
+                        min="0"
+                        value={lowStockThreshold}
+                        onChange={e => setLowStockThreshold(e.target.value)}
+                        placeholder="10"
+                      />
+                      <p className="text-xs text-muted-foreground">Alert when stock falls below this number</p>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Cash Management</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Cash Drawer</div>
+                      <p className="text-sm text-muted-foreground">Track cash drawer sessions and reconciliation</p>
+                    </div>
+                    <Switch checked={enableCashDrawer} onCheckedChange={setEnableCashDrawer} />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Kitchen Display System (KDS)</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Kitchen Display System</div>
+                      <p className="text-sm text-muted-foreground">Send orders to the KDS app automatically</p>
+                    </div>
+                    <Switch checked={enableKdsSystem} onCheckedChange={setEnableKdsSystem} />
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="p-6 rounded-lg">
+                <h2 className="text-xl font-semibold mb-4">Hold Sale</h2>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-2">
+                    <div className="flex-1">
+                      <div className="font-medium">Enable Hold Sale</div>
+                      <p className="text-sm text-muted-foreground">Allow cashiers to temporarily hold transactions</p>
+                    </div>
+                    <Switch checked={enableHoldSale} onCheckedChange={setEnableHoldSale} />
+                  </div>
+
+                  {enableHoldSale && (
+                    <>
+                      <div className="grid grid-cols-2 gap-4 pl-6">
+                        <div className="grid gap-2">
+                          <Label htmlFor="maxHeldOrders">Max Held Orders</Label>
+                          <Input
+                            id="maxHeldOrders"
+                            type="number"
+                            min="1"
+                            max="100"
+                            value={maxHeldOrders}
+                            onChange={e => setMaxHeldOrders(e.target.value)}
+                          />
+                          <p className="text-xs text-muted-foreground">Limit concurrent held orders</p>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="heldOrderExpiryHours">Auto-Expire (Hours)</Label>
+                          <Input
+                            id="heldOrderExpiryHours"
+                            type="number"
+                            min="1"
+                            value={heldOrderExpiryHours}
+                            onChange={e => setHeldOrderExpiryHours(e.target.value)}
+                            placeholder="Never"
+                          />
+                          <p className="text-xs text-muted-foreground">Time before orders auto-expire</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between py-2 pl-6">
+                        <div className="flex-1">
+                          <div className="font-medium">Require Hold Reason</div>
+                          <p className="text-sm text-muted-foreground">
+                            Force cashiers to enter a reason when holding an order
+                          </p>
+                        </div>
+                        <Switch checked={requireHoldReason} onCheckedChange={setRequireHoldReason} />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <Card className="p-6">
+            <Card className="p-6 rounded-lg">
               <h2 className="text-xl font-semibold mb-4">Notification Preferences</h2>
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-2">
@@ -769,7 +876,7 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-6 rounded-lg">
               <h2 className="text-xl font-semibold mb-4">Notification Types</h2>
               <p className="text-sm text-muted-foreground mb-4">Choose which types of notifications to receive</p>
               <div className="space-y-4">
@@ -815,7 +922,7 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-6 rounded-lg">
               <h2 className="text-xl font-semibold mb-4">Display Settings</h2>
               <div className="space-y-4">
                 <div className="grid gap-2">
@@ -855,7 +962,7 @@ export default function SettingsPage() {
               </div>
             </Card>
 
-            <Card className="p-6">
+            <Card className="p-6 rounded-lg">
               <h2 className="text-xl font-semibold mb-4">API Integration</h2>
               <p className="text-sm text-muted-foreground mb-4">
                 Configure your API endpoint to receive real-time notifications for online orders, inventory updates, and
@@ -894,7 +1001,7 @@ export default function SettingsPage() {
 
               {/* Scanner Section */}
               <div className="md:col-span-2 lg:col-span-3">
-                <Card className="border-muted/60 shadow-sm overflow-hidden">
+                <Card className="border-muted/60 shadow-sm overflow-hidden rounded-lg">
                   <div className="p-6 border-b bg-muted/20">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -1069,7 +1176,7 @@ export default function SettingsPage() {
 
               {/* Cash Drawer Section */}
               <div className="md:col-span-2 lg:col-span-3">
-                <Card className="p-6 border-muted/60 shadow-sm">
+                <Card className="p-6 border-muted/60 shadow-sm rounded-lg">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
                       <div
@@ -1151,12 +1258,12 @@ export default function SettingsPage() {
             value="payments"
             className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95"
           >
-            <Card className="p-6 border-muted/60 shadow-sm relative overflow-hidden">
+            <Card className="p-6 border-muted/60 shadow-sm relative overflow-hidden rounded-lg">
               <div className="absolute top-0 right-0 p-6 opacity-5">
                 <CreditCard className="w-32 h-32" />
               </div>
               <div className="flex items-center gap-4 mb-8 relative">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white">
+                <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/20 text-white">
                   <Smartphone className="h-6 w-6" />
                 </div>
                 <div>
@@ -1198,7 +1305,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="bg-slate-950 rounded-2xl p-6 text-white relative overflow-hidden shadow-2xl">
+                <div className="bg-slate-950 rounded-lg p-6 text-white relative overflow-hidden shadow-2xl">
                   <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-slate-800" />
                   <div className="absolute -right-10 -bottom-10 h-40 w-40 bg-emerald-500/10 rounded-full blur-3xl" />
 
@@ -1242,7 +1349,7 @@ export default function SettingsPage() {
             className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95"
           >
             <div className="grid gap-6 md:grid-cols-2">
-              <Card className="p-6 border-muted/60 shadow-sm md:col-span-2">
+              <Card className="p-6 border-muted/60 shadow-sm md:col-span-2 rounded-lg">
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-xl font-semibold mb-1">Second Screen Configuration</h2>
@@ -1257,7 +1364,7 @@ export default function SettingsPage() {
 
               {settings.customerDisplayConfig?.enabled !== false && (
                 <>
-                  <Card className="p-6 border-muted/60 shadow-sm space-y-6">
+                  <Card className="p-6 border-muted/60 shadow-sm space-y-6 rounded-lg">
                     <h3 className="font-medium flex items-center gap-2 text-sm text-muted-foreground uppercase tracking-wide">
                       <Monitor className="h-4 w-4" /> Global Settings
                     </h3>
@@ -1429,29 +1536,31 @@ export default function SettingsPage() {
               )}
             </div>
             
-            <Card className="border-muted/60 shadow-sm p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
-                  <LayoutGrid className="h-5 w-5 text-slate-700 dark:text-slate-400" />
-                </div>
-                <div>
-                  <h2 className="text-xl font-semibold">Sidebar Navigation</h2>
-                  <p className="text-sm text-muted-foreground">Customize which menu items are visible</p>
-                </div>
-              </div>
-
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {settings.sidebarItems.map(item => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between p-4 border rounded-xl bg-card hover:bg-muted/30 transition-colors"
-                  >
-                    <div className="font-medium">{item.label}</div>
-                    <Switch checked={item.enabled} onCheckedChange={() => toggleSidebarItem(item.id)} />
+            {import.meta.env.MODE !== 'standalone' && (
+              <Card className="border-muted/60 shadow-sm p-6 rounded-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800">
+                    <LayoutGrid className="h-5 w-5 text-slate-700 dark:text-slate-400" />
                   </div>
-                ))}
-              </div>
-            </Card>
+                  <div>
+                    <h2 className="text-xl font-semibold">Sidebar Navigation</h2>
+                    <p className="text-sm text-muted-foreground">Customize which menu items are visible</p>
+                  </div>
+                </div>
+
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {settings.sidebarItems.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-4 border rounded-lg bg-card hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="font-medium">{item.label}</div>
+                      <Switch checked={item.enabled} onCheckedChange={() => toggleSidebarItem(item.id)} />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
 
@@ -1459,7 +1568,7 @@ export default function SettingsPage() {
             value="danger"
             className="space-y-6 focus-visible:outline-none data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:zoom-in-95"
           >
-            <div className="border border-destructive/20 bg-destructive/5 rounded-xl p-8 max-w-4xl mx-auto">
+            <div className="border border-destructive/20 bg-destructive/5 rounded-lg p-8 max-w-4xl mx-auto">
               <div className="flex flex-col items-center text-center space-y-4 mb-8">
                 <div className="p-4 rounded-full bg-destructive/10 text-destructive">
                   <ShieldAlert className="h-10 w-10" />
@@ -1472,7 +1581,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <Card className="border-destructive/30 shadow-none overflow-hidden">
+              <Card className="border-destructive/30 shadow-none overflow-hidden rounded-lg">
                 <div className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-6">
                   <div className="space-y-2">
                     <h3 className="font-semibold text-lg">Factory Reset & Data Wipe</h3>

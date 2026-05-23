@@ -10,8 +10,8 @@ use crate::stores::auth_store::AuthState as AuthStateStore;
 // --- SHIFT COMMANDS ---
 
 #[tauri::command]
-pub fn get_shift_command(state: State<'_, ShiftState>) -> Option<Shift> {
-    shift_store::get_shift_status(&state)
+pub async fn get_shift_command(app: AppHandle, state: State<'_, ShiftState>) -> Result<Option<Shift>, String> {
+    Ok(shift_store::get_shift_status(&app, &state))
 }
 
 #[tauri::command]
@@ -36,13 +36,14 @@ pub async fn open_shift_command(
     card_id: String,
     pin: String,
     float_amount: f64,
+    opening_cash_details: Option<serde_json::Value>,
     device_id: Option<String>,
 ) -> Result<Shift, String> {
     if card_id.is_empty() || pin.is_empty() {
         return Err("Credentials missing".to_string());
     }
 
-    let result = shift_store::open_new_shift(app.clone(), &state, card_id.clone(), pin, float_amount, device_id).await;
+    let result = shift_store::open_new_shift(app.clone(), &state, card_id.clone(), pin, float_amount, opening_cash_details, device_id).await;
 
     if let Ok(ref shift) = result {
         let _ = crate::stores::audit_store::write_event(
@@ -75,13 +76,14 @@ pub async fn close_shift_command(
     card_id: String,
     pin: String,
     actual_count: f64,
+    closing_cash_details: Option<serde_json::Value>,
     printer_name: Option<String>,
 ) -> Result<Shift, String> {
     if card_id.is_empty() || pin.is_empty() {
         return Err("Credentials missing".to_string());
     }
 
-    let closed_shift = shift_store::close_current_shift(&app, &state, actual_count).await?;
+    let closed_shift = shift_store::close_current_shift(&app, &state, actual_count, Some(card_id.clone()), closing_cash_details).await?;
 
     let _ = crate::stores::audit_store::write_event(
         &app,

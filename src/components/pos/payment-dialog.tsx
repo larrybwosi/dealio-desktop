@@ -8,6 +8,7 @@ import {
   CreditCard,
   Smartphone,
   ReceiptText,
+  ShieldCheck,
   Loader2,
   Crown,
   Star,
@@ -41,6 +42,7 @@ import { PaymentMethod, PaymentStatus, useProcessSale } from '@/hooks/sales';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { MpesaFlowType, ProcessSaleInput, ProcessSaleInputSchema } from '@/lib/validation/transactions';
 import { cn } from '@/lib/utils';
+import { shiftService } from '@/lib/shift-service';
 import { emit } from '@tauri-apps/api/event';
 import { useAblyStore } from '@/store/ablyStore';
 import { useCashDrawer } from '@/hooks/use-cash-drawer';
@@ -72,7 +74,7 @@ interface AddedPayment {
 
 type MpesaMode = 'STK' | 'PAYBILL' | 'BUY_GOODS' | 'QR';
 type MpesaStatus = 'IDLE' | 'WAITING' | 'SUCCESS' | 'FAILED';
-type PaymentTab = 'CASH' | 'MOBILE_PAYMENT' | 'CREDIT_CARD' | 'GIFT_CARD';
+type PaymentTab = 'CASH' | 'MOBILE_PAYMENT' | 'CREDIT_CARD' | 'GIFT_CARD' | 'INSURANCE';
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +105,7 @@ const PAYMENT_METHODS: { id: PaymentTab; label: string; icon: React.ReactNode }[
   { id: 'MOBILE_PAYMENT', label: 'M-Pesa', icon: <Smartphone className="w-4 h-4" /> },
   { id: 'CREDIT_CARD', label: 'Card', icon: <CreditCard className="w-4 h-4" /> },
   { id: 'GIFT_CARD', label: 'Gift Card', icon: <Gift className="w-4 h-4" /> },
+  { id: 'INSURANCE', label: 'Insurance', icon: <ShieldCheck className="w-4 h-4" /> },
 ];
 
 const CASH_PRESETS = [50, 100, 200, 500, 1000];
@@ -148,6 +151,7 @@ const PaymentMethodIcon = ({ method }: { method: PaymentMethod }) => {
     [PaymentMethod.MPESA]: <Smartphone className="w-4 h-4" />,
     [PaymentMethod.CREDIT]: <CreditCard className="w-4 h-4" />,
     [PaymentMethod.GIFT_CARD]: <Gift className="w-4 h-4" />,
+    [PaymentMethod.INSURANCE]: <ShieldCheck className="w-4 h-4" />,
   };
   return <>{icons[method] ?? <Wallet className="w-4 h-4" />}</>;
 };
@@ -264,6 +268,10 @@ const PaymentModal = ({
   const [giftCardCode, setGiftCardCode] = useState('');
   const { validateGiftCard, isLoading: isValidatingGC } = useGiftCard();
 
+  // Insurance
+  const [insuranceProvider, setInsuranceProvider] = useState((customer as any)?.insuranceProvider || '');
+  const [policyNumber, setPolicyNumber] = useState((customer as any)?.policyNumber || '');
+
   // M-Pesa
   const [mpesaMode, setMpesaMode] = useState<MpesaMode>('STK');
   const [mpesaPhone, setMpesaPhone] = useState(customer?.phone || '');
@@ -273,6 +281,15 @@ const PaymentModal = ({
 
   const { mutateAsync: createSale, isPending: isProcessing } = useProcessSale();
   const { openPhysicalDrawer } = useCashDrawer();
+  const [activeShift, setActiveShift] = useState<any>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      shiftService.getShiftStatus().then(setActiveShift).catch(console.error);
+    }
+  }, [isOpen]);
+
+  const currentMember = useAuthStore(state => state.currentMember);
   const settings = usePosStore(state => state.settings);
   const saveUnpaidOrder = usePosStore(state => state.saveUnpaidOrder);
   const deductStockForOrderItems = usePosStore(state => state.deductStockForOrderItems);
@@ -288,9 +305,9 @@ const PaymentModal = ({
   const PHONE_CONFIG = getCurrentPhoneConfig();
 
   // ── IDs ──
-  const orderId = useMemo(() => uuidv4(), [isOpen]);
-  const saleNumber = useMemo(() => `SALE-${Date.now().toString().slice(-6)}`, [isOpen]);
-  const cleanAccountRef = useMemo(() => Date.now().toString().slice(-6), [isOpen]);
+  const orderId = useMemo(() => (isOpen ? uuidv4() : ''), [isOpen]);
+  const saleNumber = useMemo(() => (isOpen ? `SALE-${Date.now().toString().slice(-6)}` : ''), [isOpen]);
+  const cleanAccountRef = useMemo(() => (isOpen ? Date.now().toString().slice(-6) : ''), [isOpen]);
   const paybillAccountNo = useMemo(() => cleanAccountRef, [cleanAccountRef]);
   const fullSaleNumber = saleNumber;
 
@@ -338,7 +355,7 @@ const PaymentModal = ({
   // ── QR data ──
   const mpesaQrData = useMemo(
     () => generateMpesaQrCodeData(organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance),
-    [mpesaMode, organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
+    [organizationName, paybillNumber, tillNumber, paybillAccountNo, remainingBalance]
   );
 
   // ── Emit display updates ──
@@ -377,6 +394,37 @@ const PaymentModal = ({
   const paymentChannel = useAblyStore(state => state.paymentChannel);
   const ably = useAblyStore(state => state.client);
 
+
+  // ── Payment helpers ──
+  const addPayment = useCallback((payment: Omit<AddedPayment, 'id'>) => {
+    setCurrentPayments(prev => [...prev, { ...payment, id: uuidv4() }]);
+    setAmountInput('');
+    setValidationErrors([]);
+  }, []);
+
+  const handlePaymentMatch = useCallback(
+    (data: any) => {
+      setDetectedPayment(data);
+      setMpesaStatus('SUCCESS');
+      setMpesaWaiting(false);
+      setTimeout(() => {
+        addPayment({
+          method: PaymentMethod.MPESA,
+          amount: data.amount,
+          reference: data.receipt,
+          meta: {
+            mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL,
+            mpesaPhoneNumber: data.phone || mpesaPhone,
+            ...data,
+          },
+        });
+        setDetectedPayment(null);
+        setMpesaStatus('IDLE');
+      }, 1500);
+    },
+    [addPayment, mpesaMode, mpesaPhone]
+  );
+
   useEffect(() => {
     if (!isOpen || selectedTab !== 'MOBILE_PAYMENT' || !ably || !paymentChannel) return;
     const channel = ably.channels.get(paymentChannel);
@@ -406,15 +454,20 @@ const PaymentModal = ({
 
     channel.subscribe('payment-unclaimed', handleUnclaimed);
     channel.subscribe('payment-update', handleUpdate);
-    return () => channel.unsubscribe();
-  }, [isOpen, selectedTab, mpesaMode, ably, paymentChannel, fullSaleNumber, paybillAccountNo, remainingBalance]);
-
-  // ── Payment helpers ──
-  const addPayment = useCallback((payment: Omit<AddedPayment, 'id'>) => {
-    setCurrentPayments(prev => [...prev, { ...payment, id: uuidv4() }]);
-    setAmountInput('');
-    setValidationErrors([]);
-  }, []);
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [
+    isOpen,
+    selectedTab,
+    mpesaMode,
+    ably,
+    paymentChannel,
+    fullSaleNumber,
+    paybillAccountNo,
+    remainingBalance,
+    handlePaymentMatch,
+  ]);
 
   const removePayment = useCallback((id: string) => {
     setCurrentPayments(prev => prev.filter(p => p.id !== id));
@@ -422,6 +475,13 @@ const PaymentModal = ({
 
   // ── Handlers ──
   const handleAddCash = () => {
+    if (settings.enforceShiftForCashPayments && !activeShift && import.meta.env.MODE !== 'standalone') {
+        toast.error('No Active Shift', {
+            description: 'You must open a shift before processing cash payments.',
+        });
+        return;
+    }
+
     const amount = parseFloat(amountInput);
     if (!amount || amount <= 0) return;
     addPayment({ method: PaymentMethod.CASH, amount });
@@ -431,6 +491,17 @@ const PaymentModal = ({
     const amount = parseFloat(amountInput);
     if (!amount || amount <= 0) return;
     addPayment({ method: PaymentMethod.CREDIT, amount, reference: 'Terminal' });
+  };
+
+  const handleAddInsurance = () => {
+    const amount = parseFloat(amountInput);
+    if (!amount || amount <= 0) return;
+    addPayment({
+      method: PaymentMethod.INSURANCE,
+      amount,
+      reference: insuranceProvider,
+      meta: { insuranceProvider, policyNumber },
+    });
   };
 
   const handleGiftCardScan = async (e: React.FormEvent) => {
@@ -450,25 +521,6 @@ const PaymentModal = ({
     }
   };
 
-  const handlePaymentMatch = (data: any) => {
-    setDetectedPayment(data);
-    setMpesaStatus('SUCCESS');
-    setMpesaWaiting(false);
-    setTimeout(() => {
-      addPayment({
-        method: PaymentMethod.MPESA,
-        amount: data.amount,
-        reference: data.receipt,
-        meta: {
-          mpesaType: mpesaMode === 'STK' ? MpesaFlowType.STK_PUSH : MpesaFlowType.PAYBILL_MANUAL,
-          mpesaPhoneNumber: data.phone || mpesaPhone,
-          ...data,
-        },
-      });
-      setDetectedPayment(null);
-      setMpesaStatus('IDLE');
-    }, 1500);
-  };
 
   const handleMpesaStkTrigger = async () => {
     const amount = parseFloat(amountInput);
@@ -547,6 +599,10 @@ const PaymentModal = ({
       enableStockTracking: true,
       notes: finalNotes,
       discountAmount: editableDiscount,
+      cashierName: currentMember?.name || 'Staff',
+      // Pharmacy fields
+      prescriptionId: (usePosStore.getState().currentOrder as any).prescriptionId,
+      doctorName: (usePosStore.getState().currentOrder as any).doctorName,
     };
   };
 
@@ -750,7 +806,7 @@ const PaymentModal = ({
 
             {/* Payment method tabs */}
             <div className="flex gap-1 p-3 border-b bg-background">
-              {PAYMENT_METHODS.map(method => (
+              {PAYMENT_METHODS.filter(m => import.meta.env.MODE !== 'standalone' || m.id === 'CASH').map(method => (
                 <button
                   key={method.id}
                   onClick={() => {
@@ -1004,6 +1060,54 @@ const PaymentModal = ({
                     </div>
                   )}
 
+                  {/* ─ INSURANCE ─ */}
+                  {selectedTab === 'INSURANCE' && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase text-muted-foreground">Provider</Label>
+                          <Input
+                            value={insuranceProvider}
+                            onChange={e => setInsuranceProvider(e.target.value)}
+                            placeholder="e.g. Aetna"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs uppercase text-muted-foreground">Policy #</Label>
+                          <Input
+                            value={policyNumber}
+                            onChange={e => setPolicyNumber(e.target.value)}
+                            placeholder="ID Number"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">Co-pay Amount</Label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold text-sm">
+                            KSh
+                          </span>
+                          <Input
+                            type="number"
+                            value={amountInput}
+                            onChange={e => setAmountInput(e.target.value)}
+                            className="pl-12 text-xl font-bold h-14 no-spinners"
+                            placeholder={remainingBalance.toFixed(2)}
+                          />
+                        </div>
+                      </div>
+
+                      <Button
+                        className="w-full h-12 font-semibold gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={handleAddInsurance}
+                        disabled={!amountInput || parseFloat(amountInput) <= 0 || !insuranceProvider}
+                      >
+                        <ShieldCheck className="w-4 h-4" /> Record Insurance Claim
+                      </Button>
+                    </div>
+                  )}
+
                   {/* ─ GIFT CARD ─ */}
                   {selectedTab === 'GIFT_CARD' && (
                     <div className="space-y-4">
@@ -1169,7 +1273,7 @@ const PaymentModal = ({
               )}
 
               <div className="flex gap-3 w-full">
-                {settings.allowSaveUnpaidOrders && (
+                {settings.allowSaveUnpaidOrders && import.meta.env.MODE !== 'standalone' && (
                   <Button
                     variant="outline"
                     size="lg"

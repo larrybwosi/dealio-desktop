@@ -85,6 +85,7 @@ export function ConnectionStatusBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    if (import.meta.env.MODE === 'standalone') return;
     const handleChange = (e: Event) => {
       const { state, reason } = (e as CustomEvent<ConnectionStatus>).detail;
 

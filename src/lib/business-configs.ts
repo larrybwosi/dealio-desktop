@@ -293,7 +293,7 @@ export const businessConfigs: Record<BusinessType, BusinessConfig> = {
     description: 'Large-scale supermarket with scan-only POS',
     features: {
       tableManagement: false,
-      deliveryTracking: true,
+      deliveryTracking: false,
       prescriptionManagement: false,
       bookIsbn: false,
       batchTracking: true,
@@ -301,13 +301,13 @@ export const businessConfigs: Record<BusinessType, BusinessConfig> = {
       sizeVariants: false,
       warrantyTracking: false,
       loyaltyProgram: true,
-      onlineOrdering: true,
+      onlineOrdering: false,
       kitchenDisplay: false,
       ageVerification: false,
       showOrdersList: false,
       b2bBulkPurchase: true,
     },
-    orderTypes: ['pickup', 'delivery', 'online'],
+    orderTypes: ['takeaway'],
     defaultCategories: ['Fruits', 'Vegetables', 'Dairy', 'Meat', 'Bakery', 'Beverages', 'Frozen', 'Household'],
     requiredFields: {
       customerName: false,
@@ -522,7 +522,7 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
     items.push({ id: 'kitchen-display', label: 'Kitchen Display', icon: 'ChefHat', enabled: true });
   }
 
-  if (config.features.prescriptionManagement) {
+  if (config.features.prescriptionManagement || businessType === 'pharmacy') {
     items.push({ id: 'prescriptions', label: 'Prescriptions', icon: 'FileText', enabled: true });
   }
 
@@ -531,8 +531,10 @@ export const getDefaultSidebarItems = (businessType: BusinessType): SidebarItem[
   }
 
   items.push({ id: 'pricing', label: 'Pricing', icon: 'Banknote', enabled: false });
+  items.push({ id: 'barcodes', label: 'Barcodes', icon: 'Barcode', enabled: true });
   items.push({ id: 'stock-acceptance', label: 'Stock Acceptance', icon: 'Package', enabled: false });
   items.push({ id: 'stock-transfer', label: 'Stock Transfer', icon: 'Package', enabled: false });
+  items.push({ id: 'stock-request', label: 'Stock Request', icon: 'ClipboardList', enabled: false });
 
   // if (config.features.loyaltyProgram) {
   //   items.push({ id: "loyalty", label: "Loyalty Program", icon: "Gift", enabled: true })

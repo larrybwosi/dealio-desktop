@@ -86,7 +86,9 @@ export function OrderDetailsDialog({ order, open, onOpenChange }: OrderDetailsDi
         receiptConfig={settings.receiptConfig}
         qrCodeDataUrl={qrCodeDataUrl}
       />,
-      `receipt-${order.orderNumber}`
+      `receipt-${order.orderNumber}`,
+      order,
+      'receipt'
     );
   };
 

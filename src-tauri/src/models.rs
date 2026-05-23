@@ -38,8 +38,7 @@ pub struct ProductSearchResponse {
 pub struct PosProduct {
     pub product_id: String,
 
-    // MAP JSON "name" -> Rust "product_name"
-    #[serde(rename = "name")]
+    #[serde(rename = "name", alias = "productName")]
     pub product_name: String,
 
     pub category: String,
@@ -54,6 +53,9 @@ pub struct PosProduct {
     pub total_stock: Option<i32>,
 
     pub variants: Vec<Variant>,
+
+    // Pharmacy features
+    pub active_ingredient: Option<String>,
 }
 
 // --- 2. Variant ---
@@ -62,9 +64,7 @@ pub struct PosProduct {
 pub struct Variant {
     pub variant_id: String,
 
-    // MAP JSON "name" -> Rust "variant_name"
-    // THIS FIXES YOUR ERROR (missing field `variantName`)
-    #[serde(rename = "name")]
+    #[serde(rename = "name", alias = "variantName")]
     pub variant_name: String,
 
     pub sku: String,
@@ -74,6 +74,18 @@ pub struct Variant {
     pub stock: i32,
 
     pub sellable_units: Vec<SellableUnit>,
+
+    // Pharmacy features
+    pub batches: Option<Vec<Batch>>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Batch {
+    pub batch_number: String,
+    pub expiry_date: String, // ISO String
+    pub manufacturing_date: Option<String>,
+    pub stock: i32,
 }
 
 // --- Custom Deserializers ---
@@ -182,6 +194,13 @@ pub struct PosCustomer {
     pub primary_address: Option<String>,
 
     pub updated_at: Option<String>,
+
+    // Pharmacy features
+    pub medical_history: Option<String>,
+    pub allergies: Option<String>,
+    pub chronic_conditions: Option<String>,
+    pub insurance_provider: Option<String>,
+    pub policy_number: Option<String>,
 }
 
 // --- SALES ---
@@ -205,6 +224,7 @@ pub enum SaleStatus {
     Synced,
     Failed,
     Invalidated,
+    PendingCloudSync,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -360,12 +380,17 @@ pub struct Shift {
     pub opened_at: DateTime<Utc>,
     pub closed_at: Option<DateTime<Utc>>,
     pub operator_id: Option<String>,
+    pub closing_operator_id: Option<String>,
 
     // Money tracking
     pub starting_float: f64,
     pub total_cash_sales: f64,   // Sales made in cash
     pub total_cash_drops: f64,   // Cash removed (e.g., paying vendor)
     pub total_cash_refunds: f64, // Cash given back
+
+    // Detailed cash breakdowns (JSON)
+    pub opening_cash_details: Option<serde_json::Value>,
+    pub closing_cash_details: Option<serde_json::Value>,
 
     // Reconciliation
     pub expected_cash: f64,               // Float + Sales - Drops - Refunds
@@ -393,6 +418,11 @@ pub struct ShiftSyncPayload {
     pub total_cash_drops: f64,
     pub actual_cash_count: Option<f64>,
     pub variance: Option<f64>,
+
+    // Detailed cash breakdowns
+    pub opening_cash_details: Option<serde_json::Value>,
+    pub closing_cash_details: Option<serde_json::Value>,
+    pub closing_operator_id: Option<String>,
 }
 
 // --- GLOBAL SEARCH ---

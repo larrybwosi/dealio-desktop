@@ -6,7 +6,8 @@ use log::error;
 pub mod escpos_builder;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
+use tauri::Emitter;
 
 pub mod stores;
 
@@ -14,8 +15,14 @@ mod api_config;
 mod http_server;
 mod models;
 mod scanner_manager;
+use scanner_manager::ScannerState;
+
+// Features enabled by default, but excluded in standalone mode
+#[cfg(not(feature = "standalone"))]
 mod stock_acceptance;
+#[cfg(not(feature = "standalone"))]
 mod stock_acceptance_models;
+#[cfg(not(feature = "standalone"))]
 pub mod stock_transfer;
 
 use stores::audit_store;
@@ -26,6 +33,7 @@ use stores::pricing_store::{self, PricingState};
 use stores::product_store::{self, ProductState};
 use stores::sales_store::{self, SalesState};
 use stores::shift_store::{self, ShiftState};
+#[cfg(feature = "restaurant")]
 use stores::table_store;
 
 mod customer_manager;
@@ -41,6 +49,8 @@ mod notification_manager;
 use notification_manager::NotificationState;
 
 mod data_management;
+mod licensing;
+mod migration;
 
 mod network_monitor;
 use network_monitor::NetworkState;
@@ -48,7 +58,9 @@ use network_monitor::NetworkState;
 mod customer_screen_state;
 use customer_screen_state::CustomerScreenState;
 
+#[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
 mod kds_hub_server;
+#[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
 mod kds_models;
 mod utils;
 
@@ -69,7 +81,6 @@ pub fn capture_event(event_name: &str, properties: Option<serde_json::Value>) {
         }
     }
 
-    // Fire and forget. The background thread handles the rest.
     #[cfg(not(debug_assertions))]
     capture(builder.build());
 }
@@ -85,16 +96,12 @@ pub fn run() {
         .unwrap();
     let _guard = rt.enter();
 
-    // --- POSTHOG INITIALIZATION (NEW) ---
-    // Note: This must happen before Tauri builder, and _posthog_guard must be kept alive!
     #[cfg(not(debug_assertions))]
     let _posthog_guard = better_posthog::init(better_posthog::ClientOptions {
         api_key: Some(dotenv!("POSTHOG_API_KEY").into()),
         ..Default::default()
     });
-    // ------------------------------------
 
-    // --- SENTRY INITIALIZATION ---
     #[cfg(not(debug_assertions))]
     let client = sentry::init((
         dotenv!("SENTRY_DSN"),
@@ -105,18 +112,21 @@ pub fn run() {
         },
     ));
 
-    // Also combine the iOS check with the debug check
     #[cfg(all(not(debug_assertions), not(target_os = "ios")))]
     let _minidump_guard = tauri_plugin_sentry::minidump::init(&client);
-    // -----------------------------
 
     #[cfg(not(debug_assertions))]
-    let builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_sentry::init(&client));
 
     #[cfg(debug_assertions)]
-    let builder = tauri::Builder::default().plugin(tauri_plugin_sql::Builder::new().build());
+    let mut builder = tauri::Builder::default().plugin(tauri_plugin_sql::Builder::new().build());
+
+    #[cfg(not(feature = "standalone"))]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
 
     builder
         .manage(ProductState::new())
@@ -129,29 +139,27 @@ pub fn run() {
         .manage(NetworkState::new())
         .manage(CustomerScreenState::new())
         .manage(sales_store::SyncConfigState::new())
+        .manage(ScannerState::default())
         .setup(|app| {
             capture_event("app_started", None);
 
-            // Initialize the SQLite DBs and run migrations
             tauri::async_runtime::block_on(product_store::init_state(app.handle()));
             tauri::async_runtime::block_on(customer_store::init_state(app.handle()));
             tauri::async_runtime::block_on(pricing_store::init_state(app.handle()));
             tauri::async_runtime::block_on(shift_store::init_state(app.handle()));
             tauri::async_runtime::block_on(audit_store::init_state(app.handle()));
 
-            // Note: We can't load products at startup since we need location_id
-            // Products will be loaded when the device is configured/location is set
             let state = app.state::<ProductState>();
-
-            // Try to load products for the configured location if available
             let auth_state_init = app.state::<AuthState>();
-            if let Some(location_id) = {
+            let location_id_opt = {
                 let config_guard = auth_state_init
                     .device_config
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
                 config_guard.as_ref().map(|c| c.location_id.clone())
-            } {
+            };
+
+            if let Some(location_id) = location_id_opt {
                 if let Err(e) = tauri::async_runtime::block_on(
                     product_store::load_products_from_disk(app.handle(), &state, &location_id),
                 ) {
@@ -160,10 +168,13 @@ pub fn run() {
                         location_id, e
                     );
                 }
+            } else if cfg!(feature = "standalone") {
+                let _ = tauri::async_runtime::block_on(
+                    product_store::load_products_from_disk(app.handle(), &state, "standalone"),
+                );
             }
 
             let cust_state = app.state::<CustomerState>();
-
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_store::load_customers_from_disk(app.handle(), &cust_state),
             ) {
@@ -172,9 +183,11 @@ pub fn run() {
 
             let sales_state = app.state::<SalesState>();
             tauri::async_runtime::block_on(sales_store::init_state(app.handle(), &sales_state));
+            
+            #[cfg(not(feature = "standalone"))]
             sales_store::start_auto_sync_task(app.handle().clone());
 
-            // Initialize Table Store DB
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             if let Err(e) = tauri::async_runtime::block_on(table_store::init_db(app.handle())) {
                 error!("Failed to initialize table database: {}", e);
             }
@@ -192,9 +205,9 @@ pub fn run() {
                 notification_manager::init_notification_state(&app_handle, &state).await;
             });
 
+            #[cfg(not(feature = "standalone"))]
             let notification_state = app.state::<NotificationState>();
 
-            // Customer Screen State Loading
             let customer_screen_state = app.state::<CustomerScreenState>();
             if let Err(e) = tauri::async_runtime::block_on(
                 customer_screen_state.load_from_store(app.handle()),
@@ -202,42 +215,39 @@ pub fn run() {
                 error!("Failed to load customer screen state: {}", e);
             }
 
-            // Check for old pending sales and notify user
-            let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
-                app.handle().clone(),
-                &sales_state,
-                3,
-            ));
+            #[cfg(not(feature = "standalone"))]
+            {
+                let old_sales = tauri::async_runtime::block_on(sales_store::check_old_pending_sales(
+                    app.handle().clone(),
+                    &sales_state,
+                    3,
+                ));
 
-            if !old_sales.is_empty() {
-                let notification = notification_manager::AppNotification::new(
-                    notification_manager::NotificationType::Warning,
-                    notification_manager::NotificationPriority::High,
-                    "Old Pending Sales Detected".to_string(),
-                    format!(
-                        "You have {} pending sales older than 3 days. Please connect to the internet to sync them and avoid data loss.",
-                        old_sales.len()
-                    ),
-                );
-                notification_state.add_notification(notification.clone());
-                let _ = tauri::async_runtime::block_on(notification_manager::save_notification_to_db(app.handle(), &notification));
+                if !old_sales.is_empty() {
+                    let notification = notification_manager::AppNotification::new(
+                        notification_manager::NotificationType::Warning,
+                        notification_manager::NotificationPriority::High,
+                        "Old Pending Sales Detected".to_string(),
+                        format!(
+                            "You have {} pending sales older than 3 days. Please sync them to avoid data loss.",
+                            old_sales.len()
+                        ),
+                    );
+                    notification_state.add_notification(notification.clone());
+                    let _ = tauri::async_runtime::block_on(notification_manager::save_notification_to_db(app.handle(), &notification));
+                    let _ = app.emit("old-sales-detected", old_sales.len());
+                }
 
-                // Send native notification
-                let _ = app.emit("old-sales-detected", old_sales.len());
+                let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
+                    app.handle().clone(),
+                    &sales_state,
+                    5,
+                ));
+                if !failed_sales.is_empty() {
+                    let _ = app.emit("failed-sales-detected", failed_sales);
+                }
             }
 
-            // Check for failed sales and notify
-            let failed_sales = tauri::async_runtime::block_on(sales_store::check_failed_sales(
-                app.handle().clone(),
-                &sales_state,
-                5,
-            ));
-
-            if !failed_sales.is_empty() {
-                let _ = app.emit("failed-sales-detected", failed_sales);
-            }
-
-            // Start network monitoring
             let auth_state_ref = app.state::<AuthState>();
             let initial_base_url = {
                 let config_guard = auth_state_ref
@@ -252,10 +262,6 @@ pub fn run() {
                 network_state.set_base_url(url);
             }
 
-            // --- Customer Screen Auto-Open ---
-            let customer_screen_state = app.state::<CustomerScreenState>();
-
-            // Auto-open customer screen if enabled
             if customer_screen_state.is_enabled() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
@@ -265,13 +271,7 @@ pub fn run() {
                 });
             }
 
-            // --- 2. Startup Visibility Logic (NEW) ---
-            // Get command line arguments
             let args: Vec<String> = std::env::args().collect();
-
-            // We check if the flag "--minimized" is present.
-            // If it is NOT present, we show the window.
-            // If it IS present, we do nothing (window remains hidden per tauri.conf.json).
             if !args.contains(&"--minimized".to_string()) {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.show();
@@ -279,12 +279,10 @@ pub fn run() {
                 }
             }
 
-            // --- 3. System Tray (Existing Code) ---
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show Main Window", true, None::<&str>)?;
             let hide_i = MenuItem::with_id(app, "hide", "Hide Main Window", true, None::<&str>)?;
-            let customer_i =
-                MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
+            let customer_i = MenuItem::with_id(app, "customer", "Open Customer Display", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
 
             let menu = Menu::with_items(app, &[&show_i, &hide_i, &customer_i, &sep, &quit_i])?;
@@ -311,19 +309,14 @@ pub fn run() {
                         let state = app.state::<CustomerScreenState>();
                         if state.is_enabled() {
                             tauri::async_runtime::spawn(async move {
-                                let _ =
-                                    customer_screen_state::open_customer_screen(app_handle).await;
+                                let _ = customer_screen_state::open_customer_screen(app_handle).await;
                             });
                         }
                     }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {
-                    if let TrayIconEvent::Click {
-                        button: MouseButton::Left,
-                        ..
-                    } = event
-                    {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
@@ -341,12 +334,9 @@ pub fn run() {
                     api.prevent_close();
                     let _ = window.hide();
                 } else if window.label() == "customer" {
-                    // Handle native customer window closing
                     let app_handle = window.app_handle().clone();
                     let state = app_handle.state::<CustomerScreenState>();
                     state.set_enabled(false);
-
-                    // Save asynchronously
                     tauri::async_runtime::spawn(async move {
                         let state = app_handle.state::<CustomerScreenState>();
                         let _ = state.save_to_store(&app_handle).await;
@@ -354,13 +344,7 @@ pub fn run() {
                 }
             }
         })
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
-                .max_file_size(5_000_000) // 5 MB per file
-                .build(),
-        )
+        .plugin(tauri_plugin_log::Builder::new().level(log::LevelFilter::Info).build())
         .plugin(tauri_plugin_websocket::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_deep_link::init())
@@ -374,7 +358,6 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_better_posthog::init())
@@ -389,21 +372,30 @@ pub fn run() {
             customer_screen_state::close_customer_screen,
             customer_screen_state::set_customer_screen_enabled,
             customer_screen_state::get_customer_screen_state,
+            #[cfg(not(feature = "standalone"))]
             product_manager::sync_products_command,
             product_manager::search_products_command,
             product_manager::search_global_command,
             product_manager::get_products_by_ids_command,
+            product_manager::create_local_product_command,
+            product_manager::update_local_product_command,
+            product_manager::delete_local_product_command,
+            product_manager::get_product_by_barcode_command,
+            #[cfg(not(feature = "standalone"))]
             product_store::switch_location,
             printer_manager::get_serial_ports,
             printer_manager::open_cash_drawer,
             printer_manager::print_test_page,
+            #[cfg(not(feature = "standalone"))]
             customer_manager::sync_customers_command,
             customer_manager::search_customers_command,
             customer_manager::get_customers_by_ids_command,
             customer_manager::create_customer_command,
             sale_manager::process_sale_command,
+            #[cfg(not(feature = "standalone"))]
             sale_manager::sync_sales_command,
             sale_manager::get_pending_sales_command,
+            #[cfg(not(feature = "standalone"))]
             pricing_manager::sync_pricing_command,
             pricing_manager::resolve_price_batch_command,
             pricing_manager::get_pos_pricing_command,
@@ -418,19 +410,23 @@ pub fn run() {
             printer_manager::print_receipt_native,
             printer_manager::print_kitchen_native,
             printer_manager::print_bar_native,
+            printer_manager::print_labels_command,
             shift_manager::open_shift_command,
             shift_manager::get_shift_command,
             shift_manager::add_cash_drop_command,
             shift_manager::record_shift_sale_command,
             shift_manager::close_shift_command,
+            #[cfg(not(feature = "standalone"))]
             shift_manager::sync_shifts_command,
             auth_store::set_device_config,
             auth_store::login_member,
             auth_store::logout_member,
+            auth_store::switch_active_member,
             auth_store::get_device_config,
             auth_store::restore_member_session,
             auth_store::reset_device_config,
             auth_store::authenticated_api_request,
+            #[cfg(not(feature = "standalone"))]
             auth_store::update_device_location,
             notification_manager::send_native_notification,
             notification_manager::get_notification_history,
@@ -457,30 +453,59 @@ pub fn run() {
             sales_store::invalidate_sale_command,
             sales_store::set_sync_interval_command,
             auth_store::set_negative_stock_command,
+            #[cfg(not(feature = "standalone"))]
             auth_store::get_locations_command,
+            #[cfg(not(feature = "standalone"))]
             auth_store::get_ably_auth_token_command,
+            #[cfg(all(not(feature = "standalone"), feature = "restaurant"))]
             auth_store::start_device_setup_command,
+            
+            // Stock Acceptance - Only disabled in standalone
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::save_document_locally,
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::fetch_incoming_shipments,
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::receive_purchase_order,
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::receive_stock_transfer,
+            #[cfg(not(feature = "standalone"))]
             stock_acceptance::submit_stock_process,
+            #[cfg(not(feature = "standalone"))]
             stock_transfer::submit_stock_transfer,
+            #[cfg(not(feature = "standalone"))]
+            stock_transfer::submit_stock_request,
+
             http_server::start_file_server,
             audit_store::write_audit_log,
             audit_store::get_audit_logs,
             audit_store::get_system_logs,
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::start_kds_hub,
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::stop_kds_hub,
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::get_hub_status,
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::get_connected_devices,
+            #[cfg(all(not(feature = "standalone"), any(feature = "restaurant", feature = "pharmacy")))]
             kds_hub_server::assign_user_to_device,
             utils::get_local_ip_command,
+            #[cfg(feature = "restaurant")]
             table_store::get_tables_command,
+            #[cfg(feature = "restaurant")]
             table_store::upsert_table_command,
+            #[cfg(feature = "restaurant")]
             table_store::delete_table_command,
+            #[cfg(feature = "restaurant")]
             table_store::update_table_status_command,
+            #[cfg(feature = "restaurant")]
             table_store::get_table_history_command,
+            licensing::get_machine_id,
+            licensing::activate_license,
+            licensing::set_local_auth,
+            licensing::verify_local_auth,
+            migration::push_local_to_cloud,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

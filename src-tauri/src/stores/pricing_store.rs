@@ -47,10 +47,16 @@ async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+    let db_name = if cfg!(feature = "standalone") {
+        "sqlite:pos_standalone.db"
+    } else {
+        MAIN_DB_NAME
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
         Ok(pool.clone())
     } else {
-        Err(format!("Database {} not found.", MAIN_DB_NAME))
+        Err(format!("Database {} not found.", db_name))
     }
 }
 
@@ -211,10 +217,7 @@ pub async fn run_sync(
         (config.base_url.clone(), config.device_key.clone())
     };
 
-    let member_token = {
-        let token_guard = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
-        token_guard.clone()
-    };
+    let member_token = auth_state.get_active_token().map_err(|e| anyhow::anyhow!(e))?;
 
     let last_sync: Option<String> = sqlx::query("SELECT last_sync FROM pricing_sync_meta WHERE id = 1")
         .fetch_optional(&pool).await.map_err(|e| anyhow::anyhow!(e))?.map(|r| r.get("last_sync"));

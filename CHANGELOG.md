@@ -1,3 +1,147 @@
+# [3.3.0-nextgen.22](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.21...v3.3.0-nextgen.22) (2026-05-08)
+
+
+### Bug Fixes
+
+* implement silent backend-driven printing and full customization ([25577ca](https://github.com/larrybwosi/dealio-desktop/commit/25577ca35103e07b4320fc28b21d2b23b88d37dd))
+* prevent browser popup blocker from interrupting print preview ([f9cff7d](https://github.com/larrybwosi/dealio-desktop/commit/f9cff7dc39d36bdf433b62eab39fac2aa0ea69e5))
+
+# [3.3.0-nextgen.21](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.20...v3.3.0-nextgen.21) (2026-05-07)
+
+
+### Bug Fixes
+
+* ensure receipt prices and totals are correctly mapped for native printing ([#64](https://github.com/larrybwosi/dealio-desktop/issues/64)) ([d5b09b2](https://github.com/larrybwosi/dealio-desktop/commit/d5b09b2b718bbb52acf25a5d5f0c126d5c24a358))
+
+# [3.3.0-nextgen.20](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.19...v3.3.0-nextgen.20) (2026-05-07)
+
+
+### Features
+
+* implement professional A4 invoice printing ([63f0708](https://github.com/larrybwosi/dealio-desktop/commit/63f07083314b89686f89b26896229f01dadd7cc7))
+
+# [3.3.0-nextgen.19](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.18...v3.3.0-nextgen.19) (2026-05-07)
+
+
+### Bug Fixes
+
+* resolve product saving and display issues in standalone app ([dcb6fc3](https://github.com/larrybwosi/dealio-desktop/commit/dcb6fc387bbc76ce99a91b46585b5516e48c9d52))
+* resolve product saving and display issues in standalone app ([7cccbe4](https://github.com/larrybwosi/dealio-desktop/commit/7cccbe423ec0dfd67e8596a8b8ac94e76ab82e22))
+
+# [3.3.0-nextgen.18](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.17...v3.3.0-nextgen.18) (2026-05-07)
+
+
+### Features
+
+* enhance standalone mode functionalities ([ca23849](https://github.com/larrybwosi/dealio-desktop/commit/ca2384984dec84abb48121cd5092d1bd6ccb3dfc))
+* enhance standalone product management and barcode registration ([8365ff5](https://github.com/larrybwosi/dealio-desktop/commit/8365ff5f41fc16a2119421a8560def90faa43de4))
+
+# [3.3.0-nextgen.17](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.16...v3.3.0-nextgen.17) (2026-05-05)
+
+
+### Bug Fixes
+
+* resolve lint and type errors in Barcode Printing UI ([ba47c9b](https://github.com/larrybwosi/dealio-desktop/commit/ba47c9b99d2c2a4957f0f82f66ef814c1940b9be))
+
+
+### Features
+
+* implement enterprise barcode generation and label printing ([c3bcbb4](https://github.com/larrybwosi/dealio-desktop/commit/c3bcbb4aa086b67fdebc68c769d687d4945438e2))
+
+# [3.3.0-nextgen.16](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.15...v3.3.0-nextgen.16) (2026-05-05)
+
+
+### Bug Fixes
+
+* resolve backend test compilation errors and TS lint issues ([345e5c6](https://github.com/larrybwosi/dealio-desktop/commit/345e5c6585cfa5c9a082f0cc3c4a65ee7e397132))
+
+
+### Features
+
+* enhance stock management and add stock request functionality ([b7fdff9](https://github.com/larrybwosi/dealio-desktop/commit/b7fdff9602032f097bf20b043666b12215570fa0))
+* enhance stock management pages and add stock request functionality ([11f265a](https://github.com/larrybwosi/dealio-desktop/commit/11f265a7a08e16be3dce708b15614f3e6077340a))
+
+# [3.3.0-nextgen.15](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.14...v3.3.0-nextgen.15) (2026-05-05)
+
+
+### Bug Fixes
+
+* remove unused AlertCircle import in Pricing page ([520a53b](https://github.com/larrybwosi/dealio-desktop/commit/520a53b4006bf88ac4982eea9ea12e236c2b350b))
+
+# [3.3.0-nextgen.14](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.13...v3.3.0-nextgen.14) (2026-05-05)
+
+
+### Bug Fixes
+
+* **build:** nothing ([6684264](https://github.com/larrybwosi/dealio-desktop/commit/668426412268b10fae486efa3273695527096fde))
+* **ci:** address tauri build failures on windows and standalone variant ([b3d1efe](https://github.com/larrybwosi/dealio-desktop/commit/b3d1efe0c10bc75a2d4ec4fec63c576d704d8817))
+* resolve retail build failure and skip updater for standalone ([4540436](https://github.com/larrybwosi/dealio-desktop/commit/4540436b79d6b9c755b9ac89ba823513cd487887))
+* **workflow error:** nothing ([ffce7d8](https://github.com/larrybwosi/dealio-desktop/commit/ffce7d8a484f597fab15bd5d77c8f1c356086437))
+
+# [3.3.0-nextgen.13](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.12...v3.3.0-nextgen.13) (2026-05-05)
+
+
+### Features
+
+* **test build:** nothing ([a531ba0](https://github.com/larrybwosi/dealio-desktop/commit/a531ba0d96af83bc8358eb37db9834b2e37788d8))
+
+# [3.3.0-nextgen.12](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.11...v3.3.0-nextgen.12) (2026-05-05)
+
+
+### Bug Fixes
+
+* build failures across all platforms and variants ([#47](https://github.com/larrybwosi/dealio-desktop/issues/47)) ([42bb537](https://github.com/larrybwosi/dealio-desktop/commit/42bb537145afa7bfbbdb2c442543188b91e23f4d))
+
+# [3.3.0-nextgen.11](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.10...v3.3.0-nextgen.11) (2026-05-03)
+
+
+### Bug Fixes
+
+* **build:** yaml file ([7a99455](https://github.com/larrybwosi/dealio-desktop/commit/7a99455a7f14fd227a7f4f29f72ed0006a812daf))
+
+# [3.3.0-nextgen.10](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.9...v3.3.0-nextgen.10) (2026-05-03)
+
+
+### Features
+
+* **update:** nothing much ([9a1487f](https://github.com/larrybwosi/dealio-desktop/commit/9a1487fc7cd505c07955e3af5e9c43aab06265aa))
+
+# [3.3.0-nextgen.9](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.8...v3.3.0-nextgen.9) (2026-05-02)
+
+
+### Bug Fixes
+
+* remove unused `holdCurrentOrder` from `AppLayoutProvider` ([fca5205](https://github.com/larrybwosi/dealio-desktop/commit/fca52053695c4c68efade4a043710d8fd9702cb6))
+* resolve backend compilation and e2e test failures ([a6d296f](https://github.com/larrybwosi/dealio-desktop/commit/a6d296fa0df048ae470eb32c30e9e55ef8995816))
+* resolve backend compilation errors in test_utils and lib.rs ([5372b6b](https://github.com/larrybwosi/dealio-desktop/commit/5372b6b8880d705f751a99ed4a0bca3f8ca6ca03))
+* resolve CI failures in backend and e2e tests ([589c8ca](https://github.com/larrybwosi/dealio-desktop/commit/589c8ca8781a950bb9cec0b163aef16accd3cf23))
+* resolve linting errors and frontend build failures ([#41](https://github.com/larrybwosi/dealio-desktop/issues/41)) ([563ddb7](https://github.com/larrybwosi/dealio-desktop/commit/563ddb7d1c6ed8bea2798c1e4a24b38b6917592c))
+
+
+### Features
+
+* implement comprehensive frontend and backend tests and fix printer store bug ([7925abd](https://github.com/larrybwosi/dealio-desktop/commit/7925abd41b59686c5124e378e0a80275967b8640))
+* implement comprehensive frontend and backend tests and fix printer store bug ([0faebed](https://github.com/larrybwosi/dealio-desktop/commit/0faebedc9764dd3462159910bf7ce13578cadfcb))
+* implement comprehensive frontend and backend tests and fix printer store bug ([7c6dcb0](https://github.com/larrybwosi/dealio-desktop/commit/7c6dcb04c3f16ceef36822469acc98756ca965cf))
+* implement comprehensive frontend and backend tests and fix supermarket-pos crash ([1c4a94c](https://github.com/larrybwosi/dealio-desktop/commit/1c4a94c06de3e76880081c13ebfe978d1872fd7c))
+* implement keyboard shortcuts and UI/UX improvements ([e82d1c6](https://github.com/larrybwosi/dealio-desktop/commit/e82d1c667858ee060aed3d9d6a4e3f005cce5084))
+* optimize POS for pharmacy use ([0354fbe](https://github.com/larrybwosi/dealio-desktop/commit/0354fbe6859097540aabca603a0c6b70caa69b84))
+* optimize system for pharmacy use ([8ea0481](https://github.com/larrybwosi/dealio-desktop/commit/8ea04816375e7890b7f39d7e964bd9e8bcdbc249))
+
+# [3.3.0-nextgen.8](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.7...v3.3.0-nextgen.8) (2026-04-26)
+
+
+### Features
+
+* **supermarket:** optimize for high-traffic and fast processing ([#34](https://github.com/larrybwosi/dealio-desktop/issues/34)) ([c5a0233](https://github.com/larrybwosi/dealio-desktop/commit/c5a0233651c2b510077f8fc88fa5a12deb742f1b)), closes [hi#traffic](https://github.com/hi/issues/traffic)
+
+# [3.3.0-nextgen.7](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.6...v3.3.0-nextgen.7) (2026-04-26)
+
+
+### Features
+
+* enable stock acceptance and movement modules in retail mode ([#31](https://github.com/larrybwosi/dealio-desktop/issues/31)) ([b669a96](https://github.com/larrybwosi/dealio-desktop/commit/b669a962b12fc8b1b5e29488cca8e108109da683))
+
 # [3.3.0-nextgen.6](https://github.com/larrybwosi/dealio-desktop/compare/v3.3.0-nextgen.5...v3.3.0-nextgen.6) (2026-04-10)
 
 

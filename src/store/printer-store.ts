@@ -14,7 +14,7 @@ export interface PrinterDevice {
 }
 
 // Define the types of documents we handle
-export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill' | 'bar' | 'waybill';
+export type PrinterJobType = 'receipt' | 'invoice' | 'kitchen' | 'bill' | 'bar' | 'waybill' | 'label';
 
 interface PrinterState {
   availablePrinters: PrinterDevice[];
@@ -58,6 +58,7 @@ export const usePrinterStore = create<PrinterState>()(
         bill: null,
         bar: null,
         waybill: null,
+        label: null,
       },
 
       autoPrintInvoice: false,
@@ -111,6 +112,7 @@ export const usePrinterStore = create<PrinterState>()(
               bill_printer: formatConfig(currentAssignments.bill),
               bar_printer: formatConfig(currentAssignments.bar),
               waybill_printer: formatConfig(currentAssignments.waybill),
+              label_printer: formatConfig(currentAssignments.label),
               auto_print_invoice: autoPrint,
             },
           });
@@ -137,6 +139,7 @@ export const usePrinterStore = create<PrinterState>()(
               bill_printer: formatConfig(currentAssignments.bill),
               bar_printer: formatConfig(currentAssignments.bar),
               waybill_printer: formatConfig(currentAssignments.waybill),
+              label_printer: formatConfig(currentAssignments.label),
               auto_print_invoice: enabled,
             },
           });
@@ -176,6 +179,8 @@ export const usePrinterStore = create<PrinterState>()(
       loadConfig: async () => {
         try {
           const config = await invoke<any>('get_printer_config');
+          if (!config) return;
+
           set(() => ({
             assignments: {
               receipt: config.receipt_printer?.target || null,
@@ -184,6 +189,7 @@ export const usePrinterStore = create<PrinterState>()(
               bill: config.bill_printer?.target || config.receipt_printer?.target || null,
               bar: config.bar_printer?.target || null,
               waybill: config.waybill_printer?.target || config.invoice_printer?.target || null,
+              label: config.label_printer?.target || null,
             },
             autoPrintInvoice: config.auto_print_invoice || false,
           }));

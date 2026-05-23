@@ -59,6 +59,13 @@ export const CustomerFormSchema = z
     // --- NEW FIELDS ---
     isBusiness: z.boolean().optional().default(false), // Trigger for Business Account creation
     taxId: z.string().optional(), // Maps to BusinessAccount.taxId
+
+    // Pharmacy features
+    medicalHistory: z.string().optional(),
+    allergies: z.string().optional(),
+    chronicConditions: z.string().optional(),
+    insuranceProvider: z.string().optional(),
+    policyNumber: z.string().optional(),
   })
   .strict();
 

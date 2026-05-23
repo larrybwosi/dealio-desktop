@@ -327,54 +327,57 @@ export default function GeneralSettings({
         </Card>
 
         {/* Store Location */}
-        <Card className="border-muted/60 shadow-sm">
-          <CardHeader className="pb-4">
-            <div className="flex items-center gap-2">
-              <div className="p-2 bg-purple-500/10 rounded-lg">
-                <MapPin className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg font-semibold">Store Location</CardTitle>
-                <CardDescription>Manage which physical store this terminal is assigned to.</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <Separator className="mb-6" />
-          <CardContent>
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="space-y-2.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Current Location
-                </Label>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between font-normal bg-muted/30 hover:bg-muted/50"
-                  onClick={() => setIsLocationDialogOpen(true)}
-                >
-                  <span className="flex items-center gap-2 truncate">
-                    <Store className="h-4 w-4 text-muted-foreground" />
-                    {currentLocation?.name || 'No Location Set'}
-                  </span>
-                  <span className="text-xs text-primary font-medium">Change</span>
-                </Button>
-              </div>
-
-              <div className="space-y-2.5">
-                <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                  Location Type
-                </Label>
-                <div className="flex items-center h-10 px-3 rounded-md bg-muted/30 border border-input">
-                  <span className="text-sm text-foreground capitalize">
-                    {currentLocation?.locationType?.toLowerCase().replace('_', ' ') || 'Unknown'}
-                  </span>
+        {import.meta.env.MODE !== 'standalone' && (
+          <Card className="border-muted/60 shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-purple-500/10 rounded-lg">
+                  <MapPin className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-semibold">Store Location</CardTitle>
+                  <CardDescription>Manage which physical store this terminal is assigned to.</CardDescription>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <Separator className="mb-6" />
+            <CardContent>
+              <div className="grid gap-6 sm:grid-cols-2">
+                <div className="space-y-2.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Current Location
+                  </Label>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal bg-muted/30 hover:bg-muted/50"
+                    onClick={() => setIsLocationDialogOpen(true)}
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Store className="h-4 w-4 text-muted-foreground" />
+                      {currentLocation?.name || 'No Location Set'}
+                    </span>
+                    <span className="text-xs text-primary font-medium">Change</span>
+                  </Button>
+                </div>
+
+                <div className="space-y-2.5">
+                  <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                    Location Type
+                  </Label>
+                  <div className="flex items-center h-10 px-3 rounded-md bg-muted/30 border border-input">
+                    <span className="text-sm text-foreground capitalize">
+                      {currentLocation?.locationType?.toLowerCase().replace('_', ' ') || 'Unknown'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Financial Settings */}
-        <Card className="border-muted/60 shadow-sm">
+        {import.meta.env.MODE !== 'standalone' && (
+          <Card className="border-muted/60 shadow-sm">
           <CardHeader className="pb-4">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-blue-500/10 rounded-lg">
@@ -443,11 +446,12 @@ export default function GeneralSettings({
                     className="pl-9 bg-muted/30 focus:bg-background"
                     placeholder="0.00"
                   />
+                  </div>
                 </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* System Preferences */}
         <Card className="border-muted/60 shadow-sm">
@@ -464,18 +468,20 @@ export default function GeneralSettings({
           </CardHeader>
           <Separator className="mb-0" />
           <CardContent className="divide-y divide-muted">
-            <div className="flex items-center justify-between py-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Defer Payment</Label>
+            {import.meta.env.MODE !== 'standalone' && (
+              <div className="flex items-center justify-between py-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Defer Payment</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-[300px]">
+                    Allow staff to save orders to the system without collecting immediate payment.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground max-w-[300px]">
-                  Allow staff to save orders to the system without collecting immediate payment.
-                </p>
+                <Switch checked={allowSaveUnpaidOrders} onCheckedChange={setAllowSaveUnpaidOrders} />
               </div>
-              <Switch checked={allowSaveUnpaidOrders} onCheckedChange={setAllowSaveUnpaidOrders} />
-            </div>
+            )}
 
             <div className="flex items-center justify-between py-4">
               <div className="space-y-1">
@@ -490,23 +496,25 @@ export default function GeneralSettings({
               <Switch checked={enableAutoStart} onCheckedChange={setEnableAutoStart} />
             </div>
 
-            <div className="flex items-center justify-between py-4">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Percent className="h-4 w-4 text-muted-foreground" />
-                  <Label className="text-sm font-medium">Allow Negative Stock</Label>
+            {import.meta.env.MODE !== 'standalone' && (
+              <div className="flex items-center justify-between py-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-muted-foreground" />
+                    <Label className="text-sm font-medium">Allow Negative Stock</Label>
+                  </div>
+                  <p className="text-xs text-muted-foreground max-w-[300px]">
+                    Allow selling products even when local stock count reaches zero.
+                  </p>
                 </div>
-                <p className="text-xs text-muted-foreground max-w-[300px]">
-                  Allow selling products even when local stock count reaches zero.
-                </p>
+                <Switch checked={allowNegativeStock} onCheckedChange={setAllowNegativeStock} />
               </div>
-              <Switch checked={allowNegativeStock} onCheckedChange={setAllowNegativeStock} />
-            </div>
+            )}
           </CardContent>
         </Card>
 
         {/* Software Updates */}
-        <SoftwareUpdatesCard />
+        {import.meta.env.MODE !== 'standalone' && <SoftwareUpdatesCard />}
       </div>
     </TabsContent>
   );

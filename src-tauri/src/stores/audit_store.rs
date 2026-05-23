@@ -55,13 +55,16 @@ async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+    let db_name = if cfg!(feature = "standalone") {
+        "sqlite:pos_standalone.db"
+    } else {
+        MAIN_DB_NAME
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
         Ok(pool.clone())
     } else {
-        Err(format!(
-            "Database {} not found.",
-            MAIN_DB_NAME
-        ))
+        Err(format!("Database {} not found.", db_name))
     }
 }
 

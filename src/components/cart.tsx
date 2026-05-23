@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { usePosStore } from '@/store/store';
+import { useUiStore } from '@/store/ui-store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +17,8 @@ import {
   DialogFooter,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package } from 'lucide-react';
+import { Trash2, Edit2, Minus, Plus, PanelRightClose, PanelRightOpen, ShoppingCart, Pause, Clock, ImageOff, User, ReceiptText, Printer, Package, Tag, ShieldCheck } from 'lucide-react';
+import { Kbd } from '@/components/ui/kbd';
 import PaymentModal from '@/components/pos/payment-dialog';
 import { CustomerSelector } from '@/components/customer-selector';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -26,6 +28,7 @@ import { ReceiptDialog } from '@/components/receipt-dialog';
 import { cn } from '@/lib/utils';
 import { emitTo } from '@tauri-apps/api/event';
 import { HeldOrdersDialog } from '@/components/held-orders-dialog';
+import { PrescriptionDialog } from '@/components/pos/prescription-dialog';
 import { HoldOrderDialog } from '@/components/hold-order-dialog';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { usePrinter } from '@/hooks/use-printer';
@@ -39,7 +42,12 @@ export function Cart() {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   // --- UI States ---
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const {
+    paymentDialogOpen, setPaymentDialogOpen,
+    holdOrderDialogOpen, setHoldOrderDialogOpen,
+    prescriptionDialogOpen, setPrescriptionDialogOpen
+  } = useUiStore();
+
   const [ageVerificationOpen, setAgeVerificationOpen] = useState(false);
   const [ageVerified, setAgeVerified] = useState(false);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
@@ -50,15 +58,19 @@ export function Cart() {
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [editQuantity, setEditQuantity] = useState(1);
   const [editNotes, setEditNotes] = useState('');
+  const [editDosageInstructions, setEditDosageInstructions] = useState('');
   const [editUnitId, setEditUnitId] = useState('');
 
-  // --- Hold Sale States ---
-  const [showHoldDialog, setShowHoldDialog] = useState(false);
+  // --- UI Control States ---
+  const [showPharmacistVerification, setShowPharmacistVerification] = useState(false);
   const [showHeldOrdersDialog, setShowHeldOrdersDialog] = useState(false);
   const [isPrintingBill, setIsPrintingBill] = useState(false);
 
   // --- Printer Hook ---
   const { printNative } = usePrinter();
+
+  const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+  const modifier = isMac ? '⌘' : 'Ctrl';
 
   // --- Store Hooks ---
   const currentOrder = usePosStore(state => state.currentOrder);
@@ -74,12 +86,12 @@ export function Cart() {
 
   // --- Hold Sale Store Hooks ---
   const heldOrders = usePosStore(state => state.heldOrders);
-  const enableHoldSale = usePosStore(state => state.settings.enableHoldSale);
+  const enableHoldSale = usePosStore(state => state.settings.enableHoldSale) && import.meta.env.MODE !== 'standalone';
 
   // --- Config ---
   const businessConfig = getBusinessConfig();
   const availableOrderTypes = businessConfig.orderTypes;
-  const showTableField = businessConfig.features.tableManagement;
+  const showTableField = businessConfig.features.tableManagement && import.meta.env.MODE !== 'standalone';
   const requiresAgeVerification = businessConfig.features.ageVerification;
   const availableTables = tables.filter(t => t.status === 'available');
 
@@ -191,6 +203,7 @@ export function Cart() {
     setEditingItem(item);
     setEditQuantity(item.quantity);
     setEditNotes(item.notes || '');
+    setEditDosageInstructions(item.dosageInstructions || '');
     setEditUnitId(item.selectedUnit?.unitId || '');
     setIsEditDialogOpen(true);
   };
@@ -223,6 +236,7 @@ export function Cart() {
       ...editingItem,
       quantity: editQuantity,
       notes: editNotes,
+      dosageInstructions: editDosageInstructions,
       price: newPrice, // CRITICAL: Update the root price
       selectedUnit: newUnit,
       originalUnitId: editingItem.selectedUnit?.unitId,
@@ -231,7 +245,30 @@ export function Cart() {
     setEditingItem(null);
   };
 
+  const hasPrescriptionItems = useMemo(() => {
+    return currentOrder.items.some(item => item.requiresPrescription);
+  }, [currentOrder.items]);
+
   const handleConfirmPayment = () => {
+    if (businessConfig.type === 'pharmacy' && hasPrescriptionItems && !currentOrder.isPharmacistVerified) {
+      setShowPharmacistVerification(true);
+      return;
+    }
+
+    if (requiresAgeVerification && !ageVerified) {
+      setAgeVerificationOpen(true);
+    } else {
+      setPaymentDialogOpen(true);
+    }
+  };
+
+  const handlePharmacistVerify = () => {
+    usePosStore.setState(state => ({
+      currentOrder: { ...state.currentOrder, isPharmacistVerified: true }
+    }));
+    setShowPharmacistVerification(false);
+
+    // Proceed to next step
     if (requiresAgeVerification && !ageVerified) {
       setAgeVerificationOpen(true);
     } else {
@@ -252,7 +289,7 @@ export function Cart() {
       setAgeVerified(false);
       resetOrder();
     },
-    [resetOrder]
+    [resetOrder, setPaymentDialogOpen]
   );
 
   const handleCloseReceipt = () => {
@@ -373,10 +410,12 @@ export function Cart() {
 
             {/* Customer & Type Selectors */}
             <div className="grid grid-cols-5 gap-2">
-              <div className="col-span-3">
-                <CustomerSelector />
-              </div>
-              <div className="col-span-2">
+              {import.meta.env.MODE !== 'standalone' && (
+                <div className="col-span-3">
+                  <CustomerSelector />
+                </div>
+              )}
+              <div className={cn(import.meta.env.MODE === 'standalone' ? 'col-span-5' : 'col-span-2')}>
                 <Select value={currentOrder.orderType} onValueChange={(value: any) => setOrderType(value)}>
                   <SelectTrigger className="h-10 text-xs bg-muted/40">
                     <SelectValue />
@@ -609,16 +648,30 @@ export function Cart() {
 
             {/* Main Actions */}
             <div className="grid grid-cols-5 gap-2">
+              {businessConfig.type === 'pharmacy' && (
+                <Button
+                  variant="outline"
+                  className="col-span-1 h-12 flex-col gap-0.5 border-emerald-200 bg-emerald-50 text-emerald-700"
+                  onClick={() => setPrescriptionDialogOpen(true)}
+                  disabled={currentOrder.items.length === 0}
+                  title="Prescription"
+                >
+                  <ReceiptText className="w-4 h-4" />
+                  <span className="text-[10px] font-medium">RX</span>
+                </Button>
+              )}
+
               {enableHoldSale && (
                 <Button
                   variant="outline"
-                  className="col-span-1 h-12 flex-col gap-0.5 border-dashed"
-                  onClick={() => setShowHoldDialog(true)}
+                  className="col-span-1 h-12 flex-col gap-0.5 border-dashed relative group/btn"
+                  onClick={() => setHoldOrderDialogOpen(true)}
                   disabled={currentOrder.items.length === 0}
-                  title="Hold Order"
+                  title={`Hold Order (${modifier}+S)`}
                 >
                   <Pause className="w-4 h-4" />
                   <span className="text-[10px] font-medium">Hold</span>
+                  <Kbd className="absolute -top-2 -right-1 opacity-0 group-hover/btn:opacity-100 transition-opacity scale-75">S</Kbd>
                 </Button>
               )}
 
@@ -641,14 +694,16 @@ export function Cart() {
 
               <Button
                 className={cn(
-                  'h-12 shadow-md text-sm font-bold uppercase tracking-wide',
+                  'h-12 shadow-md text-sm font-bold uppercase tracking-wide relative group/btn',
                   (enableHoldSale && businessConfig.type === 'restaurant') ? 'col-span-3' :
                   (enableHoldSale || businessConfig.type === 'restaurant') ? 'col-span-4' : 'col-span-5'
                 )}
                 onClick={handleConfirmPayment}
                 disabled={currentOrder.items.length === 0}
+                title={`Checkout (${modifier}+Enter)`}
               >
                 Checkout
+                <Kbd className="absolute -top-2 -right-1 opacity-0 group-hover/btn:opacity-100 transition-opacity scale-75 text-primary-foreground bg-primary-foreground/20">↵</Kbd>
               </Button>
             </div>
 
@@ -753,9 +808,25 @@ export function Cart() {
                 onChange={e => setEditNotes(e.target.value)}
                 placeholder="e.g., No Sugar, Extra Spicy..."
                 className="resize-none"
-                rows={3}
+                rows={2}
               />
             </div>
+
+            {businessConfig.type === 'pharmacy' && (
+              <div className="grid gap-2">
+                <Label htmlFor="dosage" className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5" /> Dosage Instructions
+                </Label>
+                <Textarea
+                  id="dosage"
+                  value={editDosageInstructions}
+                  onChange={e => setEditDosageInstructions(e.target.value)}
+                  placeholder="e.g., Take 1 tablet twice daily after meals"
+                  className="resize-none border-emerald-200 focus-visible:ring-emerald-500"
+                  rows={2}
+                />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
@@ -792,7 +863,39 @@ export function Cart() {
       />
 
       {/* Hold Sale Dialogs (Enterprise) */}
-      <HoldOrderDialog open={showHoldDialog} onOpenChange={setShowHoldDialog} />
+      <HoldOrderDialog open={holdOrderDialogOpen} onOpenChange={setHoldOrderDialogOpen} />
+
+      {/* Pharmacy Dialogs */}
+      <PrescriptionDialog open={prescriptionDialogOpen} onOpenChange={setPrescriptionDialogOpen} />
+
+      <Dialog open={showPharmacistVerification} onOpenChange={setShowPharmacistVerification}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-emerald-600">
+              <ShieldCheck className="w-5 h-5" />
+              Pharmacist Verification Required
+            </DialogTitle>
+            <DialogDescription>
+              This order contains prescription-only items. A registered pharmacist must verify this order before proceeding.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-100 flex items-center gap-3">
+            <User className="w-10 h-10 text-emerald-600" />
+            <div>
+              <p className="text-sm font-bold text-emerald-900">Verification Step</p>
+              <p className="text-xs text-emerald-700">Please confirm that you have reviewed the prescription and the items.</p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowPharmacistVerification(false)}>
+              Cancel
+            </Button>
+            <Button className="bg-emerald-600 hover:bg-emerald-700 text-white" onClick={handlePharmacistVerify}>
+              Verify & Proceed
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <HeldOrdersDialog open={showHeldOrdersDialog} onOpenChange={setShowHeldOrdersDialog} />
     </>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
-import { Printer, Download, Check, Loader2, Receipt, ArrowRight, CreditCard, Wallet } from 'lucide-react';
+import { Printer, Download, Check, Loader2, Receipt, ArrowRight, CreditCard, Wallet, Tag } from 'lucide-react';
 import QRCode from 'qrcode';
 import bwipjs from '@bwip-js/browser';
 
@@ -15,6 +15,8 @@ import { ReceiptPdfDocument } from '@/components/receipt-pdf';
 import { usePosStore, type Order, type ReceiptConfig } from '@/store/store';
 import { useAuthStore } from '@/store/pos-auth-store';
 import { usePdfActions } from '@/hooks/use-pdf-actions';
+import { usePrinter } from '@/hooks/use-printer';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { ReceiptPreviewWrapper } from './pos/receipt-preview-wrapper';
 
@@ -30,32 +32,53 @@ interface ReceiptDialogProps {
 const formatOrderForReceipt = (order: any): Order | null => {
   if (!order) return null;
 
+  const subTotal = parseFloat(order.subtotal || order.subTotal || '0');
+  const discount = parseFloat(order.discount || '0');
+  const taxes = parseFloat(order.tax || order.taxes || '0');
+  const total = parseFloat(order.total || '0');
+
   return {
     id: order.id || 'temp-id',
     orderNumber: order.orderNumber || `#${Math.floor(Math.random() * 10000)}`,
     customerName: order.customer?.name || order.customerName || 'Guest',
     orderType: order.orderType || 'Walk-in',
     cashierName: order.cashierName || 'Staff',
+    userName: order.cashierName || 'Staff', // For backend
     paymentMethod: order.paymentMethod || 'Cash',
     status: 'completed',
-    items: (order.items || []).map((item: any) => ({
-      productId: item.productId || item.id,
-      productName: item.productName || item.name || 'Unknown Product',
-      variantName: item.variantName || item.variant || '',
-      sku: item.sku || '',
-      quantity: item.quantity || 1,
-      selectedUnit: {
-        unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
-        price: parseFloat(item.price || item.selectedUnit?.price || '0'),
-      },
-      note: item.note || item.notes || '',
-    })),
-    subTotal: parseFloat(order.subtotal || order.subTotal || '0'),
-    discount: parseFloat(order.discount || '0'),
-    taxes: parseFloat(order.tax || order.taxes || '0'),
-    total: parseFloat(order.total || '0'),
+    tableNumber: order.tableNumber,
+    tableName: order.tableNumber, // For backend
+    items: (order.items || []).map((item: any) => {
+      const price = parseFloat(item.price || item.selectedUnit?.price || '0');
+      const quantity = item.quantity || 1;
+      const name = item.productName || item.name || 'Unknown Product';
+      return {
+        productId: item.productId || item.id,
+        productName: name,
+        name: name, // For backend
+        variantName: item.variantName || item.variant || '',
+        sku: item.sku || '',
+        quantity: quantity,
+        selectedUnit: {
+          unitName: item.unitName || item.unit || item.selectedUnit?.unitName || 'Unit',
+          price: price,
+        },
+        price: price, // For backend
+        total: price * quantity, // For backend
+        note: item.note || item.notes || '',
+      };
+    }),
+    subTotal,
+    discount,
+    discountAmount: discount, // For backend
+    taxes,
+    taxAmount: taxes, // For backend
+    total,
     createdAt: order.datetime ? new Date(order.datetime) : new Date(),
-  };
+    payments: order.payments || [
+      { method: order.paymentMethod || 'Cash', amount: total }
+    ], // For backend
+  } as any;
 };
 
 // --- Sub-component: Summary Card ---
@@ -96,6 +119,7 @@ interface ActionPanelProps {
   completedOrder: any;
   formattedOrder: Order;
   onPrint: () => void;
+  onPrintLabels: () => void;
   onDownload: () => void;
   onClose: () => void;
   isPrinting: boolean;
@@ -107,12 +131,14 @@ const ActionPanel = ({
   completedOrder,
   formattedOrder,
   onPrint,
+  onPrintLabels,
   onDownload,
   onClose,
   isPrinting,
   isDownloading,
   currency,
 }: ActionPanelProps) => {
+  const [isPrintingLabels, setIsPrintingLabels] = useState(false);
   const changeDue = completedOrder.change ? parseFloat(completedOrder.change) : 0;
   const amountPaid = parseFloat(completedOrder.amountPaid || formattedOrder.total);
 
@@ -163,6 +189,14 @@ const ActionPanel = ({
           <div className="grid grid-cols-2 gap-3">
             <SummaryMetric label="Total Bill" value={formattedOrder.total} currency={currency} />
             <SummaryMetric label="Amount Paid" value={amountPaid} currency={currency} />
+            {completedOrder.payments?.some((p: any) => p.method === 'INSURANCE') && (
+              <SummaryMetric
+                label="Insurance Co-pay"
+                value={completedOrder.payments.filter((p: any) => p.method === 'INSURANCE').reduce((s: number, p: any) => s + p.amount, 0)}
+                currency={currency}
+                highlight
+              />
+            )}
           </div>
 
           <div className="flex items-center justify-between text-sm text-muted-foreground px-1">
@@ -177,16 +211,37 @@ const ActionPanel = ({
 
       {/* Action Buttons */}
       <div className="space-y-3 mt-auto pt-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Button
-            onClick={onPrint}
-            disabled={isPrinting}
-            className="h-12 shadow-sm transition-all active:scale-[0.98]"
-            variant="default"
-          >
-            {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
-            {isPrinting ? 'Printing...' : 'Print Receipt'}
-          </Button>
+        <div className="grid grid-cols-1 gap-3">
+          <div className="flex gap-2">
+            <Button
+              onClick={onPrint}
+              disabled={isPrinting}
+              className="flex-1 h-12 shadow-sm transition-all active:scale-[0.98]"
+              variant="default"
+            >
+              {isPrinting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Printer className="mr-2 h-4 w-4" />}
+              {isPrinting ? 'Printing...' : 'Print Receipt'}
+            </Button>
+
+            {import.meta.env.VITE_BUSINESS_MODE === 'pharmacy' && (
+              <Button
+                onClick={async () => {
+                  setIsPrintingLabels(true);
+                  try {
+                    await onPrintLabels?.();
+                  } finally {
+                    setIsPrintingLabels(false);
+                  }
+                }}
+                disabled={isPrintingLabels}
+                className="flex-1 h-12 border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all active:scale-[0.98]"
+                variant="outline"
+              >
+                {isPrintingLabels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tag className="mr-2 h-4 w-4" />}
+                Print Labels
+              </Button>
+            )}
+          </div>
 
           <Button
             variant="outline"
@@ -220,6 +275,7 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
   const currentMember = useAuthStore(state => state.currentMember);
   const receiptConfig = settings.receiptConfig as ReceiptConfig;
   const { handleDownload, handlePrint, isPrinting, isDownloading } = usePdfActions();
+  const { printNative } = usePrinter();
   const [qrCodePdfUrl, setQrCodePdfUrl] = useState<string>('');
   const [barcodeUrl, setBarcodeUrl] = useState<string>('');
 
@@ -293,7 +349,26 @@ export function ReceiptDialog({ open, onOpenChange, completedOrder, onClose }: R
             <ActionPanel
               completedOrder={completedOrder}
               formattedOrder={formattedOrder}
-              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, formattedOrder)}
+              onPrint={() => DocumentInstance && handlePrint(DocumentInstance, `Receipt_${safeOrderNum}`, {
+                ...formattedOrder,
+                // Ensure backend-specific fields are present even if TypeScript complained
+                subTotal: (formattedOrder as any).subTotal,
+                taxAmount: (formattedOrder as any).taxAmount,
+                discountAmount: (formattedOrder as any).discountAmount,
+              })}
+              onPrintLabels={async () => {
+                if (!completedOrder) return;
+                try {
+                  const result = await printNative('label', completedOrder as any, settings);
+                  if (result.success) {
+                    toast.success('Labels Sent to Printer');
+                  } else {
+                    throw new Error(result.error);
+                  }
+                } catch (error) {
+                  toast.error('Failed to print labels');
+                }
+              }}
               onDownload={() => DocumentInstance && handleDownload(DocumentInstance, `Receipt_${safeOrderNum}`)}
               onClose={onClose}
               isPrinting={isPrinting}

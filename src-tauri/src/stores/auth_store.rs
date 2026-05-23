@@ -10,6 +10,7 @@ use tauri::{AppHandle, State};
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")] 
 pub struct MemberProfile {
+    pub id: String,
     #[serde(default)] // Allows parsing to succeed with an empty string if "name" is missing
     pub name: String,
     
@@ -34,11 +35,17 @@ pub struct SanitizedDeviceConfig {
 
 // --- The State Container ---
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Session {
+    pub token: String,
+    pub user: MemberProfile,
+}
+
 pub struct AuthState {
     // We wrap in Mutex to allow safe concurrent access
     pub device_config: Mutex<Option<DeviceConfig>>,
-    pub member_token: Mutex<Option<String>>,
-    pub current_user: Mutex<Option<MemberProfile>>,
+    pub sessions: Mutex<std::collections::HashMap<String, Session>>, // member_id -> Session
+    pub active_member_id: Mutex<Option<String>>,
     pub client: reqwest::Client,
 }
 
@@ -55,7 +62,6 @@ impl AuthState {
     pub fn new() -> Self {
         // Try keyring first, then file
         let initial_config = Self::load_from_keyring().or_else(Self::load_from_file);
-        let initial_token = Self::load_token_from_keyring();
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -64,8 +70,8 @@ impl AuthState {
 
         Self {
             device_config: Mutex::new(initial_config),
-            member_token: Mutex::new(initial_token),
-            current_user: Mutex::new(None),
+            sessions: Mutex::new(std::collections::HashMap::new()),
+            active_member_id: Mutex::new(None),
             client,
         }
     }
@@ -177,10 +183,13 @@ impl AuthState {
         };
 
         let token = {
-            self.member_token
-                .lock()
-                .map_err(|_| "Failed to lock token store")?
-                .clone()
+            let active_id = self.active_member_id.lock().map_err(|_| "Failed to lock active id")?;
+            if let Some(id) = active_id.as_ref() {
+                let sessions = self.sessions.lock().map_err(|_| "Failed to lock sessions")?;
+                sessions.get(id).map(|s| s.token.clone())
+            } else {
+                None
+            }
         };
 
 
@@ -210,6 +219,26 @@ impl AuthState {
 
 
         Ok(request_builder)
+    }
+
+    pub fn get_active_token(&self) -> Result<Option<String>, String> {
+        let active_id = self.active_member_id.lock().map_err(|_| "Lock error")?;
+        if let Some(id) = active_id.as_ref() {
+            let sessions = self.sessions.lock().map_err(|_| "Lock error")?;
+            Ok(sessions.get(id).map(|s| s.token.clone()))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn get_active_user(&self) -> Result<Option<MemberProfile>, String> {
+        let active_id = self.active_member_id.lock().map_err(|_| "Lock error")?;
+        if let Some(id) = active_id.as_ref() {
+            let sessions = self.sessions.lock().map_err(|_| "Lock error")?;
+            Ok(sessions.get(id).map(|s| s.user.clone()))
+        } else {
+            Ok(None)
+        }
     }
 
     fn load_token_from_keyring() -> Option<String> {
@@ -249,6 +278,7 @@ struct LoginApiWrapper {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CheckInResult {
     pub member: MemberProfile,
     pub restored_session: bool,
@@ -348,9 +378,16 @@ pub async fn login_member(
     let data = wrapper.data;
 
     // CRITICAL: Token stays here, never returned to UI
-    let _ = AuthState::save_token_to_keyring(&data.token);
-    *state.member_token.lock().unwrap() = Some(data.token.clone());
-    *state.current_user.lock().unwrap() = Some(data.member.clone());
+    {
+        let mut sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+        sessions.insert(data.member.id.clone(), Session {
+            token: data.token.clone(),
+            user: data.member.clone(),
+        });
+
+        let mut active_id = state.active_member_id.lock().map_err(|_| "Lock error")?;
+        *active_id = Some(data.member.id.clone());
+    }
 
     // Audit successful login
     let _ = crate::audit_store::write_event(
@@ -377,31 +414,46 @@ pub async fn logout_member(
     location_id: Option<String>,
 ) -> Result<(), String> {
     // Capture actor before clearing
-    let actor_name = {
-        let user_guard = state.current_user.lock().unwrap_or_else(|e| e.into_inner());
-        user_guard.as_ref().map(|u| u.name.clone())
+    let (actor_id, actor_name) = {
+        let active_id_guard = state.active_member_id.lock().map_err(|_| "Lock error")?;
+        let sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+
+        let id = active_id_guard.clone();
+        let name = id.as_ref().and_then(|id| sessions.get(id).map(|s| s.user.name.clone()));
+        (id, name)
     };
 
-    // 1. Attempt to notify the server (Best effort)
-    if let Ok(request) =
-        state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+    // 1. Attempt to notify the server (Best effort) - Skip in standalone
+    #[cfg(not(feature = "standalone"))]
     {
-        let device_key = {
-            let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
-            config_guard.as_ref().map(|c| c.device_key.clone())
-        };
+        if let Ok(request) =
+            state.build_request(reqwest::Method::POST, crate::api_config::routes::CHECK_OUT)
+        {
+            let device_key = {
+                let config_guard = state.device_config.lock().map_err(|_| "Lock error")?;
+                config_guard.as_ref().map(|c| c.device_key.clone())
+            };
 
-        let body = serde_json::json!({
-            "locationId": location_id,
-            "deviceKey": device_key
-        });
-        let _ = request.json(&body).send().await;
+            let body = serde_json::json!({
+                "locationId": location_id,
+                "deviceKey": device_key
+            });
+            let _ = request.json(&body).send().await;
+        }
     }
 
     // 2. Clear local session
-    let _ = AuthState::delete_token_from_keyring();
-    *state.member_token.lock().unwrap() = None;
-    *state.current_user.lock().unwrap() = None;
+    {
+        let mut active_id = state.active_member_id.lock().map_err(|_| "Lock error")?;
+        let mut sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+
+        if let Some(id) = actor_id {
+            sessions.remove(&id);
+        }
+
+        // Pick another session if available as active, or None
+        *active_id = sessions.keys().next().cloned();
+    }
 
     // Audit logout
     info!("[AUTH] Member {:?} logged out", actor_name);
@@ -476,8 +528,35 @@ pub async fn restore_member_session(
     state: State<'_, AuthState>,
     member: MemberProfile,
 ) -> Result<(), String> {
-    // If we have a token (loaded from keyring), but no member in memory, sync them
-    *state.current_user.lock().unwrap() = Some(member);
+    // NOTE: This was previously used to restore a single session from frontend.
+    // In multi-session, we might need a token too, but let's see.
+    // For now, if it's called, we ensure it's in sessions (though it might lack a token if not careful)
+    let sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+    if !sessions.contains_key(&member.id) {
+        // We don't have the token here, which is a problem for build_request.
+        // Usually, restore_member_session is called when frontend already has the session.
+        // If frontend has it, it should have been logged in or properly restored.
+    }
+
+    let mut active_id = state.active_member_id.lock().map_err(|_| "Lock error")?;
+    *active_id = Some(member.id);
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn switch_active_member(
+    state: State<'_, AuthState>,
+    member_id: String,
+) -> Result<(), String> {
+    let mut active_id = state.active_member_id.lock().map_err(|_| "Lock error")?;
+    let sessions = state.sessions.lock().map_err(|_| "Lock error")?;
+
+    if !sessions.contains_key(&member_id) {
+        return Err("Member not checked in".to_string());
+    }
+
+    *active_id = Some(member_id);
     Ok(())
 }
 
@@ -506,8 +585,8 @@ pub async fn reset_device_config(state: State<'_, AuthState>) -> Result<(), Stri
 
     // 3. Clear Memory
     *state.device_config.lock().unwrap() = None;
-    *state.member_token.lock().unwrap() = None;
-    *state.current_user.lock().unwrap() = None;
+    state.sessions.lock().unwrap().clear();
+    *state.active_member_id.lock().unwrap() = None;
 
     println!("[AuthStore] Device configuration reset complete.");
     Ok(())

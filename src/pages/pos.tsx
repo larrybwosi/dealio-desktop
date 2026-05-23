@@ -22,6 +22,8 @@ import { cn } from '@/lib/utils';
 import posthog from 'posthog-js';
 import { BarcodeScannerDialog } from '../components/barcode-scanner-dialog';
 import { usePosProducts } from '@/hooks/products';
+import { useNavigate } from 'react-router';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '../components/ui/skeleton';
 import { ProductCard } from '@/components/pos/product-card';
 import { ProductListItem } from '@/components/pos/product-list-item';
@@ -31,6 +33,7 @@ import PendingOrdersList from '@/components/orders-list';
 import { useScanner } from '@/hooks/use-scanner';
 import { toast } from 'sonner';
 import { TableSelectorDialog } from '@/components/pos/table-selector-dialog';
+import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Pagination,
@@ -41,6 +44,16 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@/components/ui/pagination';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 // --- TAURI IMPORTS ---
 import { invoke } from '@tauri-apps/api/core';
@@ -58,12 +71,18 @@ export function POS() {
 
   const [pricingMode, setPricingMode] = useState<'retail' | 'wholesale'>('retail');
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [unknownBarcode, setUnknownBarcode] = useState<string | null>(null);
+
+  const navigate = useNavigate();
   const [showTableSelector, setShowTableSelector] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const lastProcessedBarcode = useRef<string | null>(null);
+  const lastScanTime = useRef<number>(0);
 
   // Initialize scanner hook
-  const { startScanner, stopScanner, isConnected, lastScanned, error: scannerError } = useScanner();
+  const { startScanner, stopScanner, isConnected, lastScanned, clearLastScanned, error: scannerError } = useScanner();
+
+  // Shortcuts are now managed centrally in AppLayout
 
   // 2. Fetching Logic
   const { products, isSyncing, triggerSync, totalCount } = usePosProducts({
@@ -152,19 +171,41 @@ export function POS() {
     posthog.capture('pricing_mode_changed', { mode: pricingMode });
   }, [pricingMode]);
 
+  const [showAlternatives, setShowAlternatives] = useState(false);
+  const [selectedProductForAlternatives, setSelectedProductForAlternatives] = useState<any>(null);
+
+  const alternativeProducts = useMemo(() => {
+    if (!selectedProductForAlternatives?.activeIngredient) return [];
+    return products.filter(
+      p =>
+        p.activeIngredient === selectedProductForAlternatives.activeIngredient &&
+        p.productId !== selectedProductForAlternatives.productId
+    );
+  }, [selectedProductForAlternatives, products]);
+
   // 6. Global Keyboard Shortcuts
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
+
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
 
       if (e.key === 'Escape') {
-        setInputValue('');
-        setPage(1);
-        searchInputRef.current?.blur();
+        if (inputValueRef.current) {
+          setInputValue('');
+          setPage(1);
+          searchInputRef.current?.focus();
+        } else {
+          searchInputRef.current?.blur();
+        }
       } else if (e.key.length === 1) {
         if (/[a-zA-Z0-9]/.test(e.key)) {
-          searchInputRef.current?.focus();
+          // If not focused, focus and let the event propagate
+          if (document.activeElement !== searchInputRef.current) {
+             searchInputRef.current?.focus();
+          }
         }
       }
     };
@@ -218,40 +259,38 @@ export function POS() {
 
   // Handle barcode scans
   useEffect(() => {
-    if (!lastScanned || lastScanned === lastProcessedBarcode.current) {
+    if (!lastScanned) return;
+
+    const now = Date.now();
+    // Debounce duplicate scans within 500ms
+    if (lastScanned === lastProcessedBarcode.current && now - lastScanTime.current < 500) {
+      clearLastScanned();
       return;
     }
 
     const processScan = async () => {
-      lastProcessedBarcode.current = lastScanned;
+      const barcode = lastScanned;
+      lastProcessedBarcode.current = barcode;
+      lastScanTime.current = now;
+      clearLastScanned();
 
-      const product = products.find((p: any) => {
-        if (p.barcode === lastScanned) return true;
-        return p.variants?.some((v: any) => v.barcode === lastScanned);
+      // Search across all products, not just the visible ones
+      // Using the backend command for efficiency and correctness
+      const product = await invoke<any>('get_product_by_barcode_command', {
+        barcode,
       });
 
       if (!product) {
-        toast.error('Product Not Found', {
-          description: `No product found with barcode: ${lastScanned}. Try clearing filters if applied.`,
-          duration: 3000,
-        });
+        setUnknownBarcode(barcode);
         return;
       }
 
-      const variant = product.variants?.find((v: any) => v.barcode === lastScanned) || product.variants?.[0];
+      const variant = product.variants?.find((v: any) => v.barcode === barcode) || product.variants?.[0];
 
       if (!variant) {
         toast.error('Invalid Product', {
           description: `Product ${product.productName} has no valid variants`,
-          duration: 3000,
-        });
-        return;
-      }
-
-      if (product.stock <= 0) {
-        toast.warning('Out of Stock', {
-          description: `${product.productName} is currently out of stock`,
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -261,7 +300,7 @@ export function POS() {
       if (!defaultUnit) {
         toast.error('Invalid Product', {
           description: `Product ${product.productName} has no sellable units`,
-          duration: 3000,
+          duration: 2000,
         });
         return;
       }
@@ -277,8 +316,7 @@ export function POS() {
         })),
       };
 
-      // Calculate dynamic price for scanner adding
-      // Note: We use the Rust Command directly here for instantaneous resolution
+      // Calculate dynamic price
       let customPrice: number | null = null;
       try {
         const prices = await invoke<Array<number | null>>('resolve_price_batch_command', {
@@ -298,9 +336,6 @@ export function POS() {
         console.error('Failed to resolve price for scanned item:', err);
       }
 
-      // If custom price, update unit price logic or pass it.
-      // Ideally, addItemToOrder should handle this, but currently it takes unit.price.
-      // We override the price if customPrice found.
       const unitToAdd = {
         ...defaultUnit,
         price: customPrice !== null ? customPrice : defaultUnit.price,
@@ -321,13 +356,13 @@ export function POS() {
 
       toast.success('Added to Cart', {
         description: `${product.productName} (${variant.variantName || 'Default'})`,
-        duration: 2000,
+        duration: 1500,
         icon: <CheckCircle2 className="w-5 h-5" />,
       });
     };
 
     processScan();
-  }, [lastScanned, products, addItemToOrder, pricingMode, currentOrder.customerId]);
+  }, [lastScanned, clearLastScanned, addItemToOrder, pricingMode, currentOrder.customerId]);
 
   useEffect(() => {
     if (scannerError) {
@@ -373,8 +408,13 @@ export function POS() {
               placeholder={businessConfig.type === 'supermarket' ? 'Search products manually...' : 'Search products...'}
               value={inputValue}
               onChange={e => setInputValue(e.target.value)}
-              className="pl-9 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
+              className="pl-9 pr-12 h-9 bg-muted/40 focus:bg-background border-border/60 focus:ring-primary/20 transition-all rounded-full"
             />
+            {!inputValue && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none opacity-50 group-focus-within:opacity-0 transition-opacity">
+                <Kbd>/</Kbd>
+              </div>
+            )}
             {inputValue && (
               <button
                 onClick={clearSearch}
@@ -387,6 +427,48 @@ export function POS() {
 
           {/* Quick Actions (Mode & Sync) */}
           <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+            {/* Pharmacy Specific: Alternatives Button */}
+            {(import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'pharmacy' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showAlternatives ? 'default' : 'outline'}
+                  size="sm"
+                  className={cn(
+                    'gap-2 h-9 rounded-full',
+                    showAlternatives
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  )}
+                  onClick={() => {
+                    if (showAlternatives) {
+                      setShowAlternatives(false);
+                      setSelectedProductForAlternatives(null);
+                    } else {
+                      setShowAlternatives(true);
+                    }
+                  }}
+                >
+                  <Store className="w-4 h-4" />
+                  <span className="text-[10px] uppercase font-bold tracking-wider">
+                    {showAlternatives ? 'Viewing Alternatives' : 'Alternatives'}
+                  </span>
+                </Button>
+
+                {showAlternatives && selectedProductForAlternatives && (
+                  <Badge variant="secondary" className="h-9 px-3 gap-2 bg-emerald-100 text-emerald-800 border-emerald-200 animate-in fade-in slide-in-from-left-2">
+                    <span className="text-[10px] uppercase font-bold opacity-70">For:</span>
+                    <span className="font-bold truncate max-w-[150px]">{selectedProductForAlternatives.name}</span>
+                    <X
+                      className="w-3 h-3 cursor-pointer hover:text-destructive"
+                      onClick={() => {
+                        setShowAlternatives(false);
+                        setSelectedProductForAlternatives(null);
+                      }}
+                    />
+                  </Badge>
+                )}
+              </div>
+            )}
             {/* View Mode Toggle */}
             <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
               <button
@@ -418,7 +500,7 @@ export function POS() {
             <div className="w-px h-6 bg-border/60 mx-1" />
 
             {/* Table Selector */}
-            {businessConfig.features.tableManagement && (
+            {businessConfig.features.tableManagement && import.meta.env.MODE !== 'standalone' && (
               <Button
                 variant={currentOrder.tableNumber ? 'default' : 'outline'}
                 size="sm"
@@ -434,30 +516,32 @@ export function POS() {
             )}
 
             {/* Pricing Toggle */}
-            <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
-              <button
-                onClick={() => setPricingMode('retail')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
-                  pricingMode === 'retail'
-                    ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20'
-                    : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
-                )}
-              >
-                <Store className="w-3.5 h-3.5" /> Retail
-              </button>
-              <button
-                onClick={() => setPricingMode('wholesale')}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
-                  pricingMode === 'wholesale'
-                    ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800'
-                    : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
-                )}
-              >
-                <Truck className="w-3.5 h-3.5" /> Wholesale
-              </button>
-            </div>
+            {(import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'restaurant' && (
+              <div className="bg-muted/40 p-0.5 rounded-lg flex items-center border border-border/60">
+                <button
+                  onClick={() => setPricingMode('retail')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
+                    pricingMode === 'retail'
+                      ? 'bg-background text-foreground shadow-sm ring-1 ring-border/20'
+                      : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                  )}
+                >
+                  <Store className="w-3.5 h-3.5" /> Retail
+                </button>
+                <button
+                  onClick={() => setPricingMode('wholesale')}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-200',
+                    pricingMode === 'wholesale'
+                      ? 'bg-blue-50 text-blue-700 shadow-sm ring-1 ring-blue-100 dark:bg-blue-900/40 dark:text-blue-200 dark:ring-blue-800'
+                      : 'text-muted-foreground hover:bg-background/40 hover:text-foreground'
+                  )}
+                >
+                  <Truck className="w-3.5 h-3.5" /> Wholesale
+                </button>
+              </div>
+            )}
 
             <div className="w-px h-6 bg-border/60 mx-1" />
 
@@ -600,12 +684,22 @@ export function POS() {
                       : 'flex flex-col gap-1.5 w-full'
                   )}
                 >
-                  {products.map(product =>
+                  {(showAlternatives && (import.meta.env.VITE_BUSINESS_MODE || 'retail') === 'pharmacy' && selectedProductForAlternatives
+                    ? alternativeProducts
+                    : products
+                  ).map(product =>
                     viewMode === 'grid' ? (
                       <ProductCard
                         key={product.productId}
                         product={product as any}
-                        onAddToCart={handleAddToCartWrapper}
+                        onAddToCart={item => {
+                          handleAddToCartWrapper(item);
+                          setShowAlternatives(false);
+                          setSelectedProductForAlternatives(null);
+                        }}
+                        onSelectProduct={p => {
+                          setSelectedProductForAlternatives(p);
+                        }}
                         pricingMode={pricingMode}
                         customPriceCalculator={handleGetPrice}
                       />
@@ -613,7 +707,14 @@ export function POS() {
                       <ProductListItem
                         key={product.productId}
                         product={product as any}
-                        onAddToCart={handleAddToCartWrapper}
+                        onAddToCart={item => {
+                          handleAddToCartWrapper(item);
+                          setShowAlternatives(false);
+                          setSelectedProductForAlternatives(null);
+                        }}
+                        onSelectProduct={p => {
+                          setSelectedProductForAlternatives(p);
+                        }}
                         pricingMode={pricingMode}
                         customPriceCalculator={handleGetPrice}
                       />
@@ -715,6 +816,31 @@ export function POS() {
       />
 
       <BarcodeScannerDialog open={showBarcodeScanner} onOpenChange={setShowBarcodeScanner} />
+
+      <AlertDialog open={!!unknownBarcode} onOpenChange={(open) => !open && setUnknownBarcode(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unknown Barcode</AlertDialogTitle>
+            <AlertDialogDescription>
+              Barcode <span className="font-mono font-bold">{unknownBarcode}</span> was not found in the system. Would you like to register a new product for it?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              const barcode = unknownBarcode;
+              setUnknownBarcode(null);
+              navigate('/product-management');
+              // Give it some time to navigate and mount
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('barcode-scanned-for-registration', { detail: { barcode } }));
+              }, 500);
+            }}>
+              Register Product
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,4 +1,6 @@
-use crate::models::{PosProduct, ProductsSyncResponse, ProductSearchResponse};
+use crate::models::{PosProduct, ProductSearchResponse};
+#[cfg(not(feature = "standalone"))]
+use crate::models::ProductsSyncResponse;
 use aes_gcm::{
     aead::{Aead, KeyInit, OsRng},
     Aes256Gcm, Nonce,
@@ -6,17 +8,19 @@ use aes_gcm::{
 use anyhow::Result;
 use log::{error, info};
 use rand::RngCore;
-use reqwest::header::{HeaderMap, HeaderValue};
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
+#[cfg(not(feature = "standalone"))]
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Emitter};
+#[cfg(not(feature = "standalone"))]
+use reqwest::header::{HeaderMap, HeaderValue};
 use tauri_plugin_sql::{DbInstances, DbPool};
-use tokio::fs as async_fs;
 
 use crate::auth_store::AuthState;
 
+#[cfg(not(feature = "standalone"))]
 const TIMEOUT_SECONDS: u64 = 60;
 const MAIN_DB_NAME: &str = "sqlite:pos_main.db";
 
@@ -41,14 +45,20 @@ impl Default for ProductState {
 }
 
 // --- DB Helper ---
-async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
+pub async fn get_db_pool(app: &AppHandle) -> Result<SqlitePool, String> {
     let instances = app.state::<DbInstances>();
     let guard = instances.0.read().await;
 
-    if let Some(DbPool::Sqlite(pool)) = guard.get(MAIN_DB_NAME) {
+    let db_name = if cfg!(feature = "standalone") {
+        "sqlite:pos_standalone.db"
+    } else {
+        MAIN_DB_NAME
+    };
+
+    if let Some(DbPool::Sqlite(pool)) = guard.get(db_name) {
         Ok(pool.clone())
     } else {
-        Err(format!("Database {} not found.", MAIN_DB_NAME))
+        Err(format!("Database {} not found.", db_name))
     }
 }
 
@@ -124,6 +134,12 @@ pub async fn init_state(app: &AppHandle) {
     let _ = sqlx::query(create_products_table).execute(&pool).await;
     let _ = sqlx::query(create_sync_table).execute(&pool).await;
 
+    // Add indexes for performance with tens of thousands of products
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_products_location_category ON products (location_id, category)")
+        .execute(&pool).await;
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS idx_products_location_name ON products (location_id, product_name)")
+        .execute(&pool).await;
+
     let _ = migrate_legacy_files_to_db(app, &pool).await;
 }
 
@@ -162,15 +178,21 @@ async fn migrate_legacy_files_to_db(app: &AppHandle, pool: &SqlitePool) -> Resul
 
 pub(crate) fn build_search_text(product: &PosProduct) -> String {
     let mut terms = vec![product.product_name.to_lowercase()];
+    if let Some(ai) = &product.active_ingredient {
+        terms.push(ai.to_lowercase());
+    }
     for variant in &product.variants {
         terms.push(variant.sku.to_lowercase());
-        if let Some(barcode) = &variant.barcode { terms.push(barcode.to_lowercase()); }
+        if let Some(barcode) = &variant.barcode {
+            terms.push(barcode.to_lowercase());
+        }
         terms.push(variant.variant_name.to_lowercase());
     }
     terms.join(" ")
 }
 
 // --- Helper: Cache Single Image ---
+#[cfg(not(feature = "standalone"))]
 async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     let app_dir = app.path().app_data_dir()?;
     let images_dir = app_dir.join("product_images");
@@ -178,6 +200,7 @@ async fn get_images_dir(app: &AppHandle) -> Result<PathBuf> {
     Ok(images_dir)
 }
 
+#[cfg(not(feature = "standalone"))]
 async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     if url.trim().is_empty() { return None; }
     let clean_name = url.replace("https://", "").replace("http://", "").replace('/', "_").replace(':', "").replace('?', "_");
@@ -188,13 +211,13 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
 
     if file_path.exists() {
         if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
-        let _ = async_fs::remove_file(&file_path).await;
+        let _ = tokio::fs::remove_file(&file_path).await;
     }
 
     match reqwest::get(url).await {
         Ok(resp) if resp.status().is_success() => {
             if let Ok(bytes) = resp.bytes().await {
-                if async_fs::write(&file_path, &bytes).await.is_ok() {
+                if tokio::fs::write(&file_path, &bytes).await.is_ok() {
                     if let Ok(metadata) = tokio::fs::metadata(&file_path).await { if metadata.len() > 0 { return Some(file_path_str); } }
                 }
             }
@@ -204,9 +227,31 @@ async fn cache_image(app: &AppHandle, url: &str) -> Option<String> {
     }
 }
 
-pub async fn load_products_from_disk(_app: &AppHandle, _state: &ProductState, _location_id: &str) -> Result<()> { Ok(()) }
+pub async fn load_products_from_disk(app: &AppHandle, _state: &ProductState, location_id: &str) -> Result<()> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let rows = sqlx::query("SELECT payload FROM products WHERE location_id = ?1")
+        .bind(location_id)
+        .fetch_all(&pool).await?;
+
+    let mut products = Vec::new();
+    for row in rows {
+        let encrypted: Vec<u8> = row.get("payload");
+        if let Ok(product) = decrypt_payload(&encrypted).await {
+            products.push(product);
+        }
+    }
+
+    info!("[ProductStore] Loaded {} products from disk for location {}", products.len(), location_id);
+    // In this architecture, search_local is used to fetch products from DB.
+    // The ProductState struct is a marker for tauri manage.
+    // However, if we need to notify the frontend, we could emit an event.
+    let _ = app.emit("products-loaded", products);
+
+    Ok(())
+}
 
 // --- 2. Sync Engine ---
+#[cfg(not(feature = "standalone"))]
 pub async fn run_sync(
     app: AppHandle,
     _state: &ProductState,
@@ -219,7 +264,7 @@ pub async fn run_sync(
         let config = config_guard.as_ref().ok_or_else(|| anyhow::anyhow!("Device not configured"))?;
         (config.base_url.clone(), config.location_id.clone(), config.device_key.clone())
     };
-    let member_token = auth_state.member_token.lock().map_err(|_| anyhow::anyhow!("Lock error"))?.clone();
+    let member_token = auth_state.get_active_token().map_err(|e| anyhow::anyhow!(e))?;
     if base_url.is_empty() { return Err(anyhow::anyhow!("Base URL is empty")); }
     let target_url = format!("{}/{}", base_url.trim_end_matches('/'), crate::api_config::routes::PRODUCTS);
 
@@ -241,10 +286,33 @@ pub async fn run_sync(
     let v2_resp = response.json::<crate::models::V2Response<ProductsSyncResponse>>().await?;
     let mut res_body = v2_resp.data;
 
-    for product in &mut res_body.products {
+    // Parallelize image caching for better performance
+    let mut image_tasks = Vec::new();
+    for product in &res_body.products {
         if let Some(url) = &product.image_url {
             if !url.starts_with('/') && !url.starts_with("C:") && url.starts_with("http") {
-                product.image_url = cache_image(&app, url).await;
+                let app_handle = app.clone();
+                let url_clone = url.clone();
+                image_tasks.push(tokio::spawn(async move {
+                    (url_clone.clone(), cache_image(&app_handle, &url_clone).await)
+                }));
+            }
+        }
+    }
+
+    let image_results = futures_util::future::join_all(image_tasks).await;
+    let mut image_map = std::collections::HashMap::new();
+    for res in image_results {
+        if let Ok((original_url, cached_path)) = res {
+            image_map.insert(original_url, cached_path);
+        }
+    }
+
+    // Update product image URLs with cached paths
+    for product in &mut res_body.products {
+        if let Some(url) = &product.image_url {
+            if let Some(cached_path) = image_map.get(url) {
+                product.image_url = cached_path.clone();
             }
         }
     }
@@ -305,7 +373,29 @@ pub async fn deduct_stock(
                     if !allow_negative && variant.stock < deducted_qty {
                         return Err(anyhow::anyhow!("Insufficient stock for {}: requested {}, available {}", product.product_name, deducted_qty, variant.stock));
                     }
+
+                    // Pharmacy: Deduct from batches if they exist (FEFO)
+                    if let Some(batches) = variant.batches.as_mut() {
+                        let mut remaining_to_deduct = deducted_qty;
+                        // Sort by expiry date ascending
+                        batches.sort_by(|a, b| a.expiry_date.cmp(&b.expiry_date));
+
+                        for batch in batches.iter_mut() {
+                            if remaining_to_deduct <= 0 { break; }
+                            let deduct_from_batch = remaining_to_deduct.min(batch.stock);
+                            batch.stock -= deduct_from_batch;
+                            remaining_to_deduct -= deduct_from_batch;
+                        }
+
+                        if remaining_to_deduct > 0 && allow_negative {
+                            if let Some(last_batch) = batches.last_mut() {
+                                last_batch.stock -= remaining_to_deduct;
+                            }
+                        }
+                    }
+
                     variant.stock -= deducted_qty;
+
                     if let Some(total) = product.total_stock.as_mut() { *total -= deducted_qty; }
                     updated = true;
                 }
@@ -385,6 +475,7 @@ pub async fn get_products_by_ids(app: &AppHandle, _state: &ProductState, locatio
 }
 
 #[tauri::command]
+#[cfg(not(feature = "standalone"))]
 pub async fn switch_location(
     app: AppHandle,
     state: tauri::State<'_, ProductState>,
@@ -400,4 +491,99 @@ pub async fn switch_location(
         let _ = run_sync(app_clone.clone(), &state_inner, &auth_inner, false).await;
     });
     Ok(cached)
+}
+
+pub async fn create_local_product(app: &AppHandle, state: &ProductState, product: PosProduct) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let search_text = build_search_text(&product);
+    let encrypted_payload = encrypt_payload(&product).await?;
+
+    let location_id = {
+        let auth_state = app.state::<AuthState>();
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_else(|| "standalone".to_string())
+    };
+
+    sqlx::query("INSERT INTO products (product_id, location_id, category, product_name, search_text, payload) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
+        .bind(&product.product_id).bind(&location_id).bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload)
+        .execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, &location_id).await?;
+
+    Ok(product.product_id)
+}
+
+pub async fn update_local_product(app: &AppHandle, state: &ProductState, product: PosProduct) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    let search_text = build_search_text(&product);
+    let encrypted_payload = encrypt_payload(&product).await?;
+
+    let location_id = {
+        let auth_state = app.state::<AuthState>();
+        let config_guard = auth_state.device_config.lock().map_err(|_| anyhow::anyhow!("Lock error"))?;
+        config_guard.as_ref().map(|c| c.location_id.clone()).unwrap_or_else(|| "standalone".to_string())
+    };
+
+    sqlx::query("UPDATE products SET category = ?1, product_name = ?2, search_text = ?3, payload = ?4 WHERE product_id = ?5 AND location_id = ?6")
+        .bind(&product.category).bind(&product.product_name).bind(search_text).bind(encrypted_payload).bind(&product.product_id).bind(&location_id)
+        .execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, &location_id).await?;
+
+    Ok(product.product_id)
+}
+
+pub async fn delete_local_product(app: &AppHandle, state: &ProductState, product_id: &str, location_id: &str) -> Result<String> {
+    let pool = get_db_pool(app).await.map_err(|e| anyhow::anyhow!(e))?;
+    sqlx::query("DELETE FROM products WHERE product_id = ?1 AND location_id = ?2").bind(product_id).bind(location_id).execute(&pool).await?;
+
+    // Refresh memory
+    load_products_from_disk(app, state, location_id).await?;
+
+    Ok(product_id.to_string())
+}
+
+pub async fn get_product_by_barcode(
+    app: AppHandle,
+    _state: tauri::State<'_, ProductState>,
+    auth_state: tauri::State<'_, AuthState>,
+    barcode: String,
+) -> Result<Option<PosProduct>, String> {
+    let pool = get_db_pool(&app).await?;
+    let location_id = {
+        let config_guard = auth_state
+            .device_config
+            .lock()
+            .map_err(|_| "Lock error".to_string())?;
+        config_guard
+            .as_ref()
+            .map(|c| c.location_id.clone())
+            .unwrap_or_else(|| "standalone".to_string())
+    };
+
+    let query = "SELECT payload FROM products WHERE location_id = ?1 AND search_text LIKE ?2";
+    let like_barcode = format!("%{}%", barcode.to_lowercase());
+
+    let rows = sqlx::query(query)
+        .bind(&location_id)
+        .bind(&like_barcode)
+        .fetch_all(&pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    for row in rows {
+        let encrypted: Vec<u8> = row.get("payload");
+        if let Ok(product) = decrypt_payload(&encrypted).await {
+            // Precise check within the decrypted product variants to avoid partial matches in search_text
+            for variant in &product.variants {
+                if variant.barcode == Some(barcode.clone()) {
+                    return Ok(Some(product));
+                }
+            }
+        }
+    }
+
+    Ok(None)
 }
